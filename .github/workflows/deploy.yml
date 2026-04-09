@@ -1,0 +1,63 @@
+name: Deploy to GitHub Pages
+
+on:
+  # Deploy on push to main (production) or the active feature branch (preview).
+  # When we're ready to cut a real release, we'll merge to main and drop the
+  # feature-branch trigger.
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  # Allow manual runs from the Actions tab
+  workflow_dispatch:
+
+# Allow only one deploy at a time; skip any queued runs behind a new push
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+# Minimum permissions needed to publish to Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          GITHUB_ACTIONS: 'true'
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

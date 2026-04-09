@@ -1,0 +1,18 @@
+{
+  "name": "math-warriors",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An educational RPG for kids K-5. Explore, fight, and learn math.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}
