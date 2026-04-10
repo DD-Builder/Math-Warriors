@@ -1,6 +1,42 @@
 # Math Warriors — Art Style Guide
 
-**Status:** Draft. This is where we define the visual direction for each level. Currently mostly open questions — you (DD-Builder) need to drive this.
+**Status:** Draft with live references. DD-Builder supplied the first batch of visual references on day 1; this doc is now tracking those plus the implications for gameplay.
+
+---
+
+## Reference boards
+
+### Board 1 — DD-Builder's initial papercut references
+
+Four images shared in conversation that lock in the target bar for what "papercut" means in this game. These are *not* the prototype's flat polygon look — they're genuine multi-layer dioramas with depth, lighting, and dramatic framing.
+
+**Reference A — "Dark mountain diorama with crescent moon"**
+- Source: storage.googleapis.com (wallpaper / reference find)
+- Dark stage with layered paper mountains (teal), warm coral bushes, cream castle, crescent moon, paper clouds, small bird silhouettes
+- Dominant palette: charcoal background, teal + coral + cream accents, warm orange highlights
+- Mood: cinematic, dramatic, "final act"
+- **Assignment: Floor 5 — The Mending Room** (the final floor deserves this weight)
+
+**Reference B — "Round-framed forest with butterflies"**
+- Source: DuckDuckGo image search, "papercut art"
+- Round organic frame with layered green waves cut into hills; butterflies, flowers, trees inside; mint green background
+- Dominant palette: soft greens, rose pink, coral, cream
+- Mood: bright, whimsical, approachable, unmistakably for kids
+- **Assignment: Floor 1 — The Garden** (this is exactly right for addition / first floor)
+
+**Reference C — "Dark archway with glowing castle"**
+- Source: DuckDuckGo image search, "papercut art"
+- Dark silhouette trees framing an arched portal; glowing warm lantern light drawing the eye to a central castle
+- Dominant palette: near-black silhouette, warm gold glow, amber highlights
+- Mood: dramatic, mysterious, stage-lit
+- **Assignment: Reference for battle background framing in ALL levels** — the glow-in-the-center composition tells us how to light a battle so heroes and enemy read clearly
+
+**Reference D — "Monochrome cream forest arch"**
+- Source: freepik.com
+- Cream / white papercut trees framing a circular arch, distant castle, small blue water, birds
+- Dominant palette: warm cream / white with subtle blue water, no saturation
+- Mood: elegant, calm, music-box
+- **Assignment: Title screen + menu backgrounds** — evokes the "open the storybook" moment before play begins
 
 ---
 
@@ -9,6 +45,16 @@
 **Each floor feels like a different kind of game.** Instead of one unified art style across all five floors, every level gets its own distinct aesthetic. The player literally walks into a new visual world each time they complete a floor.
 
 This is our single biggest differentiator in the educational game space — most kids' games pick one style and stick with it.
+
+## The diorama-as-stage framing device
+
+All four reference images share one thing: a **framing device** — a window, arch, or round portal — that presents the scene as something you're *peering into*. This isn't decoration; it's the core metaphor.
+
+**Gameplay implication:** we treat every encounter as a stage inside a diorama box, not a flat background behind flat sprites.
+
+- **Battle scene layout:** Heroes and enemy stand on a "stage floor" in front of a layered papercut backdrop. A decorative frame (arch / window / torn paper edge) vignettes the edges of the playfield. The HUD (momentum bar, answer buttons) lives *outside* the frame, like theater curtains or program notes.
+- **Maze → battle transition:** Walking into an enemy on the top-down maze triggers a camera zoom into the player's tile, then a curtain-pull transition into the battle diorama. Reinforces "stepping into a scene."
+- **Lighting:** Each diorama has a clear light source — moon, lantern, sun, glow — that draws the eye to the center. Heroes and enemies read as silhouettes against that light. This matters for gameplay clarity as much as style.
 
 ## Why it works
 
@@ -23,11 +69,11 @@ This is our single biggest differentiator in the educational game space — most
 
 **Mitigation:** Pick one reference image per level. Generate all assets for that level using the same reference + style prompt. Lock the palette before producing any sprites. Reject anything that doesn't match.
 
-## Style buckets (first-pass proposal)
+## Style buckets (updated with Board 1 references)
 
 These are suggestions. You can change any of them.
 
-### Floor 1 — The Garden — **Papercut diorama**
+### Floor 1 — The Garden — **Papercut diorama (Reference B)**
 - **Reference:** Eric Carle books, *Creature Comforts*, papercut animation like *The Secret of Kells*
 - **Palette:** Warm greens, cream paper, deep shadow, spot color in rose and gold
 - **Textures:** Visible paper grain, torn edges, layered depth
@@ -55,12 +101,21 @@ These are suggestions. You can change any of them.
 - **Feel:** Retro, dangerous, determined
 - **Why here:** Division is sharp and precise; pixel art's hard edges reinforce the cutting metaphor
 
-### Floor 5 — The Mending Room — **3D rendered / painterly**
-- **Reference:** *Pikmin*, *Spiritfarer*, *Ori and the Blind Forest*
-- **Palette:** Deep purples, gold accents, warm highlights, midnight backgrounds
-- **Textures:** Painted surfaces, volumetric lighting, ethereal glow
-- **Feel:** Final, important, beautiful
-- **Why here:** The last level should feel *different* from everything before — graduating from 2D to rendered 3D signals "this is the climax"
+### Floor 5 — The Mending Room — **Papercut diorama, cinematic (Reference A)**
+- **Reference:** Board 1 Reference A — the dark mountain/castle/moon diorama
+- **Palette:** Deep charcoal background, teal mountains, coral accents, cream castle, crescent moonlight
+- **Textures:** Deep-layered paper with strong silhouettes; moonlight as the only major light source
+- **Feel:** Cinematic, dramatic, "the final act"
+- **Why here:** Returning to papercut for the final floor bookends the journey. The player started in Floor 1's bright whimsical garden and ends in the same medium but now it's *cinematic*. Same art language, grown up. This is more interesting than jumping to a new style because it shows how the world *matured* alongside the player.
+
+### Battle scene framing — applies to ALL floors — **Reference C**
+- **Reference:** Board 1 Reference C — the dark archway with glowing castle
+- **Lesson:** Every battle background needs a central light source that pulls the eye to the middle of the stage. Heroes and enemies stand *in front of* that light so they read as clear silhouettes against a hot center.
+- **Implementation note:** The specific backdrop changes per floor, but the *lighting composition* (dark edges, warm center glow) stays consistent. This is how we keep combat readable while letting the art direction shift.
+
+### Title screen — **Reference D**
+- **Reference:** Board 1 Reference D — the monochrome cream forest arch
+- **Lesson:** The title screen is the "open the storybook" moment. Calm, elegant, not loud. Lets the logo breathe.
 
 ## Cross-cutting elements
 
@@ -106,7 +161,9 @@ Once the pipeline works and the game is *playable*, we replace placeholder art w
 ## Open questions
 
 1. **Do we commit to style variety across all 5 levels, or do we prove it on 1–2 and reassess?**
+   *Current plan:* Floor 1 (whimsical papercut) and Floor 5 (cinematic papercut) now share a medium but very different moods. Floors 2–4 are still the clay / sketch / pixel plan. Worth revisiting once Floor 1 is real.
 2. **Who produces the art?** AI gen by Claude + you directing? A hired artist per level? Mix?
 3. **Hero consistency strategy** — one true look, re-style per level, or overlay?
 4. **Font choice** — Press Start 2P is the prototype default but might be too "retro" for the kid audience. Worth exploring friendlier fonts.
 5. **Audio style per level** — does each floor get its own music genre too? (Probably yes — it's as cheap as the art variety and doubles the effect.)
+6. **Diorama frame per level** — does every floor get its own frame shape (round for garden, arched for mending room, cracked for ember caves)? Or is there one consistent frame? *Leaning:* one consistent frame that tints/weathers per level for unity.
