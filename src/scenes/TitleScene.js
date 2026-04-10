@@ -124,30 +124,17 @@ export class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * Called when the player taps START. In v0.1 this just shows a toast
-   * to prove the button works. In v0.2 it'll transition to GradeSelectScene.
+   * Called when the player taps START. v0.2 jumps directly into a battle
+   * with a default party and a random Floor 1 enemy. Later milestones will
+   * put grade-select, party-select, and world-map in between.
    */
   onStart() {
-    // Placeholder: show a quick message. Replace with a scene transition
-    // once GradeSelectScene exists.
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT - 80;
-
-    const toast = this.add.text(cx, cy, 'NEXT UP: Grade Select (v0.2)', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '24px',
-      color: COLORS_CSS.goldL,
-      backgroundColor: '#1a0e04',
-      padding: { x: 20, y: 10 },
-    }).setOrigin(0.5).setAlpha(0);
-
-    this.tweens.add({
-      targets: toast,
-      alpha: 1,
-      duration: 200,
-      yoyo: true,
-      hold: 1500,
-      onComplete: () => toast.destroy(),
+    this.cameras.main.fadeOut(300, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start(SCENES.BATTLE, {
+        floor: 1,
+        grade: 3,
+      });
     });
   }
 }

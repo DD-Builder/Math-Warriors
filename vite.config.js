@@ -7,7 +7,10 @@ export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/Math-Warriors/' : '/',
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Source maps disabled in production to keep build memory under control.
+    // Enable with `VITE_SOURCEMAP=1 npm run build` if you need to debug a
+    // production issue locally.
+    sourcemap: process.env.VITE_SOURCEMAP === '1',
     // Phaser is a ~1.4 MB dep on its own; the warning about it is expected.
     chunkSizeWarningLimit: 1600,
     // Split Phaser into its own chunk for better caching across builds.

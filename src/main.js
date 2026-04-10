@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS, SCENES } from './config.js';
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
+import { BattleScene } from './scenes/BattleScene.js';
 
 // Dismiss the HTML loading indicator once Phaser is ready to take over.
 const loadingEl = document.getElementById('loading');
@@ -27,7 +28,7 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [BootScene, TitleScene],
+  scene: [BootScene, TitleScene, BattleScene],
 };
 
 const game = new Phaser.Game(config);
