@@ -318,29 +318,16 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   enterFloor(floorId) {
-    // Rehydrate party from save (with persistent HP)
-    const party = [];
-    for (const saved of this.save.party) {
-      if (!saved || !saved.id) continue;
-      const hero = spawnHero(saved.id);
-      if (hero) {
-        hero.hp = saved.hp ?? hero.maxHp;
-        party.push(hero);
-      }
-    }
-    if (party.length === 0) {
-      // No saved party — bounce to party select
+    // Must have a party to enter a floor
+    const haveParty = this.save.party && this.save.party.length >= 3;
+    if (!haveParty) {
       this.scene.start(SCENES.PARTY_SELECT, { grade: this.save.grade });
       return;
     }
 
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.BATTLE, {
-        party,
-        floor: floorId,
-        grade: this.save.grade,
-      });
+      this.scene.start(SCENES.MAZE, { floor: floorId });
     });
   }
 }

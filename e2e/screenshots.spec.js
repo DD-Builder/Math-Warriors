@@ -64,8 +64,26 @@ test('capture all scene screenshots', async ({ page }) => {
   await page.waitForTimeout(700);
   await page.screenshot({ path: 'e2e/screenshots/04-world-map.png' });
 
+  // Maze (Floor 1)
+  await page.evaluate(() => window.__MW.game.scene.start('MazeScene', { floor: 1 }));
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: 'e2e/screenshots/05-maze-start.png' });
+
+  // Maze after exploring a bit
+  await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('MazeScene');
+    // Reveal more of the maze
+    for (let y = 1; y < 14; y++) {
+      for (let x = 1; x < 14; x++) {
+        s.revealFog(x, y, 0);
+      }
+    }
+  });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/screenshots/06-maze-revealed.png' });
+
   // Battle
   await page.evaluate(() => window.__MW.game.scene.start('BattleScene', { floor: 1, grade: 3 }));
   await page.waitForTimeout(1200);
-  await page.screenshot({ path: 'e2e/screenshots/05-battle.png' });
+  await page.screenshot({ path: 'e2e/screenshots/07-battle.png' });
 });

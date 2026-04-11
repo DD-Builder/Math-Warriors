@@ -69,6 +69,14 @@ export class BattleScene extends Phaser.Scene {
     this.floor = data?.floor ?? 1;
     this.grade = data?.grade ?? 3;
     this.operator = FLOOR_OPERATORS[this.floor] ?? '+';
+    this.isBoss = !!data?.isBoss;
+
+    // Return destination — set by MazeScene when it triggers a battle.
+    // Undefined means "came from somewhere that isn't the maze"
+    // (direct from World Map or from scene test harness), in which case
+    // victory goes back to World Map.
+    this.returnScene = this.registry.get('battleReturnScene') || SCENES.WORLD_MAP;
+    this.returnData = this.registry.get('battleReturnData') || null;
 
     this.momentum = 0.5;
     this.streak = 0;
@@ -324,7 +332,12 @@ export class BattleScene extends Phaser.Scene {
       audio.play('ui/confirm');
       this.cameras.main.fadeOut(250, 0, 0, 0);
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start(SCENES.WORLD_MAP);
+        // Clear the return hint so a subsequent direct-from-WorldMap
+        // battle doesn't inherit this routing
+        this.registry.remove('battleReturnScene');
+        this.registry.remove('battleReturnData');
+        this.registry.remove('battleIsBoss');
+        this.scene.start(this.returnScene, this.returnData || undefined);
       });
     });
 
@@ -679,10 +692,20 @@ export class BattleScene extends Phaser.Scene {
       save.party[i].maxHp = this.party[i].maxHp;
     }
 
-    // v0.4 STUB: mark the floor complete on any battle win. When the
-    // maze scene arrives (v0.5), this shifts to "floor complete only
-    // after defeating the boss at the end of the maze."
-    markFloorComplete(save, this.floor);
+    // v0.5: mark floor complete only when a boss is defeated. Regular
+    // encounters just add gold and persist HP. If we came directly from
+    // the world map (no maze), we treat any win as a floor complete so
+    // the progression still works if the player is using the fast path.
+    if (this.isBoss || this.returnScene === SCENES.WORLD_MAP) {
+      markFloorComplete(save, this.floor);
+      // Mark the boss as defeated in the maze state so the exit opens
+      const mazeKey = `mazeState_${this.floor}`;
+      const mazeState = this.registry.get(mazeKey);
+      if (mazeState) {
+        mazeState.bossDefeated = true;
+        this.registry.set(mazeKey, mazeState);
+      }
+    }
 
     writeSave(save);
 

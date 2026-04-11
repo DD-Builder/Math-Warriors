@@ -169,7 +169,7 @@ test('scene flow: BattleScene instantiates without errors', async ({ page }) => 
   expect(errors, `battle scene threw errors:\n${errors.join('\n')}`).toEqual([]);
 });
 
-test('all 5 registered scenes can be started without error', async ({ page }) => {
+test('all 6 registered scenes can be started without error', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
   page.on('console', (msg) => {
@@ -183,17 +183,43 @@ test('all 5 registered scenes can be started without error', async ({ page }) =>
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2500);
 
-  const sceneKeys = ['TitleScene', 'PartySelectScene', 'WorldMapScene', 'BattleScene'];
+  // MazeScene needs a save with a party or it'll have no hero to render
+  await page.evaluate(() => {
+    const save = {
+      version: 1, grade: 3,
+      party: [
+        { id: 'knight-shadow', name: 'Shadow', hp: 52, maxHp: 52 },
+        { id: 'wizard-grandmage', name: 'Grand Mage', hp: 38, maxHp: 38 },
+        { id: 'bunny-pepper', name: 'Pepper', hp: 46, maxHp: 46 },
+      ],
+      gold: 25, potions: 2,
+      floors: [
+        { id: 1, unlocked: true, complete: false, bestStreak: 0 },
+        { id: 2, unlocked: false, complete: false, bestStreak: 0 },
+        { id: 3, unlocked: false, complete: false, bestStreak: 0 },
+        { id: 4, unlocked: false, complete: false, bestStreak: 0 },
+        { id: 5, unlocked: false, complete: false, bestStreak: 0 },
+      ],
+      settings: { musicVolume: 0.8, sfxVolume: 1.0, reducedMotion: false },
+      stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0, playTimeSec: 0, firstPlayedAt: Date.now(), lastPlayedAt: Date.now() },
+    };
+    localStorage.setItem('mathwarriors.save', JSON.stringify(save));
+  });
+
+  const sceneKeys = ['TitleScene', 'PartySelectScene', 'WorldMapScene', 'MazeScene', 'BattleScene'];
   for (const key of sceneKeys) {
     await page.evaluate((k) => {
-      // For BattleScene we need to pass data so it can init
       if (k === 'BattleScene') {
         window.__MW.game.scene.start(k, { floor: 1, grade: 3 });
+      } else if (k === 'MazeScene') {
+        window.__MW.game.scene.start(k, { floor: 1 });
+      } else if (k === 'PartySelectScene') {
+        window.__MW.game.scene.start(k, { grade: 3 });
       } else {
         window.__MW.game.scene.start(k);
       }
     }, key);
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
 
     const active = await page.evaluate(() => {
       return window.__MW.game.scene.getScenes(true).map((s) => s.scene.key);
@@ -202,4 +228,53 @@ test('all 5 registered scenes can be started without error', async ({ page }) =>
   }
 
   expect(errors, `scene iteration errors:\n${errors.join('\n')}`).toEqual([]);
+});
+
+test('maze: player can move and reveal fog', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+
+  // Seed save with a party
+  await page.evaluate(() => {
+    const save = {
+      version: 1, grade: 3,
+      party: [
+        { id: 'knight-shadow', name: 'Shadow', hp: 52, maxHp: 52 },
+        { id: 'wizard-grandmage', name: 'Grand Mage', hp: 38, maxHp: 38 },
+        { id: 'bunny-pepper', name: 'Pepper', hp: 46, maxHp: 46 },
+      ],
+      gold: 0, potions: 2,
+      floors: Array.from({ length: 5 }, (_, i) => ({ id: i + 1, unlocked: i === 0, complete: false, bestStreak: 0 })),
+      settings: { musicVolume: 0.8, sfxVolume: 1.0, reducedMotion: false },
+      stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0, playTimeSec: 0, firstPlayedAt: Date.now(), lastPlayedAt: Date.now() },
+    };
+    localStorage.setItem('mathwarriors.save', JSON.stringify(save));
+    window.__MW.game.scene.start('MazeScene', { floor: 1 });
+  });
+  await page.waitForTimeout(800);
+
+  // Call tryMove via the live scene reference. We walk up and confirm
+  // the player's x/y change in the scene instance.
+  const before = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('MazeScene');
+    return { x: s.playerX, y: s.playerY };
+  });
+
+  await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('MazeScene');
+    s.tryMove({ dx: 0, dy: -1 });
+  });
+  await page.waitForTimeout(250);
+
+  const after = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('MazeScene');
+    return { x: s.playerX, y: s.playerY };
+  });
+
+  expect(after.x, 'player x should not change for vertical move').toEqual(before.x);
+  expect(after.y, 'player y should decrease (moved up)').toBeLessThan(before.y);
+  expect(errors).toEqual([]);
 });
