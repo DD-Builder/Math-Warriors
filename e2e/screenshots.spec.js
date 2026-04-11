@@ -54,6 +54,11 @@ test('capture all scene screenshots', async ({ page }) => {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: 'e2e/screenshots/02-title-with-save.png' });
 
+  // Grade select
+  await page.evaluate(() => window.__MW.game.scene.start('GradeSelectScene'));
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: 'e2e/screenshots/02b-grade-select.png' });
+
   // Party select
   await page.evaluate(() => window.__MW.game.scene.start('PartySelectScene', { grade: 3 }));
   await page.waitForTimeout(700);

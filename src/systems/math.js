@@ -204,6 +204,11 @@ function generateDistractors(answer) {
  * @param {string} [opts.operator]  One of '+', '-', '*', '/', 'mixed'.
  *                                  If 'mixed' or omitted, random from grade.
  * @param {number} [opts.grade]     0-5, defaults to 3.
+ * @param {number} [opts.streak]    Correct-answer streak. Positive values
+ *                                  nudge difficulty up (toward the ceiling
+ *                                  of the grade); negative/zero pull it
+ *                                  back toward easier questions after a
+ *                                  losing streak.
  * @returns {Question}
  *
  * @typedef {object} Question
@@ -216,18 +221,31 @@ function generateDistractors(answer) {
  */
 export function generateQuestion(opts = {}) {
   const grade = clampGrade(opts.grade ?? 3);
-  const table = GRADE_TABLE[grade];
-  const op = resolveOperator(opts.operator, table);
+  const baseTable = GRADE_TABLE[grade];
+  const streak = opts.streak ?? 0;
 
+  // Adaptive difficulty: shift the operand range within this grade based
+  // on the streak. A 3-in-a-row correct streak nudges the range up by
+  // ~25%; a 2+ wrong streak pulls it down toward the floor. Still clamped
+  // to the grade's overall bounds — a K student never sees grade-5 math.
+  const adjFactor = Math.max(-0.5, Math.min(0.5, streak * 0.08));
+  const range = baseTable.maxOperand - baseTable.minOperand;
+  const adjMax = Math.max(baseTable.minOperand + 1, Math.round(baseTable.maxOperand - range * Math.max(0, -adjFactor)));
+  const adjMin = Math.min(adjMax - 1, Math.round(baseTable.minOperand + range * Math.max(0, adjFactor) * 0.5));
+  const table = {
+    ops: baseTable.ops,
+    minOperand: Math.max(baseTable.minOperand, adjMin),
+    maxOperand: Math.min(baseTable.maxOperand, adjMax),
+  };
+
+  const op = resolveOperator(opts.operator, table);
   const gen = OPERATOR_GENERATORS[op];
   if (!gen) {
-    // Should be unreachable because resolveOperator guarantees a valid op.
     throw new Error(`math.generateQuestion: no generator for operator "${op}"`);
   }
 
   const { a, b, answer } = gen(table);
 
-  // Safety assertions — these are contract bugs if any fail
   if (!Number.isFinite(answer) || answer < 0 || !Number.isInteger(answer)) {
     throw new Error(`math.generateQuestion: invalid answer ${answer} from ${a} ${op} ${b}`);
   }

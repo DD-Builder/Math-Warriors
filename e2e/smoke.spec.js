@@ -206,7 +206,7 @@ test('all 6 registered scenes can be started without error', async ({ page }) =>
     localStorage.setItem('mathwarriors.save', JSON.stringify(save));
   });
 
-  const sceneKeys = ['TitleScene', 'PartySelectScene', 'WorldMapScene', 'MazeScene', 'BattleScene'];
+  const sceneKeys = ['TitleScene', 'GradeSelectScene', 'PartySelectScene', 'WorldMapScene', 'MazeScene', 'BattleScene'];
   for (const key of sceneKeys) {
     await page.evaluate((k) => {
       if (k === 'BattleScene') {

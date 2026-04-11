@@ -175,6 +175,42 @@ describe('generateQuestion — contract invariants', () => {
   });
 });
 
+describe('adaptive difficulty via streak', () => {
+  test('positive streak does not break generation', () => {
+    for (const streak of [1, 3, 5, 10, 25, 100]) {
+      for (let i = 0; i < 200; i++) {
+        const q = generateQuestion({ grade: 3, streak });
+        assertValidQuestion(q, `streak ${streak} iter ${i}`);
+      }
+    }
+  });
+
+  test('negative streak does not break generation', () => {
+    for (const streak of [-1, -3, -10]) {
+      for (let i = 0; i < 200; i++) {
+        const q = generateQuestion({ grade: 3, streak });
+        assertValidQuestion(q, `neg streak ${streak} iter ${i}`);
+      }
+    }
+  });
+
+  test('streak 0 behaves like no streak', () => {
+    // Can't assert exact output because of random, just assert no throw
+    for (let i = 0; i < 100; i++) {
+      const q = generateQuestion({ grade: 3, streak: 0 });
+      assertValidQuestion(q);
+    }
+  });
+
+  test('high streak in K still only uses K operators', () => {
+    for (let i = 0; i < 500; i++) {
+      const q = generateQuestion({ grade: 0, streak: 50 });
+      assertValidQuestion(q);
+      assert.ok(['+', '-'].includes(q.op), `K with streak produced op ${q.op}`);
+    }
+  });
+});
+
 describe('GRADE_TABLE', () => {
   test('every grade 0-5 is defined', () => {
     for (let g = 0; g <= 5; g++) {

@@ -95,6 +95,16 @@ export class BattleScene extends Phaser.Scene {
 
     audio.playMusic('music/battle');
 
+    // Show a one-time tutorial toast on the very first battle. Uses
+    // the save's totalBattles stat to decide — if this player has
+    // never finished a battle, prime them.
+    const save = loadSave();
+    if ((save.stats.totalBattles ?? 0) === 0) {
+      this.time.delayedCall(700, () => {
+        this.showToast('Tap the right answer to attack!', COLORS_CSS.goldL);
+      });
+    }
+
     // Fade in
     this.cameras.main.fadeIn(250, 0, 0, 0);
     this.time.delayedCall(400, () => this.nextTurn());
@@ -288,6 +298,24 @@ export class BattleScene extends Phaser.Scene {
       this.answerButtons.push({ bg, label, baseColor: btnColors[i] });
     }
 
+    // Potion button — top-right of UI panel. Tapping heals the active
+    // hero for 25 HP. Skips the rest of the current turn so the enemy
+    // gets to attack in response (costs a turn to use, like the prototype
+    // was supposed to do).
+    const potionX = GAME_WIDTH - 140;
+    const potionY = uiTop + 20;
+    const potionBg = this.add.rectangle(potionX, potionY, 220, 50, 0x2c7848)
+      .setStrokeStyle(3, COLORS.ink)
+      .setInteractive({ useHandCursor: true });
+    this.potionLabel = this.add.text(potionX, potionY, '', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '14px',
+      color: COLORS_CSS.paper,
+    }).setOrigin(0.5);
+    this.potionBg = potionBg;
+    potionBg.on('pointerdown', () => this.usePotion());
+    this.refreshPotionButton();
+
     // Toast
     this.toast = this.add.text(GAME_WIDTH / 2, uiTop - 40, '', {
       fontFamily: '"Fredoka One", cursive',
@@ -373,10 +401,12 @@ export class BattleScene extends Phaser.Scene {
     this.turnLabel.setText(`${hero.name}'s turn — answer the question!`);
     this.phase = 'question';
     this.locked = false;
+    this.refreshPotionButton();
 
     this.currentQuestion = generateQuestion({
       operator: this.operator,
       grade: this.grade,
+      streak: this.streak,
     });
 
     this.questionText.setText(formatQuestion(this.currentQuestion));
@@ -402,6 +432,7 @@ export class BattleScene extends Phaser.Scene {
     this.questionText.setText('');
     this.phase = 'enemy';
     this.locked = true;
+    this.refreshPotionButton();
 
     for (let i = 0; i < 4; i++) {
       this.answerButtons[i].bg.setAlpha(0.3);
@@ -502,6 +533,56 @@ export class BattleScene extends Phaser.Scene {
 
     // Snappy turn advance — was 900ms in v0.2, now 550ms per principle #3
     this.time.delayedCall(550, () => this.nextTurn());
+  }
+
+  // ================================================================
+  // POTION
+  // ================================================================
+
+  refreshPotionButton() {
+    if (!this.potionLabel) return;
+    const save = loadSave();
+    const count = save.potions || 0;
+    this.potionLabel.setText(`\u{1F9EA} POTION (${count})`);
+    const canUse = count > 0 && this.phase === 'question';
+    this.potionBg.setFillStyle(canUse ? 0x2c7848 : 0x3a3a3a);
+    this.potionBg.setAlpha(canUse ? 1 : 0.6);
+  }
+
+  usePotion() {
+    if (this.phase !== 'question' || this.locked) return;
+
+    const save = loadSave();
+    if ((save.potions || 0) <= 0) {
+      this.showToast('No potions left!', COLORS_CSS.scarletL);
+      return;
+    }
+
+    // Heal the active hero
+    const activeHero = this.party[this.currentTurn?.heroIndex ?? 0];
+    if (!activeHero) return;
+    const healAmount = 25;
+    const before = activeHero.hp;
+    activeHero.hp = Math.min(activeHero.maxHp, activeHero.hp + healAmount);
+    const actualHealed = activeHero.hp - before;
+
+    save.potions -= 1;
+    writeSave(save);
+
+    audio.play('battle/heal');
+    this.showToast(`+${actualHealed} HP`, COLORS_CSS.greenL);
+    this.floatDamageNumber(
+      this.heroSprites[this.party.indexOf(activeHero)].x,
+      this.heroSprites[this.party.indexOf(activeHero)].y - 80,
+      actualHealed,
+      '#40ff60',
+    );
+    this.updateHeroHp(activeHero);
+    this.refreshPotionButton();
+
+    // Using a potion costs your turn — skip straight to the enemy's
+    this.locked = true;
+    this.time.delayedCall(600, () => this.nextTurn());
   }
 
   // ================================================================

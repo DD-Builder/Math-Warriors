@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS, SCENES } from './config.js';
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
+import { GradeSelectScene } from './scenes/GradeSelectScene.js';
 import { PartySelectScene } from './scenes/PartySelectScene.js';
 import { WorldMapScene } from './scenes/WorldMapScene.js';
 import { MazeScene } from './scenes/MazeScene.js';
@@ -32,7 +33,7 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [BootScene, TitleScene, PartySelectScene, WorldMapScene, MazeScene, BattleScene],
+  scene: [BootScene, TitleScene, GradeSelectScene, PartySelectScene, WorldMapScene, MazeScene, BattleScene],
 };
 
 const game = new Phaser.Game(config);

@@ -132,9 +132,7 @@ export class TitleScene extends Phaser.Scene {
   onNewGame() {
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.PARTY_SELECT, {
-        grade: this.save.grade ?? 3,
-      });
+      this.scene.start(SCENES.GRADE_SELECT);
     });
   }
 
