@@ -182,29 +182,46 @@ export class WorldMapScene extends Phaser.Scene {
       { id: 5, name: 'MENDING ROOM',    op: '\u221e', color: 0x8830b8, tagline: 'All Ops' },
     ];
 
-    // Draw paths between nodes first (behind the nodes)
+    // Draw paths between nodes first (behind the nodes). Phaser.Graphics
+    // doesn't have quadraticCurveTo like Canvas 2D does, so we sample the
+    // bezier curve ourselves and stroke a polyline through the points.
     const pathGfx = this.add.graphics();
+    const sampleBezier = (ax, ay, cx, cy, bx, by, steps) => {
+      const pts = [];
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const u = 1 - t;
+        pts.push({
+          x: u * u * ax + 2 * u * t * cx + t * t * bx,
+          y: u * u * ay + 2 * u * t * cy + t * t * by,
+        });
+      }
+      return pts;
+    };
+    const strokePolyline = (gfx, pts) => {
+      if (pts.length < 2) return;
+      gfx.beginPath();
+      gfx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) gfx.lineTo(pts[i].x, pts[i].y);
+      gfx.strokePath();
+    };
+
     for (let i = 0; i < nodePositions.length - 1; i++) {
       const from = nodePositions[i];
       const to = nodePositions[i + 1];
       const fromSave = this.save.floors[i];
       const active = fromSave?.complete;
 
-      pathGfx.lineStyle(8, active ? COLORS.gold : 0x3a2810, 0.9);
-      pathGfx.beginPath();
       const midX = (from.x + to.x) / 2;
       const midY = (from.y + to.y) / 2 - 40;
-      pathGfx.moveTo(from.x, from.y);
-      pathGfx.quadraticCurveTo(midX, midY, to.x, to.y);
-      pathGfx.strokePath();
+      const pts = sampleBezier(from.x, from.y, midX, midY, to.x, to.y, 32);
+
+      pathGfx.lineStyle(8, active ? COLORS.gold : 0x3a2810, 0.9);
+      strokePolyline(pathGfx, pts);
 
       if (active) {
-        // Bright inner line
         pathGfx.lineStyle(3, 0xffe080, 0.9);
-        pathGfx.beginPath();
-        pathGfx.moveTo(from.x, from.y);
-        pathGfx.quadraticCurveTo(midX, midY, to.x, to.y);
-        pathGfx.strokePath();
+        strokePolyline(pathGfx, pts);
       }
     }
 

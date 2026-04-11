@@ -39,10 +39,10 @@ const game = new Phaser.Game(config);
 // Wire the audio manager to the game instance.
 audio.init(game);
 
-// Expose for debugging from browser devtools only.
-if (import.meta.env && import.meta.env.DEV) {
-  window.__MW = { game, scenes: SCENES };
-}
+// Expose the game on the window for devtools debugging and e2e testing.
+// Not considered a security risk — this is a client-side game with no
+// secrets to protect.
+window.__MW = { game, scenes: SCENES };
 
 // Hide the HTML loading overlay once the first scene reports ready.
 game.events.once('ready', () => {

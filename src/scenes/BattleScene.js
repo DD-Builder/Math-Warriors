@@ -111,8 +111,9 @@ export class BattleScene extends Phaser.Scene {
     glow.fillStyle(0xc87020, 0.2);
     glow.fillCircle(cx, cy - 80, 150);
 
-    // Stage floor
-    const groundY = GAME_HEIGHT * 0.68;
+    // Stage floor — pulled up from 0.68 so heroes/enemy and their HP
+    // bars fit entirely above the UI panel at the bottom of the screen.
+    const groundY = GAME_HEIGHT * 0.58;
     this.add.rectangle(0, groundY, GAME_WIDTH * 2, GAME_HEIGHT * 0.4, COLORS.ink)
       .setOrigin(0, 0).setAlpha(0.6);
 
@@ -129,7 +130,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildHeroSprites() {
-    const groundY = GAME_HEIGHT * 0.68;
+    const groundY = GAME_HEIGHT * 0.58;
     const spacing = 220;
     const leftAnchor = GAME_WIDTH * 0.22;
 
@@ -167,7 +168,7 @@ export class BattleScene extends Phaser.Scene {
 
   buildEnemySprite() {
     const x = GAME_WIDTH * 0.78;
-    const y = GAME_HEIGHT * 0.68 - 110;
+    const y = GAME_HEIGHT * 0.58 - 110;
 
     const body = this.add.rectangle(x, y, 260, 280, this.enemy.displayColor)
       .setStrokeStyle(6, COLORS.ink);

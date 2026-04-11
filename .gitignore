@@ -34,6 +34,9 @@ lerna-debug.log*
 # Test / coverage
 coverage/
 .nyc_output/
+playwright-report/
+test-results/
+e2e/screenshots/
 
 # Capacitor (when we add it later)
 ios/App/App/public/
