@@ -124,15 +124,15 @@ export class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * Called when the player taps START. v0.2 jumps directly into a battle
-   * with a default party and a random Floor 1 enemy. Later milestones will
-   * put grade-select, party-select, and world-map in between.
+   * Called when the player taps START. v0.3 routes through party select
+   * so the player actually picks their 3 heroes. Grade is hard-coded to
+   * 3 for now — a GradeSelectScene will slot in before party select in
+   * a future milestone (per docs/ROADMAP.md v0.5).
    */
   onStart() {
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.BATTLE, {
-        floor: 1,
+      this.scene.start(SCENES.PARTY_SELECT, {
         grade: 3,
       });
     });

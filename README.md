@@ -30,7 +30,11 @@ Each floor is a small maze. You explore, find treasures, free friendly spirits, 
 
 ## How to play
 
-There will be a live URL here after the first deploy lands. For now, the game doesn't run — it's being rebuilt.
+**Live build:** https://dd-builder.github.io/Math-Warriors/
+
+Open the URL on your iPad (or any browser). Add to Home Screen for a
+full-screen app feel. The game auto-updates whenever a new build is
+pushed, so just pull-to-refresh to get the latest version.
 
 ## How to develop
 
