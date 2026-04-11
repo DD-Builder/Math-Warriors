@@ -1,0 +1,26 @@
+{
+  "appId": "com.ddbuilder.mathwarriors",
+  "appName": "Math Warriors",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": true,
+    "preferredContentMode": "mobile",
+    "scheme": "Math Warriors"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#0a0604",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0a0604"
+    }
+  }
+}

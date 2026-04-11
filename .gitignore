@@ -38,13 +38,10 @@ playwright-report/
 test-results/
 e2e/screenshots/
 
-# Capacitor (when we add it later)
-ios/App/App/public/
-ios/App/Pods/
-ios/App/App.xcworkspace/xcuserdata/
-android/app/build/
-android/.gradle/
-android/build/
+# Capacitor — generated platform directories are NOT source
+ios/
+android/
+.capacitor/
 
 # Cache
 .cache/

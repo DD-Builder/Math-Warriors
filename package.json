@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "test": "node --test src/**/*.test.js",
     "test:e2e": "playwright test",
-    "test:all": "npm test && npm run build && npm run test:e2e"
+    "test:all": "npm test && npm run build && npm run test:e2e",
+    "ios:init": "npm install @capacitor/core @capacitor/cli @capacitor/ios && npx cap add ios",
+    "ios:sync": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios"
   },
   "dependencies": {
     "phaser": "^3.80.1"
