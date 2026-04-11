@@ -41,6 +41,7 @@ export const SCENES = {
   WORLD_MAP: 'WorldMapScene',
   MAZE: 'MazeScene',
   BATTLE: 'BattleScene',
+  SETTINGS: 'SettingsScene',
 };
 
 // Version shown on title screen. Bump this on every meaningful change.

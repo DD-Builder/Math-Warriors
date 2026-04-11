@@ -16,6 +16,7 @@ import { spawnHero, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_1, FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
+import { invokeAbility } from '../systems/abilities.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -94,6 +95,14 @@ export class BattleScene extends Phaser.Scene {
     this.buildUI();
 
     audio.playMusic('music/battle');
+
+    // Fire the enemy's onBattleStart hook so any ability state can
+    // initialize
+    invokeAbility(this.enemy.ability, 'onBattleStart', {
+      enemy: this.enemy,
+      party: this.party,
+      scene: this,
+    });
 
     // Show a one-time tutorial toast on the very first battle. Uses
     // the save's totalBattles stat to decide — if this player has
@@ -425,6 +434,18 @@ export class BattleScene extends Phaser.Scene {
       this.answerButtons[i].bg.setFillStyle(this.answerButtons[i].baseColor);
       this.answerButtons[i].bg.setAlpha(1);
     }
+
+    // Consume ability: if the previous turn was wrong and the enemy has
+    // the consume ability, one random wrong answer button is "eaten"
+    // and can't be tapped. This forces the player to commit without a
+    // full set of options.
+    if (this._consumeNextTurn) {
+      this._consumeNextTurn = false;
+      const wrongIndices = [0, 1, 2, 3].filter((i) => i !== this.currentQuestion.correctIndex);
+      const victim = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+      this.answerButtons[victim].bg.setAlpha(0.25);
+      this.answerButtons[victim].label.setText('?');
+    }
   }
 
   startEnemyTurn() {
@@ -483,6 +504,15 @@ export class BattleScene extends Phaser.Scene {
       this.updateMomentumBar();
       this.showToast('CORRECT!', COLORS_CSS.greenL);
 
+      // Fire the enemy's ability hook — some abilities react to
+      // correct answers (e.g., shell_split triggers on hp threshold)
+      invokeAbility(this.enemy.ability, 'onHeroCorrect', {
+        enemy: this.enemy,
+        party: this.party,
+        scene: this,
+        activeHero: this.party[this.currentTurn.heroIndex],
+      });
+
       const attacker = this.party[this.currentTurn.heroIndex];
       const result = computeHeroDamage(attacker, this.enemy, {
         momentum: this.momentum,
@@ -517,6 +547,15 @@ export class BattleScene extends Phaser.Scene {
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar();
       this.showToast('Try again!', COLORS_CSS.scarletL);
+
+      // Fire enemy ability hook for wrong answers — most interesting
+      // side effects trigger here (sporulate boost, crown tally, consume)
+      invokeAbility(this.enemy.ability, 'onHeroWrong', {
+        enemy: this.enemy,
+        party: this.party,
+        scene: this,
+        activeHero: this.party[this.currentTurn.heroIndex],
+      });
 
       // Brief pause, then enemy counters
       this.time.delayedCall(300, () => {

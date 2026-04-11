@@ -85,6 +85,23 @@ export class TitleScene extends Phaser.Scene {
       color: COLORS_CSS.inkL,
     }).setOrigin(1, 1);
 
+    // Settings button top-right
+    const settingsBg = this.add.rectangle(GAME_WIDTH - 80, 60, 140, 60, COLORS.paperD)
+      .setStrokeStyle(3, COLORS.ink)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(GAME_WIDTH - 80, 60, 'SETTINGS', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '14px',
+      color: COLORS_CSS.ink,
+    }).setOrigin(0.5);
+    settingsBg.on('pointerdown', () => {
+      audio.play('ui/click');
+      this.cameras.main.fadeOut(200, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.start(SCENES.SETTINGS, { returnScene: SCENES.TITLE });
+      });
+    });
+
     // Title bob
     this.tweens.add({
       targets: [title1, title2],

@@ -91,4 +91,33 @@ test('capture all scene screenshots', async ({ page }) => {
   await page.evaluate(() => window.__MW.game.scene.start('BattleScene', { floor: 1, grade: 3 }));
   await page.waitForTimeout(1200);
   await page.screenshot({ path: 'e2e/screenshots/07-battle.png' });
+
+  // Settings
+  await page.evaluate(() => {
+    // Stop any active scenes then start settings fresh
+    const mgr = window.__MW.game.scene;
+    mgr.getScenes(true).forEach((s) => mgr.stop(s.scene.key));
+    mgr.start('SettingsScene', { returnScene: 'TitleScene' });
+  });
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: 'e2e/screenshots/08-settings.png' });
+
+  // Maze on each floor. Explicitly stop any current scene before starting
+  // so we don't capture a stale overlay from the previous state.
+  for (let f = 2; f <= 5; f++) {
+    await page.evaluate((floor) => {
+      const mgr = window.__MW.game.scene;
+      mgr.getScenes(true).forEach((s) => mgr.stop(s.scene.key));
+      mgr.start('MazeScene', { floor });
+    }, f);
+    await page.waitForTimeout(700);
+    await page.evaluate(() => {
+      const s = window.__MW.game.scene.getScene('MazeScene');
+      if (s && s.revealFog) {
+        for (let y = 1; y < 14; y++) for (let x = 1; x < 14; x++) s.revealFog(x, y, 0);
+      }
+    });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `e2e/screenshots/09-floor-${f}.png` });
+  }
 });

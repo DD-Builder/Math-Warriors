@@ -350,6 +350,26 @@ export class MazeScene extends Phaser.Scene {
         this.scene.start(SCENES.WORLD_MAP);
       });
     });
+
+    // Settings / pause — top-right
+    const settingsBg = this.add.rectangle(GAME_WIDTH - 60, 40, 100, 60, COLORS.paperD, 0.9)
+      .setStrokeStyle(3, COLORS.ink)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(GAME_WIDTH - 60, 40, '\u2699', {
+      fontSize: '32px',
+      color: COLORS_CSS.ink,
+    }).setOrigin(0.5);
+    settingsBg.on('pointerdown', () => {
+      audio.play('ui/click');
+      this.saveMazeState();
+      this.cameras.main.fadeOut(200, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.start(SCENES.SETTINGS, {
+          returnScene: SCENES.MAZE,
+          returnData: { floor: this.floorId },
+        });
+      });
+    });
   }
 
   updateHud() {

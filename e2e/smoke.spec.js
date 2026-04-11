@@ -230,6 +230,71 @@ test('all 6 registered scenes can be started without error', async ({ page }) =>
   expect(errors, `scene iteration errors:\n${errors.join('\n')}`).toEqual([]);
 });
 
+test('all 5 floor layouts load without error', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+  page.on('console', (msg) => {
+    if (msg.type() !== 'error') return;
+    const text = msg.text();
+    if (text.includes('Failed to load resource')) return;
+    if (text.includes('net::ERR_FAILED')) return;
+    errors.push(`console error: ${text}`);
+  });
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+
+  // Seed save with a party
+  await page.evaluate(() => {
+    const save = {
+      version: 1, grade: 3,
+      party: [
+        { id: 'knight-shadow', name: 'Shadow', hp: 52, maxHp: 52 },
+        { id: 'wizard-grandmage', name: 'Grand Mage', hp: 38, maxHp: 38 },
+        { id: 'bunny-pepper', name: 'Pepper', hp: 46, maxHp: 46 },
+      ],
+      gold: 0, potions: 2,
+      floors: Array.from({ length: 5 }, (_, i) => ({ id: i + 1, unlocked: true, complete: false, bestStreak: 0 })),
+      settings: { musicVolume: 0.8, sfxVolume: 1.0, reducedMotion: false },
+      stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0, playTimeSec: 0, firstPlayedAt: Date.now(), lastPlayedAt: Date.now() },
+    };
+    localStorage.setItem('mathwarriors.save', JSON.stringify(save));
+  });
+
+  for (let floor = 1; floor <= 5; floor++) {
+    await page.evaluate((f) => window.__MW.game.scene.start('MazeScene', { floor: f }), floor);
+    await page.waitForTimeout(600);
+    const active = await page.evaluate(() => window.__MW.game.scene.getScenes(true).map((s) => s.scene.key));
+    expect(active, `floor ${floor} failed to load`).toContain('MazeScene');
+  }
+  expect(errors, `floor loading errors:\n${errors.join('\n')}`).toEqual([]);
+});
+
+test('SettingsScene opens and closes without error', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+
+  // Seed minimal save so SettingsScene has something to read
+  await page.evaluate(() => {
+    const save = {
+      version: 1, grade: 3, party: [], gold: 0, potions: 2,
+      floors: Array.from({ length: 5 }, (_, i) => ({ id: i + 1, unlocked: i === 0, complete: false, bestStreak: 0 })),
+      settings: { musicVolume: 0.8, sfxVolume: 1.0, reducedMotion: false },
+      stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0, playTimeSec: 0, firstPlayedAt: Date.now(), lastPlayedAt: Date.now() },
+    };
+    localStorage.setItem('mathwarriors.save', JSON.stringify(save));
+  });
+
+  await page.evaluate(() => window.__MW.game.scene.start('SettingsScene', { returnScene: 'TitleScene' }));
+  await page.waitForTimeout(600);
+  const active = await page.evaluate(() => window.__MW.game.scene.getScenes(true).map((s) => s.scene.key));
+  expect(active).toContain('SettingsScene');
+  expect(errors).toEqual([]);
+});
+
 test('maze: player can move and reveal fog', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
