@@ -1,0 +1,195 @@
+/**
+ * Audio system
+ *
+ * Thin wrapper around Phaser's audio manager that:
+ *   1. Defines every sound by a logical key, not a file path
+ *   2. Silently no-ops on missing assets (so scenes can call `play('hit')`
+ *      today without the file existing yet)
+ *   3. Centralizes music/SFX volume and mute
+ *   4. Handles "music fade on scene transition" as a one-liner
+ *
+ * Design principle this serves: "Feedback is the invisible dialogue."
+ * See docs/DESIGN-PRINCIPLES.md, principle 1. Every visible action should
+ * have an audible response. We ship the infrastructure now so scenes can
+ * call audio.play('correct') today, and the actual MP3 drops later
+ * without a code change.
+ */
+
+// ------------------------------------------------------------------
+// SOUND REGISTRY
+// ------------------------------------------------------------------
+// All sound keys used in the game live here. Scenes reference by key.
+// When we add real audio files, we update `file` on each entry.
+// `file: null` means "we haven't recorded/licensed this sound yet"
+// and the system will silently no-op when it's requested.
+
+export const SOUNDS = {
+  // UI
+  'ui/click':         { file: null, volume: 0.7, category: 'sfx' },
+  'ui/hover':         { file: null, volume: 0.4, category: 'sfx' },
+  'ui/confirm':       { file: null, volume: 0.8, category: 'sfx' },
+  'ui/back':          { file: null, volume: 0.6, category: 'sfx' },
+
+  // Battle feedback
+  'battle/correct':   { file: null, volume: 0.9, category: 'sfx' },
+  'battle/wrong':     { file: null, volume: 0.8, category: 'sfx' },
+  'battle/hit-hero':  { file: null, volume: 0.9, category: 'sfx' },
+  'battle/hit-enemy': { file: null, volume: 0.9, category: 'sfx' },
+  'battle/heal':      { file: null, volume: 0.8, category: 'sfx' },
+  'battle/victory':   { file: null, volume: 1.0, category: 'sfx' },
+  'battle/defeat':    { file: null, volume: 0.9, category: 'sfx' },
+  'battle/critical':  { file: null, volume: 1.0, category: 'sfx' },
+
+  // World interactions
+  'world/chest':      { file: null, volume: 0.9, category: 'sfx' },
+  'world/gold':       { file: null, volume: 0.8, category: 'sfx' },
+  'world/fairy':      { file: null, volume: 1.0, category: 'sfx' },
+  'world/footstep':   { file: null, volume: 0.3, category: 'sfx' },
+  'world/encounter':  { file: null, volume: 0.9, category: 'sfx' },
+  'world/floor-complete': { file: null, volume: 1.0, category: 'sfx' },
+
+  // Music — looping background
+  'music/title':      { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/map':        { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-1':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-2':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-3':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-4':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-5':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/battle':     { file: null, volume: 0.7, category: 'music', loop: true },
+  'music/boss':       { file: null, volume: 0.8, category: 'music', loop: true },
+};
+
+// ------------------------------------------------------------------
+// AUDIO MANAGER
+// ------------------------------------------------------------------
+// Single instance, created on Phaser game startup. Scenes reference
+// via `scene.game.registry.get('audio')` or via the convenience
+// `audio` export that's lazy-initialized.
+
+class AudioManager {
+  constructor() {
+    this.game = null;                 // set by init()
+    this.musicVolume = 0.8;
+    this.sfxVolume = 1.0;
+    this.muted = false;
+    this.currentMusic = null;         // active looping track key
+    this._currentMusicObj = null;     // active Phaser Sound instance
+  }
+
+  /**
+   * Wire the audio system to a Phaser game. Call once from main.js
+   * after Phaser boots.
+   */
+  init(game) {
+    this.game = game;
+    // Load saved volume preferences if they exist
+    try {
+      const raw = localStorage.getItem('mathwarriors.save');
+      if (raw) {
+        const save = JSON.parse(raw);
+        if (save?.settings) {
+          if (typeof save.settings.musicVolume === 'number') this.musicVolume = save.settings.musicVolume;
+          if (typeof save.settings.sfxVolume === 'number') this.sfxVolume = save.settings.sfxVolume;
+        }
+      }
+    } catch {
+      // localStorage not available or corrupted — use defaults
+    }
+  }
+
+  /**
+   * Preload any sounds that have a `file` set. Called from BootScene.
+   * Safely skips entries without a file.
+   */
+  preload(scene) {
+    for (const [key, entry] of Object.entries(SOUNDS)) {
+      if (!entry.file) continue;
+      scene.load.audio(key, entry.file);
+    }
+  }
+
+  /**
+   * Play a one-shot sound (SFX) by key. Silently no-ops if:
+   *   - the key is unknown
+   *   - the sound has no file registered yet
+   *   - the audio system is muted
+   *   - Phaser can't find the loaded asset (e.g., during dev before preload)
+   */
+  play(key, opts = {}) {
+    if (this.muted) return;
+    const entry = SOUNDS[key];
+    if (!entry || !entry.file) return;
+    if (!this.game || !this.game.sound) return;
+
+    try {
+      const volume = (opts.volume ?? entry.volume) *
+        (entry.category === 'music' ? this.musicVolume : this.sfxVolume);
+      this.game.sound.play(key, { volume, ...opts });
+    } catch (err) {
+      // Don't crash the game over a missing sound
+      console.warn(`[audio] Failed to play ${key}:`, err);
+    }
+  }
+
+  /**
+   * Start looping music. If `key` is the same as the current track, do
+   * nothing. Otherwise fade out the current track and start the new one.
+   */
+  playMusic(key, opts = {}) {
+    if (this.muted) return;
+    if (this.currentMusic === key) return;
+
+    const entry = SOUNDS[key];
+    if (!entry || !entry.file) {
+      // Still mark it as "current" so we don't restart it once the file lands
+      this.currentMusic = key;
+      return;
+    }
+    if (!this.game || !this.game.sound) return;
+
+    // Fade out current
+    if (this._currentMusicObj) {
+      try {
+        this._currentMusicObj.stop();
+      } catch { /* ignore */ }
+      this._currentMusicObj = null;
+    }
+
+    try {
+      const volume = (opts.volume ?? entry.volume) * this.musicVolume;
+      this._currentMusicObj = this.game.sound.add(key, { loop: true, volume });
+      this._currentMusicObj.play();
+      this.currentMusic = key;
+    } catch (err) {
+      console.warn(`[audio] Failed to play music ${key}:`, err);
+    }
+  }
+
+  stopMusic() {
+    if (this._currentMusicObj) {
+      try { this._currentMusicObj.stop(); } catch { /* ignore */ }
+      this._currentMusicObj = null;
+    }
+    this.currentMusic = null;
+  }
+
+  setMuted(muted) {
+    this.muted = !!muted;
+    if (this.muted) this.stopMusic();
+  }
+
+  setMusicVolume(v) {
+    this.musicVolume = Math.max(0, Math.min(1, v));
+    if (this._currentMusicObj) {
+      try { this._currentMusicObj.setVolume(this.musicVolume); } catch { /* ignore */ }
+    }
+  }
+
+  setSfxVolume(v) {
+    this.sfxVolume = Math.max(0, Math.min(1, v));
+  }
+}
+
+// Singleton
+export const audio = new AudioManager();

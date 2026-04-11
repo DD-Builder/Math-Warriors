@@ -14,51 +14,43 @@ import {
 } from '../systems/combat.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_1, FLOOR_OPERATORS } from '../data/enemies.js';
+import { audio } from '../systems/audio.js';
+import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
  *
- * v0.2 scope:
+ * Design principles this scene tries to honor (see docs/DESIGN-PRINCIPLES.md):
+ *   1. Feedback is the invisible dialogue — every action has visible +
+ *      audible + tactile response (screen shake, hit pause, particles)
+ *   2. Clarity before complexity — always show HP, momentum, whose turn
+ *   3. Snappy tempo — turn transitions under 500ms, no slow ceremonies
+ *   4. Confidence first — wrong answers don't feel like punishment
+ *   5. Failure is a restart, not a punishment — defeat returns you to
+ *      the world map with a full heal, nothing lost
+ *
+ * v0.4 scope:
  *   - 3 heroes vs. 1 enemy
  *   - Turn order alternates hero/enemy/hero/enemy/...
  *   - Math question appears on the hero's turn
- *   - Correct answer → hero attacks
+ *   - Correct answer → hero attacks with juice (particles, shake, hit-pause)
  *   - Wrong answer → enemy counter-attacks
  *   - Enemy turn attacks a random living hero
- *   - Victory / defeat screens with "continue" button
- *   - Momentum bar drives damage multipliers (symmetric this time)
+ *   - Victory updates save (gold, HP, floor progress)
+ *   - Defeat returns to world map with full party heal
  *
- * Uses placeholder rectangle sprites for now. Real art slots in via
- * the `displayColor` field on hero/enemy records — when we load real
- * PNGs later, we just swap the rectangle for an Image and everything
- * else keeps working.
- *
- * Design notes (see docs/ART-STYLE.md):
- *   This scene is meant to eventually be a "diorama stage" with a
- *   framed papercut backdrop, central glow, and heroes/enemy as
- *   silhouette-clear sprites in front. v0.2 is rectangles on a
- *   dark background — we'll layer the art in later without touching
- *   the combat code.
+ * Uses placeholder rectangle sprites — built so swapping in real art later
+ * is a drop-in replacement.
  */
 export class BattleScene extends Phaser.Scene {
   constructor() {
     super({ key: SCENES.BATTLE });
   }
 
-  /**
-   * Scene can be started with data. If not provided, we pick a default
-   * party and a Floor 1 enemy so standalone testing works.
-   *
-   * @param {object} data
-   * @param {object[]} [data.party]  3 combat-ready hero records
-   * @param {object} [data.enemy]    A combat-ready enemy record
-   * @param {number} [data.floor]    Floor number, 1-5
-   * @param {number} [data.grade]    Player grade 0-5
-   */
   init(data) {
     // Party: use provided or default to one of each class
     if (data?.party && data.party.length === 3) {
-      this.party = data.party.map((h) => ({ ...h }));  // clone
+      this.party = data.party.map((h) => ({ ...h }));
     } else {
       this.party = [
         spawnHero(KNIGHTS[0].id),
@@ -67,7 +59,6 @@ export class BattleScene extends Phaser.Scene {
       ];
     }
 
-    // Enemy: use provided or pick a random Floor 1 enemy
     if (data?.enemy) {
       this.enemy = { ...data.enemy };
     } else {
@@ -79,11 +70,10 @@ export class BattleScene extends Phaser.Scene {
     this.grade = data?.grade ?? 3;
     this.operator = FLOOR_OPERATORS[this.floor] ?? '+';
 
-    // Battle state
     this.momentum = 0.5;
     this.streak = 0;
     this.turnSeq = buildTurnSequence(this.party.length);
-    this.turnIdx = -1;   // will advance to 0 on first nextTurn
+    this.turnIdx = -1;
     this.phase = 'intro';
     this.locked = false;
     this.currentQuestion = null;
@@ -95,44 +85,48 @@ export class BattleScene extends Phaser.Scene {
     this.buildEnemySprite();
     this.buildUI();
 
-    // Kick off the fight after a brief intro beat
-    this.time.delayedCall(600, () => this.nextTurn());
+    audio.playMusic('music/battle');
+
+    // Fade in
+    this.cameras.main.fadeIn(250, 0, 0, 0);
+    this.time.delayedCall(400, () => this.nextTurn());
   }
 
   // ================================================================
-  // BACKGROUND — placeholder stage
+  // BACKGROUND — placeholder diorama stage
   // ================================================================
 
   buildBackground() {
     const cx = GAME_WIDTH / 2;
     const cy = GAME_HEIGHT / 2;
 
-    // Dark stage (will be replaced with papercut diorama art)
     this.cameras.main.setBackgroundColor(COLORS.ink);
 
-    // Warm central glow — the "stage light" from Reference C
+    // Warm central glow — the "stage light" from Reference C in ART-STYLE.md
     const glow = this.add.graphics();
-    const grad = this.add.graphics();
-    grad.fillStyle(0x4a2810, 0.5);
-    grad.fillCircle(cx, cy - 80, 400);
-    grad.fillStyle(0x8a4820, 0.3);
-    grad.fillCircle(cx, cy - 80, 250);
-    grad.fillStyle(0xc87020, 0.2);
-    grad.fillCircle(cx, cy - 80, 150);
+    glow.fillStyle(0x4a2810, 0.5);
+    glow.fillCircle(cx, cy - 80, 400);
+    glow.fillStyle(0x8a4820, 0.3);
+    glow.fillCircle(cx, cy - 80, 250);
+    glow.fillStyle(0xc87020, 0.2);
+    glow.fillCircle(cx, cy - 80, 150);
 
-    // Ground line / stage floor
+    // Stage floor
     const groundY = GAME_HEIGHT * 0.68;
     this.add.rectangle(0, groundY, GAME_WIDTH * 2, GAME_HEIGHT * 0.4, COLORS.ink)
       .setOrigin(0, 0).setAlpha(0.6);
 
-    // Decorative frame hint (will be a papercut arch later)
+    // Decorative frame hint
     this.add.rectangle(cx, cy - 20, GAME_WIDTH * 0.8, GAME_HEIGHT * 0.58)
       .setStrokeStyle(6, COLORS.paperD, 0.2);
-  }
 
-  // ================================================================
-  // SPRITES — placeholder rectangles with name tags
-  // ================================================================
+    // Floor label top-left
+    this.add.text(40, 40, `FLOOR ${this.floor}`, {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '18px',
+      color: COLORS_CSS.inkL,
+    });
+  }
 
   buildHeroSprites() {
     const groundY = GAME_HEIGHT * 0.68;
@@ -143,11 +137,9 @@ export class BattleScene extends Phaser.Scene {
       const x = leftAnchor + i * spacing;
       const y = groundY - 90;
 
-      // Body rectangle (placeholder for the sprite)
       const body = this.add.rectangle(x, y, 140, 180, hero.displayColor)
         .setStrokeStyle(4, COLORS.ink);
 
-      // Name label
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: '20px',
@@ -156,7 +148,6 @@ export class BattleScene extends Phaser.Scene {
         strokeThickness: 3,
       }).setOrigin(0.5);
 
-      // HP bar below
       const hpBarBg = this.add.rectangle(x, y + 110, 150, 14, COLORS.ink)
         .setStrokeStyle(2, COLORS.paperD);
       const hpBarFill = this.add.rectangle(x - 73, y + 110, 146, 10, 0x40c040)
@@ -167,7 +158,6 @@ export class BattleScene extends Phaser.Scene {
         color: COLORS_CSS.paper,
       }).setOrigin(0.5);
 
-      // Active turn indicator (hidden until their turn)
       const indicator = this.add.triangle(x, y - 160, 0, 0, 20, 0, 10, 20, COLORS.goldL)
         .setVisible(false);
 
@@ -204,13 +194,12 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // ================================================================
-  // UI — momentum bar, question, answer buttons, toast
+  // UI — momentum, question, answers, toasts, end screen
   // ================================================================
 
   buildUI() {
     const uiTop = GAME_HEIGHT - 300;
 
-    // UI panel background
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 150, GAME_WIDTH, 300, COLORS.ink, 0.92)
       .setStrokeStyle(4, COLORS.paperD, 0.6);
 
@@ -229,7 +218,6 @@ export class BattleScene extends Phaser.Scene {
     this.add.rectangle(barX, barY, barW, barH, COLORS.ink)
       .setOrigin(0, 0.5).setStrokeStyle(2, COLORS.paperD);
 
-    // Zone dividers at 33% and 66%
     this.add.rectangle(barX + barW * 0.33, barY, 2, barH, COLORS.paperD)
       .setOrigin(0, 0.5).setAlpha(0.5);
     this.add.rectangle(barX + barW * 0.66, barY, 2, barH, COLORS.paperD)
@@ -253,14 +241,13 @@ export class BattleScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setOrigin(0.5);
 
-    // Turn label
     this.turnLabel = this.add.text(GAME_WIDTH / 2, uiTop + 140, '', {
       fontFamily: '"Fredoka One", cursive',
       fontSize: '22px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0.5);
 
-    // Four answer buttons
+    // Answer buttons
     this.answerButtons = [];
     const btnW = 220;
     const btnH = 80;
@@ -285,13 +272,14 @@ export class BattleScene extends Phaser.Scene {
 
       bg.on('pointerdown', () => {
         if (this.locked) return;
+        audio.play('ui/click');
         this.onAnswer(i);
       });
 
-      this.answerButtons.push({ bg, label });
+      this.answerButtons.push({ bg, label, baseColor: btnColors[i] });
     }
 
-    // Toast message (hidden by default)
+    // Toast
     this.toast = this.add.text(GAME_WIDTH / 2, uiTop - 40, '', {
       fontFamily: '"Fredoka One", cursive',
       fontSize: '28px',
@@ -300,37 +288,49 @@ export class BattleScene extends Phaser.Scene {
       padding: { x: 24, y: 12 },
     }).setOrigin(0.5).setAlpha(0);
 
-    // End screen overlay (hidden by default)
+    // End overlay (hidden by default)
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false);
     const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.ink, 0.88);
-    const endTitle = this.add.text(0, -100, '', {
+    const endTitle = this.add.text(0, -160, '', {
       fontFamily: '"Press Start 2P", monospace',
       fontSize: '72px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
       strokeThickness: 6,
     }).setOrigin(0.5);
-    const endSub = this.add.text(0, 0, '', {
+    const endSub = this.add.text(0, -50, '', {
       fontFamily: '"Fredoka One", cursive',
       fontSize: '28px',
       color: COLORS_CSS.paper,
+      align: 'center',
     }).setOrigin(0.5);
-    const endBtnBg = this.add.rectangle(0, 120, 380, 80, COLORS.scarlet)
+    const endRewards = this.add.text(0, 30, '', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '22px',
+      color: COLORS_CSS.goldL,
+      align: 'center',
+    }).setOrigin(0.5);
+    const endBtnBg = this.add.rectangle(0, 140, 380, 80, COLORS.scarlet)
       .setStrokeStyle(4, COLORS.ink)
       .setInteractive({ useHandCursor: true });
-    const endBtnLabel = this.add.text(0, 120, 'CONTINUE', {
+    const endBtnLabel = this.add.text(0, 140, 'CONTINUE', {
       fontFamily: '"Press Start 2P", monospace',
       fontSize: '24px',
       color: COLORS_CSS.paper,
     }).setOrigin(0.5);
 
     endBtnBg.on('pointerdown', () => {
-      this.scene.start(SCENES.TITLE);
+      audio.play('ui/confirm');
+      this.cameras.main.fadeOut(250, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.start(SCENES.WORLD_MAP);
+      });
     });
 
-    this.endOverlay.add([overlayBg, endTitle, endSub, endBtnBg, endBtnLabel]);
+    this.endOverlay.add([overlayBg, endTitle, endSub, endRewards, endBtnBg, endBtnLabel]);
     this.endOverlay.titleText = endTitle;
     this.endOverlay.subText = endSub;
+    this.endOverlay.rewardsText = endRewards;
   }
 
   // ================================================================
@@ -340,30 +340,18 @@ export class BattleScene extends Phaser.Scene {
   nextTurn() {
     if (this.phase === 'end') return;
 
-    if (isPartyDefeated(this.party)) {
-      this.showDefeat();
-      return;
-    }
-    if (this.enemy.hp <= 0) {
-      this.showVictory();
-      return;
-    }
+    if (isPartyDefeated(this.party)) return this.showDefeat();
+    if (this.enemy.hp <= 0) return this.showVictory();
 
     const result = advanceTurn(this.turnSeq, this.turnIdx, this.party);
-    if (!result) {
-      this.showDefeat();
-      return;
-    }
+    if (!result) return this.showDefeat();
     this.turnIdx = result.index;
     this.currentTurn = result.turn;
 
     this.updateHeroIndicators();
 
-    if (this.currentTurn.who === 'hero') {
-      this.startHeroTurn();
-    } else {
-      this.startEnemyTurn();
-    }
+    if (this.currentTurn.who === 'hero') this.startHeroTurn();
+    else this.startEnemyTurn();
   }
 
   startHeroTurn() {
@@ -372,7 +360,6 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'question';
     this.locked = false;
 
-    // Generate a new question for the current floor's operator
     this.currentQuestion = generateQuestion({
       operator: this.operator,
       grade: this.grade,
@@ -380,9 +367,18 @@ export class BattleScene extends Phaser.Scene {
 
     this.questionText.setText(formatQuestion(this.currentQuestion));
 
-    // Update answer button labels
+    // Pop the question text in for emphasis
+    this.questionText.setScale(0.8);
+    this.tweens.add({
+      targets: this.questionText,
+      scale: 1,
+      duration: 150,
+      ease: 'Back.out',
+    });
+
     for (let i = 0; i < 4; i++) {
       this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
+      this.answerButtons[i].bg.setFillStyle(this.answerButtons[i].baseColor);
       this.answerButtons[i].bg.setAlpha(1);
     }
   }
@@ -393,25 +389,32 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'enemy';
     this.locked = true;
 
-    // Hide answer buttons during enemy turn
     for (let i = 0; i < 4; i++) {
       this.answerButtons[i].bg.setAlpha(0.3);
       this.answerButtons[i].label.setText('');
     }
 
-    this.time.delayedCall(700, () => {
+    // Enemy windup animation
+    this.tweens.add({
+      targets: this.enemySprite.body,
+      x: this.enemySprite.x - 40,
+      duration: 150,
+      yoyo: true,
+      ease: 'Sine.inOut',
+    });
+
+    this.time.delayedCall(350, () => {
       const target = pickRandomLivingHero(this.party);
-      if (!target) {
-        this.showDefeat();
-        return;
-      }
+      if (!target) return this.showDefeat();
       const result = computeEnemyDamage(this.enemy, target, { momentum: this.momentum });
       applyDamageResult(target, result);
+      this.hitPause(80);
       this.flashHero(target, result);
       this.updateHeroHp(target);
-      this.shakeCamera();
+      this.shakeCamera(0.01, 250);
+      audio.play('battle/hit-hero');
 
-      this.time.delayedCall(600, () => this.nextTurn());
+      this.time.delayedCall(450, () => this.nextTurn());
     });
   }
 
@@ -424,18 +427,12 @@ export class BattleScene extends Phaser.Scene {
     this.locked = true;
 
     const correct = index === this.currentQuestion.correctIndex;
-
-    // Visual feedback on the chosen button
     const btn = this.answerButtons[index];
+
     if (correct) {
       btn.bg.setFillStyle(0x40c040);
-    } else {
-      btn.bg.setFillStyle(0xc04040);
-      // Flash the correct one in green too
-      this.answerButtons[this.currentQuestion.correctIndex].bg.setFillStyle(0x40c040);
-    }
+      audio.play('battle/correct');
 
-    if (correct) {
       this.streak++;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
       this.updateMomentumBar();
@@ -447,35 +444,95 @@ export class BattleScene extends Phaser.Scene {
         streak: this.streak,
       });
       applyDamageResult(this.enemy, result);
-      this.flashEnemy(result);
-      this.updateEnemyHp();
+
+      // Animate attacker forward, then back
+      const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
+      this.tweens.add({
+        targets: heroSprite.body,
+        x: heroSprite.x + 60,
+        duration: 120,
+        yoyo: true,
+        ease: 'Sine.inOut',
+        onYoyo: () => {
+          this.hitPause(80);
+          this.flashEnemy(result);
+          this.updateEnemyHp();
+          audio.play('battle/hit-enemy');
+          this.shakeCamera(0.008, 200);
+          this.burstParticles(this.enemySprite.x, this.enemySprite.y, 0xe8a030);
+        },
+      });
     } else {
+      btn.bg.setFillStyle(0xc04040);
+      // Flash the correct one in green too
+      this.answerButtons[this.currentQuestion.correctIndex].bg.setFillStyle(0x40c040);
+      audio.play('battle/wrong');
+
       this.streak = 0;
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar();
-      this.showToast('WRONG! Enemy counter!', COLORS_CSS.scarletL);
+      this.showToast('Try again!', COLORS_CSS.scarletL);
 
-      const target = this.party[this.currentTurn.heroIndex];
-      const result = computeEnemyDamage(this.enemy, target, { momentum: this.momentum });
-      applyDamageResult(target, result);
-      this.flashHero(target, result);
-      this.updateHeroHp(target);
-      this.shakeCamera();
+      // Brief pause, then enemy counters
+      this.time.delayedCall(300, () => {
+        const target = this.party[this.currentTurn.heroIndex];
+        const result = computeEnemyDamage(this.enemy, target, { momentum: this.momentum });
+        applyDamageResult(target, result);
+        this.hitPause(80);
+        this.flashHero(target, result);
+        this.updateHeroHp(target);
+        this.shakeCamera(0.01, 250);
+        audio.play('battle/hit-hero');
+      });
     }
 
-    this.time.delayedCall(900, () => this.nextTurn());
+    // Snappy turn advance — was 900ms in v0.2, now 550ms per principle #3
+    this.time.delayedCall(550, () => this.nextTurn());
   }
 
   // ================================================================
-  // VISUAL FEEDBACK
+  // JUICE: hit-pause, particles, arcing damage numbers, camera shake
   // ================================================================
+
+  /**
+   * Freeze the game briefly on impact. This is the single biggest
+   * contribution to "hit feel" in action games.
+   */
+  hitPause(ms) {
+    this.tweens.pauseAll();
+    this.time.delayedCall(ms, () => this.tweens.resumeAll());
+  }
+
+  /**
+   * Burst of colored squares radiating from a point. Particles without
+   * needing a loaded image asset — uses built-in rectangles.
+   */
+  burstParticles(x, y, color) {
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+      const dist = 40 + Math.random() * 40;
+      const size = 6 + Math.random() * 6;
+      const p = this.add.rectangle(x, y, size, size, color);
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        alpha: 0,
+        angle: Math.random() * 360,
+        duration: 450 + Math.random() * 200,
+        ease: 'Cubic.out',
+        onComplete: () => p.destroy(),
+      });
+    }
+  }
 
   flashEnemy(result) {
     const s = this.enemySprite;
     this.tweens.add({
       targets: s.body,
       alpha: 0.3,
-      duration: 100,
+      duration: 60,
       yoyo: true,
       repeat: 1,
     });
@@ -489,32 +546,47 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.add({
       targets: s.body,
       alpha: 0.3,
-      duration: 100,
+      duration: 60,
       yoyo: true,
       repeat: 1,
     });
     this.floatDamageNumber(s.x, s.y - 80, result.modifiedDamage, '#ff6060');
+    this.burstParticles(s.x, s.y - 30, 0xc03030);
   }
 
+  /**
+   * Arcing damage number: pops up with a slight horizontal drift,
+   * scales up then fades. More satisfying than a straight float.
+   */
   floatDamageNumber(x, y, amount, color) {
     const t = this.add.text(x, y, `-${amount}`, {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: '32px',
+      fontSize: '36px',
       color,
       stroke: '#000000',
       strokeThickness: 4,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setScale(0.5);
+
+    const driftX = (Math.random() - 0.5) * 60;
     this.tweens.add({
       targets: t,
-      y: y - 80,
+      y: y - 120,
+      x: x + driftX,
+      scale: 1.2,
+      duration: 250,
+      ease: 'Back.out',
+    });
+    this.tweens.add({
+      targets: t,
       alpha: 0,
-      duration: 900,
+      duration: 400,
+      delay: 500,
       onComplete: () => t.destroy(),
     });
   }
 
-  shakeCamera() {
-    this.cameras.main.shake(200, 0.008);
+  shakeCamera(intensity = 0.008, duration = 200) {
+    this.cameras.main.shake(duration, intensity);
   }
 
   updateHeroHp(hero) {
@@ -522,10 +594,14 @@ export class BattleScene extends Phaser.Scene {
     if (idx < 0) return;
     const s = this.heroSprites[idx];
     const pct = Math.max(0, hero.hp / hero.maxHp);
-    s.hpBarFill.width = 146 * pct;
+    this.tweens.add({
+      targets: s.hpBarFill,
+      width: 146 * pct,
+      duration: 300,
+      ease: 'Cubic.out',
+    });
     s.hpText.setText(`${hero.hp}/${hero.maxHp}`);
 
-    // Dead hero goes dim
     if (hero.hp <= 0) {
       s.body.setAlpha(0.2);
       s.name.setAlpha(0.3);
@@ -534,16 +610,25 @@ export class BattleScene extends Phaser.Scene {
 
   updateEnemyHp() {
     const pct = Math.max(0, this.enemy.hp / this.enemy.maxHp);
-    this.enemySprite.hpBarFill.width = 274 * pct;
+    this.tweens.add({
+      targets: this.enemySprite.hpBarFill,
+      width: 274 * pct,
+      duration: 300,
+      ease: 'Cubic.out',
+    });
     this.enemySprite.hpText.setText(`${this.enemy.hp}/${this.enemy.maxHp}`);
   }
 
   updateMomentumBar() {
     const barW = 600;
-    this.momentumFill.width = barW * this.momentum;
+    this.tweens.add({
+      targets: this.momentumFill,
+      width: barW * this.momentum,
+      duration: 300,
+      ease: 'Cubic.out',
+    });
     const zone = getZone(this.momentum);
     this.momentumLabel.setText(zone.label);
-    // Color the bar by zone
     if (zone.label === 'COOL') this.momentumFill.fillColor = 0x4080c0;
     else if (zone.label === 'ZONE') this.momentumFill.fillColor = 0x40a040;
     else this.momentumFill.fillColor = 0xd06020;
@@ -567,22 +652,86 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // ================================================================
-  // END STATES
+  // END STATES — save integration
   // ================================================================
 
   showVictory() {
+    if (this.phase === 'end') return;
     this.phase = 'end';
     this.locked = true;
+    audio.stopMusic();
+    audio.play('battle/victory');
+
+    // Compute rewards
+    const goldEarned = 10 + this.floor * 5;
+    const save = loadSave();
+    save.gold += goldEarned;
+    save.stats.totalBattles++;
+    save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.streak;
+
+    // Update party HP in save (persist health)
+    for (let i = 0; i < this.party.length && i < 3; i++) {
+      if (!save.party[i]) save.party[i] = {};
+      save.party[i].id = this.party[i].id;
+      save.party[i].name = this.party[i].name;
+      save.party[i].hp = this.party[i].hp;
+      save.party[i].maxHp = this.party[i].maxHp;
+    }
+
+    // v0.4 STUB: mark the floor complete on any battle win. When the
+    // maze scene arrives (v0.5), this shifts to "floor complete only
+    // after defeating the boss at the end of the maze."
+    markFloorComplete(save, this.floor);
+
+    writeSave(save);
+
+    // Camera zoom for the victory moment
+    this.cameras.main.zoomTo(1.08, 300, 'Sine.inOut', true);
+    this.time.delayedCall(400, () => {
+      this.cameras.main.zoomTo(1.0, 300, 'Sine.inOut', true);
+    });
+
     this.endOverlay.titleText.setText('VICTORY!');
     this.endOverlay.subText.setText(`${this.enemy.name} defeated!`);
+    this.endOverlay.rewardsText.setText(`+${goldEarned} GOLD`);
     this.endOverlay.setVisible(true);
+    this.endOverlay.setAlpha(0);
+    this.tweens.add({
+      targets: this.endOverlay,
+      alpha: 1,
+      duration: 400,
+    });
   }
 
   showDefeat() {
+    if (this.phase === 'end') return;
     this.phase = 'end';
     this.locked = true;
-    this.endOverlay.titleText.setText('DEFEATED');
-    this.endOverlay.subText.setText('Your party has fallen.');
+    audio.stopMusic();
+    audio.play('battle/defeat');
+
+    // Full party heal — failure is a restart, not a punishment.
+    // See DESIGN-PRINCIPLES.md principle 8.
+    const save = loadSave();
+    save.stats.totalBattles++;
+    for (let i = 0; i < this.party.length && i < 3; i++) {
+      if (!save.party[i]) save.party[i] = {};
+      save.party[i].id = this.party[i].id;
+      save.party[i].name = this.party[i].name;
+      save.party[i].hp = this.party[i].maxHp;
+      save.party[i].maxHp = this.party[i].maxHp;
+    }
+    writeSave(save);
+
+    this.endOverlay.titleText.setText('RETREAT!');
+    this.endOverlay.subText.setText('Your party retreats to camp.\nHeal up and try again!');
+    this.endOverlay.rewardsText.setText('');
     this.endOverlay.setVisible(true);
+    this.endOverlay.setAlpha(0);
+    this.tweens.add({
+      targets: this.endOverlay,
+      alpha: 1,
+      duration: 400,
+    });
   }
 }

@@ -64,9 +64,29 @@
 
 ---
 
-## Milestone: v0.4 — "The maze"
+## Milestone: v0.4 — "World Map + save persistence + battle juice"
 
-**Goal:** A walkable dungeon with random encounters.
+**Goal:** Connect the existing scenes into a loop with real progression and real game feel. Prove the RPG-feel bar before adding the maze.
+
+- [ ] `DESIGN-PRINCIPLES.md` drafted and committed (synthesis of RPG + educational game research)
+- [ ] `src/systems/audio.js` stub so audio infrastructure is ready for real sounds
+- [ ] WorldMapScene with 5 floor nodes and linear unlock logic
+- [ ] Save system wired into battle victory — gold persists, floors unlock persistently, HP carries forward
+- [ ] Battle juice pass:
+  - [ ] Hit-pause (~80ms freeze on damage impact)
+  - [ ] Particle burst on hit
+  - [ ] Arcing damage numbers
+  - [ ] Camera zoom on critical moments
+  - [ ] Snappier turn transitions (tighten 900ms delays to ~400ms)
+- [ ] TitleScene detects existing save, offers "Continue" vs. "New Game"
+
+**Done when:** You can start a new game, pick a party, see the world map, tap Floor 1, fight a battle, win, return to the map with your progress saved, close the browser tab, re-open, and continue from where you left off.
+
+**Scope note:** The walkable maze moves to v0.5. v0.4 connects what we already have into a complete loop.
+
+## Milestone: v0.5 — "The walkable maze"
+
+**Goal:** A walkable dungeon with random encounters. This was v0.4 originally; moved down because v0.4 became the polish/glue milestone.
 
 - [ ] MazeScene with a 19×25 tilemap (floor 1 layout from prototype, or new)
 - [ ] Party walks around (d-pad + touch)

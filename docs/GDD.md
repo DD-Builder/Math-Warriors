@@ -8,6 +8,8 @@
 
 A single-player, turn-based math RPG for kids K–5. Build a party of three heroes, explore a five-floor dungeon, and defeat the monsters guarding each operator (+, −, ×, ÷) by answering math problems in combat. Each floor is a small maze with treasures, friendly spirits to rescue, monsters to fight, and a boss at the end.
 
+> **See also:** [`DESIGN-PRINCIPLES.md`](DESIGN-PRINCIPLES.md) — the prime directive and the non-negotiable design rules that drive every decision below. If anything here conflicts with that doc, that doc wins.
+
 ## 2. Core fantasy
 
 > "The world's mathematical fabric is unraveling. Only you can press the pieces back into place."

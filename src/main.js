@@ -3,7 +3,9 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS, SCENES } from './config.js';
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { PartySelectScene } from './scenes/PartySelectScene.js';
+import { WorldMapScene } from './scenes/WorldMapScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
+import { audio } from './systems/audio.js';
 
 // Dismiss the HTML loading indicator once Phaser is ready to take over.
 const loadingEl = document.getElementById('loading');
@@ -29,10 +31,13 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [BootScene, TitleScene, PartySelectScene, BattleScene],
+  scene: [BootScene, TitleScene, PartySelectScene, WorldMapScene, BattleScene],
 };
 
 const game = new Phaser.Game(config);
+
+// Wire the audio manager to the game instance.
+audio.init(game);
 
 // Expose for debugging from browser devtools only.
 if (import.meta.env && import.meta.env.DEV) {

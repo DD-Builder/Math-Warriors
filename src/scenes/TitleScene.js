@@ -1,12 +1,16 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, VERSION } from '../config.js';
+import { loadSave } from '../systems/save.js';
+import { audio } from '../systems/audio.js';
 
 /**
- * TitleScene
+ * TitleScene — the game's front door.
  *
- * The game's front door. v0.1 goal: show "MATH WARRIORS" and a START button.
- * Tapping START logs a placeholder message. Future milestones replace that
- * with a transition to GradeSelectScene.
+ * v0.4 features:
+ *   - Detects existing saves and shows a CONTINUE button if one is found
+ *   - Routes: CONTINUE → WorldMapScene, NEW GAME → PartySelectScene
+ *   - Plays title music
+ *   - Subtle title bob animation
  */
 export class TitleScene extends Phaser.Scene {
   constructor() {
@@ -17,15 +21,20 @@ export class TitleScene extends Phaser.Scene {
     const cx = GAME_WIDTH / 2;
     const cy = GAME_HEIGHT / 2;
 
-    // Background — solid color for v0.1. Per-level backgrounds come later.
+    this.cameras.main.fadeIn(250, 0, 0, 0);
     this.cameras.main.setBackgroundColor(COLORS.bg);
+    audio.playMusic('music/title');
 
-    // Soft paper panel behind the text so it doesn't float in pure black.
+    // Load save to check if there's progress to continue
+    this.save = loadSave();
+    this.hasProgress = this.save.party && this.save.party.length >= 3;
+
+    // Soft paper panel
     this.add.rectangle(cx, cy, GAME_WIDTH * 0.7, GAME_HEIGHT * 0.7, COLORS.ink, 0.4)
       .setStrokeStyle(4, COLORS.paperD, 0.3);
 
-    // Title — big "MATH" line
-    const title1 = this.add.text(cx, cy - 180, 'MATH', {
+    // Title — "MATH"
+    const title1 = this.add.text(cx, cy - 220, 'MATH', {
       fontFamily: '"Press Start 2P", monospace',
       fontSize: '120px',
       color: COLORS_CSS.cobalt,
@@ -34,8 +43,8 @@ export class TitleScene extends Phaser.Scene {
       shadow: { offsetX: 6, offsetY: 6, color: '#000', blur: 0, fill: true },
     }).setOrigin(0.5);
 
-    // Title — big "WARRIORS" line
-    const title2 = this.add.text(cx, cy - 60, 'WARRIORS', {
+    // Title — "WARRIORS"
+    const title2 = this.add.text(cx, cy - 100, 'WARRIORS', {
       fontFamily: '"Press Start 2P", monospace',
       fontSize: '120px',
       color: COLORS_CSS.scarlet,
@@ -44,15 +53,15 @@ export class TitleScene extends Phaser.Scene {
       shadow: { offsetX: 6, offsetY: 6, color: '#000', blur: 0, fill: true },
     }).setOrigin(0.5);
 
-    // Subtitle / tagline
-    this.add.text(cx, cy + 40, 'An Educational Adventure', {
+    // Tagline
+    this.add.text(cx, cy + 0, 'An Educational Adventure', {
       fontFamily: '"Fredoka One", cursive',
       fontSize: '32px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0.5);
 
-    // Flavor line from the prototype
-    this.add.text(cx, cy + 100,
+    // Flavor line
+    this.add.text(cx, cy + 60,
       "The world's mathematical fabric is unraveling.\nOnly you can press the pieces back into place.", {
       fontFamily: '"Fredoka One", cursive',
       fontSize: '22px',
@@ -61,17 +70,22 @@ export class TitleScene extends Phaser.Scene {
       lineSpacing: 8,
     }).setOrigin(0.5);
 
-    // START button
-    this.buildStartButton(cx, cy + 240);
+    // Buttons — layout depends on whether we have a save to continue
+    if (this.hasProgress) {
+      this.buildButton(cx, cy + 180, 'CONTINUE', COLORS.scarlet, () => this.onContinue());
+      this.buildButton(cx, cy + 290, 'NEW GAME', COLORS.paperD, () => this.onNewGame(), COLORS_CSS.ink);
+    } else {
+      this.buildButton(cx, cy + 240, 'START ADVENTURE', COLORS.scarlet, () => this.onNewGame());
+    }
 
-    // Version tag in corner
+    // Version tag
     this.add.text(GAME_WIDTH - 20, GAME_HEIGHT - 20, `v${VERSION}`, {
       fontFamily: '"Press Start 2P", monospace',
       fontSize: '14px',
       color: COLORS_CSS.inkL,
     }).setOrigin(1, 1);
 
-    // Gentle title bob animation so it doesn't feel static
+    // Title bob
     this.tweens.add({
       targets: [title1, title2],
       y: '+=8',
@@ -82,29 +96,24 @@ export class TitleScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * Builds the START button. Uses a rectangle + text combo so we can
-   * animate press/hover without loading a sprite.
-   */
-  buildStartButton(x, y) {
+  buildButton(x, y, text, fillColor, onClick, textColor = COLORS_CSS.paper) {
     const w = 420;
     const h = 88;
 
-    const bg = this.add.rectangle(x, y, w, h, COLORS.scarlet)
+    const bg = this.add.rectangle(x, y, w, h, fillColor)
       .setStrokeStyle(4, COLORS.ink, 0.8)
       .setInteractive({ useHandCursor: true });
 
-    const label = this.add.text(x, y, 'START ADVENTURE', {
+    const label = this.add.text(x, y, text, {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: '28px',
-      color: COLORS_CSS.paper,
+      fontSize: '26px',
+      color: textColor,
       stroke: COLORS_CSS.ink,
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    // Press feedback
     bg.on('pointerdown', () => {
-      bg.fillColor = COLORS.scarletL;
+      audio.play('ui/click');
       this.tweens.add({
         targets: [bg, label],
         y: '+=4',
@@ -114,27 +123,25 @@ export class TitleScene extends Phaser.Scene {
     });
 
     bg.on('pointerup', () => {
-      bg.fillColor = COLORS.scarlet;
-      this.onStart();
+      onClick();
     });
 
-    bg.on('pointerout', () => {
-      bg.fillColor = COLORS.scarlet;
-    });
+    return { bg, label };
   }
 
-  /**
-   * Called when the player taps START. v0.3 routes through party select
-   * so the player actually picks their 3 heroes. Grade is hard-coded to
-   * 3 for now — a GradeSelectScene will slot in before party select in
-   * a future milestone (per docs/ROADMAP.md v0.5).
-   */
-  onStart() {
+  onNewGame() {
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start(SCENES.PARTY_SELECT, {
-        grade: 3,
+        grade: this.save.grade ?? 3,
       });
+    });
+  }
+
+  onContinue() {
+    this.cameras.main.fadeOut(300, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start(SCENES.WORLD_MAP);
     });
   }
 }

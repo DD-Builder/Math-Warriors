@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
+import { loadSave, writeSave, makeDefaultSave } from '../systems/save.js';
+import { audio } from '../systems/audio.js';
 
 /**
  * PartySelectScene
@@ -415,23 +417,40 @@ export class PartySelectScene extends Phaser.Scene {
   }
 
   // ================================================================
-  // CONFIRM → BATTLE
+  // CONFIRM → WORLD MAP
+  // Persist the party to the save file so subsequent scenes (world map,
+  // battle, future maze) can rehydrate it without re-selecting.
   // ================================================================
 
   tryConfirm() {
     if (this.selections.length < 3) return;
+    audio.play('ui/confirm');
+
+    // Build the runtime party AND the persistent party record in one go
     const party = this.selections.map((s) => {
       const def = this.classes[s.class][s.index];
       return spawnHero(def.id);
     });
 
+    // Start a fresh save for the new run (keeps existing settings/stats)
+    const save = loadSave();
+    const fresh = makeDefaultSave();
+    save.grade = this.grade;
+    save.party = party.map((h) => ({
+      id: h.id,
+      name: h.name,
+      hp: h.maxHp,
+      maxHp: h.maxHp,
+    }));
+    // Reset floor progress to fresh unless we're specifically continuing
+    save.floors = fresh.floors;
+    save.gold = 0;
+    save.potions = 2;
+    writeSave(save);
+
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.BATTLE, {
-        party,
-        floor: 1,
-        grade: this.grade,
-      });
+      this.scene.start(SCENES.WORLD_MAP);
     });
   }
 }
