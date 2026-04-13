@@ -125,91 +125,113 @@ function drawCloud(gfx, cx, cy, width, height, color, rng) {
 // PALETTE PRESETS PER FLOOR
 // ================================================================
 
+// BRIGHT, CHEERFUL palettes — Mario-world happy vibes.
+// Garden is sunny and warm. Tidepool is bright ocean blue.
+// Cloud is airy sky blue. Ember is warm sunset. Mending is magical twilight.
+// Title/menus use a special warm sunset palette.
 export const FLOOR_PALETTES = {
-  1: { // Garden — Reference B: bright whimsical
-    sky:     0x3a6848,
-    skyGlow: 0x88c878,
+  // Special "menu" palette — warm, inviting, used for title/grade/party screens
+  menu: {
+    sky:     0x78b8e8,
+    skyGlow: 0xd0e8f8,
     layers: [
-      { color: 0x1a4020, shadow: 0x0a1808, peakH: 0.18, peaks: 3 },
-      { color: 0x2a5c28, shadow: 0x0c2010, peakH: 0.22, peaks: 4 },
-      { color: 0x3a7830, shadow: 0x142c14, peakH: 0.16, peaks: 5 },
-      { color: 0x4a9838, shadow: 0x1c3818, peakH: 0.10, peaks: 3 },
+      { color: 0x58a848, shadow: 0x2c7828, peakH: 0.18, peaks: 3 },
+      { color: 0x68c050, shadow: 0x388830, peakH: 0.22, peaks: 4 },
+      { color: 0x78d858, shadow: 0x48a838, peakH: 0.16, peaks: 5 },
+      { color: 0x88e860, shadow: 0x58b840, peakH: 0.10, peaks: 3 },
     ],
-    ground:  0x2a4818,
-    trees:   0x1a3c10,
-    treesL:  0x306020,
-    accent:  0xc84868,  // flowers
-    cloud:   0xd8f0d0,
-    glow:    0xf8e848,
-    glowAlpha: 0.4,
-  },
-  2: { // Tidepool — dark blues, Reference A mood
-    sky:     0x0a1830,
-    skyGlow: 0x183860,
-    layers: [
-      { color: 0x0c1e38, shadow: 0x040c18, peakH: 0.14, peaks: 5 },
-      { color: 0x142e50, shadow: 0x081828, peakH: 0.20, peaks: 3 },
-      { color: 0x1c3e68, shadow: 0x0c2040, peakH: 0.16, peaks: 4 },
-      { color: 0x285080, shadow: 0x102848, peakH: 0.12, peaks: 3 },
-    ],
-    ground:  0x102838,
-    trees:   0x0c2040,
-    treesL:  0x183860,
-    accent:  0x40c0d0,  // coral
-    cloud:   0x283848,
-    glow:    0x60a0d0,
-    glowAlpha: 0.35,
-  },
-  3: { // Cloud — soft pastels
-    sky:     0x4870a0,
-    skyGlow: 0x88b8e0,
-    layers: [
-      { color: 0x6090c0, shadow: 0x304868, peakH: 0.12, peaks: 4 },
-      { color: 0x78a8d0, shadow: 0x405878, peakH: 0.18, peaks: 3 },
-      { color: 0x90c0e0, shadow: 0x587898, peakH: 0.14, peaks: 5 },
-      { color: 0xa8d8f0, shadow: 0x6890a8, peakH: 0.10, peaks: 3 },
-    ],
-    ground:  0x88b0d0,
-    trees:   0x5888b0,
-    treesL:  0x78a8d0,
-    accent:  0xf0c040,  // sun
-    cloud:   0xe8f0f8,
-    glow:    0xffd840,
-    glowAlpha: 0.45,
-  },
-  4: { // Ember — deep reds and oranges
-    sky:     0x1a0808,
-    skyGlow: 0x401008,
-    layers: [
-      { color: 0x2a0c08, shadow: 0x100404, peakH: 0.20, peaks: 4 },
-      { color: 0x4a1808, shadow: 0x200a04, peakH: 0.18, peaks: 3 },
-      { color: 0x6a2810, shadow: 0x301008, peakH: 0.14, peaks: 5 },
-      { color: 0x8a3818, shadow: 0x401808, peakH: 0.10, peaks: 3 },
-    ],
-    ground:  0x3a1408,
-    trees:   0x601808,
-    treesL:  0x8a2810,
-    accent:  0xf06020,  // embers
-    cloud:   0x402010,
-    glow:    0xff5010,
+    ground:  0x5caa40,
+    trees:   0x388828,
+    treesL:  0x50a838,
+    accent:  0xf06888,
+    cloud:   0xf0f8ff,
+    glow:    0xfff0a0,
     glowAlpha: 0.5,
   },
-  5: { // Mending Room — Reference A: dark cinematic
-    sky:     0x0c0420,
-    skyGlow: 0x201040,
+  1: { // Garden — bright sunny day, lush greens, warm light
+    sky:     0x68b8e8,
+    skyGlow: 0xc8e8f8,
     layers: [
-      { color: 0x140828, shadow: 0x080414, peakH: 0.16, peaks: 4 },
-      { color: 0x201040, shadow: 0x100820, peakH: 0.22, peaks: 3 },
-      { color: 0x301858, shadow: 0x180c30, peakH: 0.14, peaks: 5 },
-      { color: 0x402068, shadow: 0x201038, peakH: 0.10, peaks: 3 },
+      { color: 0x48a040, shadow: 0x287828, peakH: 0.18, peaks: 3 },
+      { color: 0x58b848, shadow: 0x388830, peakH: 0.22, peaks: 4 },
+      { color: 0x68c850, shadow: 0x48a838, peakH: 0.16, peaks: 5 },
+      { color: 0x78d858, shadow: 0x58b840, peakH: 0.10, peaks: 3 },
     ],
-    ground:  0x180830,
-    trees:   0x281050,
-    treesL:  0x381870,
-    accent:  0xd0a0ff,  // magic sparkles
-    cloud:   0x301848,
-    glow:    0xc080f0,
+    ground:  0x58b040,
+    trees:   0x388828,
+    treesL:  0x50a838,
+    accent:  0xf06888,  // pink flowers
+    cloud:   0xf0f8ff,
+    glow:    0xfff0a0,  // warm sun
+    glowAlpha: 0.55,
+  },
+  2: { // Tidepool — bright ocean, turquoise water, coral reefs
+    sky:     0x2878c0,
+    skyGlow: 0x58a8e0,
+    layers: [
+      { color: 0x1868a8, shadow: 0x0c4878, peakH: 0.14, peaks: 5 },
+      { color: 0x2880c0, shadow: 0x186098, peakH: 0.20, peaks: 3 },
+      { color: 0x3898d0, shadow: 0x2870a8, peakH: 0.16, peaks: 4 },
+      { color: 0x48b0e0, shadow: 0x3888b8, peakH: 0.12, peaks: 3 },
+    ],
+    ground:  0x2070a0,
+    trees:   0x186898,
+    treesL:  0x2888b8,
+    accent:  0xf0a848,  // coral orange
+    cloud:   0xd0e8f8,
+    glow:    0x88d8f8,
     glowAlpha: 0.45,
+  },
+  3: { // Cloud — bright sky, fluffy white, golden sun
+    sky:     0x88c8f8,
+    skyGlow: 0xd8f0ff,
+    layers: [
+      { color: 0xa0d0f0, shadow: 0x78a8c8, peakH: 0.12, peaks: 4 },
+      { color: 0xb0ddf8, shadow: 0x88b8d8, peakH: 0.18, peaks: 3 },
+      { color: 0xc0e8ff, shadow: 0x98c8e0, peakH: 0.14, peaks: 5 },
+      { color: 0xd0f0ff, shadow: 0xa8d8e8, peakH: 0.10, peaks: 3 },
+    ],
+    ground:  0xb8e0f0,
+    trees:   0x88b8d8,
+    treesL:  0xa8d0e8,
+    accent:  0xffd040,  // golden stars
+    cloud:   0xffffff,
+    glow:    0xfff080,
+    glowAlpha: 0.55,
+  },
+  4: { // Ember — warm sunset, orange glow, not pitch dark
+    sky:     0x4a1818,
+    skyGlow: 0x883018,
+    layers: [
+      { color: 0x5a2010, shadow: 0x301008, peakH: 0.20, peaks: 4 },
+      { color: 0x783010, shadow: 0x481808, peakH: 0.18, peaks: 3 },
+      { color: 0x984018, shadow: 0x582808, peakH: 0.14, peaks: 5 },
+      { color: 0xb85020, shadow: 0x683010, peakH: 0.10, peaks: 3 },
+    ],
+    ground:  0x6a2810,
+    trees:   0x882818,
+    treesL:  0xa83820,
+    accent:  0xf0a020,  // embers
+    cloud:   0x804020,
+    glow:    0xff6820,
+    glowAlpha: 0.55,
+  },
+  5: { // Mending Room — magical twilight, purple + gold, not pitch dark
+    sky:     0x281848,
+    skyGlow: 0x483078,
+    layers: [
+      { color: 0x302058, shadow: 0x181030, peakH: 0.16, peaks: 4 },
+      { color: 0x402870, shadow: 0x201840, peakH: 0.22, peaks: 3 },
+      { color: 0x503888, shadow: 0x282050, peakH: 0.14, peaks: 5 },
+      { color: 0x604898, shadow: 0x302858, peakH: 0.10, peaks: 3 },
+    ],
+    ground:  0x382058,
+    trees:   0x482870,
+    treesL:  0x583890,
+    accent:  0xe0b0ff,  // magic sparkles
+    cloud:   0x584080,
+    glow:    0xd098f8,
+    glowAlpha: 0.5,
   },
 };
 

@@ -50,7 +50,7 @@ export class SettingsScene extends Phaser.Scene {
 
   buildHeader() {
     this.add.text(GAME_WIDTH / 2, 100, 'SETTINGS', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '48px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
@@ -86,12 +86,12 @@ export class SettingsScene extends Phaser.Scene {
     // GRADE DISPLAY + CHANGE
     const gradeNames = ['K', '1st', '2nd', '3rd', '4th', '5th'];
     this.add.text(panelX - panelW / 2 + 40, panelY, 'GRADE', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '18px',
       color: COLORS_CSS.paper,
     }).setOrigin(0, 0.5);
     this.add.text(panelX, panelY, gradeNames[this.save.grade ?? 3], {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '26px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0.5, 0.5);
@@ -105,7 +105,7 @@ export class SettingsScene extends Phaser.Scene {
 
     // STATS
     this.add.text(panelX - panelW / 2 + 40, panelY, 'STATS', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '18px',
       color: COLORS_CSS.paper,
     }).setOrigin(0, 0.5);
@@ -116,7 +116,7 @@ export class SettingsScene extends Phaser.Scene {
       : 0;
     const statText = `BATTLES ${stats.totalBattles}    CORRECT ${stats.totalCorrect}    GOLD ${this.save.gold}    ACCURACY ${accuracy}%`;
     this.add.text(panelX + 120, panelY, statText, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '12px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0.5, 0.5);
@@ -124,7 +124,7 @@ export class SettingsScene extends Phaser.Scene {
 
     // RESET SAVE
     this.add.text(panelX - panelW / 2 + 40, panelY, 'DANGER', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '18px',
       color: COLORS_CSS.scarletL,
     }).setOrigin(0, 0.5);
@@ -137,7 +137,7 @@ export class SettingsScene extends Phaser.Scene {
     const panelW = 800;
 
     this.add.text(x - panelW / 2 + 40, y, label, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '18px',
       color: COLORS_CSS.paper,
     }).setOrigin(0, 0.5);
@@ -156,7 +156,7 @@ export class SettingsScene extends Phaser.Scene {
         .setStrokeStyle(3, COLORS.ink)
         .setInteractive({ useHandCursor: true });
       this.add.text(btnX, y, lvl.label, {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '14px',
         color: isActive ? COLORS_CSS.ink : COLORS_CSS.inkL,
       }).setOrigin(0.5);
@@ -174,7 +174,7 @@ export class SettingsScene extends Phaser.Scene {
       .setStrokeStyle(3, COLORS.ink)
       .setInteractive({ useHandCursor: true });
     this.add.text(x, y, label, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '16px',
       color: COLORS_CSS.paper,
       stroke: COLORS_CSS.ink,

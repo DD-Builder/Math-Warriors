@@ -289,19 +289,19 @@ export class MazeScene extends Phaser.Scene {
 
     // Floor name
     this.add.text(40, hudY - 50, `F${this.floorId}: ${this.floor.name.toUpperCase()}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '20px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0, 0.5);
 
     // Gold + potions
     this.hudGold = this.add.text(40, hudY + 0, `\u{1FA99} ${this.save.gold}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '18px',
       color: COLORS_CSS.paper,
     }).setOrigin(0, 0.5);
     this.hudPotions = this.add.text(40, hudY + 40, `\u{1F9EA} ${this.save.potions}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '18px',
       color: COLORS_CSS.paper,
     }).setOrigin(0, 0.5);
@@ -310,7 +310,7 @@ export class MazeScene extends Phaser.Scene {
     const stripX = GAME_WIDTH / 2 - 180;
     const stripY = hudY + 10;
     this.add.text(stripX - 20, stripY, 'PARTY', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
       color: COLORS_CSS.inkL,
     }).setOrigin(1, 0.5);
@@ -319,7 +319,7 @@ export class MazeScene extends Phaser.Scene {
       const x = stripX + i * 130;
       this.add.rectangle(x, stripY, 80, 40, hero.displayColor).setStrokeStyle(2, COLORS.ink);
       this.add.text(x, stripY + 32, hero.name, {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '10px',
         color: COLORS_CSS.paper,
       }).setOrigin(0.5);
@@ -334,7 +334,7 @@ export class MazeScene extends Phaser.Scene {
       .setStrokeStyle(3, COLORS.ink)
       .setInteractive({ useHandCursor: true });
     this.add.text(GAME_WIDTH - 90, hudY + 20, 'WORLD MAP', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '12px',
       color: COLORS_CSS.ink,
     }).setOrigin(0.5);
@@ -388,7 +388,7 @@ export class MazeScene extends Phaser.Scene {
         .setStrokeStyle(4, COLORS.paperD)
         .setInteractive({ useHandCursor: true });
       this.add.text(x, y, symbol, {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '32px',
         color: COLORS_CSS.paper,
       }).setOrigin(0.5);
@@ -573,7 +573,7 @@ export class MazeScene extends Phaser.Scene {
     const sx = this.originX + tileX * this.tileSize + this.tileSize / 2;
     const sy = this.originY + tileY * this.tileSize - 20;
     const t = this.add.text(sx, sy, text, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '18px',
       color,
       stroke: '#000000',

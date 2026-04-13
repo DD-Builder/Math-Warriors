@@ -30,16 +30,16 @@ export class TitleScene extends Phaser.Scene {
     this.save = loadSave();
     this.hasProgress = this.save.party && this.save.party.length >= 3;
 
-    // Papercut diorama — use Floor 5 (mending room) palette for
-    // the dramatic dark-cinematic feel from Reference A
-    drawPapercutBackground(this, 5, GAME_WIDTH, GAME_HEIGHT, 999);
+    // Bright cheerful papercut diorama — sunny garden feel
+    drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
 
-    // Semi-transparent panel so text is readable over the diorama
-    this.add.rectangle(cx, cy, GAME_WIDTH * 0.6, GAME_HEIGHT * 0.65, 0x000000, 0.55);
+    // Semi-transparent panel so text is readable over the bright bg
+    this.add.rectangle(cx, cy, GAME_WIDTH * 0.55, GAME_HEIGHT * 0.60, 0x000000, 0.45)
+      .setStrokeStyle(3, 0xffffff, 0.15);
 
     // Title — "MATH"
     const title1 = this.add.text(cx, cy - 220, 'MATH', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '120px',
       color: COLORS_CSS.cobalt,
       stroke: COLORS_CSS.scarlet,
@@ -49,7 +49,7 @@ export class TitleScene extends Phaser.Scene {
 
     // Title — "WARRIORS"
     const title2 = this.add.text(cx, cy - 100, 'WARRIORS', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '120px',
       color: COLORS_CSS.scarlet,
       stroke: COLORS_CSS.ink,
@@ -84,7 +84,7 @@ export class TitleScene extends Phaser.Scene {
 
     // Version tag
     this.add.text(GAME_WIDTH - 20, GAME_HEIGHT - 20, `v${VERSION}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
       color: COLORS_CSS.inkL,
     }).setOrigin(1, 1);
@@ -94,7 +94,7 @@ export class TitleScene extends Phaser.Scene {
       .setStrokeStyle(3, COLORS.ink)
       .setInteractive({ useHandCursor: true });
     this.add.text(GAME_WIDTH - 80, 60, 'SETTINGS', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
       color: COLORS_CSS.ink,
     }).setOrigin(0.5);
@@ -126,7 +126,7 @@ export class TitleScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     const label = this.add.text(x, y, text, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '26px',
       color: textColor,
       stroke: COLORS_CSS.ink,

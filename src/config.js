@@ -46,5 +46,6 @@ export const SCENES = {
   SETTINGS: 'SettingsScene',
 };
 
-// Version shown on title screen. Bump this on every meaningful change.
+// Safe margin from screen edges (pixels). All UI should stay inside this.
+export const MARGIN = 30;
 export const VERSION = '0.2.0';

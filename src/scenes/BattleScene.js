@@ -134,7 +134,7 @@ export class BattleScene extends Phaser.Scene {
 
     // Floor label top-left (on top of the diorama)
     this.add.text(30, 20, `FLOOR ${this.floor}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '16px',
       color: COLORS_CSS.paper,
       stroke: '#000000',
@@ -155,7 +155,7 @@ export class BattleScene extends Phaser.Scene {
         .setStrokeStyle(4, COLORS.ink);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '20px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
@@ -167,7 +167,7 @@ export class BattleScene extends Phaser.Scene {
       const hpBarFill = this.add.rectangle(x - 73, y + 110, 146, 10, 0x40c040)
         .setOrigin(0, 0.5);
       const hpText = this.add.text(x, y + 134, `${hero.hp}/${hero.maxHp}`, {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '14px',
         color: COLORS_CSS.paper,
       }).setOrigin(0.5);
@@ -187,7 +187,7 @@ export class BattleScene extends Phaser.Scene {
       .setStrokeStyle(6, COLORS.ink);
 
     const name = this.add.text(x, y - 170, this.enemy.name.toUpperCase(), {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '26px',
       color: COLORS_CSS.paper,
       stroke: COLORS_CSS.scarlet,
@@ -199,7 +199,7 @@ export class BattleScene extends Phaser.Scene {
     const hpBarFill = this.add.rectangle(x - 138, y + 165, 274, 14, 0xc04030)
       .setOrigin(0, 0.5);
     const hpText = this.add.text(x, y + 195, `${this.enemy.hp}/${this.enemy.maxHp}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '16px',
       color: COLORS_CSS.paper,
     }).setOrigin(0.5);
@@ -212,22 +212,24 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   buildUI() {
-    const uiTop = GAME_HEIGHT - 300;
+    // UI panel — compact so answer buttons don't get cut off by Safari toolbar
+    const uiH = 260;
+    const uiTop = GAME_HEIGHT - uiH;
 
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 150, GAME_WIDTH, 300, COLORS.ink, 0.92)
-      .setStrokeStyle(4, COLORS.paperD, 0.6);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - uiH / 2, GAME_WIDTH, uiH, COLORS.ink, 0.92)
+      .setStrokeStyle(3, COLORS.paperD, 0.4);
 
     // Momentum bar
-    this.add.text(GAME_WIDTH / 2 - 440, uiTop + 20, 'MOMENTUM', {
-      fontFamily: '"Press Start 2P", monospace',
+    this.add.text(GAME_WIDTH / 2 - 380, uiTop + 14, 'MOMENTUM', {
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
       color: COLORS_CSS.paper,
     }).setOrigin(0, 0.5);
 
-    const barX = GAME_WIDTH / 2 - 280;
-    const barY = uiTop + 20;
-    const barW = 600;
-    const barH = 24;
+    const barX = GAME_WIDTH / 2 - 220;
+    const barY = uiTop + 14;
+    const barW = 500;
+    const barH = 20;
 
     this.add.rectangle(barX, barY, barW, barH, COLORS.ink)
       .setOrigin(0, 0.5).setStrokeStyle(2, COLORS.paperD);
@@ -241,21 +243,21 @@ export class BattleScene extends Phaser.Scene {
       .setOrigin(0, 0.5);
 
     this.momentumLabel = this.add.text(barX + barW + 20, barY, 'ZONE', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0, 0.5);
 
     // Current question
-    this.questionText = this.add.text(GAME_WIDTH / 2, uiTop + 80, '', {
-      fontFamily: '"Press Start 2P", monospace',
-      fontSize: '48px',
+    this.questionText = this.add.text(GAME_WIDTH / 2, uiTop + 60, '', {
+      fontFamily: '"Fredoka One", cursive',
+      fontSize: '42px',
       color: COLORS_CSS.paper,
       stroke: COLORS_CSS.ink,
       strokeThickness: 4,
     }).setOrigin(0.5);
 
-    this.turnLabel = this.add.text(GAME_WIDTH / 2, uiTop + 140, '', {
+    this.turnLabel = this.add.text(GAME_WIDTH / 2, uiTop + 110, '', {
       fontFamily: '"Fredoka One", cursive',
       fontSize: '22px',
       color: COLORS_CSS.goldL,
@@ -263,10 +265,10 @@ export class BattleScene extends Phaser.Scene {
 
     // Answer buttons
     this.answerButtons = [];
-    const btnW = 220;
-    const btnH = 80;
-    const btnY = uiTop + 210;
-    const btnSpacing = 30;
+    const btnW = 200;
+    const btnH = 65;
+    const btnY = uiTop + 175;
+    const btnSpacing = 20;
     const totalW = 4 * btnW + 3 * btnSpacing;
     const startX = GAME_WIDTH / 2 - totalW / 2;
     const btnColors = [COLORS.cobalt, COLORS.scarlet, COLORS.green, COLORS.plum];
@@ -277,8 +279,8 @@ export class BattleScene extends Phaser.Scene {
         .setStrokeStyle(4, COLORS.ink)
         .setInteractive({ useHandCursor: true });
       const label = this.add.text(x, btnY, '?', {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: '36px',
+        fontFamily: '"Fredoka One", cursive',
+        fontSize: '32px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
         strokeThickness: 4,
@@ -297,13 +299,13 @@ export class BattleScene extends Phaser.Scene {
     // hero for 25 HP. Skips the rest of the current turn so the enemy
     // gets to attack in response (costs a turn to use, like the prototype
     // was supposed to do).
-    const potionX = GAME_WIDTH - 140;
-    const potionY = uiTop + 20;
+    const potionX = GAME_WIDTH - 130;
+    const potionY = uiTop + 14;
     const potionBg = this.add.rectangle(potionX, potionY, 220, 50, 0x2c7848)
       .setStrokeStyle(3, COLORS.ink)
       .setInteractive({ useHandCursor: true });
     this.potionLabel = this.add.text(potionX, potionY, '', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
       color: COLORS_CSS.paper,
     }).setOrigin(0.5);
@@ -324,7 +326,7 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false);
     const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.ink, 0.88);
     const endTitle = this.add.text(0, -160, '', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '72px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
@@ -337,7 +339,7 @@ export class BattleScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5);
     const endRewards = this.add.text(0, 30, '', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '22px',
       color: COLORS_CSS.goldL,
       align: 'center',
@@ -346,7 +348,7 @@ export class BattleScene extends Phaser.Scene {
       .setStrokeStyle(4, COLORS.ink)
       .setInteractive({ useHandCursor: true });
     const endBtnLabel = this.add.text(0, 140, 'CONTINUE', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '24px',
       color: COLORS_CSS.paper,
     }).setOrigin(0.5);
@@ -697,7 +699,7 @@ export class BattleScene extends Phaser.Scene {
    */
   floatDamageNumber(x, y, amount, color) {
     const t = this.add.text(x, y, `-${amount}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '36px',
       color,
       stroke: '#000000',
@@ -796,6 +798,11 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase === 'end') return;
     this.phase = 'end';
     this.locked = true;
+
+    // CRITICAL: kill ALL pending timers and tweens so no stale nextTurn
+    // or enemy attack callback can restart the turn cycle after victory.
+    this.time.removeAllEvents();
+
     audio.stopMusic();
     audio.play('battle/victory');
 
@@ -842,18 +849,14 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay.subText.setText(`${this.enemy.name} defeated!`);
     this.endOverlay.rewardsText.setText(`+${goldEarned} GOLD`);
     this.endOverlay.setVisible(true);
-    this.endOverlay.setAlpha(0);
-    this.tweens.add({
-      targets: this.endOverlay,
-      alpha: 1,
-      duration: 400,
-    });
+    this.endOverlay.setAlpha(1);
   }
 
   showDefeat() {
     if (this.phase === 'end') return;
     this.phase = 'end';
     this.locked = true;
+    this.time.removeAllEvents();
     audio.stopMusic();
     audio.play('battle/defeat');
 
@@ -874,11 +877,6 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay.subText.setText('Your party retreats to camp.\nHeal up and try again!');
     this.endOverlay.rewardsText.setText('');
     this.endOverlay.setVisible(true);
-    this.endOverlay.setAlpha(0);
-    this.tweens.add({
-      targets: this.endOverlay,
-      alpha: 1,
-      duration: 400,
-    });
+    this.endOverlay.setAlpha(1);
   }
 }

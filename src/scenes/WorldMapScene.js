@@ -51,7 +51,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Title
     this.add.text(GAME_WIDTH / 2, 80, 'WORLD MAP', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '42px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
@@ -76,7 +76,7 @@ export class WorldMapScene extends Phaser.Scene {
       fontSize: '32px',
     }).setOrigin(0, 0.5);
     this.add.text(105, 40, `${this.save.gold}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '22px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0, 0.5);
@@ -88,7 +88,7 @@ export class WorldMapScene extends Phaser.Scene {
       fontSize: '32px',
     }).setOrigin(0, 0.5);
     this.add.text(105, 110, `${this.save.potions}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '22px',
       color: COLORS_CSS.paper,
     }).setOrigin(0, 0.5);
@@ -102,7 +102,7 @@ export class WorldMapScene extends Phaser.Scene {
       this.add.rectangle(stripX + stripW / 2, stripY + 40, stripW, 80, COLORS.ink, 0.8)
         .setStrokeStyle(3, COLORS.paperD);
       this.add.text(stripX + 15, stripY + 20, 'PARTY', {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '11px',
         color: COLORS_CSS.inkL,
       });
@@ -135,7 +135,7 @@ export class WorldMapScene extends Phaser.Scene {
       .setStrokeStyle(3, COLORS.ink)
       .setInteractive({ useHandCursor: true });
     this.add.text(GAME_WIDTH - 80, GAME_HEIGHT - 50, 'TITLE', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '16px',
       color: COLORS_CSS.ink,
     }).setOrigin(0.5);
@@ -239,7 +239,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Floor number
     this.add.text(x - radius * 0.65, y - radius * 0.65, `${info.id}`, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '22px',
       color: locked ? COLORS_CSS.inkL : COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
@@ -269,7 +269,7 @@ export class WorldMapScene extends Phaser.Scene {
     const label = this.add.rectangle(x, y + radius + 30, 280, 50, COLORS.ink, 0.9)
       .setStrokeStyle(3, locked ? COLORS.paperD : COLORS.gold);
     this.add.text(x, y + radius + 24, info.name, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
       color: locked ? COLORS_CSS.inkL : COLORS_CSS.goldL,
     }).setOrigin(0.5);

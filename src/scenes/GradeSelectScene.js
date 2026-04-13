@@ -56,7 +56,7 @@ export class GradeSelectScene extends Phaser.Scene {
 
   buildHeader() {
     this.add.text(GAME_WIDTH / 2, 80, 'CHOOSE YOUR GRADE', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '44px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
@@ -105,7 +105,7 @@ export class GradeSelectScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
 
       const label = this.add.text(x, y - cardH * 0.22, g.label, {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '88px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
@@ -113,7 +113,7 @@ export class GradeSelectScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       const name = this.add.text(x, y + cardH * 0.18, g.name.toUpperCase(), {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '16px',
         color: COLORS_CSS.paper,
       }).setOrigin(0.5);
@@ -159,7 +159,7 @@ export class GradeSelectScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     this.add.text(x, y, 'CONFIRM', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '28px',
       color: COLORS_CSS.paper,
       stroke: COLORS_CSS.ink,

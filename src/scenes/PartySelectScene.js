@@ -103,7 +103,7 @@ export class PartySelectScene extends Phaser.Scene {
 
     // Title — small in the header
     this.add.text(40, 30, 'MATH WARRIORS', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '18px',
       color: COLORS_CSS.cobalt,
       stroke: COLORS_CSS.scarlet,
@@ -139,7 +139,7 @@ export class PartySelectScene extends Phaser.Scene {
         .setStrokeStyle(3, COLORS.paperD)
         .setInteractive({ useHandCursor: true });
       const label = this.add.text(x, tabY, this.classLabels[cls], {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '18px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
@@ -177,7 +177,7 @@ export class PartySelectScene extends Phaser.Scene {
   buildHeroGrid() {
     // Section label
     this.gridLabel = this.add.text(GAME_WIDTH / 2, 240, '', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '16px',
       color: COLORS_CSS.inkL,
     }).setOrigin(0.5);
@@ -224,7 +224,7 @@ export class PartySelectScene extends Phaser.Scene {
 
     // Hero name
     const name = this.add.text(x, y + 40, hero.name.toUpperCase(), {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '16px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
@@ -244,7 +244,7 @@ export class PartySelectScene extends Phaser.Scene {
     const statsY = y + 130;
     const statText = `HP ${hero.maxHp}  ATK ${hero.atk}  DEF ${hero.def}`;
     const stats = this.add.text(x, statsY, statText, {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '11px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0.5);
@@ -255,7 +255,7 @@ export class PartySelectScene extends Phaser.Scene {
       badge = this.add.circle(x + w / 2 - 25, y - h / 2 + 25, 18, COLORS.gold)
         .setStrokeStyle(3, COLORS.ink);
       const checkmark = this.add.text(x + w / 2 - 25, y - h / 2 + 25, '\u2713', {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '22px',
         color: COLORS_CSS.ink,
       }).setOrigin(0.5);
@@ -281,7 +281,7 @@ export class PartySelectScene extends Phaser.Scene {
 
     // Label
     this.add.text(stripX - 70, stripY + slotH / 2, 'PARTY', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
       color: COLORS_CSS.paper,
     }).setOrigin(1, 0.5);
@@ -298,7 +298,7 @@ export class PartySelectScene extends Phaser.Scene {
 
       const leadTag = isLead
         ? this.add.text(x + slotW / 2, y + 8, 'LEAD', {
-            fontFamily: '"Press Start 2P", monospace',
+            fontFamily: '"Fredoka One", cursive',
             fontSize: '9px',
             color: COLORS_CSS.goldL,
           }).setOrigin(0.5, 0)
@@ -308,7 +308,7 @@ export class PartySelectScene extends Phaser.Scene {
         .setStrokeStyle(1, COLORS.paperD, 0.3);
 
       const name = this.add.text(x + slotW / 2, y + slotH - 6, '—', {
-        fontFamily: '"Press Start 2P", monospace',
+        fontFamily: '"Fredoka One", cursive',
         fontSize: '8px',
         color: COLORS_CSS.inkL,
       }).setOrigin(0.5, 1);
@@ -352,7 +352,7 @@ export class PartySelectScene extends Phaser.Scene {
       .setStrokeStyle(4, COLORS.ink)
       .setInteractive({ useHandCursor: false });
     const label = this.add.text(x, y, 'BEGIN', {
-      fontFamily: '"Press Start 2P", monospace',
+      fontFamily: '"Fredoka One", cursive',
       fontSize: '16px',
       color: COLORS_CSS.inkL,
     }).setOrigin(0.5);
