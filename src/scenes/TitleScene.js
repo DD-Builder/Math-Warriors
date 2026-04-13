@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, VERSION } from '../config.js';
 import { loadSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
+import { drawPapercutBackground } from '../systems/papercut.js';
 
 /**
  * TitleScene — the game's front door.
@@ -22,16 +23,19 @@ export class TitleScene extends Phaser.Scene {
     const cy = GAME_HEIGHT / 2;
 
     this.cameras.main.fadeIn(250, 0, 0, 0);
-    this.cameras.main.setBackgroundColor(COLORS.bg);
+    this.cameras.main.setBackgroundColor(0x000000);
     audio.playMusic('music/title');
 
     // Load save to check if there's progress to continue
     this.save = loadSave();
     this.hasProgress = this.save.party && this.save.party.length >= 3;
 
-    // Soft paper panel
-    this.add.rectangle(cx, cy, GAME_WIDTH * 0.7, GAME_HEIGHT * 0.7, COLORS.ink, 0.4)
-      .setStrokeStyle(4, COLORS.paperD, 0.3);
+    // Papercut diorama — use Floor 5 (mending room) palette for
+    // the dramatic dark-cinematic feel from Reference A
+    drawPapercutBackground(this, 5, GAME_WIDTH, GAME_HEIGHT, 999);
+
+    // Semi-transparent panel so text is readable over the diorama
+    this.add.rectangle(cx, cy, GAME_WIDTH * 0.6, GAME_HEIGHT * 0.65, 0x000000, 0.55);
 
     // Title — "MATH"
     const title1 = this.add.text(cx, cy - 220, 'MATH', {

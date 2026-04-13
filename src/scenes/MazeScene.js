@@ -5,6 +5,7 @@ import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
 import { spawnHero } from '../data/heroes.js';
 import { spawnEnemy, pickEnemyForFloor } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
+import { FLOOR_PALETTES } from '../systems/papercut.js';
 
 /**
  * MazeScene
@@ -92,7 +93,9 @@ export class MazeScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.fadeIn(250, 0, 0, 0);
-    this.cameras.main.setBackgroundColor(this.floor.palette.wall);
+    // Use the papercut palette's sky color for the area outside the maze
+    const pal = FLOOR_PALETTES[this.floorId] || FLOOR_PALETTES[1];
+    this.cameras.main.setBackgroundColor(pal.sky);
     audio.playMusic(`music/floor-${this.floorId}`);
 
     // Compute tile size and origin so the map fits the screen cleanly.

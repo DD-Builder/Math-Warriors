@@ -3,6 +3,7 @@ import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.j
 import { loadSave } from '../systems/save.js';
 import { spawnHero, getHeroById } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
+import { drawPapercutBackground } from '../systems/papercut.js';
 
 /**
  * WorldMapScene
@@ -44,22 +45,9 @@ export class WorldMapScene extends Phaser.Scene {
   // ================================================================
 
   buildBackground() {
-    // Vignette: dark edges, slightly-warmer center
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT / 2;
-
-    const glow = this.add.graphics();
-    glow.fillStyle(0x2a1c08, 0.35);
-    glow.fillCircle(cx, cy, 900);
-    glow.fillStyle(0x4a2c10, 0.2);
-    glow.fillCircle(cx, cy, 600);
-
-    // Faint grid texture — a stand-in for the layered paper table
-    const grid = this.add.graphics();
-    grid.lineStyle(1, 0x4a3420, 0.08);
-    const spacing = 80;
-    for (let x = 0; x < GAME_WIDTH; x += spacing) grid.lineBetween(x, 0, x, GAME_HEIGHT);
-    for (let y = 0; y < GAME_HEIGHT; y += spacing) grid.lineBetween(0, y, GAME_WIDTH, y);
+    // Full-screen papercut diorama using Floor 1's palette as the
+    // "overworld" look. The world map is set in the garden world.
+    drawPapercutBackground(this, 1, GAME_WIDTH, GAME_HEIGHT, 777);
 
     // Title
     this.add.text(GAME_WIDTH / 2, 80, 'WORLD MAP', {

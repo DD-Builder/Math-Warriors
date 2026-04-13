@@ -17,6 +17,7 @@ import { spawnEnemy, FLOOR_1, FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
 import { invokeAbility } from '../systems/abilities.js';
+import { drawPapercutBackground } from '../systems/papercut.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -124,35 +125,20 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   buildBackground() {
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT / 2;
+    this.cameras.main.setBackgroundColor(0x000000);
 
-    this.cameras.main.setBackgroundColor(COLORS.ink);
+    // Layered papercut diorama — procedurally generated per floor.
+    // The background fills the area above the UI panel.
+    const bgHeight = GAME_HEIGHT * 0.72; // above the UI
+    drawPapercutBackground(this, this.floor, GAME_WIDTH, bgHeight, 42);
 
-    // Warm central glow — the "stage light" from Reference C in ART-STYLE.md
-    const glow = this.add.graphics();
-    glow.fillStyle(0x4a2810, 0.5);
-    glow.fillCircle(cx, cy - 80, 400);
-    glow.fillStyle(0x8a4820, 0.3);
-    glow.fillCircle(cx, cy - 80, 250);
-    glow.fillStyle(0xc87020, 0.2);
-    glow.fillCircle(cx, cy - 80, 150);
-
-    // Stage floor — pulled up from 0.68 so heroes/enemy and their HP
-    // bars fit entirely above the UI panel at the bottom of the screen.
-    const groundY = GAME_HEIGHT * 0.58;
-    this.add.rectangle(0, groundY, GAME_WIDTH * 2, GAME_HEIGHT * 0.4, COLORS.ink)
-      .setOrigin(0, 0).setAlpha(0.6);
-
-    // Decorative frame hint
-    this.add.rectangle(cx, cy - 20, GAME_WIDTH * 0.8, GAME_HEIGHT * 0.58)
-      .setStrokeStyle(6, COLORS.paperD, 0.2);
-
-    // Floor label top-left
-    this.add.text(40, 40, `FLOOR ${this.floor}`, {
+    // Floor label top-left (on top of the diorama)
+    this.add.text(30, 20, `FLOOR ${this.floor}`, {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: '18px',
-      color: COLORS_CSS.inkL,
+      fontSize: '16px',
+      color: COLORS_CSS.paper,
+      stroke: '#000000',
+      strokeThickness: 4,
     });
   }
 
