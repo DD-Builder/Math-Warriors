@@ -1,7 +1,9 @@
 // Global game constants. Anything that would be a "magic number" elsewhere
 // should live here so it can be changed in one place.
 
-export const GAME_WIDTH = 1920;
+// iPad is 4:3. Design for that. Desktop/widescreen gets small side bars
+// which is fine — iPad is our primary target.
+export const GAME_WIDTH = 1440;
 export const GAME_HEIGHT = 1080;
 
 export const COLORS = {
@@ -45,4 +47,4 @@ export const SCENES = {
 };
 
 // Version shown on title screen. Bump this on every meaningful change.
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';

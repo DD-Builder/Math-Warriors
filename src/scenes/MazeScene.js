@@ -237,15 +237,8 @@ export class MazeScene extends Phaser.Scene {
       .setStrokeStyle(2, COLORS.ink);
     this.playerSprite.add([body, head]);
 
-    // Subtle idle bob
-    this.tweens.add({
-      targets: this.playerSprite,
-      y: sy - 3,
-      duration: 600,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.inOut',
-    });
+    // No idle bob — it conflicts with movement tweens on the same target.
+    // We'll add sprite animation later when real art lands.
   }
 
   // ================================================================
@@ -436,11 +429,17 @@ export class MazeScene extends Phaser.Scene {
     const tx = this.originX + nx * this.tileSize + this.tileSize / 2;
     const ty = this.originY + ny * this.tileSize + this.tileSize / 2;
 
+    // Kill any existing player tweens to avoid conflicts
+    this.tweens.killTweensOf(this.playerSprite);
+
+    // Safety: if the tween somehow doesn't complete, force-unlock after 300ms
+    this.time.delayedCall(300, () => { this.moving = false; });
+
     this.tweens.add({
       targets: this.playerSprite,
       x: tx,
       y: ty,
-      duration: 140,
+      duration: 130,
       ease: 'Linear',
       onComplete: () => {
         this.moving = false;

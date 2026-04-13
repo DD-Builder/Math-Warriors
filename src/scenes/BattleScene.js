@@ -474,7 +474,7 @@ export class BattleScene extends Phaser.Scene {
       if (!target) return this.showDefeat();
       const result = computeEnemyDamage(this.enemy, target, { momentum: this.momentum });
       applyDamageResult(target, result);
-      this.hitPause(80);
+      this.hitFlash();
       this.flashHero(target, result);
       this.updateHeroHp(target);
       this.shakeCamera(0.01, 250);
@@ -520,6 +520,17 @@ export class BattleScene extends Phaser.Scene {
       });
       applyDamageResult(this.enemy, result);
 
+      // Check for kill IMMEDIATELY — don't wait for animations
+      if (this.enemy.hp <= 0) {
+        this.hitFlash();
+        this.flashEnemy(result);
+        this.updateEnemyHp();
+        this.burstParticles(this.enemySprite.x, this.enemySprite.y, 0xe8a030);
+        this.shakeCamera(0.012, 300);
+        this.time.delayedCall(400, () => this.showVictory());
+        return; // skip the normal turn advance below
+      }
+
       // Animate attacker forward, then back
       const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
       this.tweens.add({
@@ -529,7 +540,7 @@ export class BattleScene extends Phaser.Scene {
         yoyo: true,
         ease: 'Sine.inOut',
         onYoyo: () => {
-          this.hitPause(80);
+          this.hitFlash();
           this.flashEnemy(result);
           this.updateEnemyHp();
           audio.play('battle/hit-enemy');
@@ -562,7 +573,7 @@ export class BattleScene extends Phaser.Scene {
         const target = this.party[this.currentTurn.heroIndex];
         const result = computeEnemyDamage(this.enemy, target, { momentum: this.momentum });
         applyDamageResult(target, result);
-        this.hitPause(80);
+        this.hitFlash();
         this.flashHero(target, result);
         this.updateHeroHp(target);
         this.shakeCamera(0.01, 250);
@@ -629,12 +640,18 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   /**
-   * Freeze the game briefly on impact. This is the single biggest
-   * contribution to "hit feel" in action games.
+   * Impact flash — camera-based hit effect that does NOT pause tweens.
+   *
+   * The original hitPause used tweens.pauseAll() which deadlocked the
+   * game: it froze the victory overlay's fade-in tween, so the player
+   * saw a transparent overlay and thought the game locked up. It also
+   * risked freezing delayedCall-driven turn advances.
+   *
+   * This replacement gives a brief white flash + camera shake combo
+   * that feels impactful without touching the tween timeline at all.
    */
-  hitPause(ms) {
-    this.tweens.pauseAll();
-    this.time.delayedCall(ms, () => this.tweens.resumeAll());
+  hitFlash() {
+    this.cameras.main.flash(120, 255, 255, 255, false, null, null, 0.15);
   }
 
   /**

@@ -55,7 +55,7 @@ export class GradeSelectScene extends Phaser.Scene {
   }
 
   buildHeader() {
-    this.add.text(GAME_WIDTH / 2, 140, 'CHOOSE YOUR GRADE', {
+    this.add.text(GAME_WIDTH / 2, 80, 'CHOOSE YOUR GRADE', {
       fontFamily: '"Press Start 2P", monospace',
       fontSize: '44px',
       color: COLORS_CSS.goldL,
@@ -63,7 +63,7 @@ export class GradeSelectScene extends Phaser.Scene {
       strokeThickness: 5,
     }).setOrigin(0.5);
 
-    this.add.text(GAME_WIDTH / 2, 210, 'This sets how hard the math problems will be.\nYou can change it later from the menu.', {
+    this.add.text(GAME_WIDTH / 2, 150, 'This sets how hard the math problems will be.\nYou can change it later from the menu.', {
       fontFamily: '"Fredoka One", cursive',
       fontSize: '24px',
       color: COLORS_CSS.paper,
@@ -74,9 +74,9 @@ export class GradeSelectScene extends Phaser.Scene {
 
   buildGradeGrid() {
     const grades = [
-      { id: 0, label: 'K',   name: 'Kindergarten', hint: 'Counting + small sums',   color: 0x3a8a20 },
-      { id: 1, label: '1',   name: '1st Grade',    hint: 'Add + subtract to 10',   color: 0x40a040 },
-      { id: 2, label: '2',   name: '2nd Grade',    hint: 'Intro multiplication',   color: 0x4a9830 },
+      { id: 0, label: 'K',   name: 'Kindergarten', hint: 'Counting + small sums',   color: 0x2a8848 },
+      { id: 1, label: '1',   name: '1st Grade',    hint: 'Add + subtract to 10',   color: 0x48a030 },
+      { id: 2, label: '2',   name: '2nd Grade',    hint: 'Intro multiplication',   color: 0x88a818 },
       { id: 3, label: '3',   name: '3rd Grade',    hint: 'Times tables',           color: 0x2e4e88 },
       { id: 4, label: '4',   name: '4th Grade',    hint: 'Multi-digit math',       color: 0x5a1878 },
       { id: 5, label: '5',   name: '5th Grade',    hint: 'Full arithmetic',        color: 0xc02860 },
@@ -90,7 +90,7 @@ export class GradeSelectScene extends Phaser.Scene {
     const totalW = cols * cardW + (cols - 1) * gap;
     const totalH = rows * cardH + (rows - 1) * gap;
     const startX = GAME_WIDTH / 2 - totalW / 2 + cardW / 2;
-    const startY = GAME_HEIGHT / 2 - totalH / 2 + cardH / 2 + 80;
+    const startY = GAME_HEIGHT / 2 - totalH / 2 + cardH / 2 + 30;
 
     this.gradeCards = {};
 

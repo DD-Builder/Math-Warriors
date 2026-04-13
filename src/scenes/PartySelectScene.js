@@ -193,12 +193,12 @@ export class PartySelectScene extends Phaser.Scene {
     const heroes = this.classes[this.activeClass];
     this.gridLabel.setText(`CHOOSE YOUR ${this.classLabels[this.activeClass].replace(/S$/, '')}`);
 
-    const cardW = 280;
-    const cardH = 420;
-    const spacing = 30;
+    const cardW = 220;
+    const cardH = 380;
+    const spacing = 20;
     const totalW = heroes.length * cardW + (heroes.length - 1) * spacing;
     const startX = GAME_WIDTH / 2 - totalW / 2 + cardW / 2;
-    const cardY = 510;
+    const cardY = 490;
 
     heroes.forEach((hero, i) => {
       const x = startX + i * (cardW + spacing);
@@ -216,36 +216,36 @@ export class PartySelectScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     // Placeholder sprite rectangle (colored by class)
-    const spriteW = w - 60;
-    const spriteH = 200;
-    const spriteY = y - 70;
+    const spriteW = w - 40;
+    const spriteH = 150;
+    const spriteY = y - 60;
     const spriteRect = this.add.rectangle(x, spriteY, spriteW, spriteH, hero.displayColor)
       .setStrokeStyle(4, COLORS.ink);
 
     // Hero name
-    const name = this.add.text(x, y + 60, hero.name.toUpperCase(), {
+    const name = this.add.text(x, y + 40, hero.name.toUpperCase(), {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: '20px',
+      fontSize: '16px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
       strokeThickness: 3,
     }).setOrigin(0.5);
 
     // Hero trait (flavor text)
-    const trait = this.add.text(x, y + 100, hero.trait, {
+    const trait = this.add.text(x, y + 72, hero.trait, {
       fontFamily: '"Fredoka One", cursive',
-      fontSize: '16px',
+      fontSize: '14px',
       color: COLORS_CSS.paper,
       align: 'center',
-      wordWrap: { width: w - 40 },
+      wordWrap: { width: w - 30 },
     }).setOrigin(0.5, 0);
 
     // Stats row
-    const statsY = y + 160;
+    const statsY = y + 130;
     const statText = `HP ${hero.maxHp}  ATK ${hero.atk}  DEF ${hero.def}`;
     const stats = this.add.text(x, statsY, statText, {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: '13px',
+      fontSize: '11px',
       color: COLORS_CSS.goldL,
     }).setOrigin(0.5);
 
@@ -273,10 +273,10 @@ export class PartySelectScene extends Phaser.Scene {
   // ================================================================
 
   buildPartyStrip() {
-    const stripX = GAME_WIDTH - 420;
+    const stripX = GAME_WIDTH - 360;
     const stripY = 60;
-    const slotW = 90;
-    const slotH = 110;
+    const slotW = 70;
+    const slotH = 90;
     const spacing = 10;
 
     // Label
@@ -304,12 +304,12 @@ export class PartySelectScene extends Phaser.Scene {
           }).setOrigin(0.5, 0)
         : null;
 
-      const sprite = this.add.rectangle(x + slotW / 2, y + slotH / 2, slotW - 20, slotH - 40, COLORS.ink)
+      const sprite = this.add.rectangle(x + slotW / 2, y + slotH / 2, slotW - 12, slotH - 30, COLORS.ink)
         .setStrokeStyle(1, COLORS.paperD, 0.3);
 
-      const name = this.add.text(x + slotW / 2, y + slotH - 10, '—', {
+      const name = this.add.text(x + slotW / 2, y + slotH - 6, '—', {
         fontFamily: '"Press Start 2P", monospace',
-        fontSize: '11px',
+        fontSize: '8px',
         color: COLORS_CSS.inkL,
       }).setOrigin(0.5, 1);
 
@@ -345,10 +345,10 @@ export class PartySelectScene extends Phaser.Scene {
   // ================================================================
 
   buildConfirmButton() {
-    const x = GAME_WIDTH - 90;
-    const y = 120;
+    const x = GAME_WIDTH - 80;
+    const y = 60;
 
-    const bg = this.add.rectangle(x, y, 160, 70, COLORS.paperD)
+    const bg = this.add.rectangle(x, y, 140, 60, COLORS.paperD)
       .setStrokeStyle(4, COLORS.ink)
       .setInteractive({ useHandCursor: false });
     const label = this.add.text(x, y, 'BEGIN', {
