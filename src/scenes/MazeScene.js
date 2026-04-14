@@ -378,7 +378,7 @@ export class MazeScene extends Phaser.Scene {
         .setStrokeStyle(4, COLORS.paperD)
         .setInteractive({ useHandCursor: true });
       this.add.text(x, y, symbol, {
-        fontFamily: '"Fredoka One", cursive',
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '32px',
         color: COLORS_CSS.paper,
       }).setOrigin(0.5);
@@ -563,7 +563,7 @@ export class MazeScene extends Phaser.Scene {
     const sx = this.originX + tileX * this.tileSize + this.tileSize / 2;
     const sy = this.originY + tileY * this.tileSize - 20;
     const t = this.add.text(sx, sy, text, {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '18px',
       color,
       stroke: '#000000',

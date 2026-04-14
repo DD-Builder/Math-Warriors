@@ -135,7 +135,7 @@ export class BattleScene extends Phaser.Scene {
 
     // Floor label top-left (on top of the diorama)
     this.add.text(30, 20, `FLOOR ${this.floor}`, {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: COLORS_CSS.paper,
       stroke: '#000000',
@@ -156,7 +156,7 @@ export class BattleScene extends Phaser.Scene {
         .setStrokeStyle(4, COLORS.ink);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
-        fontFamily: '"Fredoka One", cursive',
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '20px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
@@ -168,7 +168,7 @@ export class BattleScene extends Phaser.Scene {
       const hpBarFill = this.add.rectangle(x - 73, y + 110, 146, 10, 0x40c040)
         .setOrigin(0, 0.5);
       const hpText = this.add.text(x, y + 134, `${hero.hp}/${hero.maxHp}`, {
-        fontFamily: '"Fredoka One", cursive',
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '14px',
         color: COLORS_CSS.paper,
       }).setOrigin(0.5);
@@ -188,7 +188,7 @@ export class BattleScene extends Phaser.Scene {
       .setStrokeStyle(6, COLORS.ink);
 
     const name = this.add.text(x, y - 170, this.enemy.name.toUpperCase(), {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '26px',
       color: COLORS_CSS.paper,
       stroke: COLORS_CSS.scarlet,
@@ -200,7 +200,7 @@ export class BattleScene extends Phaser.Scene {
     const hpBarFill = this.add.rectangle(x - 138, y + 165, 274, 14, 0xc04030)
       .setOrigin(0, 0.5);
     const hpText = this.add.text(x, y + 195, `${this.enemy.hp}/${this.enemy.maxHp}`, {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: COLORS_CSS.paper,
     }).setOrigin(0.5);
@@ -213,87 +213,102 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   buildUI() {
-    // Compact UI panel — bottom strip, tall enough for one row of answer
-    // buttons plus the question and momentum bar. Kept short so Safari's
-    // bottom toolbar never cuts into it.
+    // STRICT safe-area discipline: everything UI lives inside safeArea().
+    // Answer buttons MUST be at the bottom of safe area, not the bottom
+    // of GAME_HEIGHT, or Safari's toolbar will eat them.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiH = 240;
-    const uiTop = GAME_HEIGHT - uiH;
-    const uiCenterY = uiTop + uiH / 2;
 
-    // Paper panel as UI background
-    PaperPanel(this, area.cx, uiCenterY, GAME_WIDTH - 40, uiH - 20, {
-      color: 0xfaf4e8,
-      radius: 24,
-      shadowOff: 6,
-      shadowAlpha: 0.4,
-      alpha: 0.96,
+    // Compute positions BOTTOM-UP from safe area so buttons are never off-screen:
+    //   bottom = answer buttons row (anchored at area.bottom)
+    //   above  = turn label + stacked equation
+    //   above  = momentum bar + potion button
+    //   above  = heroes / enemy (rendered in other methods)
+    const ansH = 80;
+    const ansRowCenterY = area.bottom - ansH / 2 - 10; // 10px buffer from bottom safe edge
+
+    const turnLabelY = ansRowCenterY - ansH / 2 - 30;  // above the buttons
+    const eqCenterY  = turnLabelY - 130;               // stacked equation
+    const barY       = eqCenterY - 140;                // momentum/potion row at top of panel
+
+    // Paper backdrop behind the UI section so text reads well
+    const panelTop = barY - 50;
+    const panelBottom = area.bottom;
+    const panelCenterY = (panelTop + panelBottom) / 2;
+    const panelH = panelBottom - panelTop;
+    PaperPanel(this, area.cx, panelCenterY, area.w, panelH, {
+      color: 0xfff4e0, alpha: 0.94, radius: 24,
     });
 
-    // === Row 1 (top of panel): momentum bar + potion button ===
-    const barY = uiTop + 34;
-    const barW = 420;
+    // === ROW A: Momentum bar + Potion button ===
+    const barW = 440;
     const barX = area.cx - barW / 2;
 
     this.add.text(barX - 10, barY, 'MOMENTUM', {
-      ...TEXT.small({ color: '#3a2410' }),
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '14px',
+      color: '#3a2410',
     }).setOrigin(1, 0.5);
 
-    this.momentumBarObj = PaperBar(this, barX, barY, barW, 18, this.momentum, 0x4aa848, {
+    this.momentumBarObj = PaperBar(this, barX, barY, barW, 20, this.momentum, 0x4aa848, {
       bgColor: 0xc8b898,
     });
-    // zone divider tick marks
     for (const t of [0.33, 0.66]) {
-      this.add.rectangle(barX + barW * t, barY, 2, 18, 0x3a2410, 0.6);
+      this.add.rectangle(barX + barW * t, barY, 2, 20, 0x3a2410, 0.5);
     }
     this.momentumLabel = this.add.text(barX + barW + 12, barY, 'ZONE', {
-      ...TEXT.label(),
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '14px',
       color: '#b86820',
     }).setOrigin(0, 0.5);
 
-    // Potion button — right side of row 1
-    this.potionBtn = PaperButton(this, area.right - 80, barY, '', {
-      w: 140, h: 44,
-      color: 0x4caa5c,
-      fontSize: 14,
+    // Potion button to the right of momentum bar
+    this.potionBtn = PaperButton(this, area.right - 90, barY, '', {
+      w: 160, h: 50, color: 0x4caa5c, fontSize: 16,
       onClick: () => this.usePotion(),
     });
     this.potionLabel = this.potionBtn.label;
     this.refreshPotionButton();
 
-    // === Row 2: question text ===
-    this.questionText = this.add.text(area.cx, uiTop + 86, '', {
-      ...TEXT.heading(),
-      fontSize: '38px',
-      color: '#3a2410',
-      stroke: '#ffffff',
-      strokeThickness: 4,
-    }).setOrigin(0.5);
+    // === ROW B: Stacked equation ===
+    // Format:
+    //   50
+    // + 50
+    // ———
+    //   ??
+    // Three lines of text, right-aligned, monospace-ish spacing.
+    this.eqLines = {
+      a:    this.add.text(area.cx, eqCenterY - 48, '', this.eqLineStyle()),
+      opB:  this.add.text(area.cx, eqCenterY,      '', this.eqLineStyle()),
+      bar:  this.add.text(area.cx, eqCenterY + 30, '———',  this.eqLineStyle({ color: '#6a4c28', fontSize: '28px' })),
+      ans:  this.add.text(area.cx, eqCenterY + 66, '?',    this.eqLineStyle({ color: '#b86820' })),
+    };
+    this.eqLines.a.setOrigin(1, 0.5);
+    this.eqLines.opB.setOrigin(1, 0.5);
+    this.eqLines.bar.setOrigin(0.5);
+    this.eqLines.ans.setOrigin(0, 0.5);
 
-    this.turnLabel = this.add.text(area.cx, uiTop + 128, '', {
-      ...TEXT.body(),
+    // === ROW C: Turn label ===
+    this.turnLabel = this.add.text(area.cx, turnLabelY, '', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '18px',
       color: '#6a4c28',
     }).setOrigin(0.5);
 
-    // === Row 3: four answer buttons ===
-    const btnY = uiTop + 185;
-    const btnW = 200;
-    const btnH = 54;
-    const btnGap = 24;
+    // === ROW D: Answer buttons — LOCKED INTO SAFE AREA BOTTOM ===
+    const btnW = Math.min(200, (area.w - 3 * 20) / 4);
+    const btnGap = 20;
     const totalW = 4 * btnW + 3 * btnGap;
     const startX = area.cx - totalW / 2 + btnW / 2;
-    const btnColors = [COLORS.cobalt, COLORS.scarlet, 0x4aa848, COLORS.plum];
+    const btnColors = [0x3888d8, 0xe84840, 0x4aa848, 0x9050c8]; // rainbow distinct
 
     this.answerButtons = [];
+    this.answerBtnLayout = { w: btnW, h: ansH, y: ansRowCenterY, startX, gap: btnGap };
     for (let i = 0; i < 4; i++) {
       const x = startX + i * (btnW + btnGap);
-      const btn = PaperButton(this, x, btnY, '?', {
-        w: btnW, h: btnH,
+      const btn = PaperButton(this, x, ansRowCenterY, '?', {
+        w: btnW, h: ansH,
         color: btnColors[i],
-        fontSize: 28,
+        fontSize: 36,
         onClick: () => {
           if (this.locked) return;
           audio.play('ui/click');
@@ -310,7 +325,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Toast (floats above the UI panel)
-    this.toast = this.add.text(area.cx, uiTop - 30, '', {
+    this.toast = this.add.text(area.cx, barY - 60, '', {
       ...TEXT.heading(),
       fontSize: '26px',
       backgroundColor: '#1a0e04',
@@ -321,20 +336,20 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false);
     const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.ink, 0.88);
     const endTitle = this.add.text(0, -160, '', {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '72px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
       strokeThickness: 6,
     }).setOrigin(0.5);
     const endSub = this.add.text(0, -50, '', {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '28px',
       color: COLORS_CSS.paper,
       align: 'center',
     }).setOrigin(0.5);
     const endRewards = this.add.text(0, 30, '', {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '22px',
       color: COLORS_CSS.goldL,
       align: 'center',
@@ -343,7 +358,7 @@ export class BattleScene extends Phaser.Scene {
       .setStrokeStyle(4, COLORS.ink)
       .setInteractive({ useHandCursor: true });
     const endBtnLabel = this.add.text(0, 140, 'CONTINUE', {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '24px',
       color: COLORS_CSS.paper,
     }).setOrigin(0.5);
@@ -401,16 +416,7 @@ export class BattleScene extends Phaser.Scene {
       streak: this.streak,
     });
 
-    this.questionText.setText(formatQuestion(this.currentQuestion));
-
-    // Pop the question text in for emphasis
-    this.questionText.setScale(0.8);
-    this.tweens.add({
-      targets: this.questionText,
-      scale: 1,
-      duration: 150,
-      ease: 'Back.out',
-    });
+    this.renderStackedEquation(this.currentQuestion);
 
     for (let i = 0; i < 4; i++) {
       this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
@@ -437,15 +443,10 @@ export class BattleScene extends Phaser.Scene {
    */
   recolorAnswerButton(i, color, alpha = 1) {
     const btn = this.answerButtons[i];
-    if (!btn || !btn.bg) return;
-    const w = 200, h = 54, radius = 14;
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = GAME_HEIGHT - 240;
-    const btnGap = 24;
-    const totalW = 4 * w + 3 * btnGap;
-    const startX = area.cx - totalW / 2 + w / 2;
-    const x = startX + i * (w + btnGap);
-    const y = uiTop + 185;
+    if (!btn || !btn.bg || !this.answerBtnLayout) return;
+    const { w, h, y, startX, gap } = this.answerBtnLayout;
+    const radius = 14;
+    const x = startX + i * (w + gap);
 
     btn.bg.clear();
     btn.bg.fillStyle(color, alpha);
@@ -455,9 +456,45 @@ export class BattleScene extends Phaser.Scene {
     btn.label.setAlpha(alpha);
   }
 
+  // --- Stacked equation helpers ---
+  eqLineStyle(overrides = {}) {
+    return {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '44px',
+      color: '#3a2410',
+      ...overrides,
+    };
+  }
+
+  /**
+   * Render the current question in stacked vertical form:
+   *     50
+   *   + 50
+   *   ———
+   *   ???
+   */
+  renderStackedEquation(q) {
+    if (!q || !this.eqLines) return;
+    const opSym = q.op === '*' ? '\u00d7' : q.op === '/' ? '\u00f7' : q.op;
+    // Top operand right-justified
+    this.eqLines.a.setText(`  ${q.a}`);
+    // Operator + second operand
+    this.eqLines.opB.setText(`${opSym} ${q.b}`);
+    this.eqLines.bar.setText('\u2500'.repeat(Math.max(3, String(Math.max(q.a, q.b)).length + 2)));
+    this.eqLines.ans.setText('?');
+  }
+
+  clearEquationDisplay() {
+    if (!this.eqLines) return;
+    this.eqLines.a.setText('');
+    this.eqLines.opB.setText('');
+    this.eqLines.bar.setText('');
+    this.eqLines.ans.setText('');
+  }
+
   startEnemyTurn() {
     this.turnLabel.setText(`${this.enemy.name} attacks!`);
-    this.questionText.setText('');
+    this.clearEquationDisplay();
     this.phase = 'enemy';
     this.locked = true;
     this.refreshPotionButton();
@@ -722,7 +759,7 @@ export class BattleScene extends Phaser.Scene {
    */
   floatDamageNumber(x, y, amount, color) {
     const t = this.add.text(x, y, `-${amount}`, {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '36px',
       color,
       stroke: '#000000',

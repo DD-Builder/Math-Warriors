@@ -243,14 +243,14 @@ export class WorldMapScene extends Phaser.Scene {
     this.add.circle(numX, numY, 18, locked ? 0x5a5040 : 0xd07818)
       .setStrokeStyle(2, 0xfff8e0);
     this.add.text(numX, numY, `${info.id}`, {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '18px',
       color: '#fff8e0',
     }).setOrigin(0.5);
 
     // Operator symbol (big, centered)
     this.add.text(x, y, locked ? '🔒' : info.op, {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: locked ? '48px' : '60px',
       color: locked ? '#3a2410' : nodeColor ? `#${nodeColor.toString(16).padStart(6, '0')}` : '#3a2410',
       stroke: '#1a0e04',
@@ -274,12 +274,12 @@ export class WorldMapScene extends Phaser.Scene {
       radius: 12,
     });
     this.add.text(x, labelY - 10, info.name, {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '14px',
       color: locked ? '#6a4c28' : '#d07818',
     }).setOrigin(0.5);
     this.add.text(x, labelY + 12, info.tagline, {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '13px',
       color: locked ? '#8a7a60' : '#5a3820',
     }).setOrigin(0.5);

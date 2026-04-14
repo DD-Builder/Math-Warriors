@@ -21,7 +21,7 @@
  *   const btn = PaperButton(scene, x, y, 'START', { onClick: () => {} });
  */
 
-import { COLORS, COLORS_CSS, MARGIN } from '../config.js';
+import { COLORS, COLORS_CSS, MARGIN, BOTTOM_SAFE, TOP_SAFE } from '../config.js';
 
 // ------------------------------------------------------------------
 // PAPER SHAPE HELPERS
@@ -101,7 +101,7 @@ export function PaperButton(scene, x, y, text, opts = {}) {
   });
 
   const label = scene.add.text(x, y, text, {
-    fontFamily: '"Fredoka One", cursive',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: `${fontSize}px`,
     color: textColor,
     stroke: '#000000',
@@ -221,17 +221,28 @@ export function updatePaperBar(bar, newPct, fillColor) {
 // LAYOUT HELPERS
 // ------------------------------------------------------------------
 
-/** Safe content area accounting for screen-edge margins. */
+/**
+ * Safe content area for every scene.
+ *
+ * iPad Safari eats the bottom ~100px for its toolbar when it appears.
+ * The TOP also has a status bar eating ~60px. This function returns
+ * bounds that guarantee any UI placed inside won't be clipped.
+ *
+ * Use `bottom` as the Y CENTER of bottom-anchored buttons, not their
+ * bottom edge — buttons have their own height that must stay inside.
+ */
 export function safeArea(gameW, gameH) {
+  const topSafe = TOP_SAFE;
+  const bottomSafe = BOTTOM_SAFE;
   return {
     left: MARGIN,
     right: gameW - MARGIN,
-    top: MARGIN,
-    bottom: gameH - MARGIN,
+    top: topSafe,
+    bottom: gameH - bottomSafe,
     cx: gameW / 2,
-    cy: gameH / 2,
+    cy: (topSafe + gameH - bottomSafe) / 2,
     w: gameW - MARGIN * 2,
-    h: gameH - MARGIN * 2,
+    h: gameH - topSafe - bottomSafe,
   };
 }
 
@@ -249,7 +260,7 @@ export function distributeX(count, totalWidth, cx) {
 
 export const TEXT = {
   title: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", cursive',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '64px',
     color: '#ffffff',
     stroke: '#000000',
@@ -257,7 +268,7 @@ export const TEXT = {
     ...overrides,
   }),
   heading: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", cursive',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '36px',
     color: COLORS_CSS.goldL,
     stroke: '#000000',
@@ -265,25 +276,25 @@ export const TEXT = {
     ...overrides,
   }),
   body: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", cursive',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '22px',
     color: '#ffffff',
     ...overrides,
   }),
   small: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", cursive',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '16px',
     color: COLORS_CSS.paper,
     ...overrides,
   }),
   label: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", cursive',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '18px',
     color: COLORS_CSS.goldL,
     ...overrides,
   }),
   stat: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", cursive',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '14px',
     color: COLORS_CSS.paper,
     ...overrides,

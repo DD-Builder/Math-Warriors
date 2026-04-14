@@ -54,7 +54,7 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0, 0.5);
 
     const label = this.add.text(cx, cy - 40, 'LOADING', {
-      fontFamily: '"Fredoka One", cursive',
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: '#f0e4cc',
     }).setOrigin(0.5);

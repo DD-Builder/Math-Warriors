@@ -46,6 +46,12 @@ export const SCENES = {
   SETTINGS: 'SettingsScene',
 };
 
-// Safe margin from screen edges (pixels). All UI should stay inside this.
-export const MARGIN = 30;
+// Safe margin from screen edges (pixels). All UI MUST stay inside this.
+// On iPad Safari, about 60px of the viewport is eaten by chrome/toolbar
+// depending on orientation and scroll state. We use a generous 40px
+// margin so nothing ever gets clipped, plus reserve 100px off the bottom
+// to account for Safari's bottom bar. Tune these if you see cutoffs.
+export const MARGIN = 40;
+export const BOTTOM_SAFE = 120;
+export const TOP_SAFE = 60;
 export const VERSION = '0.2.0';

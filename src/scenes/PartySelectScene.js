@@ -177,7 +177,7 @@ export class PartySelectScene extends Phaser.Scene {
       const badge = this.add.circle(x + w / 2 - 18, y - h / 2 + 18, 14, 0xf0c040);
       badge.setStrokeStyle(2, 0x1a0e04);
       this.add.text(x + w / 2 - 18, y - h / 2 + 18, '✓', {
-        fontFamily: '"Fredoka One", cursive',
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '18px',
         color: '#1a0e04',
       }).setOrigin(0.5);
@@ -263,18 +263,19 @@ export class PartySelectScene extends Phaser.Scene {
   }
 
   buildConfirmButton(area) {
-    const x = area.right - 130;
-    const y = area.bottom - 60;
+    const btnH = 74;
+    const x = area.right - 160;
+    const y = area.bottom - btnH / 2 - 10;
 
     this.confirmBtn = PaperButton(this, x, y, 'BEGIN', {
-      w: 240, h: 68, color: 0xc8b898, fontSize: 22,
+      w: 280, h: btnH, color: 0xc8b898, fontSize: 26,
       textColor: '#6a4c28',
       onClick: () => this.tryConfirm(),
     });
 
-    this.confirmHint = this.add.text(x, y + 48, 'Pick 3 heroes', {
+    this.confirmHint = this.add.text(x, y - btnH / 2 - 18, 'Pick 3 heroes', {
       ...TEXT.small(),
-      fontSize: '13px',
+      fontSize: '14px',
       color: '#6a4c28',
     }).setOrigin(0.5);
   }
@@ -284,10 +285,10 @@ export class PartySelectScene extends Phaser.Scene {
     const ready = n >= 3;
     this.confirmBtn.bg.clear();
     this.confirmBtn.shadow.clear();
-    const w = 240, h = 68, radius = 14;
+    const w = 280, h = 74, radius = 14;
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const x = area.right - 130;
-    const y = area.bottom - 60;
+    const x = area.right - 160;
+    const y = area.bottom - h / 2 - 10;
     const color = ready ? 0xe84840 : 0xc8b898;
 
     this.confirmBtn.shadow.fillStyle(0x000000, 0.35);
