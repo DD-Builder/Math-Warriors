@@ -1,0 +1,291 @@
+/**
+ * Papercut UI component library
+ *
+ * Every interactive element in the game should look like it was cut
+ * from paper — organic rounded shapes, subtle drop shadows, visible
+ * layering, slightly imperfect edges. This module provides reusable
+ * factory functions so every scene speaks the same visual language.
+ *
+ * Design rules (from research + DD-Builder direction):
+ *   - NO sharp-cornered rectangles. Everything has rounded/organic edges.
+ *   - Every panel/button casts a soft shadow on the layer below it.
+ *   - Colors are bright and warm — Mario-world cheerful, not dark.
+ *   - Touch targets: minimum 60pt (about 80px at our scale).
+ *   - Spacing between tappable elements: 20px+ gap.
+ *   - Screen-edge buffer: 30px minimum on all sides.
+ *   - Content centered in available space.
+ *   - One action per visual cluster — don't cram.
+ *
+ * Usage:
+ *   import { PaperButton, PaperPanel, PaperCard, PaperBar } from '../ui/paperUI.js';
+ *   const btn = PaperButton(scene, x, y, 'START', { onClick: () => {} });
+ */
+
+import { COLORS, COLORS_CSS, MARGIN } from '../config.js';
+
+// ------------------------------------------------------------------
+// PAPER SHAPE HELPERS
+// ------------------------------------------------------------------
+
+/**
+ * Draw a rounded rectangle with a paper drop shadow.
+ * Returns { bg, shadow } Phaser GameObjects.
+ */
+export function paperRect(scene, x, y, w, h, color, opts = {}) {
+  const radius = opts.radius ?? 16;
+  const shadowOff = opts.shadowOff ?? 6;
+  const shadowAlpha = opts.shadowAlpha ?? 0.3;
+  const alpha = opts.alpha ?? 1;
+  const strokeColor = opts.strokeColor ?? 0x000000;
+  const strokeAlpha = opts.strokeAlpha ?? 0.15;
+  const strokeWidth = opts.strokeWidth ?? 2;
+
+  // Shadow layer
+  const shadow = scene.add.graphics();
+  shadow.fillStyle(0x000000, shadowAlpha);
+  shadow.fillRoundedRect(x - w / 2 + shadowOff, y - h / 2 + shadowOff, w, h, radius);
+
+  // Main paper layer
+  const bg = scene.add.graphics();
+  bg.fillStyle(color, alpha);
+  bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+  if (strokeWidth > 0) {
+    bg.lineStyle(strokeWidth, strokeColor, strokeAlpha);
+    bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+  }
+
+  return { bg, shadow };
+}
+
+/**
+ * Create an interactive hit zone over a paper rect. Phaser Graphics
+ * objects aren't directly interactive, so we overlay a transparent
+ * rectangle that captures input.
+ */
+function hitZone(scene, x, y, w, h) {
+  return scene.add.rectangle(x, y, w, h, 0xffffff, 0)
+    .setInteractive({ useHandCursor: true });
+}
+
+// ------------------------------------------------------------------
+// PAPER BUTTON
+// ------------------------------------------------------------------
+
+/**
+ * A tappable button that looks like a cut paper shape.
+ *
+ * @param {Phaser.Scene} scene
+ * @param {number} x - center X
+ * @param {number} y - center Y
+ * @param {string} text - button label
+ * @param {object} opts
+ * @param {number} [opts.w=280] - width
+ * @param {number} [opts.h=70] - height
+ * @param {number} [opts.color=COLORS.scarlet] - fill color
+ * @param {string} [opts.textColor='#ffffff']
+ * @param {number} [opts.fontSize=24]
+ * @param {Function} [opts.onClick] - tap handler
+ * @returns {{ container, label, zone }}
+ */
+export function PaperButton(scene, x, y, text, opts = {}) {
+  const w = opts.w ?? 280;
+  const h = opts.h ?? 70;
+  const color = opts.color ?? COLORS.scarlet;
+  const textColor = opts.textColor ?? '#ffffff';
+  const fontSize = opts.fontSize ?? 24;
+
+  const { bg, shadow } = paperRect(scene, x, y, w, h, color, {
+    radius: 14,
+    shadowOff: 5,
+    shadowAlpha: 0.35,
+  });
+
+  const label = scene.add.text(x, y, text, {
+    fontFamily: '"Fredoka One", cursive',
+    fontSize: `${fontSize}px`,
+    color: textColor,
+    stroke: '#000000',
+    strokeThickness: 2,
+  }).setOrigin(0.5);
+
+  const zone = hitZone(scene, x, y, w, h);
+
+  if (opts.onClick) {
+    zone.on('pointerdown', () => {
+      // Press feedback: brief scale-down
+      scene.tweens.add({
+        targets: [bg, shadow, label, zone],
+        scaleX: 0.95,
+        scaleY: 0.95,
+        duration: 60,
+        yoyo: true,
+        onYoyo: () => opts.onClick(),
+      });
+    });
+  }
+
+  return { bg, shadow, label, zone };
+}
+
+// ------------------------------------------------------------------
+// PAPER PANEL
+// ------------------------------------------------------------------
+
+/**
+ * A floating panel that looks like a sheet of paper.
+ * Used for menus, dialogs, HUD backgrounds.
+ */
+export function PaperPanel(scene, x, y, w, h, opts = {}) {
+  const color = opts.color ?? 0xfaf4e8; // warm cream paper
+  const radius = opts.radius ?? 20;
+
+  return paperRect(scene, x, y, w, h, color, {
+    radius,
+    shadowOff: opts.shadowOff ?? 8,
+    shadowAlpha: opts.shadowAlpha ?? 0.25,
+    strokeColor: 0x8a7a60,
+    strokeAlpha: 0.3,
+    strokeWidth: 3,
+    alpha: opts.alpha ?? 0.95,
+  });
+}
+
+// ------------------------------------------------------------------
+// PAPER CARD
+// ------------------------------------------------------------------
+
+/**
+ * A selectable card (for hero picker, grade picker).
+ * Slightly smaller shadow, border highlights on select.
+ */
+export function PaperCard(scene, x, y, w, h, color, opts = {}) {
+  const selected = opts.selected ?? false;
+  const radius = opts.radius ?? 12;
+
+  const { bg, shadow } = paperRect(scene, x, y, w, h, color, {
+    radius,
+    shadowOff: selected ? 3 : 5,
+    shadowAlpha: selected ? 0.4 : 0.25,
+    strokeColor: selected ? COLORS.goldL : 0x000000,
+    strokeAlpha: selected ? 0.9 : 0.15,
+    strokeWidth: selected ? 4 : 2,
+  });
+
+  const zone = hitZone(scene, x, y, w, h);
+
+  return { bg, shadow, zone };
+}
+
+// ------------------------------------------------------------------
+// PAPER BAR (HP, momentum, etc.)
+// ------------------------------------------------------------------
+
+/**
+ * A progress bar styled as a layered paper strip.
+ */
+export function PaperBar(scene, x, y, w, h, pct, fillColor, opts = {}) {
+  const bgColor = opts.bgColor ?? 0x3a3020;
+  const radius = Math.min(h / 2, 8);
+
+  // Background strip
+  const barBg = scene.add.graphics();
+  barBg.fillStyle(bgColor, 0.8);
+  barBg.fillRoundedRect(x, y - h / 2, w, h, radius);
+  barBg.lineStyle(1.5, 0x000000, 0.2);
+  barBg.strokeRoundedRect(x, y - h / 2, w, h, radius);
+
+  // Fill strip
+  const fillW = Math.max(0, w * Math.min(1, pct));
+  const barFill = scene.add.graphics();
+  if (fillW > 0) {
+    barFill.fillStyle(fillColor, 1);
+    barFill.fillRoundedRect(x, y - h / 2, fillW, h, radius);
+  }
+
+  return { barBg, barFill, w, h, x, y, radius };
+}
+
+/**
+ * Update a PaperBar's fill to a new percentage.
+ */
+export function updatePaperBar(bar, newPct, fillColor) {
+  bar.barFill.clear();
+  const fillW = Math.max(0, bar.w * Math.min(1, newPct));
+  if (fillW > 0) {
+    bar.barFill.fillStyle(fillColor, 1);
+    bar.barFill.fillRoundedRect(bar.x, bar.y - bar.h / 2, fillW, bar.h, bar.radius);
+  }
+}
+
+// ------------------------------------------------------------------
+// LAYOUT HELPERS
+// ------------------------------------------------------------------
+
+/** Safe content area accounting for screen-edge margins. */
+export function safeArea(gameW, gameH) {
+  return {
+    left: MARGIN,
+    right: gameW - MARGIN,
+    top: MARGIN,
+    bottom: gameH - MARGIN,
+    cx: gameW / 2,
+    cy: gameH / 2,
+    w: gameW - MARGIN * 2,
+    h: gameH - MARGIN * 2,
+  };
+}
+
+/** Distribute N items evenly across a width, centered at cx. */
+export function distributeX(count, totalWidth, cx) {
+  if (count <= 1) return [cx];
+  const spacing = totalWidth / (count - 1);
+  const startX = cx - totalWidth / 2;
+  return Array.from({ length: count }, (_, i) => startX + i * spacing);
+}
+
+// ------------------------------------------------------------------
+// TEXT STYLES (consistent across the game)
+// ------------------------------------------------------------------
+
+export const TEXT = {
+  title: (overrides = {}) => ({
+    fontFamily: '"Fredoka One", cursive',
+    fontSize: '64px',
+    color: '#ffffff',
+    stroke: '#000000',
+    strokeThickness: 6,
+    ...overrides,
+  }),
+  heading: (overrides = {}) => ({
+    fontFamily: '"Fredoka One", cursive',
+    fontSize: '36px',
+    color: COLORS_CSS.goldL,
+    stroke: '#000000',
+    strokeThickness: 3,
+    ...overrides,
+  }),
+  body: (overrides = {}) => ({
+    fontFamily: '"Fredoka One", cursive',
+    fontSize: '22px',
+    color: '#ffffff',
+    ...overrides,
+  }),
+  small: (overrides = {}) => ({
+    fontFamily: '"Fredoka One", cursive',
+    fontSize: '16px',
+    color: COLORS_CSS.paper,
+    ...overrides,
+  }),
+  label: (overrides = {}) => ({
+    fontFamily: '"Fredoka One", cursive',
+    fontSize: '18px',
+    color: COLORS_CSS.goldL,
+    ...overrides,
+  }),
+  stat: (overrides = {}) => ({
+    fontFamily: '"Fredoka One", cursive',
+    fontSize: '14px',
+    color: COLORS_CSS.paper,
+    ...overrides,
+  }),
+};

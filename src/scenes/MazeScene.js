@@ -6,6 +6,7 @@ import { spawnHero } from '../data/heroes.js';
 import { spawnEnemy, pickEnemyForFloor } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
+import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 
 /**
  * MazeScene
@@ -281,90 +282,79 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   buildHUD() {
-    const hudY = GAME_HEIGHT - 90;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const hudH = 110;
+    const hudCenterY = area.bottom - hudH / 2;
 
-    // Panel background
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 90, GAME_WIDTH, 180, COLORS.ink, 0.9)
-      .setStrokeStyle(3, COLORS.paperD, 0.5);
+    // Paper HUD strip at the bottom
+    PaperPanel(this, area.cx, hudCenterY, GAME_WIDTH - 40, hudH, {
+      color: 0xfff8e8, alpha: 0.94, radius: 20,
+    });
 
-    // Floor name
-    this.add.text(40, hudY - 50, `F${this.floorId}: ${this.floor.name.toUpperCase()}`, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '20px',
-      color: COLORS_CSS.goldL,
+    // Floor name — left side
+    this.add.text(area.left + 20, hudCenterY - 24, `F${this.floorId}: ${this.floor.name.toUpperCase()}`, {
+      ...TEXT.heading(), fontSize: '18px', color: '#d07818',
     }).setOrigin(0, 0.5);
 
-    // Gold + potions
-    this.hudGold = this.add.text(40, hudY + 0, `\u{1FA99} ${this.save.gold}`, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '18px',
-      color: COLORS_CSS.paper,
+    // Gold + potions in a row on the left
+    this.hudGold = this.add.text(area.left + 20, hudCenterY + 8, `💰 ${this.save.gold}`, {
+      ...TEXT.body(), fontSize: '16px', color: '#3a2410',
     }).setOrigin(0, 0.5);
-    this.hudPotions = this.add.text(40, hudY + 40, `\u{1F9EA} ${this.save.potions}`, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '18px',
-      color: COLORS_CSS.paper,
+    this.hudPotions = this.add.text(area.left + 120, hudCenterY + 8, `🧪 ${this.save.potions}`, {
+      ...TEXT.body(), fontSize: '16px', color: '#3a2410',
     }).setOrigin(0, 0.5);
 
-    // Party strip in hud center
-    const stripX = GAME_WIDTH / 2 - 180;
-    const stripY = hudY + 10;
-    this.add.text(stripX - 20, stripY, 'PARTY', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.inkL,
-    }).setOrigin(1, 0.5);
+    // Party strip — center of HUD
+    const partyCx = area.cx;
+    const partyY = hudCenterY;
     for (let i = 0; i < this.party.length; i++) {
       const hero = this.party[i];
-      const x = stripX + i * 130;
-      this.add.rectangle(x, stripY, 80, 40, hero.displayColor).setStrokeStyle(2, COLORS.ink);
-      this.add.text(x, stripY + 32, hero.name, {
-        fontFamily: '"Fredoka One", cursive',
-        fontSize: '10px',
-        color: COLORS_CSS.paper,
+      const x = partyCx - 120 + i * 110;
+      const box = this.add.graphics();
+      box.fillStyle(hero.displayColor, 1);
+      box.fillRoundedRect(x - 30, partyY - 25, 60, 32, 6);
+      box.lineStyle(1, 0x1a0e04, 0.3);
+      box.strokeRoundedRect(x - 30, partyY - 25, 60, 32, 6);
+      this.add.text(x, partyY + 20, hero.name, {
+        ...TEXT.stat(), fontSize: '10px', color: '#3a2410',
       }).setOrigin(0.5);
       // HP bar
       const pct = hero.hp / hero.maxHp;
-      this.add.rectangle(x, stripY - 30, 80, 8, COLORS.ink).setStrokeStyle(1, COLORS.paperD);
-      this.add.rectangle(x - 39, stripY - 30, 78 * pct, 6, 0x40c040).setOrigin(0, 0.5);
+      const hpBg = this.add.graphics();
+      hpBg.fillStyle(0x3a2410, 0.4);
+      hpBg.fillRoundedRect(x - 30, partyY + 10, 60, 4, 2);
+      hpBg.fillStyle(0x4aa848, 1);
+      hpBg.fillRoundedRect(x - 30, partyY + 10, 60 * pct, 4, 2);
     }
 
-    // Back to world map
-    const backBg = this.add.rectangle(GAME_WIDTH - 90, hudY + 20, 140, 60, COLORS.paperD)
-      .setStrokeStyle(3, COLORS.ink)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(GAME_WIDTH - 90, hudY + 20, 'WORLD MAP', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '12px',
-      color: COLORS_CSS.ink,
-    }).setOrigin(0.5);
-    backBg.on('pointerdown', () => {
-      audio.play('ui/back');
-      this.saveMazeState();
-      this.cameras.main.fadeOut(250, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start(SCENES.WORLD_MAP);
-      });
+    // World Map button — right side
+    PaperButton(this, area.right - 100, hudCenterY, 'WORLD MAP', {
+      w: 180, h: 54, color: 0x4aa848, fontSize: 14,
+      onClick: () => {
+        audio.play('ui/back');
+        this.saveMazeState();
+        this.cameras.main.fadeOut(250, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start(SCENES.WORLD_MAP);
+        });
+      },
     });
 
-    // Settings / pause — top-right
-    const settingsBg = this.add.rectangle(GAME_WIDTH - 60, 40, 100, 60, COLORS.paperD, 0.9)
-      .setStrokeStyle(3, COLORS.ink)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(GAME_WIDTH - 60, 40, '\u2699', {
-      fontSize: '32px',
-      color: COLORS_CSS.ink,
-    }).setOrigin(0.5);
-    settingsBg.on('pointerdown', () => {
-      audio.play('ui/click');
-      this.saveMazeState();
-      this.cameras.main.fadeOut(200, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start(SCENES.SETTINGS, {
-          returnScene: SCENES.MAZE,
-          returnData: { floor: this.floorId },
+    // Settings — top-right (inside safe area)
+    PaperButton(this, area.right - 40, area.top + 30, '⚙', {
+      w: 60, h: 50, color: 0xfff8e8, fontSize: 22,
+      textColor: '#3a2410',
+      onClick: () => {
+        audio.play('ui/click');
+        this.saveMazeState();
+        this.cameras.main.fadeOut(200, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start(SCENES.SETTINGS, {
+            returnScene: SCENES.MAZE,
+            returnData: { floor: this.floorId },
+          });
         });
-      });
+      },
     });
   }
 

@@ -3,15 +3,17 @@ import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, VERSION } from '..
 import { loadSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
+import { PaperButton, PaperPanel, TEXT, safeArea } from '../ui/paperUI.js';
 
 /**
  * TitleScene — the game's front door.
  *
- * v0.4 features:
- *   - Detects existing saves and shows a CONTINUE button if one is found
- *   - Routes: CONTINUE → WorldMapScene, NEW GAME → PartySelectScene
- *   - Plays title music
- *   - Subtle title bob animation
+ * The showcase scene. Everything here is papercut-styled:
+ *   - Bright sunny cheerful background (menu palette)
+ *   - Title letters rendered as layered paper cutouts with shadow
+ *   - Buttons are rounded paper shapes with drop shadows
+ *   - Settings pill in the top-right (safe margin)
+ *   - All text uses the consistent TEXT.* styles
  */
 export class TitleScene extends Phaser.Scene {
   constructor() {
@@ -19,135 +21,140 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create() {
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT / 2;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
     this.cameras.main.fadeIn(250, 0, 0, 0);
     this.cameras.main.setBackgroundColor(0x000000);
     audio.playMusic('music/title');
 
-    // Load save to check if there's progress to continue
     this.save = loadSave();
     this.hasProgress = this.save.party && this.save.party.length >= 3;
 
-    // Bright cheerful papercut diorama — sunny garden feel
+    // Bright cheerful papercut diorama behind everything
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
 
-    // Semi-transparent panel so text is readable over the bright bg
-    this.add.rectangle(cx, cy, GAME_WIDTH * 0.55, GAME_HEIGHT * 0.60, 0x000000, 0.45)
-      .setStrokeStyle(3, 0xffffff, 0.15);
-
-    // Title — "MATH"
-    const title1 = this.add.text(cx, cy - 220, 'MATH', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '120px',
-      color: COLORS_CSS.cobalt,
-      stroke: COLORS_CSS.scarlet,
-      strokeThickness: 8,
-      shadow: { offsetX: 6, offsetY: 6, color: '#000', blur: 0, fill: true },
-    }).setOrigin(0.5);
-
-    // Title — "WARRIORS"
-    const title2 = this.add.text(cx, cy - 100, 'WARRIORS', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '120px',
-      color: COLORS_CSS.scarlet,
-      stroke: COLORS_CSS.ink,
-      strokeThickness: 8,
-      shadow: { offsetX: 6, offsetY: 6, color: '#000', blur: 0, fill: true },
-    }).setOrigin(0.5);
-
-    // Tagline
-    this.add.text(cx, cy + 0, 'An Educational Adventure', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '32px',
-      color: COLORS_CSS.goldL,
-    }).setOrigin(0.5);
-
-    // Flavor line
-    this.add.text(cx, cy + 60,
-      "The world's mathematical fabric is unraveling.\nOnly you can press the pieces back into place.", {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '22px',
-      color: COLORS_CSS.paper,
-      align: 'center',
-      lineSpacing: 8,
-    }).setOrigin(0.5);
-
-    // Buttons — layout depends on whether we have a save to continue
-    if (this.hasProgress) {
-      this.buildButton(cx, cy + 180, 'CONTINUE', COLORS.scarlet, () => this.onContinue());
-      this.buildButton(cx, cy + 290, 'NEW GAME', COLORS.paperD, () => this.onNewGame(), COLORS_CSS.ink);
-    } else {
-      this.buildButton(cx, cy + 240, 'START ADVENTURE', COLORS.scarlet, () => this.onNewGame());
-    }
-
-    // Version tag
-    this.add.text(GAME_WIDTH - 20, GAME_HEIGHT - 20, `v${VERSION}`, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.inkL,
-    }).setOrigin(1, 1);
-
-    // Settings button top-right
-    const settingsBg = this.add.rectangle(GAME_WIDTH - 80, 60, 140, 60, COLORS.paperD)
-      .setStrokeStyle(3, COLORS.ink)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(GAME_WIDTH - 80, 60, 'SETTINGS', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.ink,
-    }).setOrigin(0.5);
-    settingsBg.on('pointerdown', () => {
-      audio.play('ui/click');
-      this.cameras.main.fadeOut(200, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start(SCENES.SETTINGS, { returnScene: SCENES.TITLE });
-      });
+    // Soft cream paper panel for the title stack
+    const panelW = 780;
+    const panelH = 560;
+    PaperPanel(this, area.cx, area.cy - 40, panelW, panelH, {
+      color: 0xfff8e8,
+      alpha: 0.94,
     });
 
-    // Title bob
+    // === TITLE as layered paper cutouts ===
+    this.drawPapercutTitle(area.cx, area.cy - 200);
+
+    // Tagline
+    this.add.text(area.cx, area.cy + 20, 'An Educational Adventure', {
+      ...TEXT.heading(),
+      fontSize: '26px',
+      color: '#d07818',
+    }).setOrigin(0.5);
+
+    // Flavor line — darker so it reads on cream paper
+    this.add.text(area.cx, area.cy + 60,
+      "The world's mathematical fabric is unraveling.\nOnly you can press the pieces back into place.", {
+      ...TEXT.body(),
+      fontSize: '18px',
+      color: '#5a3820',
+      align: 'center',
+      lineSpacing: 6,
+    }).setOrigin(0.5);
+
+    // === BUTTONS ===
+    if (this.hasProgress) {
+      PaperButton(this, area.cx, area.cy + 150, 'CONTINUE', {
+        w: 320, h: 74, color: 0xe84840, fontSize: 28,
+        onClick: () => this.onContinue(),
+      });
+      PaperButton(this, area.cx, area.cy + 240, 'NEW GAME', {
+        w: 320, h: 74, color: 0x4aa848, fontSize: 28,
+        onClick: () => this.onNewGame(),
+      });
+    } else {
+      PaperButton(this, area.cx, area.cy + 200, 'START ADVENTURE', {
+        w: 400, h: 80, color: 0xe84840, fontSize: 30,
+        onClick: () => this.onNewGame(),
+      });
+    }
+
+    // Version tag bottom-right (inside safe area)
+    this.add.text(area.right, area.bottom, `v${VERSION}`, {
+      ...TEXT.stat(),
+      fontSize: '14px',
+      color: '#8a7a60',
+    }).setOrigin(1, 1);
+
+    // Settings button top-right (inside safe area)
+    PaperButton(this, area.right - 75, area.top + 30, 'SETTINGS', {
+      w: 140, h: 50, color: 0x4a6ca8, fontSize: 14,
+      onClick: () => {
+        this.cameras.main.fadeOut(200, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start(SCENES.SETTINGS, { returnScene: SCENES.TITLE });
+        });
+      },
+    });
+  }
+
+  /**
+   * Render "MATH WARRIORS" as stacked paper-cutout letters with
+   * multi-layer shadows for depth. Rather than relying on a single font
+   * stroke, we draw three copies at offsets to create the layered
+   * cutout effect.
+   */
+  drawPapercutTitle(cx, cy) {
+    const mathOpts = { fontSize: '96px' };
+    const warOpts = { fontSize: '96px' };
+
+    // MATH — dark blue shadow underlay, red mid, cream top
+    this.add.text(cx + 6, cy + 7, 'MATH', {
+      fontFamily: '"Fredoka One", cursive',
+      color: '#1a0e04',
+      ...mathOpts,
+    }).setOrigin(0.5).setAlpha(0.3);
+    this.add.text(cx + 3, cy + 4, 'MATH', {
+      fontFamily: '"Fredoka One", cursive',
+      color: '#2e4e88',
+      ...mathOpts,
+    }).setOrigin(0.5);
+    const mathTop = this.add.text(cx, cy, 'MATH', {
+      fontFamily: '"Fredoka One", cursive',
+      color: '#fff8e0',
+      stroke: '#2e4e88',
+      strokeThickness: 4,
+      ...mathOpts,
+    }).setOrigin(0.5);
+
+    // WARRIORS — below, with red layers
+    const wy = cy + 110;
+    this.add.text(cx + 6, wy + 7, 'WARRIORS', {
+      fontFamily: '"Fredoka One", cursive',
+      color: '#1a0e04',
+      ...warOpts,
+    }).setOrigin(0.5).setAlpha(0.3);
+    this.add.text(cx + 3, wy + 4, 'WARRIORS', {
+      fontFamily: '"Fredoka One", cursive',
+      color: '#c02820',
+      ...warOpts,
+    }).setOrigin(0.5);
+    const warTop = this.add.text(cx, wy, 'WARRIORS', {
+      fontFamily: '"Fredoka One", cursive',
+      color: '#fff8e0',
+      stroke: '#c02820',
+      strokeThickness: 4,
+      ...warOpts,
+    }).setOrigin(0.5);
+
+    // Gentle bob
     this.tweens.add({
-      targets: [title1, title2],
-      y: '+=8',
-      duration: 2000,
+      targets: [mathTop, warTop],
+      y: '+=6',
+      duration: 2200,
       ease: 'Sine.inOut',
       yoyo: true,
       repeat: -1,
     });
-  }
-
-  buildButton(x, y, text, fillColor, onClick, textColor = COLORS_CSS.paper) {
-    const w = 420;
-    const h = 88;
-
-    const bg = this.add.rectangle(x, y, w, h, fillColor)
-      .setStrokeStyle(4, COLORS.ink, 0.8)
-      .setInteractive({ useHandCursor: true });
-
-    const label = this.add.text(x, y, text, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '26px',
-      color: textColor,
-      stroke: COLORS_CSS.ink,
-      strokeThickness: 3,
-    }).setOrigin(0.5);
-
-    bg.on('pointerdown', () => {
-      audio.play('ui/click');
-      this.tweens.add({
-        targets: [bg, label],
-        y: '+=4',
-        duration: 60,
-        yoyo: true,
-      });
-    });
-
-    bg.on('pointerup', () => {
-      onClick();
-    });
-
-    return { bg, label };
   }
 
   onNewGame() {

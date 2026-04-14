@@ -2,25 +2,12 @@ import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { loadSave, writeSave, clearSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
+import { drawPapercutBackground } from '../systems/papercut.js';
+import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 
 /**
- * SettingsScene
- *
- * Simple settings menu accessible from multiple places in the game
- * (title, pause menus). Lets the player adjust volume, change their
- * grade level, reset their save, and see basic stats.
- *
- * Opens over the top of its caller (as an overlay scene) so the
- * underlying scene isn't destroyed — tapping BACK resumes wherever
- * you came from.
- *
- * v0.7 scope:
- *   - Music volume slider (3 steps: off, half, full)
- *   - SFX volume slider (3 steps: off, half, full)
- *   - Current grade display + change button (jumps to GradeSelect)
- *   - Reset save button (with a confirm prompt)
- *   - Stats: battles, correct, wrong, gold earned
- *   - BACK button that resumes the caller scene
+ * SettingsScene — volume, grade, stats, reset.
+ * Everything inside safe area, no cutoff.
  */
 export class SettingsScene extends Phaser.Scene {
   constructor() {
@@ -35,111 +22,115 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   create() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+
     this.cameras.main.fadeIn(200, 0, 0, 0);
-    this.cameras.main.setBackgroundColor(COLORS.ink);
+    this.cameras.main.setBackgroundColor(0x000000);
 
-    this.buildBackground();
-    this.buildHeader();
-    this.buildSettingsPanel();
-    this.buildBackButton();
-  }
+    // Bright bg
+    drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 555);
 
-  buildBackground() {
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, COLORS.ink, 0.9);
-  }
+    // Cream panel centered in safe area
+    const panelW = area.w - 40;
+    const panelH = area.h - 40;
+    PaperPanel(this, area.cx, area.cy, panelW, panelH, {
+      color: 0xfff8e8,
+      alpha: 0.95,
+      radius: 28,
+    });
 
-  buildHeader() {
-    this.add.text(GAME_WIDTH / 2, 100, 'SETTINGS', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '48px',
-      color: COLORS_CSS.goldL,
-      stroke: COLORS_CSS.ink,
-      strokeThickness: 5,
+    // Header
+    this.add.text(area.cx, area.top + 60, 'SETTINGS', {
+      ...TEXT.title(),
+      fontSize: '52px',
+      color: '#d07818',
+      stroke: '#fff8e0',
+      strokeThickness: 6,
     }).setOrigin(0.5);
-  }
 
-  buildSettingsPanel() {
-    const panelW = 800;
-    const panelX = GAME_WIDTH / 2;
-    let panelY = 220;
-    const rowH = 80;
+    // Layout: rows from top of panel, evenly spaced
+    const contentTop = area.top + 140;
+    const contentBottom = area.bottom - 120;
+    const rowCount = 4;
+    const rowH = (contentBottom - contentTop) / rowCount;
 
-    this.add.rectangle(panelX, GAME_HEIGHT / 2 + 30, panelW, 620, COLORS.ink, 0.8)
-      .setStrokeStyle(4, COLORS.paperD, 0.7);
-
-    // MUSIC VOLUME
-    this.buildVolumeRow(panelX, panelY, 'MUSIC', this.save.settings.musicVolume, (v) => {
+    // Row 1: Music
+    this.buildVolumeRow(area.cx, contentTop + rowH * 0.5, 'MUSIC', this.save.settings.musicVolume, (v) => {
       this.save.settings.musicVolume = v;
       audio.setMusicVolume(v);
       writeSave(this.save);
     });
-    panelY += rowH;
 
-    // SFX VOLUME
-    this.buildVolumeRow(panelX, panelY, 'SOUND FX', this.save.settings.sfxVolume, (v) => {
+    // Row 2: SFX
+    this.buildVolumeRow(area.cx, contentTop + rowH * 1.5, 'SOUND FX', this.save.settings.sfxVolume, (v) => {
       this.save.settings.sfxVolume = v;
       audio.setSfxVolume(v);
       writeSave(this.save);
     });
-    panelY += rowH;
 
-    // GRADE DISPLAY + CHANGE
+    // Row 3: Grade
     const gradeNames = ['K', '1st', '2nd', '3rd', '4th', '5th'];
-    this.add.text(panelX - panelW / 2 + 40, panelY, 'GRADE', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '18px',
-      color: COLORS_CSS.paper,
+    const gradeY = contentTop + rowH * 2.5;
+    this.add.text(area.cx - 280, gradeY, 'GRADE', {
+      ...TEXT.heading(),
+      fontSize: '22px',
+      color: '#3a2410',
     }).setOrigin(0, 0.5);
-    this.add.text(panelX, panelY, gradeNames[this.save.grade ?? 3], {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '26px',
-      color: COLORS_CSS.goldL,
+    this.add.text(area.cx - 30, gradeY, gradeNames[this.save.grade ?? 3], {
+      ...TEXT.heading(),
+      fontSize: '30px',
+      color: '#d07818',
     }).setOrigin(0.5, 0.5);
-    this.buildButton(panelX + 200, panelY, 180, 50, 'CHANGE', COLORS.cobalt, () => {
-      this.cameras.main.fadeOut(200, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start(SCENES.GRADE_SELECT);
-      });
+    PaperButton(this, area.cx + 180, gradeY, 'CHANGE', {
+      w: 160, h: 52, color: 0x4a6ca8, fontSize: 18,
+      onClick: () => {
+        this.cameras.main.fadeOut(200, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start(SCENES.GRADE_SELECT);
+        });
+      },
     });
-    panelY += rowH;
 
-    // STATS
-    this.add.text(panelX - panelW / 2 + 40, panelY, 'STATS', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '18px',
-      color: COLORS_CSS.paper,
-    }).setOrigin(0, 0.5);
-
-    const stats = this.save.stats;
-    const accuracy = stats.totalCorrect + stats.totalWrong > 0
-      ? Math.round((stats.totalCorrect / (stats.totalCorrect + stats.totalWrong)) * 100)
+    // Row 4: Stats + Reset
+    const statsY = contentTop + rowH * 3.5;
+    const s = this.save.stats;
+    const accuracy = s.totalCorrect + s.totalWrong > 0
+      ? Math.round((s.totalCorrect / (s.totalCorrect + s.totalWrong)) * 100)
       : 0;
-    const statText = `BATTLES ${stats.totalBattles}    CORRECT ${stats.totalCorrect}    GOLD ${this.save.gold}    ACCURACY ${accuracy}%`;
-    this.add.text(panelX + 120, panelY, statText, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '12px',
-      color: COLORS_CSS.goldL,
-    }).setOrigin(0.5, 0.5);
-    panelY += rowH;
-
-    // RESET SAVE
-    this.add.text(panelX - panelW / 2 + 40, panelY, 'DANGER', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '18px',
-      color: COLORS_CSS.scarletL,
+    this.add.text(area.cx - 280, statsY - 22, 'STATS', {
+      ...TEXT.heading(),
+      fontSize: '22px',
+      color: '#3a2410',
     }).setOrigin(0, 0.5);
-    this.resetBtn = this.buildButton(panelX + 120, panelY, 340, 50, 'RESET ALL PROGRESS', COLORS.scarlet, () => {
-      this.onResetPressed();
+    this.add.text(area.cx + 60, statsY - 22,
+      `${s.totalBattles} battles   ${s.totalCorrect} correct   ${this.save.gold} gold   ${accuracy}%`, {
+      ...TEXT.body(),
+      fontSize: '16px',
+      color: '#6a4c28',
+    }).setOrigin(0.5, 0.5);
+
+    this.resetBtn = PaperButton(this, area.cx, statsY + 22, 'RESET ALL PROGRESS', {
+      w: 360, h: 50, color: 0xc03020, fontSize: 16,
+      onClick: () => this.onResetPressed(),
+    });
+
+    // Back button — bottom center of panel, always visible
+    PaperButton(this, area.cx, area.bottom - 50, 'BACK', {
+      w: 260, h: 64, color: 0x4aa848, fontSize: 24,
+      onClick: () => {
+        this.cameras.main.fadeOut(200, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start(this.returnScene, this.returnData || undefined);
+        });
+      },
     });
   }
 
-  buildVolumeRow(x, y, label, current, onChange) {
-    const panelW = 800;
-
-    this.add.text(x - panelW / 2 + 40, y, label, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '18px',
-      color: COLORS_CSS.paper,
+  buildVolumeRow(cx, y, label, current, onChange) {
+    this.add.text(cx - 280, y, label, {
+      ...TEXT.heading(),
+      fontSize: '22px',
+      color: '#3a2410',
     }).setOrigin(0, 0.5);
 
     const levels = [
@@ -150,53 +141,25 @@ export class SettingsScene extends Phaser.Scene {
     ];
 
     levels.forEach((lvl, i) => {
-      const btnX = x - 50 + i * 120;
+      const btnX = cx - 110 + i * 115;
       const isActive = Math.abs(current - lvl.value) < 0.05;
-      const bg = this.add.rectangle(btnX, y, 100, 50, isActive ? COLORS.gold : COLORS.paperD)
-        .setStrokeStyle(3, COLORS.ink)
-        .setInteractive({ useHandCursor: true });
-      this.add.text(btnX, y, lvl.label, {
-        fontFamily: '"Fredoka One", cursive',
-        fontSize: '14px',
-        color: isActive ? COLORS_CSS.ink : COLORS_CSS.inkL,
-      }).setOrigin(0.5);
-
-      bg.on('pointerdown', () => {
-        audio.play('ui/click');
-        onChange(lvl.value);
-        this.scene.restart();
+      PaperButton(this, btnX, y, lvl.label, {
+        w: 100, h: 46, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,
+        textColor: isActive ? '#fff8e0' : '#3a2410',
+        onClick: () => {
+          onChange(lvl.value);
+          this.scene.restart();
+        },
       });
     });
-  }
-
-  buildButton(x, y, w, h, label, color, onClick) {
-    const bg = this.add.rectangle(x, y, w, h, color)
-      .setStrokeStyle(3, COLORS.ink)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(x, y, label, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '16px',
-      color: COLORS_CSS.paper,
-      stroke: COLORS_CSS.ink,
-      strokeThickness: 2,
-    }).setOrigin(0.5);
-    bg.on('pointerdown', () => {
-      audio.play('ui/click');
-      onClick();
-    });
-    return bg;
   }
 
   onResetPressed() {
     if (!this.confirmingReset) {
       this.confirmingReset = true;
-      this.resetBtn.setFillStyle(0xff4020);
-      this.showFlash('Are you sure? Tap again to confirm.');
+      this.showFlash('Tap again to confirm RESET.');
       this.time.delayedCall(3000, () => {
-        if (this.confirmingReset) {
-          this.confirmingReset = false;
-          if (this.resetBtn.active) this.resetBtn.setFillStyle(COLORS.scarlet);
-        }
+        this.confirmingReset = false;
       });
       return;
     }
@@ -209,11 +172,11 @@ export class SettingsScene extends Phaser.Scene {
 
   showFlash(message) {
     const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 180, message, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '22px',
-      color: COLORS_CSS.scarletL,
-      backgroundColor: '#1a0e04',
-      padding: { x: 20, y: 10 },
+      ...TEXT.body(),
+      fontSize: '20px',
+      color: '#c02820',
+      backgroundColor: '#fff8e0',
+      padding: { x: 16, y: 8 },
     }).setOrigin(0.5);
     this.tweens.add({
       targets: t,
@@ -221,15 +184,6 @@ export class SettingsScene extends Phaser.Scene {
       delay: 2000,
       duration: 500,
       onComplete: () => t.destroy(),
-    });
-  }
-
-  buildBackButton() {
-    this.buildButton(GAME_WIDTH / 2, GAME_HEIGHT - 80, 280, 70, 'BACK', COLORS.paperD, () => {
-      this.cameras.main.fadeOut(200, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start(this.returnScene, this.returnData || undefined);
-      });
     });
   }
 }

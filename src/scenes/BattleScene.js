@@ -18,6 +18,7 @@ import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
 import { invokeAbility } from '../systems/abilities.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
+import { PaperPanel, PaperButton, PaperBar, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -212,114 +213,108 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   buildUI() {
-    // UI panel — compact so answer buttons don't get cut off by Safari toolbar
-    const uiH = 260;
+    // Compact UI panel — bottom strip, tall enough for one row of answer
+    // buttons plus the question and momentum bar. Kept short so Safari's
+    // bottom toolbar never cuts into it.
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const uiH = 240;
     const uiTop = GAME_HEIGHT - uiH;
+    const uiCenterY = uiTop + uiH / 2;
 
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - uiH / 2, GAME_WIDTH, uiH, COLORS.ink, 0.92)
-      .setStrokeStyle(3, COLORS.paperD, 0.4);
+    // Paper panel as UI background
+    PaperPanel(this, area.cx, uiCenterY, GAME_WIDTH - 40, uiH - 20, {
+      color: 0xfaf4e8,
+      radius: 24,
+      shadowOff: 6,
+      shadowAlpha: 0.4,
+      alpha: 0.96,
+    });
 
-    // Momentum bar
-    this.add.text(GAME_WIDTH / 2 - 380, uiTop + 14, 'MOMENTUM', {
-      fontFamily: '"Fredoka One", cursive',
+    // === Row 1 (top of panel): momentum bar + potion button ===
+    const barY = uiTop + 34;
+    const barW = 420;
+    const barX = area.cx - barW / 2;
+
+    this.add.text(barX - 10, barY, 'MOMENTUM', {
+      ...TEXT.small({ color: '#3a2410' }),
       fontSize: '14px',
-      color: COLORS_CSS.paper,
+    }).setOrigin(1, 0.5);
+
+    this.momentumBarObj = PaperBar(this, barX, barY, barW, 18, this.momentum, 0x4aa848, {
+      bgColor: 0xc8b898,
+    });
+    // zone divider tick marks
+    for (const t of [0.33, 0.66]) {
+      this.add.rectangle(barX + barW * t, barY, 2, 18, 0x3a2410, 0.6);
+    }
+    this.momentumLabel = this.add.text(barX + barW + 12, barY, 'ZONE', {
+      ...TEXT.label(),
+      fontSize: '14px',
+      color: '#b86820',
     }).setOrigin(0, 0.5);
 
-    const barX = GAME_WIDTH / 2 - 220;
-    const barY = uiTop + 14;
-    const barW = 500;
-    const barH = 20;
+    // Potion button — right side of row 1
+    this.potionBtn = PaperButton(this, area.right - 80, barY, '', {
+      w: 140, h: 44,
+      color: 0x4caa5c,
+      fontSize: 14,
+      onClick: () => this.usePotion(),
+    });
+    this.potionLabel = this.potionBtn.label;
+    this.refreshPotionButton();
 
-    this.add.rectangle(barX, barY, barW, barH, COLORS.ink)
-      .setOrigin(0, 0.5).setStrokeStyle(2, COLORS.paperD);
-
-    this.add.rectangle(barX + barW * 0.33, barY, 2, barH, COLORS.paperD)
-      .setOrigin(0, 0.5).setAlpha(0.5);
-    this.add.rectangle(barX + barW * 0.66, barY, 2, barH, COLORS.paperD)
-      .setOrigin(0, 0.5).setAlpha(0.5);
-
-    this.momentumFill = this.add.rectangle(barX, barY, barW * this.momentum, barH - 4, 0x40a040)
-      .setOrigin(0, 0.5);
-
-    this.momentumLabel = this.add.text(barX + barW + 20, barY, 'ZONE', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.goldL,
-    }).setOrigin(0, 0.5);
-
-    // Current question
-    this.questionText = this.add.text(GAME_WIDTH / 2, uiTop + 60, '', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '42px',
-      color: COLORS_CSS.paper,
-      stroke: COLORS_CSS.ink,
+    // === Row 2: question text ===
+    this.questionText = this.add.text(area.cx, uiTop + 86, '', {
+      ...TEXT.heading(),
+      fontSize: '38px',
+      color: '#3a2410',
+      stroke: '#ffffff',
       strokeThickness: 4,
     }).setOrigin(0.5);
 
-    this.turnLabel = this.add.text(GAME_WIDTH / 2, uiTop + 110, '', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '22px',
-      color: COLORS_CSS.goldL,
+    this.turnLabel = this.add.text(area.cx, uiTop + 128, '', {
+      ...TEXT.body(),
+      fontSize: '18px',
+      color: '#6a4c28',
     }).setOrigin(0.5);
 
-    // Answer buttons
-    this.answerButtons = [];
+    // === Row 3: four answer buttons ===
+    const btnY = uiTop + 185;
     const btnW = 200;
-    const btnH = 65;
-    const btnY = uiTop + 175;
-    const btnSpacing = 20;
-    const totalW = 4 * btnW + 3 * btnSpacing;
-    const startX = GAME_WIDTH / 2 - totalW / 2;
-    const btnColors = [COLORS.cobalt, COLORS.scarlet, COLORS.green, COLORS.plum];
+    const btnH = 54;
+    const btnGap = 24;
+    const totalW = 4 * btnW + 3 * btnGap;
+    const startX = area.cx - totalW / 2 + btnW / 2;
+    const btnColors = [COLORS.cobalt, COLORS.scarlet, 0x4aa848, COLORS.plum];
 
+    this.answerButtons = [];
     for (let i = 0; i < 4; i++) {
-      const x = startX + i * (btnW + btnSpacing) + btnW / 2;
-      const bg = this.add.rectangle(x, btnY, btnW, btnH, btnColors[i])
-        .setStrokeStyle(4, COLORS.ink)
-        .setInteractive({ useHandCursor: true });
-      const label = this.add.text(x, btnY, '?', {
-        fontFamily: '"Fredoka One", cursive',
-        fontSize: '32px',
-        color: COLORS_CSS.paper,
-        stroke: COLORS_CSS.ink,
-        strokeThickness: 4,
-      }).setOrigin(0.5);
-
-      bg.on('pointerdown', () => {
-        if (this.locked) return;
-        audio.play('ui/click');
-        this.onAnswer(i);
+      const x = startX + i * (btnW + btnGap);
+      const btn = PaperButton(this, x, btnY, '?', {
+        w: btnW, h: btnH,
+        color: btnColors[i],
+        fontSize: 28,
+        onClick: () => {
+          if (this.locked) return;
+          audio.play('ui/click');
+          this.onAnswer(i);
+        },
       });
-
-      this.answerButtons.push({ bg, label, baseColor: btnColors[i] });
+      this.answerButtons.push({
+        bg: btn.bg,
+        shadow: btn.shadow,
+        label: btn.label,
+        zone: btn.zone,
+        baseColor: btnColors[i],
+      });
     }
 
-    // Potion button — top-right of UI panel. Tapping heals the active
-    // hero for 25 HP. Skips the rest of the current turn so the enemy
-    // gets to attack in response (costs a turn to use, like the prototype
-    // was supposed to do).
-    const potionX = GAME_WIDTH - 130;
-    const potionY = uiTop + 14;
-    const potionBg = this.add.rectangle(potionX, potionY, 220, 50, 0x2c7848)
-      .setStrokeStyle(3, COLORS.ink)
-      .setInteractive({ useHandCursor: true });
-    this.potionLabel = this.add.text(potionX, potionY, '', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.paper,
-    }).setOrigin(0.5);
-    this.potionBg = potionBg;
-    potionBg.on('pointerdown', () => this.usePotion());
-    this.refreshPotionButton();
-
-    // Toast
-    this.toast = this.add.text(GAME_WIDTH / 2, uiTop - 40, '', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '28px',
-      color: COLORS_CSS.goldL,
+    // Toast (floats above the UI panel)
+    this.toast = this.add.text(area.cx, uiTop - 30, '', {
+      ...TEXT.heading(),
+      fontSize: '26px',
       backgroundColor: '#1a0e04',
-      padding: { x: 24, y: 12 },
+      padding: { x: 20, y: 10 },
     }).setOrigin(0.5).setAlpha(0);
 
     // End overlay (hidden by default)
@@ -419,8 +414,7 @@ export class BattleScene extends Phaser.Scene {
 
     for (let i = 0; i < 4; i++) {
       this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
-      this.answerButtons[i].bg.setFillStyle(this.answerButtons[i].baseColor);
-      this.answerButtons[i].bg.setAlpha(1);
+      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
     }
 
     // Consume ability: if the previous turn was wrong and the enemy has
@@ -431,9 +425,34 @@ export class BattleScene extends Phaser.Scene {
       this._consumeNextTurn = false;
       const wrongIndices = [0, 1, 2, 3].filter((i) => i !== this.currentQuestion.correctIndex);
       const victim = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
-      this.answerButtons[victim].bg.setAlpha(0.25);
+      this.recolorAnswerButton(victim, this.answerButtons[victim].baseColor, 0.25);
       this.answerButtons[victim].label.setText('?');
     }
+  }
+
+  /**
+   * Redraw a paper-styled answer button with a new fill color and alpha.
+   * Needed because PaperButton uses Phaser.Graphics which doesn't have
+   * setFillStyle — we clear and re-draw.
+   */
+  recolorAnswerButton(i, color, alpha = 1) {
+    const btn = this.answerButtons[i];
+    if (!btn || !btn.bg) return;
+    const w = 200, h = 54, radius = 14;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const uiTop = GAME_HEIGHT - 240;
+    const btnGap = 24;
+    const totalW = 4 * w + 3 * btnGap;
+    const startX = area.cx - totalW / 2 + w / 2;
+    const x = startX + i * (w + btnGap);
+    const y = uiTop + 185;
+
+    btn.bg.clear();
+    btn.bg.fillStyle(color, alpha);
+    btn.bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+    btn.bg.lineStyle(2, 0x000000, 0.15 * alpha);
+    btn.bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+    btn.label.setAlpha(alpha);
   }
 
   startEnemyTurn() {
@@ -444,7 +463,7 @@ export class BattleScene extends Phaser.Scene {
     this.refreshPotionButton();
 
     for (let i = 0; i < 4; i++) {
-      this.answerButtons[i].bg.setAlpha(0.3);
+      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 0.3);
       this.answerButtons[i].label.setText('');
     }
 
@@ -484,7 +503,7 @@ export class BattleScene extends Phaser.Scene {
     const btn = this.answerButtons[index];
 
     if (correct) {
-      btn.bg.setFillStyle(0x40c040);
+      this.recolorAnswerButton(index, 0x40c040, 1);
       audio.play('battle/correct');
 
       this.streak++;
@@ -537,9 +556,9 @@ export class BattleScene extends Phaser.Scene {
         },
       });
     } else {
-      btn.bg.setFillStyle(0xc04040);
+      this.recolorAnswerButton(index, 0xc04040, 1);
       // Flash the correct one in green too
-      this.answerButtons[this.currentQuestion.correctIndex].bg.setFillStyle(0x40c040);
+      this.recolorAnswerButton(this.currentQuestion.correctIndex, 0x40c040, 1);
       audio.play('battle/wrong');
 
       this.streak = 0;
@@ -581,10 +600,14 @@ export class BattleScene extends Phaser.Scene {
     if (!this.potionLabel) return;
     const save = loadSave();
     const count = save.potions || 0;
-    this.potionLabel.setText(`\u{1F9EA} POTION (${count})`);
+    this.potionLabel.setText(`POTION ${count}`);
     const canUse = count > 0 && this.phase === 'question';
-    this.potionBg.setFillStyle(canUse ? 0x2c7848 : 0x3a3a3a);
-    this.potionBg.setAlpha(canUse ? 1 : 0.6);
+    if (this.potionBtn && this.potionBtn.bg) {
+      const alpha = canUse ? 1 : 0.5;
+      this.potionBtn.bg.setAlpha(alpha);
+      this.potionBtn.shadow.setAlpha(alpha * 0.7);
+      this.potionBtn.label.setAlpha(alpha);
+    }
   }
 
   usePotion() {
@@ -759,18 +782,14 @@ export class BattleScene extends Phaser.Scene {
   }
 
   updateMomentumBar() {
-    const barW = 600;
-    this.tweens.add({
-      targets: this.momentumFill,
-      width: barW * this.momentum,
-      duration: 300,
-      ease: 'Cubic.out',
-    });
     const zone = getZone(this.momentum);
     this.momentumLabel.setText(zone.label);
-    if (zone.label === 'COOL') this.momentumFill.fillColor = 0x4080c0;
-    else if (zone.label === 'ZONE') this.momentumFill.fillColor = 0x40a040;
-    else this.momentumFill.fillColor = 0xd06020;
+    let fillColor = 0x4aa848; // ZONE (green)
+    if (zone.label === 'COOL') fillColor = 0x4080c0;
+    else if (zone.label === 'HEAT') fillColor = 0xd06020;
+    if (this.momentumBarObj) {
+      updatePaperBar(this.momentumBarObj, this.momentum, fillColor);
+    }
   }
 
   updateHeroIndicators() {

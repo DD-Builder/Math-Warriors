@@ -4,6 +4,7 @@ import { loadSave } from '../systems/save.js';
 import { spawnHero, getHeroById } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
+import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 
 /**
  * WorldMapScene
@@ -50,17 +51,19 @@ export class WorldMapScene extends Phaser.Scene {
     drawPapercutBackground(this, 1, GAME_WIDTH, GAME_HEIGHT, 777);
 
     // Title
-    this.add.text(GAME_WIDTH / 2, 80, 'WORLD MAP', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '42px',
-      color: COLORS_CSS.goldL,
-      stroke: COLORS_CSS.ink,
-      strokeThickness: 5,
+    this.add.text(GAME_WIDTH / 2, 100, 'WORLD MAP', {
+      ...TEXT.title(),
+      fontSize: '44px',
+      color: '#fff8e0',
+      stroke: '#3a2410',
+      strokeThickness: 6,
     }).setOrigin(0.5);
-    this.add.text(GAME_WIDTH / 2, 130, 'Choose Your Floor', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '22px',
-      color: COLORS_CSS.paper,
+    this.add.text(GAME_WIDTH / 2, 150, 'Choose Your Floor', {
+      ...TEXT.body(),
+      fontSize: '20px',
+      color: '#fff8e0',
+      stroke: '#3a2410',
+      strokeThickness: 3,
     }).setOrigin(0.5);
   }
 
@@ -69,82 +72,78 @@ export class WorldMapScene extends Phaser.Scene {
   // ================================================================
 
   buildHUD() {
-    // Top-left: gold counter
-    this.add.rectangle(140, 40, 200, 60, COLORS.ink, 0.8)
-      .setStrokeStyle(3, COLORS.gold);
-    this.add.text(60, 40, '\u{1FA99}', {
-      fontSize: '32px',
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+
+    // Gold + potions — single paper pill top-left
+    PaperPanel(this, area.left + 140, area.top + 40, 240, 70, {
+      color: 0xfff8e8, alpha: 0.95, radius: 18,
+    });
+    this.add.text(area.left + 40, area.top + 40, '💰', { fontSize: '28px' }).setOrigin(0, 0.5);
+    this.add.text(area.left + 80, area.top + 30, `${this.save.gold}`, {
+      ...TEXT.heading(), fontSize: '20px', color: '#d07818',
     }).setOrigin(0, 0.5);
-    this.add.text(105, 40, `${this.save.gold}`, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '22px',
-      color: COLORS_CSS.goldL,
+    this.add.text(area.left + 145, area.top + 40, '🧪', { fontSize: '28px' }).setOrigin(0, 0.5);
+    this.add.text(area.left + 190, area.top + 30, `${this.save.potions}`, {
+      ...TEXT.heading(), fontSize: '20px', color: '#4aa848',
     }).setOrigin(0, 0.5);
 
-    // Top-left below: potion counter
-    this.add.rectangle(140, 110, 200, 60, COLORS.ink, 0.8)
-      .setStrokeStyle(3, COLORS.goldL);
-    this.add.text(60, 110, '\u{1F9EA}', {
-      fontSize: '32px',
-    }).setOrigin(0, 0.5);
-    this.add.text(105, 110, `${this.save.potions}`, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '22px',
-      color: COLORS_CSS.paper,
-    }).setOrigin(0, 0.5);
-
-    // Top-right: party strip (read-only)
+    // Party strip — top-right
     if (this.save.party && this.save.party.length > 0) {
-      const stripW = 300;
-      const stripX = GAME_WIDTH - stripW - 40;
-      const stripY = 40;
-
-      this.add.rectangle(stripX + stripW / 2, stripY + 40, stripW, 80, COLORS.ink, 0.8)
-        .setStrokeStyle(3, COLORS.paperD);
-      this.add.text(stripX + 15, stripY + 20, 'PARTY', {
-        fontFamily: '"Fredoka One", cursive',
-        fontSize: '11px',
-        color: COLORS_CSS.inkL,
+      const stripW = 280;
+      const stripCx = area.right - stripW / 2;
+      const stripY = area.top + 40;
+      PaperPanel(this, stripCx, stripY, stripW, 70, {
+        color: 0xfff8e8, alpha: 0.95, radius: 18,
       });
-
+      this.add.text(stripCx - stripW / 2 + 14, stripY - 20, 'PARTY', {
+        ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
+      });
       for (let i = 0; i < 3; i++) {
-        const x = stripX + 90 + i * 70;
-        const y = stripY + 45;
+        const x = stripCx - stripW / 2 + 70 + i * 64;
         const slot = this.save.party[i];
         if (slot) {
           const def = getHeroById(slot.id);
           if (def) {
-            this.add.rectangle(x, y, 50, 50, def.displayColor)
-              .setStrokeStyle(2, COLORS.ink);
-            // HP bar under the portrait
+            const box = this.add.graphics();
+            box.fillStyle(def.displayColor, 1);
+            box.fillRoundedRect(x - 22, stripY - 16, 44, 32, 6);
+            box.lineStyle(1, 0x1a0e04, 0.3);
+            box.strokeRoundedRect(x - 22, stripY - 16, 44, 32, 6);
+            // HP bar below
             const pct = (slot.hp ?? slot.maxHp) / slot.maxHp;
-            this.add.rectangle(x, y + 36, 48, 6, COLORS.ink)
-              .setStrokeStyle(1, COLORS.paperD, 0.6);
-            this.add.rectangle(x - 23, y + 36, 46 * pct, 4, 0x40c040)
-              .setOrigin(0, 0.5);
+            const hpBg = this.add.graphics();
+            hpBg.fillStyle(0x3a2410, 0.6);
+            hpBg.fillRoundedRect(x - 22, stripY + 20, 44, 4, 2);
+            hpBg.fillStyle(0x4aa848, 1);
+            hpBg.fillRoundedRect(x - 22, stripY + 20, 44 * pct, 4, 2);
           }
-        } else {
-          this.add.rectangle(x, y, 50, 50, COLORS.ink, 0.4)
-            .setStrokeStyle(2, COLORS.paperD, 0.4);
         }
       }
     }
 
-    // Back to title (top-right corner, small)
-    const backBg = this.add.rectangle(GAME_WIDTH - 80, GAME_HEIGHT - 50, 130, 50, COLORS.paperD)
-      .setStrokeStyle(3, COLORS.ink)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(GAME_WIDTH - 80, GAME_HEIGHT - 50, 'TITLE', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '16px',
-      color: COLORS_CSS.ink,
-    }).setOrigin(0.5);
-    backBg.on('pointerdown', () => {
-      audio.play('ui/back');
-      this.cameras.main.fadeOut(250, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start(SCENES.TITLE);
-      });
+    // Back to title — bottom-left (inside safe area)
+    PaperButton(this, area.left + 80, area.bottom - 40, 'TITLE', {
+      w: 140, h: 54, color: 0xc8b898, fontSize: 18,
+      textColor: '#3a2410',
+      onClick: () => {
+        audio.play('ui/back');
+        this.cameras.main.fadeOut(250, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start(SCENES.TITLE);
+        });
+      },
+    });
+
+    // Settings — bottom-right
+    PaperButton(this, area.right - 80, area.bottom - 40, '⚙', {
+      w: 140, h: 54, color: 0x4a6ca8, fontSize: 26,
+      onClick: () => {
+        audio.play('ui/click');
+        this.cameras.main.fadeOut(200, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start(SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP });
+        });
+      },
     });
   }
 
@@ -225,58 +224,64 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   createFloorNode(x, y, info, locked, complete) {
-    const radius = 85;
+    const radius = 70;
 
-    // Shadow
-    this.add.circle(x + 6, y + 10, radius, COLORS.ink, 0.6);
+    // Soft drop shadow
+    this.add.circle(x + 5, y + 8, radius, 0x000000, 0.3);
 
-    // Outer ring
-    const ring = this.add.circle(x, y, radius, locked ? 0x3a3028 : info.color)
-      .setStrokeStyle(8, locked ? 0x5a5040 : COLORS.gold);
+    // Paper-cut node: outer color ring + inner cream paper
+    const nodeColor = locked ? 0x8a8070 : info.color;
+    const ring = this.add.circle(x, y, radius, nodeColor);
+    ring.setStrokeStyle(5, locked ? 0x5a5040 : 0xfff8e0);
 
-    // Inner circle with operator symbol
-    const inner = this.add.circle(x, y, radius - 12, locked ? 0x1a1008 : COLORS.ink, 0.9);
+    // Inner cream circle
+    this.add.circle(x, y, radius - 10, locked ? 0x5a5040 : 0xfff8e8, locked ? 0.8 : 1);
 
-    // Floor number
-    this.add.text(x - radius * 0.65, y - radius * 0.65, `${info.id}`, {
+    // Floor number badge — top-left little paper tag
+    const numX = x - radius * 0.7;
+    const numY = y - radius * 0.7;
+    this.add.circle(numX, numY, 18, locked ? 0x5a5040 : 0xd07818)
+      .setStrokeStyle(2, 0xfff8e0);
+    this.add.text(numX, numY, `${info.id}`, {
       fontFamily: '"Fredoka One", cursive',
-      fontSize: '22px',
-      color: locked ? COLORS_CSS.inkL : COLORS_CSS.goldL,
-      stroke: COLORS_CSS.ink,
-      strokeThickness: 3,
+      fontSize: '18px',
+      color: '#fff8e0',
     }).setOrigin(0.5);
 
     // Operator symbol (big, centered)
-    this.add.text(x, y, info.op, {
+    this.add.text(x, y, locked ? '🔒' : info.op, {
       fontFamily: '"Fredoka One", cursive',
-      fontSize: '72px',
-      color: locked ? '#5a5040' : COLORS_CSS.paper,
-      stroke: COLORS_CSS.ink,
-      strokeThickness: 5,
+      fontSize: locked ? '48px' : '60px',
+      color: locked ? '#3a2410' : nodeColor ? `#${nodeColor.toString(16).padStart(6, '0')}` : '#3a2410',
+      stroke: '#1a0e04',
+      strokeThickness: locked ? 0 : 3,
     }).setOrigin(0.5);
 
     // Completion star
     if (complete) {
-      this.add.text(x + radius * 0.6, y - radius * 0.6, '\u2605', {
-        fontSize: '40px',
-        color: COLORS_CSS.goldL,
-        stroke: COLORS_CSS.ink,
-        strokeThickness: 4,
+      this.add.text(x + radius * 0.7, y - radius * 0.7, '⭐', {
+        fontSize: '32px',
       }).setOrigin(0.5);
     }
 
-    // Floor name label below
-    const label = this.add.rectangle(x, y + radius + 30, 280, 50, COLORS.ink, 0.9)
-      .setStrokeStyle(3, locked ? COLORS.paperD : COLORS.gold);
-    this.add.text(x, y + radius + 24, info.name, {
+    // Floor name label below — paper pill
+    const labelY = y + radius + 28;
+    const labelW = 220;
+    const labelH = 52;
+    PaperPanel(this, x, labelY, labelW, labelH, {
+      color: locked ? 0xc8b898 : 0xfff8e8,
+      alpha: 0.95,
+      radius: 12,
+    });
+    this.add.text(x, labelY - 10, info.name, {
       fontFamily: '"Fredoka One", cursive',
       fontSize: '14px',
-      color: locked ? COLORS_CSS.inkL : COLORS_CSS.goldL,
+      color: locked ? '#6a4c28' : '#d07818',
     }).setOrigin(0.5);
-    this.add.text(x, y + radius + 44, info.tagline, {
+    this.add.text(x, labelY + 12, info.tagline, {
       fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.paper,
+      fontSize: '13px',
+      color: locked ? '#8a7a60' : '#5a3820',
     }).setOrigin(0.5);
 
     // Interactivity

@@ -3,33 +3,12 @@ import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.j
 import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
 import { loadSave, writeSave, makeDefaultSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
+import { drawPapercutBackground } from '../systems/papercut.js';
+import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea } from '../ui/paperUI.js';
 
 /**
- * PartySelectScene
- *
- * Lets the player pick 3 heroes from the full roster of 15.
- * Layout:
- *
- *   ┌─────────────────────────────────────────────────────────────┐
- *   │  MATH WARRIORS           [party strip: 3 slots]  [CONFIRM]  │
- *   │  BUILD YOUR PARTY                                           │
- *   ├─────────────────────────────────────────────────────────────┤
- *   │  [KNIGHTS]  [WIZARDS]  [BUNNIES]           class tabs       │
- *   ├─────────────────────────────────────────────────────────────┤
- *   │                                                             │
- *   │   ┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐          │
- *   │   │ HERO │  │ HERO │  │ HERO │  │ HERO │  │ HERO │  grid    │
- *   │   │ CARD │  │ CARD │  │ CARD │  │ CARD │  │ CARD │          │
- *   │   └──────┘  └──────┘  └──────┘  └──────┘  └──────┘          │
- *   │                                                             │
- *   └─────────────────────────────────────────────────────────────┘
- *
- * Tapping a card adds/removes the hero from the party. Tapping an
- * already-selected party slot removes that hero. When exactly 3 are
- * picked, the confirm button activates.
- *
- * v0.3: uses placeholder rectangles for hero art. When real sprites
- * drop, the cards' rectangle becomes an Image and nothing else changes.
+ * PartySelectScene — pick 3 heroes from 15.
+ * Rebuilt with paper UI, proper margins, no overflow.
  */
 export class PartySelectScene extends Phaser.Scene {
   constructor() {
@@ -38,119 +17,82 @@ export class PartySelectScene extends Phaser.Scene {
 
   init(data) {
     this.grade = data?.grade ?? 3;
-    // Selections: array of { class: 'knight'|'wizard'|'bunny', index: 0-4 }
     this.selections = [];
     this.activeClass = 'knight';
-    // Map of classKey → hero[] for easy switching
-    this.classes = {
-      knight: KNIGHTS,
-      wizard: WIZARDS,
-      bunny:  BUNNIES,
-    };
-    this.classLabels = {
-      knight: 'KNIGHTS',
-      wizard: 'WIZARDS',
-      bunny:  'BATTLE BUNNIES',
-    };
+    this.classes = { knight: KNIGHTS, wizard: WIZARDS, bunny: BUNNIES };
+    this.classLabels = { knight: 'KNIGHTS', wizard: 'WIZARDS', bunny: 'BATTLE BUNNIES' };
   }
 
   create() {
-    this.cameras.main.setBackgroundColor(COLORS.bg);
-    this.buildBackground();
-    this.buildTopBar();
-    this.buildClassTabs();
-    this.buildHeroGrid();
-    this.buildPartyStrip();
-    this.buildConfirmButton();
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+
+    this.cameras.main.fadeIn(250, 0, 0, 0);
+    this.cameras.main.setBackgroundColor(0x000000);
+    audio.playMusic('music/title');
+
+    drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 333);
+
+    // Cream backdrop
+    PaperPanel(this, area.cx, area.cy, area.w - 20, area.h - 20, {
+      color: 0xfff8e8, alpha: 0.92, radius: 28,
+    });
+
+    // Header
+    this.add.text(area.cx, area.top + 50, 'BUILD YOUR PARTY', {
+      ...TEXT.title(),
+      fontSize: '44px',
+      color: '#d07818',
+      stroke: '#fff8e0',
+      strokeThickness: 5,
+    }).setOrigin(0.5);
+
+    // Class tabs
+    this.buildClassTabs(area);
+
+    // Grid label
+    this.gridLabel = this.add.text(area.cx, area.top + 200, '', {
+      ...TEXT.body(),
+      fontSize: '18px',
+      color: '#6a4c28',
+    }).setOrigin(0.5);
+
+    // Hero card grid container
+    this.heroCardContainer = this.add.container(0, 0);
+
+    // Party strip — bottom-left, inside safe area
+    this.buildPartyStrip(area);
+
+    // Confirm button — bottom-right
+    this.buildConfirmButton(area);
+
+    // Render initial state
+    this.rebuildHeroGrid();
     this.updatePartyStrip();
     this.updateConfirmButton();
   }
 
-  // ================================================================
-  // BACKGROUND
-  // ================================================================
-
-  buildBackground() {
-    // Faint paper grid texture — placeholder for the papercut table
-    const g = this.add.graphics();
-    g.lineStyle(1, 0x4a3420, 0.15);
-    const spacing = 60;
-    for (let x = 0; x < GAME_WIDTH; x += spacing) {
-      g.lineBetween(x, 0, x, GAME_HEIGHT);
-    }
-    for (let y = 0; y < GAME_HEIGHT; y += spacing) {
-      g.lineBetween(0, y, GAME_WIDTH, y);
-    }
-
-    // Subtle central glow
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT / 2;
-    const glow = this.add.graphics();
-    glow.fillStyle(0x2a1c08, 0.4);
-    glow.fillCircle(cx, cy, 800);
-    glow.fillStyle(0x4a2c10, 0.25);
-    glow.fillCircle(cx, cy, 500);
-  }
-
-  // ================================================================
-  // TOP BAR — title + party strip + confirm button
-  // ================================================================
-
-  buildTopBar() {
-    // Header background panel
-    this.add.rectangle(GAME_WIDTH / 2, 60, GAME_WIDTH, 120, COLORS.ink, 0.6)
-      .setStrokeStyle(3, COLORS.paperD, 0.4);
-
-    // Title — small in the header
-    this.add.text(40, 30, 'MATH WARRIORS', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '18px',
-      color: COLORS_CSS.cobalt,
-      stroke: COLORS_CSS.scarlet,
-      strokeThickness: 3,
-    }).setOrigin(0, 0);
-
-    // Subtitle
-    this.add.text(40, 64, 'BUILD YOUR PARTY', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '34px',
-      color: COLORS_CSS.goldL,
-    }).setOrigin(0, 0);
-  }
-
-  // ================================================================
-  // CLASS TABS
-  // ================================================================
-
-  buildClassTabs() {
-    const tabY = 170;
-    const tabW = 260;
-    const tabH = 70;
-    const spacing = 30;
-    const totalW = 3 * tabW + 2 * spacing;
-    const startX = GAME_WIDTH / 2 - totalW / 2;
+  buildClassTabs(area) {
+    const tabY = area.top + 130;
+    const tabW = 220;
+    const tabH = 60;
+    const gap = 20;
+    const totalW = 3 * tabW + 2 * gap;
+    const startX = area.cx - totalW / 2 + tabW / 2;
     const classes = ['knight', 'wizard', 'bunny'];
 
     this.classTabs = {};
-
     classes.forEach((cls, i) => {
-      const x = startX + i * (tabW + spacing) + tabW / 2;
-      const bg = this.add.rectangle(x, tabY, tabW, tabH, COLORS.ink, 0.7)
-        .setStrokeStyle(3, COLORS.paperD)
-        .setInteractive({ useHandCursor: true });
-      const label = this.add.text(x, tabY, this.classLabels[cls], {
-        fontFamily: '"Fredoka One", cursive',
-        fontSize: '18px',
-        color: COLORS_CSS.paper,
-        stroke: COLORS_CSS.ink,
-        strokeThickness: 3,
-      }).setOrigin(0.5);
-
-      bg.on('pointerdown', () => this.switchClass(cls));
-
-      this.classTabs[cls] = { bg, label };
+      const x = startX + i * (tabW + gap);
+      const tab = PaperButton(this, x, tabY, this.classLabels[cls], {
+        w: tabW, h: tabH, color: 0xc8b898, fontSize: 18,
+        textColor: '#3a2410',
+        onClick: () => {
+          audio.play('ui/click');
+          this.switchClass(cls);
+        },
+      });
+      this.classTabs[cls] = { ...tab, x, y: tabY, w: tabW, h: tabH };
     });
-
     this.updateClassTabs();
   }
 
@@ -161,161 +103,145 @@ export class PartySelectScene extends Phaser.Scene {
   }
 
   updateClassTabs() {
-    for (const cls of Object.keys(this.classTabs)) {
-      const active = cls === this.activeClass;
-      const tab = this.classTabs[cls];
-      tab.bg.setFillStyle(active ? COLORS.gold : COLORS.ink, active ? 0.9 : 0.7);
-      tab.bg.setStrokeStyle(3, active ? COLORS.goldL : COLORS.paperD);
-      tab.label.setColor(active ? COLORS_CSS.ink : COLORS_CSS.paper);
+    for (const [cls, tab] of Object.entries(this.classTabs)) {
+      const isActive = cls === this.activeClass;
+      tab.bg.clear();
+      tab.shadow.clear();
+      const color = isActive ? 0xd07818 : 0xc8b898;
+      const shadowOff = 5;
+      const radius = 14;
+      tab.shadow.fillStyle(0x000000, 0.3);
+      tab.shadow.fillRoundedRect(tab.x - tab.w / 2 + shadowOff, tab.y - tab.h / 2 + shadowOff, tab.w, tab.h, radius);
+      tab.bg.fillStyle(color, 1);
+      tab.bg.fillRoundedRect(tab.x - tab.w / 2, tab.y - tab.h / 2, tab.w, tab.h, radius);
+      tab.bg.lineStyle(isActive ? 4 : 2, 0x000000, 0.2);
+      tab.bg.strokeRoundedRect(tab.x - tab.w / 2, tab.y - tab.h / 2, tab.w, tab.h, radius);
+      tab.label.setColor(isActive ? '#fff8e0' : '#3a2410');
     }
-  }
-
-  // ================================================================
-  // HERO GRID
-  // ================================================================
-
-  buildHeroGrid() {
-    // Section label
-    this.gridLabel = this.add.text(GAME_WIDTH / 2, 240, '', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '16px',
-      color: COLORS_CSS.inkL,
-    }).setOrigin(0.5);
-
-    // Cards container — we'll rebuild this on class switch
-    this.heroCardContainer = this.add.container(0, 0);
-    this.rebuildHeroGrid();
   }
 
   rebuildHeroGrid() {
     this.heroCardContainer.removeAll(true);
-
     const heroes = this.classes[this.activeClass];
-    this.gridLabel.setText(`CHOOSE YOUR ${this.classLabels[this.activeClass].replace(/S$/, '')}`);
+    this.gridLabel.setText(`Choose your ${this.classLabels[this.activeClass].replace(/S$/, '').toLowerCase()}`);
 
-    const cardW = 220;
-    const cardH = 380;
-    const spacing = 20;
-    const totalW = heroes.length * cardW + (heroes.length - 1) * spacing;
-    const startX = GAME_WIDTH / 2 - totalW / 2 + cardW / 2;
-    const cardY = 490;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const cardW = 200;
+    const cardH = 260;
+    const gap = 18;
+    const totalW = heroes.length * cardW + (heroes.length - 1) * gap;
+    const startX = area.cx - totalW / 2 + cardW / 2;
+    const cardY = area.cy + 10;
 
     heroes.forEach((hero, i) => {
-      const x = startX + i * (cardW + spacing);
+      const x = startX + i * (cardW + gap);
       this.createHeroCard(x, cardY, cardW, cardH, hero, i);
     });
   }
 
   createHeroCard(x, y, w, h, hero, heroIndex) {
-    // Is this hero currently selected?
     const isSelected = this.isHeroSelected(this.activeClass, heroIndex);
 
-    // Card background
-    const bg = this.add.rectangle(x, y, w, h, COLORS.ink, 0.85)
-      .setStrokeStyle(isSelected ? 6 : 3, isSelected ? COLORS.goldL : COLORS.paperD)
-      .setInteractive({ useHandCursor: true });
+    // Card paper
+    const card = PaperCard(this, x, y, w, h, hero.displayColor, { selected: isSelected });
 
-    // Placeholder sprite rectangle (colored by class)
-    const spriteW = w - 40;
-    const spriteH = 150;
-    const spriteY = y - 60;
-    const spriteRect = this.add.rectangle(x, spriteY, spriteW, spriteH, hero.displayColor)
-      .setStrokeStyle(4, COLORS.ink);
+    // Portrait rect
+    const portrait = this.add.graphics();
+    portrait.fillStyle(0x1a0e04, 0.4);
+    portrait.fillRoundedRect(x - w / 2 + 16, y - h / 2 + 16, w - 32, h * 0.5, 8);
 
-    // Hero name
-    const name = this.add.text(x, y + 40, hero.name.toUpperCase(), {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '16px',
-      color: COLORS_CSS.goldL,
-      stroke: COLORS_CSS.ink,
+    const name = this.add.text(x, y + h * 0.15, hero.name.toUpperCase(), {
+      ...TEXT.heading(),
+      fontSize: '18px',
+      color: '#fff8e0',
+      stroke: '#1a0e04',
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    // Hero trait (flavor text)
-    const trait = this.add.text(x, y + 72, hero.trait, {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.paper,
+    const trait = this.add.text(x, y + h * 0.28, hero.trait, {
+      ...TEXT.body(),
+      fontSize: '13px',
+      color: '#fff8e0',
       align: 'center',
-      wordWrap: { width: w - 30 },
+      wordWrap: { width: w - 24 },
     }).setOrigin(0.5, 0);
 
-    // Stats row
-    const statsY = y + 130;
-    const statText = `HP ${hero.maxHp}  ATK ${hero.atk}  DEF ${hero.def}`;
-    const stats = this.add.text(x, statsY, statText, {
-      fontFamily: '"Fredoka One", cursive',
+    const stats = this.add.text(x, y + h * 0.45, `HP ${hero.maxHp}  ATK ${hero.atk}  DEF ${hero.def}`, {
+      ...TEXT.stat(),
       fontSize: '11px',
-      color: COLORS_CSS.goldL,
+      color: '#ffe0a0',
     }).setOrigin(0.5);
 
     // Selected badge
-    let badge = null;
     if (isSelected) {
-      badge = this.add.circle(x + w / 2 - 25, y - h / 2 + 25, 18, COLORS.gold)
-        .setStrokeStyle(3, COLORS.ink);
-      const checkmark = this.add.text(x + w / 2 - 25, y - h / 2 + 25, '\u2713', {
+      const badge = this.add.circle(x + w / 2 - 18, y - h / 2 + 18, 14, 0xf0c040);
+      badge.setStrokeStyle(2, 0x1a0e04);
+      this.add.text(x + w / 2 - 18, y - h / 2 + 18, '✓', {
         fontFamily: '"Fredoka One", cursive',
-        fontSize: '22px',
-        color: COLORS_CSS.ink,
+        fontSize: '18px',
+        color: '#1a0e04',
       }).setOrigin(0.5);
-      this.heroCardContainer.add(checkmark);
+      this.heroCardContainer.add(badge);
     }
 
-    bg.on('pointerdown', () => this.toggleHeroSelection(this.activeClass, heroIndex));
+    card.zone.on('pointerdown', () => {
+      audio.play('ui/click');
+      this.toggleHeroSelection(this.activeClass, heroIndex);
+    });
 
-    this.heroCardContainer.add([bg, spriteRect, name, trait, stats]);
-    if (badge) this.heroCardContainer.add(badge);
+    this.heroCardContainer.add([card.shadow, card.bg, portrait, name, trait, stats, card.zone]);
   }
 
-  // ================================================================
-  // PARTY STRIP — three slots at top-right showing current picks
-  // ================================================================
+  buildPartyStrip(area) {
+    const stripX = area.left + 20;
+    const stripY = area.bottom - 110;
 
-  buildPartyStrip() {
-    const stripX = GAME_WIDTH - 360;
-    const stripY = 60;
-    const slotW = 70;
-    const slotH = 90;
-    const spacing = 10;
+    this.add.text(stripX, stripY - 60, 'YOUR PARTY', {
+      ...TEXT.heading(),
+      fontSize: '18px',
+      color: '#3a2410',
+    }).setOrigin(0, 0.5);
 
-    // Label
-    this.add.text(stripX - 70, stripY + slotH / 2, 'PARTY', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.paper,
-    }).setOrigin(1, 0.5);
-
+    const slotW = 80;
+    const slotH = 100;
+    const gap = 12;
     this.partySlots = [];
     for (let i = 0; i < 3; i++) {
-      const x = stripX + i * (slotW + spacing);
-      const y = stripY;
+      const sx = stripX + i * (slotW + gap) + slotW / 2;
+      const sy = stripY;
       const isLead = i === 0;
 
-      const bg = this.add.rectangle(x + slotW / 2, y + slotH / 2, slotW, slotH, COLORS.ink, 0.5)
-        .setStrokeStyle(3, isLead ? COLORS.gold : COLORS.paperD)
-        .setInteractive({ useHandCursor: true });
+      const slotBg = this.add.graphics();
+      const color = 0xc8b898;
+      const radius = 10;
+      slotBg.fillStyle(0x000000, 0.25);
+      slotBg.fillRoundedRect(sx - slotW / 2 + 3, sy - slotH / 2 + 4, slotW, slotH, radius);
+      slotBg.fillStyle(color, 0.8);
+      slotBg.fillRoundedRect(sx - slotW / 2, sy - slotH / 2, slotW, slotH, radius);
+      if (isLead) {
+        slotBg.lineStyle(3, 0xf0c040, 1);
+        slotBg.strokeRoundedRect(sx - slotW / 2, sy - slotH / 2, slotW, slotH, radius);
+      }
 
-      const leadTag = isLead
-        ? this.add.text(x + slotW / 2, y + 8, 'LEAD', {
-            fontFamily: '"Fredoka One", cursive',
-            fontSize: '9px',
-            color: COLORS_CSS.goldL,
-          }).setOrigin(0.5, 0)
-        : null;
+      const portrait = this.add.rectangle(sx, sy - 10, slotW - 16, slotH - 40, 0x3a2410, 0.5);
+      const nameTxt = this.add.text(sx, sy + slotH / 2 - 14, '—', {
+        ...TEXT.stat(),
+        fontSize: '11px',
+        color: '#3a2410',
+      }).setOrigin(0.5);
 
-      const sprite = this.add.rectangle(x + slotW / 2, y + slotH / 2, slotW - 12, slotH - 30, COLORS.ink)
-        .setStrokeStyle(1, COLORS.paperD, 0.3);
+      if (isLead) {
+        this.add.text(sx, sy - slotH / 2 - 10, 'LEAD', {
+          ...TEXT.stat(),
+          fontSize: '11px',
+          color: '#d07818',
+        }).setOrigin(0.5);
+      }
 
-      const name = this.add.text(x + slotW / 2, y + slotH - 6, '—', {
-        fontFamily: '"Fredoka One", cursive',
-        fontSize: '8px',
-        color: COLORS_CSS.inkL,
-      }).setOrigin(0.5, 1);
+      const zone = this.add.rectangle(sx, sy, slotW, slotH, 0xffffff, 0).setInteractive({ useHandCursor: true });
+      zone.on('pointerdown', () => this.removeSlot(i));
 
-      bg.on('pointerdown', () => this.removeSlot(i));
-
-      this.partySlots.push({ bg, leadTag, sprite, name, isLead });
+      this.partySlots.push({ slotBg, portrait, nameTxt, sx, sy, slotW, slotH, zone });
     }
   }
 
@@ -325,71 +251,56 @@ export class PartySelectScene extends Phaser.Scene {
       const sel = this.selections[i];
       if (sel) {
         const hero = this.classes[sel.class][sel.index];
-        slot.sprite.setFillStyle(hero.displayColor);
-        slot.sprite.setAlpha(1);
-        slot.name.setText(hero.name.toUpperCase());
-        slot.name.setColor(COLORS_CSS.paper);
-        slot.bg.setFillStyle(COLORS.ink, 0.8);
+        slot.portrait.setFillStyle(hero.displayColor, 1);
+        slot.nameTxt.setText(hero.name.toUpperCase());
+        slot.nameTxt.setColor('#3a2410');
       } else {
-        slot.sprite.setFillStyle(COLORS.ink);
-        slot.sprite.setAlpha(0.4);
-        slot.name.setText('—');
-        slot.name.setColor(COLORS_CSS.inkL);
-        slot.bg.setFillStyle(COLORS.ink, 0.5);
+        slot.portrait.setFillStyle(0x3a2410, 0.4);
+        slot.nameTxt.setText('—');
+        slot.nameTxt.setColor('#6a4c28');
       }
     }
   }
 
-  // ================================================================
-  // CONFIRM BUTTON
-  // ================================================================
+  buildConfirmButton(area) {
+    const x = area.right - 130;
+    const y = area.bottom - 60;
 
-  buildConfirmButton() {
-    const x = GAME_WIDTH - 80;
-    const y = 60;
+    this.confirmBtn = PaperButton(this, x, y, 'BEGIN', {
+      w: 240, h: 68, color: 0xc8b898, fontSize: 22,
+      textColor: '#6a4c28',
+      onClick: () => this.tryConfirm(),
+    });
 
-    const bg = this.add.rectangle(x, y, 140, 60, COLORS.paperD)
-      .setStrokeStyle(4, COLORS.ink)
-      .setInteractive({ useHandCursor: false });
-    const label = this.add.text(x, y, 'BEGIN', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '16px',
-      color: COLORS_CSS.inkL,
+    this.confirmHint = this.add.text(x, y + 48, 'Pick 3 heroes', {
+      ...TEXT.small(),
+      fontSize: '13px',
+      color: '#6a4c28',
     }).setOrigin(0.5);
-    const hint = this.add.text(x, y + 50, '', {
-      fontFamily: '"Fredoka One", cursive',
-      fontSize: '14px',
-      color: COLORS_CSS.paper,
-    }).setOrigin(0.5);
-
-    bg.on('pointerdown', () => this.tryConfirm());
-
-    this.confirmBtn = { bg, label, hint };
   }
 
   updateConfirmButton() {
-    const count = this.selections.length;
-    if (count >= 3) {
-      this.confirmBtn.bg.setFillStyle(COLORS.scarlet);
-      this.confirmBtn.bg.input.cursor = 'pointer';
-      this.confirmBtn.label.setColor(COLORS_CSS.paper);
-      this.confirmBtn.label.setText('BEGIN');
-      this.confirmBtn.hint.setText('Party ready!');
-      this.confirmBtn.hint.setColor(COLORS_CSS.goldL);
-    } else {
-      this.confirmBtn.bg.setFillStyle(COLORS.paperD);
-      this.confirmBtn.bg.input.cursor = 'default';
-      this.confirmBtn.label.setColor(COLORS_CSS.inkL);
-      this.confirmBtn.label.setText('BEGIN');
-      const needed = 3 - count;
-      this.confirmBtn.hint.setText(`Pick ${needed} more hero${needed > 1 ? 'es' : ''}`);
-      this.confirmBtn.hint.setColor(COLORS_CSS.paper);
-    }
-  }
+    const n = this.selections.length;
+    const ready = n >= 3;
+    this.confirmBtn.bg.clear();
+    this.confirmBtn.shadow.clear();
+    const w = 240, h = 68, radius = 14;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const x = area.right - 130;
+    const y = area.bottom - 60;
+    const color = ready ? 0xe84840 : 0xc8b898;
 
-  // ================================================================
-  // SELECTION LOGIC
-  // ================================================================
+    this.confirmBtn.shadow.fillStyle(0x000000, 0.35);
+    this.confirmBtn.shadow.fillRoundedRect(x - w / 2 + 5, y - h / 2 + 5, w, h, radius);
+    this.confirmBtn.bg.fillStyle(color, 1);
+    this.confirmBtn.bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+    this.confirmBtn.bg.lineStyle(2, 0x000000, 0.2);
+    this.confirmBtn.bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+    this.confirmBtn.label.setColor(ready ? '#fff8e0' : '#6a4c28');
+
+    this.confirmHint.setText(ready ? 'Party ready!' : `Pick ${3 - n} more`);
+    this.confirmHint.setColor(ready ? '#4aa848' : '#6a4c28');
+  }
 
   isHeroSelected(cls, index) {
     return this.selections.some((s) => s.class === cls && s.index === index);
@@ -400,7 +311,7 @@ export class PartySelectScene extends Phaser.Scene {
     if (existing >= 0) {
       this.selections.splice(existing, 1);
     } else {
-      if (this.selections.length >= 3) return;  // party full
+      if (this.selections.length >= 3) return;
       this.selections.push({ class: cls, index });
     }
     this.rebuildHeroGrid();
@@ -408,41 +319,23 @@ export class PartySelectScene extends Phaser.Scene {
     this.updateConfirmButton();
   }
 
-  removeSlot(slotIndex) {
-    if (slotIndex >= this.selections.length) return;
-    this.selections.splice(slotIndex, 1);
+  removeSlot(i) {
+    if (i >= this.selections.length) return;
+    this.selections.splice(i, 1);
     this.rebuildHeroGrid();
     this.updatePartyStrip();
     this.updateConfirmButton();
   }
 
-  // ================================================================
-  // CONFIRM → WORLD MAP
-  // Persist the party to the save file so subsequent scenes (world map,
-  // battle, future maze) can rehydrate it without re-selecting.
-  // ================================================================
-
   tryConfirm() {
     if (this.selections.length < 3) return;
     audio.play('ui/confirm');
+    const party = this.selections.map((s) => spawnHero(this.classes[s.class][s.index].id));
 
-    // Build the runtime party AND the persistent party record in one go
-    const party = this.selections.map((s) => {
-      const def = this.classes[s.class][s.index];
-      return spawnHero(def.id);
-    });
-
-    // Start a fresh save for the new run (keeps existing settings/stats)
     const save = loadSave();
     const fresh = makeDefaultSave();
     save.grade = this.grade;
-    save.party = party.map((h) => ({
-      id: h.id,
-      name: h.name,
-      hp: h.maxHp,
-      maxHp: h.maxHp,
-    }));
-    // Reset floor progress to fresh unless we're specifically continuing
+    save.party = party.map((h) => ({ id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp }));
     save.floors = fresh.floors;
     save.gold = 0;
     save.potions = 2;
