@@ -209,6 +209,7 @@ export function PaperButton(scene, x, y, text, opts = {}) {
     color: textColor,
     stroke: '#000000',
     strokeThickness: 2,
+    letterSpacing: 2,
   }).setOrigin(0.5);
 
   const zone = hitZone(scene, x, y, w, h);
@@ -267,6 +268,7 @@ export function PaperPanel(scene, x, y, w, h, opts = {}) {
 export function PaperCard(scene, x, y, w, h, color, opts = {}) {
   const selected = opts.selected ?? false;
   const radius = opts.radius ?? 12;
+  const seed = opts.seed ?? Math.round(x * 1000 + y);
 
   const { bg, shadow } = paperRect(scene, x, y, w, h, color, {
     radius,
@@ -275,6 +277,8 @@ export function PaperCard(scene, x, y, w, h, color, opts = {}) {
     strokeColor: selected ? COLORS.goldL : 0x000000,
     strokeAlpha: selected ? 0.9 : 0.15,
     strokeWidth: selected ? 4 : 2,
+    organic: opts.organic ?? true,
+    seed,
   });
 
   const zone = hitZone(scene, x, y, w, h);
@@ -364,6 +368,10 @@ export function distributeX(count, totalWidth, cx) {
 // TEXT STYLES (consistent across the game)
 // ------------------------------------------------------------------
 
+// Letter-spacing applied to every text style so letters don't jam
+// together. Fredoka One has tight kerning that cramps without this.
+const LSP = 2;
+
 export const TEXT = {
   title: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -371,6 +379,7 @@ export const TEXT = {
     color: '#ffffff',
     stroke: '#000000',
     strokeThickness: 6,
+    letterSpacing: LSP + 1,
     ...overrides,
   }),
   heading: (overrides = {}) => ({
@@ -379,30 +388,35 @@ export const TEXT = {
     color: COLORS_CSS.goldL,
     stroke: '#000000',
     strokeThickness: 3,
+    letterSpacing: LSP,
     ...overrides,
   }),
   body: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '22px',
     color: '#ffffff',
+    letterSpacing: LSP,
     ...overrides,
   }),
   small: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '16px',
     color: COLORS_CSS.paper,
+    letterSpacing: 1,
     ...overrides,
   }),
   label: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '18px',
     color: COLORS_CSS.goldL,
+    letterSpacing: LSP,
     ...overrides,
   }),
   stat: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '14px',
     color: COLORS_CSS.paper,
+    letterSpacing: 1,
     ...overrides,
   }),
 };

@@ -18,7 +18,7 @@ import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
 import { invokeAbility } from '../systems/abilities.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { PaperPanel, PaperButton, PaperBar, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperPanel, PaperButton, PaperBar, paperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -144,16 +144,28 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildHeroSprites() {
-    const groundY = GAME_HEIGHT * 0.58;
-    const spacing = 220;
-    const leftAnchor = GAME_WIDTH * 0.22;
+    // Heroes occupy the lower-left portion of the visible area, BELOW
+    // the top momentum bar but ABOVE the bottom answer buttons.
+    const ansH = 80, stripH = ansH + 32;
+    const visibleTop = 80;
+    const visibleBottom = GAME_HEIGHT - stripH - 130; // BOTTOM_SAFE = 120 + buffer
+    const groundY = (visibleTop + visibleBottom) / 2 + 60;
+
+    const spacing = Math.min(180, (GAME_WIDTH * 0.45) / 3);
+    const leftAnchor = GAME_WIDTH * 0.10 + spacing / 2;
 
     this.heroSprites = this.party.map((hero, i) => {
       const x = leftAnchor + i * spacing;
-      const y = groundY - 90;
+      const y = groundY - 70;
 
-      const body = this.add.rectangle(x, y, 140, 180, hero.displayColor)
-        .setStrokeStyle(4, COLORS.ink);
+      // Smaller paper-cut hero body with drop shadow
+      paperRect(this, x + 4, y + 6, 110, 140, 0x000000, {
+        shadowOff: 0, shadowAlpha: 0.35, organic: true, seed: 100 + i, strokeWidth: 0, alpha: 0.4,
+      });
+      const bodyGfx = paperRect(this, x, y, 110, 140, hero.displayColor, {
+        shadowOff: 0, shadowAlpha: 0, organic: true, seed: 100 + i, strokeWidth: 2,
+      });
+      const body = bodyGfx.bg;
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -181,13 +193,25 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildEnemySprite() {
-    const x = GAME_WIDTH * 0.78;
-    const y = GAME_HEIGHT * 0.58 - 110;
+    // Match the new hero positioning math
+    const ansH = 80, stripH = ansH + 32;
+    const visibleTop = 80;
+    const visibleBottom = GAME_HEIGHT - stripH - 130;
+    const groundY = (visibleTop + visibleBottom) / 2 + 60;
+    const x = GAME_WIDTH * 0.80;
+    const y = groundY - 90;
+    const w = 200, h = 220;
 
-    const body = this.add.rectangle(x, y, 260, 280, this.enemy.displayColor)
-      .setStrokeStyle(6, COLORS.ink);
+    // Drop shadow
+    paperRect(this, x + 6, y + 8, w, h, 0x000000, {
+      shadowOff: 0, shadowAlpha: 0.4, organic: true, seed: 999, strokeWidth: 0, alpha: 0.4,
+    });
+    const enemyGfx = paperRect(this, x, y, w, h, this.enemy.displayColor, {
+      shadowOff: 0, shadowAlpha: 0, organic: true, seed: 999, strokeWidth: 3,
+    });
+    const body = enemyGfx.bg;
 
-    const name = this.add.text(x, y - 170, this.enemy.name.toUpperCase(), {
+    const name = this.add.text(x, y - h / 2 - 28, this.enemy.name.toUpperCase(), {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '26px',
       color: COLORS_CSS.paper,
@@ -195,14 +219,17 @@ export class BattleScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setOrigin(0.5);
 
-    const hpBarBg = this.add.rectangle(x, y + 165, 280, 20, COLORS.ink)
-      .setStrokeStyle(3, COLORS.paperD);
-    const hpBarFill = this.add.rectangle(x - 138, y + 165, 274, 14, 0xc04030)
+    const hpY = y + h / 2 + 16;
+    const hpBarBg = this.add.rectangle(x, hpY, w + 10, 18, COLORS.ink)
+      .setStrokeStyle(2, COLORS.paperD);
+    const hpBarFill = this.add.rectangle(x - (w + 10) / 2 + 2, hpY, (w + 10 - 4) * (this.enemy.hp / this.enemy.maxHp), 12, 0xc04030)
       .setOrigin(0, 0.5);
-    const hpText = this.add.text(x, y + 195, `${this.enemy.hp}/${this.enemy.maxHp}`, {
+    const hpText = this.add.text(x, hpY + 22, `${this.enemy.hp}/${this.enemy.maxHp}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
-      color: COLORS_CSS.paper,
+      fontSize: '14px',
+      color: '#fff8e0',
+      stroke: '#1a0e04',
+      strokeThickness: 3,
     }).setOrigin(0.5);
 
     this.enemySprite = { body, name, hpBarBg, hpBarFill, hpText, x, y };
@@ -213,102 +240,106 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   buildUI() {
-    // STRICT safe-area discipline: everything UI lives inside safeArea().
-    // Answer buttons MUST be at the bottom of safe area, not the bottom
-    // of GAME_HEIGHT, or Safari's toolbar will eat them.
+    // NEW LAYOUT — characters always visible, equation floats as a
+    // small paper note in the upper area, only the answer-button row
+    // lives in a tight bottom strip.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    // Compute positions BOTTOM-UP from safe area so buttons are never off-screen:
-    //   bottom = answer buttons row (anchored at area.bottom)
-    //   above  = turn label + stacked equation
-    //   above  = momentum bar + potion button
-    //   above  = heroes / enemy (rendered in other methods)
+    // === BOTTOM: thin strip with answer buttons + potion ===
     const ansH = 80;
-    const ansRowCenterY = area.bottom - ansH / 2 - 10; // 10px buffer from bottom safe edge
+    const stripH = ansH + 32;
+    const stripCenterY = area.bottom - stripH / 2;
+    const ansY = area.bottom - ansH / 2 - 12;
 
-    const turnLabelY = ansRowCenterY - ansH / 2 - 30;  // above the buttons
-    const eqCenterY  = turnLabelY - 130;               // stacked equation
-    const barY       = eqCenterY - 140;                // momentum/potion row at top of panel
-
-    // Paper backdrop behind the UI section so text reads well
-    const panelTop = barY - 50;
-    const panelBottom = area.bottom;
-    const panelCenterY = (panelTop + panelBottom) / 2;
-    const panelH = panelBottom - panelTop;
-    PaperPanel(this, area.cx, panelCenterY, area.w, panelH, {
-      color: 0xfff4e0, alpha: 0.94, radius: 24,
+    PaperPanel(this, area.cx, stripCenterY, area.w, stripH, {
+      color: 0xfff4e0, alpha: 0.96, radius: 18,
     });
 
-    // === ROW A: Momentum bar + Potion button ===
-    const barW = 440;
+    // === TOP: floor name + momentum bar (slim) ===
+    const topY = area.top + 22;
+    const barW = 380;
     const barX = area.cx - barW / 2;
 
-    this.add.text(barX - 10, barY, 'MOMENTUM', {
+    PaperPanel(this, area.cx, topY, barW + 220, 50, {
+      color: 0xfff4e0, alpha: 0.92, radius: 16,
+    });
+
+    this.add.text(barX - 10, topY, 'MOMENTUM', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '14px',
+      fontSize: '13px',
       color: '#3a2410',
+      letterSpacing: 1,
     }).setOrigin(1, 0.5);
 
-    this.momentumBarObj = PaperBar(this, barX, barY, barW, 20, this.momentum, 0x4aa848, {
+    this.momentumBarObj = PaperBar(this, barX, topY, barW, 16, this.momentum, 0x4aa848, {
       bgColor: 0xc8b898,
     });
     for (const t of [0.33, 0.66]) {
-      this.add.rectangle(barX + barW * t, barY, 2, 20, 0x3a2410, 0.5);
+      this.add.rectangle(barX + barW * t, topY, 2, 16, 0x3a2410, 0.5);
     }
-    this.momentumLabel = this.add.text(barX + barW + 12, barY, 'ZONE', {
+    this.momentumLabel = this.add.text(barX + barW + 10, topY, 'ZONE', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '14px',
+      fontSize: '13px',
       color: '#b86820',
+      letterSpacing: 1,
     }).setOrigin(0, 0.5);
 
-    // Potion button to the right of momentum bar
-    this.potionBtn = PaperButton(this, area.right - 90, barY, '', {
-      w: 160, h: 50, color: 0x4caa5c, fontSize: 16,
+    // Potion button — top-right of screen, inside safe area
+    this.potionBtn = PaperButton(this, area.right - 80, topY, '', {
+      w: 140, h: 46, color: 0x4caa5c, fontSize: 15,
       onClick: () => this.usePotion(),
     });
     this.potionLabel = this.potionBtn.label;
     this.refreshPotionButton();
 
-    // === ROW B: Stacked equation ===
-    // Format:
-    //   50
-    // + 50
-    // ———
-    //   ??
-    // Three lines of text, right-aligned, monospace-ish spacing.
+    // === FLOATING EQUATION as a small paper note in the middle area ===
+    // Positioned above the heroes/enemy in the area between top bar and
+    // answer buttons. Stays out of the way so characters remain visible.
+    const noteW = 180;
+    const noteH = 180;
+    const noteCx = area.cx;
+    const noteCy = topY + 60 + noteH / 2;
+
+    PaperPanel(this, noteCx, noteCy, noteW, noteH, {
+      color: 0xfff8e8, alpha: 0.96, radius: 14,
+    });
+
     this.eqLines = {
-      a:    this.add.text(area.cx, eqCenterY - 48, '', this.eqLineStyle()),
-      opB:  this.add.text(area.cx, eqCenterY,      '', this.eqLineStyle()),
-      bar:  this.add.text(area.cx, eqCenterY + 30, '———',  this.eqLineStyle({ color: '#6a4c28', fontSize: '28px' })),
-      ans:  this.add.text(area.cx, eqCenterY + 66, '?',    this.eqLineStyle({ color: '#b86820' })),
+      a:    this.add.text(noteCx + 30, noteCy - 50, '', this.eqLineStyle()),
+      opB:  this.add.text(noteCx + 30, noteCy - 8,  '', this.eqLineStyle()),
+      bar:  this.add.text(noteCx,      noteCy + 22, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '24px', color: '#6a4c28' })),
+      ans:  this.add.text(noteCx + 30, noteCy + 56, '?', this.eqLineStyle({ color: '#b86820' })),
     };
     this.eqLines.a.setOrigin(1, 0.5);
     this.eqLines.opB.setOrigin(1, 0.5);
     this.eqLines.bar.setOrigin(0.5);
-    this.eqLines.ans.setOrigin(0, 0.5);
+    this.eqLines.ans.setOrigin(1, 0.5);
 
-    // === ROW C: Turn label ===
-    this.turnLabel = this.add.text(area.cx, turnLabelY, '', {
+    // Turn label — tucked just above the bottom strip
+    this.turnLabel = this.add.text(area.cx, ansY - ansH / 2 - 18, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '18px',
-      color: '#6a4c28',
+      fontSize: '17px',
+      color: '#fff8e0',
+      stroke: '#1a0e04',
+      strokeThickness: 4,
+      letterSpacing: 1,
     }).setOrigin(0.5);
 
-    // === ROW D: Answer buttons — LOCKED INTO SAFE AREA BOTTOM ===
-    const btnW = Math.min(200, (area.w - 3 * 20) / 4);
-    const btnGap = 20;
+    // === ANSWER BUTTONS — bottom row ===
+    const btnW = Math.min(220, (area.w - 3 * 18) / 4);
+    const btnGap = 18;
     const totalW = 4 * btnW + 3 * btnGap;
     const startX = area.cx - totalW / 2 + btnW / 2;
-    const btnColors = [0x3888d8, 0xe84840, 0x4aa848, 0x9050c8]; // rainbow distinct
+    const btnColors = [0x3888d8, 0xe84840, 0x4aa848, 0x9050c8];
 
     this.answerButtons = [];
-    this.answerBtnLayout = { w: btnW, h: ansH, y: ansRowCenterY, startX, gap: btnGap };
+    this.answerBtnLayout = { w: btnW, h: ansH, y: ansY, startX, gap: btnGap };
     for (let i = 0; i < 4; i++) {
       const x = startX + i * (btnW + btnGap);
-      const btn = PaperButton(this, x, ansRowCenterY, '?', {
+      const btn = PaperButton(this, x, ansY, '?', {
         w: btnW, h: ansH,
         color: btnColors[i],
-        fontSize: 36,
+        fontSize: 38,
         onClick: () => {
           if (this.locked) return;
           audio.play('ui/click');
@@ -316,16 +347,13 @@ export class BattleScene extends Phaser.Scene {
         },
       });
       this.answerButtons.push({
-        bg: btn.bg,
-        shadow: btn.shadow,
-        label: btn.label,
-        zone: btn.zone,
+        bg: btn.bg, shadow: btn.shadow, label: btn.label, zone: btn.zone,
         baseColor: btnColors[i],
       });
     }
 
     // Toast (floats above the UI panel)
-    this.toast = this.add.text(area.cx, barY - 60, '', {
+    this.toast = this.add.text(area.cx, area.top + 90, '', {
       ...TEXT.heading(),
       fontSize: '26px',
       backgroundColor: '#1a0e04',
@@ -558,11 +586,19 @@ export class BattleScene extends Phaser.Scene {
         activeHero: this.party[this.currentTurn.heroIndex],
       });
 
-      const attacker = this.party[this.currentTurn.heroIndex];
-      const result = computeHeroDamage(attacker, this.enemy, {
-        momentum: this.momentum,
-        streak: this.streak,
-      });
+      // DAMAGE = the math answer. Per design: getting "6+6=12" right
+      // deals 12 damage. This makes the math directly meaningful.
+      // Momentum still applies as a multiplier on top.
+      const baseDamage = this.currentQuestion.answer;
+      const zone = getZone(this.momentum);
+      const modified = Math.max(1, Math.round(baseDamage * zone.heroMult));
+      const newHp = Math.max(0, this.enemy.hp - modified);
+      const result = {
+        baseDamage,
+        modifiedDamage: modified,
+        newHp,
+        killed: newHp === 0 && this.enemy.hp > 0,
+      };
       applyDamageResult(this.enemy, result);
 
       // Check for kill IMMEDIATELY — don't wait for animations
@@ -810,9 +846,10 @@ export class BattleScene extends Phaser.Scene {
 
   updateEnemyHp() {
     const pct = Math.max(0, this.enemy.hp / this.enemy.maxHp);
+    const fullW = 200 + 10 - 4; // matches buildEnemySprite
     this.tweens.add({
       targets: this.enemySprite.hpBarFill,
-      width: 274 * pct,
+      width: fullW * pct,
       duration: 300,
       ease: 'Cubic.out',
     });

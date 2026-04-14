@@ -133,16 +133,13 @@ const LETTERS = {
  * hand-cut paper. Returns a new array of points with extra subdivision
  * points along each edge.
  */
-function perturbPolygon(points, scale, rng, jitter = 0.015) {
+function perturbPolygon(points, scale, rng, jitter = 0.005) {
+  // Very small jitter so letters keep their recognizable shape.
+  // Higher values were distorting WARRIORS letters into unreadable blobs.
   const out = [];
   for (let i = 0; i < points.length; i++) {
     const a = points[i];
-    const b = points[(i + 1) % points.length];
     out.push([a[0] + (rng() - 0.5) * jitter, a[1] + (rng() - 0.5) * jitter]);
-    // Add 1 midpoint with slight wobble
-    const mx = (a[0] + b[0]) / 2 + (rng() - 0.5) * jitter;
-    const my = (a[1] + b[1]) / 2 + (rng() - 0.5) * jitter;
-    out.push([mx, my]);
   }
   return out;
 }
@@ -255,26 +252,39 @@ export function scatterPapercutDecor(scene, gameW, gameH, opts = {}) {
   const seed = opts.seed ?? 1;
   const theme = opts.theme ?? 'garden';
   const rng = makeRng(seed);
+  // excludeRect = { x, y, w, h } center coords; nothing is drawn inside
+  const ex = opts.excludeRect;
 
-  // Clouds along the top
+  const isInExcluded = (x, y) => {
+    if (!ex) return false;
+    return Math.abs(x - ex.x) < ex.w / 2 && Math.abs(y - ex.y) < ex.h / 2;
+  };
+
+  // Clouds along the very top edge only
   for (let i = 0; i < 4; i++) {
     const x = (i + 0.5) * (gameW / 4) + (rng() - 0.5) * 100;
-    const y = 60 + rng() * 80;
+    const y = 30 + rng() * 30;
+    if (isInExcluded(x, y)) continue;
     drawCloud(scene, x, y, 80 + rng() * 50, 25 + rng() * 10);
   }
 
   if (theme === 'garden') {
-    // Flowers along the ground
+    // Flowers along the ground only — bottom 15% of screen
     for (let i = 0; i < 8; i++) {
       const x = 40 + i * (gameW / 9) + (rng() - 0.5) * 30;
       const y = gameH - 60 - rng() * 40;
+      if (isInExcluded(x, y)) continue;
       drawFlower(scene, x, y, 14 + rng() * 6, rng);
     }
-    // Butterflies floating mid-air
-    for (let i = 0; i < 3; i++) {
-      const x = gameW * (0.15 + rng() * 0.7);
-      const y = gameH * (0.3 + rng() * 0.3);
-      drawButterfly(scene, x, y, 18 + rng() * 8, rng);
+    // Butterflies — stick to outer corners, AVOID center where title is
+    const corners = [
+      { x: gameW * 0.10, y: gameH * 0.55 },
+      { x: gameW * 0.90, y: gameH * 0.55 },
+      { x: gameW * 0.15, y: gameH * 0.78 },
+    ];
+    for (const c of corners) {
+      if (isInExcluded(c.x, c.y)) continue;
+      drawButterfly(scene, c.x + (rng() - 0.5) * 40, c.y + (rng() - 0.5) * 40, 18 + rng() * 6, rng);
     }
   }
 
@@ -282,6 +292,7 @@ export function scatterPapercutDecor(scene, gameW, gameH, opts = {}) {
     for (let i = 0; i < 12; i++) {
       const x = rng() * gameW;
       const y = rng() * (gameH * 0.5);
+      if (isInExcluded(x, y)) continue;
       drawStar(scene, x, y, 8 + rng() * 6);
     }
   }

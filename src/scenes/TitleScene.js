@@ -24,21 +24,23 @@ export class TitleScene extends Phaser.Scene {
     // Bright cheerful landscape — sky + hills + sun glow
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
 
-    // Scatter flowers + clouds
-    scatterPapercutDecor(this, GAME_WIDTH, GAME_HEIGHT, { seed: 42, theme: 'garden' });
+    // Scatter flowers + clouds, but keep them out of the title area
+    scatterPapercutDecor(this, GAME_WIDTH, GAME_HEIGHT, {
+      seed: 42, theme: 'garden',
+      excludeRect: { x: GAME_WIDTH / 2, y: area.top + 200, w: GAME_WIDTH * 0.85, h: 380 },
+    });
 
     // === TITLE as papercut art (no font) ===
-    // Scale tuned so MATH (4 letters) + WARRIORS (8 letters) both fit
-    // horizontally within safe area and vertically in the upper half.
-    drawPapercutTitle(this, area.cx, area.top + 200, 1.6);
+    drawPapercutTitle(this, area.cx, area.top + 180, 1.4);
 
-    // Tagline
-    this.add.text(area.cx, area.top + 370, 'An Educational Adventure', {
+    // Tagline — placed well below WARRIORS to avoid overlap
+    this.add.text(area.cx, area.top + 410, 'An Educational Adventure', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '34px',
+      fontSize: '32px',
       color: '#ffffff',
       stroke: '#1a4a6a',
       strokeThickness: 5,
+      letterSpacing: 2,
     }).setOrigin(0.5);
 
     // === BUTTONS — locked into safe area bottom ===
