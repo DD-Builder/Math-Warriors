@@ -364,16 +364,17 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     endBtnBg.on('pointerdown', () => {
+      // Direct, immediate scene transition. Don't rely on
+      // camerafadeoutcomplete callbacks — they can be cancelled by
+      // removeAllEvents() in showVictory/showDefeat, leaving the
+      // CONTINUE button "stuck" with no apparent way forward.
       audio.play('ui/confirm');
-      this.cameras.main.fadeOut(250, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        // Clear the return hint so a subsequent direct-from-WorldMap
-        // battle doesn't inherit this routing
-        this.registry.remove('battleReturnScene');
-        this.registry.remove('battleReturnData');
-        this.registry.remove('battleIsBoss');
-        this.scene.start(this.returnScene, this.returnData || undefined);
-      });
+      const target = this.returnScene;
+      const data = this.returnData || undefined;
+      this.registry.remove('battleReturnScene');
+      this.registry.remove('battleReturnData');
+      this.registry.remove('battleIsBoss');
+      this.scene.start(target, data);
     });
 
     this.endOverlay.add([overlayBg, endTitle, endSub, endRewards, endBtnBg, endBtnLabel]);
@@ -895,11 +896,8 @@ export class BattleScene extends Phaser.Scene {
 
     writeSave(save);
 
-    // Camera zoom for the victory moment
-    this.cameras.main.zoomTo(1.08, 300, 'Sine.inOut', true);
-    this.time.delayedCall(400, () => {
-      this.cameras.main.zoomTo(1.0, 300, 'Sine.inOut', true);
-    });
+    // No camera zoom — it can leave a stale tween that crashes on
+    // scene.start. Visual feedback comes from the overlay alone.
 
     this.endOverlay.titleText.setText('VICTORY!');
     this.endOverlay.subText.setText(`${this.enemy.name} defeated!`);

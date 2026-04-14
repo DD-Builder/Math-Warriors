@@ -74,9 +74,53 @@ export class MazeScene extends Phaser.Scene {
       // Fresh entry: reset state
       this.playerX = this.floor.startX;
       this.playerY = this.floor.startY;
-      this.objects = this.floor.objects.map((o) => ({ ...o, id: `${o.type}-${o.x}-${o.y}`, consumed: false }));
       this.fog = this.buildInitialFog();
       this.bossDefeated = false;
+
+      // Hand-placed objects (chests, potions, boss, exit) keep their
+      // designated positions. Encounter (monster) tiles get randomized
+      // each run for surprise. We pick walkable tiles that aren't
+      // occupied by another object or the start position.
+      const handPlaced = this.floor.objects.filter((o) => o.type !== 'encounter');
+      const encounterCount = this.floor.objects.filter((o) => o.type === 'encounter').length;
+
+      const occupied = new Set();
+      occupied.add(`${this.playerX},${this.playerY}`);
+      handPlaced.forEach((o) => occupied.add(`${o.x},${o.y}`));
+
+      // Find all walkable tiles not occupied
+      const candidates = [];
+      for (let y = 0; y < this.floor.height; y++) {
+        for (let x = 0; x < this.floor.width; x++) {
+          if (this.floor.tiles[y][x] === TILE.WALL) continue;
+          if (occupied.has(`${x},${y}`)) continue;
+          // Don't put monsters right next to start either
+          const dx = x - this.playerX;
+          const dy = y - this.playerY;
+          if (Math.abs(dx) + Math.abs(dy) < 2) continue;
+          candidates.push({ x, y });
+        }
+      }
+      // Shuffle and take the first N
+      for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+      }
+      const encounters = candidates.slice(0, encounterCount).map((p, idx) => ({
+        type: 'encounter',
+        x: p.x,
+        y: p.y,
+        id: `encounter-${p.x}-${p.y}-${idx}`,
+        consumed: false,
+      }));
+
+      const placed = handPlaced.map((o) => ({
+        ...o,
+        id: `${o.type}-${o.x}-${o.y}`,
+        consumed: false,
+      }));
+
+      this.objects = [...placed, ...encounters];
     }
 
     // Movement state
@@ -116,7 +160,9 @@ export class MazeScene extends Phaser.Scene {
     this.buildPlayer();
     this.buildFogOverlay();
     this.buildHUD();
-    this.buildDpad();
+    // No on-screen d-pad. Movement is tap-on-tile (touch) or
+    // arrow keys / WASD (keyboard).
+    this.setupTapToMove();
 
     // Reveal around the starting position
     this.revealFog(this.playerX, this.playerY, 3);
@@ -192,9 +238,10 @@ export class MazeScene extends Phaser.Scene {
         icon = this.add.text(0, 0, '\u{1F9EA}', { fontSize: `${this.tileSize * 0.5}px` }).setOrigin(0.5);
         break;
       case 'encounter':
-        bg = this.add.rectangle(0, 0, this.tileSize * 0.7, this.tileSize * 0.7, COLORS.scarlet)
-          .setStrokeStyle(3, COLORS.ink);
-        icon = this.add.text(0, 0, '\u{2694}', { fontSize: `${this.tileSize * 0.5}px` }).setOrigin(0.5);
+        // Hidden — monsters are a surprise. We still create a sprite
+        // so the object is tracked for collision, but it's invisible.
+        bg = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
+        icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         break;
       case 'boss':
         bg = this.add.circle(0, 0, this.tileSize * 0.45, 0x8a1010)
@@ -229,20 +276,33 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   buildPlayer() {
-    const leadHero = this.party[0];
-    const color = leadHero?.displayColor ?? COLORS.cobalt;
+    // Render all 3 party members clustered on the lead's tile,
+    // staggered slightly so they're all visible. The lead is largest
+    // and most forward; the back two are smaller and offset diagonally.
     const sx = this.originX + this.playerX * this.tileSize + this.tileSize / 2;
     const sy = this.originY + this.playerY * this.tileSize + this.tileSize / 2;
-
     this.playerSprite = this.add.container(sx, sy);
-    const body = this.add.rectangle(0, 0, this.tileSize * 0.6, this.tileSize * 0.7, color)
-      .setStrokeStyle(2, COLORS.ink);
-    const head = this.add.circle(0, -this.tileSize * 0.25, this.tileSize * 0.12, 0xf0d8b0)
-      .setStrokeStyle(2, COLORS.ink);
-    this.playerSprite.add([body, head]);
+
+    const layout = [
+      { dx: 0,                   dy: 0,                   scale: 1.0 }, // lead, front-center
+      { dx: -this.tileSize * 0.22, dy: -this.tileSize * 0.18, scale: 0.78 }, // back-left
+      { dx:  this.tileSize * 0.22, dy: -this.tileSize * 0.18, scale: 0.78 }, // back-right
+    ];
+
+    for (let i = this.party.length - 1; i >= 0; i--) {
+      const hero = this.party[i];
+      if (!hero) continue;
+      const slot = layout[i];
+      const bw = this.tileSize * 0.5 * slot.scale;
+      const bh = this.tileSize * 0.62 * slot.scale;
+      const body = this.add.rectangle(slot.dx, slot.dy, bw, bh, hero.displayColor)
+        .setStrokeStyle(2, COLORS.ink);
+      const head = this.add.circle(slot.dx, slot.dy - bh * 0.45, this.tileSize * 0.10 * slot.scale, 0xf0d8b0)
+        .setStrokeStyle(2, COLORS.ink);
+      this.playerSprite.add([body, head]);
+    }
 
     // No idle bob — it conflicts with movement tweens on the same target.
-    // We'll add sprite animation later when real art lands.
   }
 
   // ================================================================
@@ -364,10 +424,35 @@ export class MazeScene extends Phaser.Scene {
   }
 
   // ================================================================
-  // D-PAD (touch input for iPad)
+  // TAP-TO-MOVE (touch input for iPad)
   // ================================================================
 
+  /**
+   * Tapping a tile adjacent to the player moves them one step in
+   * that direction. Tapping further-away tiles is ignored — we only
+   * support 1-tile-at-a-time movement so the player feels the maze
+   * the same way they would with arrow keys.
+   */
+  setupTapToMove() {
+    this.input.on('pointerdown', (pointer) => {
+      // Convert pointer screen coords to tile coords using the maze
+      // tile origin and size.
+      if (this.moving) return;
+      const tileX = Math.floor((pointer.x - this.originX) / this.tileSize);
+      const tileY = Math.floor((pointer.y - this.originY) / this.tileSize);
+      // Only adjacent (4-directional) tiles count as movement requests
+      const dx = tileX - this.playerX;
+      const dy = tileY - this.playerY;
+      if (Math.abs(dx) + Math.abs(dy) === 1) {
+        this.tryMove({ dx, dy });
+      }
+    });
+  }
+
+  // Legacy d-pad — no longer built, kept for reference only.
   buildDpad() {
+    return; // disabled
+    /* eslint-disable */
     const centerX = GAME_WIDTH - 130;
     const centerY = GAME_HEIGHT - 260;
     const btnSize = 80;
@@ -389,6 +474,7 @@ export class MazeScene extends Phaser.Scene {
     make(centerX,          centerY + offset, '\u25BC', { dx: 0,  dy: 1  });
     make(centerX - offset, centerY,          '\u25C4', { dx: -1, dy: 0  });
     make(centerX + offset, centerY,          '\u25BA', { dx: 1,  dy: 0  });
+    /* eslint-enable */
   }
 
   // ================================================================

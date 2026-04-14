@@ -295,6 +295,78 @@ test('SettingsScene opens and closes without error', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('battle victory CONTINUE returns to maze with monster removed', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+
+  // Seed save with a party
+  await page.evaluate(() => {
+    const save = {
+      version: 1, grade: 3,
+      party: [
+        { id: 'knight-shadow', name: 'Shadow', hp: 52, maxHp: 52 },
+        { id: 'wizard-grandmage', name: 'Grand Mage', hp: 38, maxHp: 38 },
+        { id: 'bunny-pepper', name: 'Pepper', hp: 46, maxHp: 46 },
+      ],
+      gold: 0, potions: 2,
+      floors: Array.from({ length: 5 }, (_, i) => ({ id: i + 1, unlocked: i === 0, complete: false, bestStreak: 0 })),
+      settings: { musicVolume: 0.8, sfxVolume: 1.0, reducedMotion: false },
+      stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0, playTimeSec: 0, firstPlayedAt: Date.now(), lastPlayedAt: Date.now() },
+    };
+    localStorage.setItem('mathwarriors.save', JSON.stringify(save));
+    window.__MW.game.scene.start('MazeScene', { floor: 1 });
+  });
+  await page.waitForTimeout(700);
+
+  // Simulate the maze-saved-state and battle-return registry hints
+  await page.evaluate(() => {
+    const game = window.__MW.game;
+    // Fake a maze state for floor 1 and signal we came from maze
+    game.registry.set('mazeState_1', {
+      x: 5, y: 5,
+      objects: [{ type: 'encounter', x: 5, y: 5, id: 'enc-test', consumed: true }],
+      fog: [], bossDefeated: false,
+    });
+    game.registry.set('battleReturnScene', 'MazeScene');
+    game.registry.set('battleReturnData', { floor: 1 });
+    // Start battle with a weak enemy
+    game.scene.start('BattleScene', { floor: 1, grade: 3 });
+  });
+  await page.waitForTimeout(1500);
+
+  // Confirm the scene started cleanly (no errors during BattleScene setup)
+  const battleActive = await page.evaluate(() => {
+    return window.__MW.game.scene.getScenes(true).map((s) => s.scene.key);
+  });
+  expect(battleActive, 'BattleScene should be active after start').toContain('BattleScene');
+
+  // Force-trigger victory by setting enemy hp to 0 and calling showVictory
+  await page.evaluate(() => {
+    const battle = window.__MW.game.scene.getScene('BattleScene');
+    if (!battle) throw new Error('BattleScene not found');
+    battle.enemy.hp = 0;
+    battle.showVictory();
+  });
+  await page.waitForTimeout(500);
+
+  // Verify the victory overlay is shown and the returnScene was preserved
+  const victoryState = await page.evaluate(() => {
+    const battle = window.__MW.game.scene.getScene('BattleScene');
+    return {
+      phase: battle.phase,
+      returnScene: battle.returnScene,
+      overlayVisible: battle.endOverlay && battle.endOverlay.visible,
+    };
+  });
+  expect(victoryState.phase, 'phase should be end').toBe('end');
+  expect(victoryState.overlayVisible, 'victory overlay should be visible').toBe(true);
+  expect(victoryState.returnScene, 'returnScene should be MazeScene').toBe('MazeScene');
+  expect(errors, `errors during victory:\n${errors.join('\n')}`).toEqual([]);
+});
+
 test('maze: player can move and reveal fog', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));

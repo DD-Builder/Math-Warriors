@@ -28,8 +28,87 @@ import { COLORS, COLORS_CSS, MARGIN, BOTTOM_SAFE, TOP_SAFE } from '../config.js'
 // ------------------------------------------------------------------
 
 /**
- * Draw a rounded rectangle with a paper drop shadow.
- * Returns { bg, shadow } Phaser GameObjects.
+ * Build a hand-cut paper polygon — a slightly imperfect rectangle
+ * with wobbled edges to look like paper cut by hand, not a computer.
+ *
+ * Returns an array of {x, y} points centered on (0, 0). Apply
+ * translation when drawing.
+ */
+function paperPolygonPoints(w, h, seed = 1) {
+  // Use a deterministic RNG so the same button always looks the same
+  let s = ((seed ^ 0x9e3779b9) + 0x6c62272e) >>> 0;
+  const rng = () => {
+    s = (s ^ (s << 13)) >>> 0;
+    s = (s ^ (s >> 17)) >>> 0;
+    s = (s ^ (s << 5)) >>> 0;
+    return s / 4294967296;
+  };
+
+  const halfW = w / 2;
+  const halfH = h / 2;
+  const wobble = 3.5; // pixels of edge wobble
+  const cornerInset = Math.min(w, h) * 0.12;
+  const pointsPerEdge = 6;
+
+  const pts = [];
+
+  // Helper: add a point with slight wobble
+  const add = (x, y) => pts.push({
+    x: x + (rng() - 0.5) * wobble,
+    y: y + (rng() - 0.5) * wobble,
+  });
+
+  // Top edge — left corner to right corner
+  add(-halfW + cornerInset, -halfH);
+  for (let i = 1; i < pointsPerEdge; i++) {
+    const t = i / pointsPerEdge;
+    const x = -halfW + cornerInset + t * (w - 2 * cornerInset);
+    add(x, -halfH);
+  }
+  add(halfW - cornerInset, -halfH);
+
+  // Top-right corner (small curve)
+  add(halfW, -halfH + cornerInset);
+
+  // Right edge
+  for (let i = 1; i < pointsPerEdge; i++) {
+    const t = i / pointsPerEdge;
+    const y = -halfH + cornerInset + t * (h - 2 * cornerInset);
+    add(halfW, y);
+  }
+  add(halfW, halfH - cornerInset);
+
+  // Bottom-right corner
+  add(halfW - cornerInset, halfH);
+
+  // Bottom edge (right to left)
+  for (let i = 1; i < pointsPerEdge; i++) {
+    const t = i / pointsPerEdge;
+    const x = halfW - cornerInset - t * (w - 2 * cornerInset);
+    add(x, halfH);
+  }
+  add(-halfW + cornerInset, halfH);
+
+  // Bottom-left corner
+  add(-halfW, halfH - cornerInset);
+
+  // Left edge (bottom to top)
+  for (let i = 1; i < pointsPerEdge; i++) {
+    const t = i / pointsPerEdge;
+    const y = halfH - cornerInset - t * (h - 2 * cornerInset);
+    add(-halfW, y);
+  }
+  add(-halfW, -halfH + cornerInset);
+
+  return pts;
+}
+
+/**
+ * Draw a hand-cut paper rectangle (with imperfect wobbled edges)
+ * and a drop shadow. Returns { bg, shadow } Phaser Graphics objects.
+ *
+ * If opts.organic is false, falls back to the older fillRoundedRect
+ * style (still useful for non-button UI panels).
  */
 export function paperRect(scene, x, y, w, h, color, opts = {}) {
   const radius = opts.radius ?? 16;
@@ -39,13 +118,35 @@ export function paperRect(scene, x, y, w, h, color, opts = {}) {
   const strokeColor = opts.strokeColor ?? 0x000000;
   const strokeAlpha = opts.strokeAlpha ?? 0.15;
   const strokeWidth = opts.strokeWidth ?? 2;
+  const organic = opts.organic ?? false;
+  const seed = opts.seed ?? Math.round(x * 1000 + y);
 
-  // Shadow layer
+  if (organic) {
+    // Hand-cut paper: polygon with wobbled edges
+    const pts = paperPolygonPoints(w, h, seed);
+
+    // Shadow layer
+    const shadow = scene.add.graphics();
+    shadow.fillStyle(0x000000, shadowAlpha);
+    shadow.fillPoints(pts.map((p) => ({ x: p.x + x + shadowOff, y: p.y + y + shadowOff })), true);
+
+    // Main paper
+    const bg = scene.add.graphics();
+    bg.fillStyle(color, alpha);
+    bg.fillPoints(pts.map((p) => ({ x: p.x + x, y: p.y + y })), true);
+    if (strokeWidth > 0) {
+      bg.lineStyle(strokeWidth, strokeColor, strokeAlpha);
+      bg.strokePoints(pts.map((p) => ({ x: p.x + x, y: p.y + y })), true);
+    }
+
+    return { bg, shadow };
+  }
+
+  // Fallback: clean rounded rect
   const shadow = scene.add.graphics();
   shadow.fillStyle(0x000000, shadowAlpha);
   shadow.fillRoundedRect(x - w / 2 + shadowOff, y - h / 2 + shadowOff, w, h, radius);
 
-  // Main paper layer
   const bg = scene.add.graphics();
   bg.fillStyle(color, alpha);
   bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
@@ -98,6 +199,8 @@ export function PaperButton(scene, x, y, text, opts = {}) {
     radius: 14,
     shadowOff: 5,
     shadowAlpha: 0.35,
+    organic: true,
+    seed: Math.round(x * 1000 + y),
   });
 
   const label = scene.add.text(x, y, text, {
@@ -112,14 +215,17 @@ export function PaperButton(scene, x, y, text, opts = {}) {
 
   if (opts.onClick) {
     zone.on('pointerdown', () => {
-      // Press feedback: brief scale-down
+      // Visual feedback — scale-down and back — but fire the click
+      // IMMEDIATELY so it can't be blocked by tween/timer interference.
+      // Previously we fired onClick in an onYoyo callback which could
+      // fail silently if the tween system was paused or events cleared.
+      opts.onClick();
       scene.tweens.add({
         targets: [bg, shadow, label, zone],
         scaleX: 0.95,
         scaleY: 0.95,
         duration: 60,
         yoyo: true,
-        onYoyo: () => opts.onClick(),
       });
     });
   }

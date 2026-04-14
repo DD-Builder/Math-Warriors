@@ -43,13 +43,14 @@ export class TitleScene extends Phaser.Scene {
 
     // === BUTTONS — locked into safe area bottom ===
     if (this.hasProgress) {
-      PaperButton(this, area.cx, area.bottom - 150, 'CONTINUE', {
-        w: 360, h: 80, color: 0xe84840, fontSize: 30,
-        onClick: () => this.onContinue(),
-      });
-      PaperButton(this, area.cx, area.bottom - 50, 'NEW GAME', {
+      // NEW GAME on top, CONTINUE below — per request
+      PaperButton(this, area.cx, area.bottom - 150, 'NEW GAME', {
         w: 360, h: 80, color: 0x4aa848, fontSize: 30,
         onClick: () => this.onNewGame(),
+      });
+      PaperButton(this, area.cx, area.bottom - 50, 'CONTINUE', {
+        w: 360, h: 80, color: 0xe84840, fontSize: 30,
+        onClick: () => this.onContinue(),
       });
     } else {
       PaperButton(this, area.cx, area.bottom - 50, 'START ADVENTURE', {
