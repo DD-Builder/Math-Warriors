@@ -75,24 +75,39 @@ export class WorldMapScene extends Phaser.Scene {
   buildHUD() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    // Gold + potions — single paper pill top-left
-    PaperPanel(this, area.left + 140, area.top + 40, 240, 70, {
+    // HOME button — top-left, prominent cream paper pill. Was buried
+    // in the bottom-left where the user couldn't find it.
+    PaperButton(this, area.left + 110, area.top + 50, '\u2190 HOME', {
+      w: 200, h: 72, color: 0xfff4e0, fontSize: 24,
+      textColor: '#b83820',
+      onClick: () => {
+        audio.play('ui/back');
+        this.cameras.main.fadeOut(250, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start(SCENES.TITLE);
+        });
+      },
+    });
+
+    // Gold + potions — paper pill just right of the HOME button
+    const goldX = area.left + 240;
+    PaperPanel(this, goldX + 110, area.top + 50, 220, 60, {
       color: 0xfff8e8, alpha: 0.95, radius: 18,
     });
-    this.add.text(area.left + 40, area.top + 40, '💰', { fontSize: '28px' }).setOrigin(0, 0.5);
-    this.add.text(area.left + 80, area.top + 30, `${this.save.gold}`, {
-      ...TEXT.heading(), fontSize: '20px', color: '#d07818',
+    this.add.text(goldX + 15, area.top + 50, '💰', { fontSize: '26px' }).setOrigin(0, 0.5);
+    this.add.text(goldX + 52, area.top + 42, `${this.save.gold}`, {
+      ...TEXT.heading(), fontSize: '22px', color: '#d07818',
     }).setOrigin(0, 0.5);
-    this.add.text(area.left + 145, area.top + 40, '🧪', { fontSize: '28px' }).setOrigin(0, 0.5);
-    this.add.text(area.left + 190, area.top + 30, `${this.save.potions}`, {
-      ...TEXT.heading(), fontSize: '20px', color: '#4aa848',
+    this.add.text(goldX + 115, area.top + 50, '🧪', { fontSize: '26px' }).setOrigin(0, 0.5);
+    this.add.text(goldX + 152, area.top + 42, `${this.save.potions}`, {
+      ...TEXT.heading(), fontSize: '22px', color: '#4aa848',
     }).setOrigin(0, 0.5);
 
     // Party strip — top-right
     if (this.save.party && this.save.party.length > 0) {
       const stripW = 280;
       const stripCx = area.right - stripW / 2;
-      const stripY = area.top + 40;
+      const stripY = area.top + 50;
       PaperPanel(this, stripCx, stripY, stripW, 70, {
         color: 0xfff8e8, alpha: 0.95, radius: 18,
       });
@@ -121,21 +136,6 @@ export class WorldMapScene extends Phaser.Scene {
         }
       }
     }
-
-    // Back to title — bottom-left (inside safe area). Styled as a
-    // cream paper pill with a dark arrow + label so it reads clearly
-    // against the green garden background.
-    PaperButton(this, area.left + 100, area.bottom - 40, '\u2190 HOME', {
-      w: 180, h: 62, color: 0xfff4e0, fontSize: 22,
-      textColor: '#b83820',
-      onClick: () => {
-        audio.play('ui/back');
-        this.cameras.main.fadeOut(250, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.TITLE);
-        });
-      },
-    });
 
     // Settings — bottom-right
     PaperButton(this, area.right - 80, area.bottom - 40, '⚙', {
@@ -251,14 +251,18 @@ export class WorldMapScene extends Phaser.Scene {
       color: '#fff8e0',
     }).setOrigin(0.5);
 
-    // Operator symbol (big, centered)
-    this.add.text(x, y, locked ? '🔒' : info.op, {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: locked ? '48px' : '60px',
-      color: locked ? '#3a2410' : nodeColor ? `#${nodeColor.toString(16).padStart(6, '0')}` : '#3a2410',
-      stroke: '#1a0e04',
-      strokeThickness: locked ? 0 : 3,
-    }).setOrigin(0.5);
+    if (locked) {
+      this.drawPaperPadlock(x, y, 36);
+    } else {
+      // Operator symbol (big, centered)
+      this.add.text(x, y, info.op, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '60px',
+        color: `#${nodeColor.toString(16).padStart(6, '0')}`,
+        stroke: '#1a0e04',
+        strokeThickness: 3,
+      }).setOrigin(0.5);
+    }
 
     // Completion star
     if (complete) {
@@ -308,6 +312,51 @@ export class WorldMapScene extends Phaser.Scene {
     }
     // (Locked state already shows the lock emoji as the center operator
     // above — no need for a second duplicate indicator.)
+  }
+
+  /**
+   * Draw a simple papercut padlock glyph centered at (cx, cy).
+   * Consistent with the rest of the game's hand-cut paper aesthetic —
+   * a dark body with a lighter keyhole and a steel shackle on top.
+   * The emoji 🔒 rendered inconsistently across devices (and the user
+   * disliked how it looked), so we draw it ourselves.
+   */
+  drawPaperPadlock(cx, cy, size = 36) {
+    const bodyW = size * 1.3;
+    const bodyH = size * 1.1;
+    const bodyY = cy + size * 0.15;
+
+    // Shackle (the curved metal loop on top) — drawn as a fat ring
+    const shackleY = cy - size * 0.35;
+    const shackleR = size * 0.5;
+    const shackle = this.add.graphics();
+    shackle.lineStyle(size * 0.22, 0x6a6050, 1);
+    shackle.beginPath();
+    shackle.arc(cx, shackleY, shackleR, Math.PI, 0, false);
+    shackle.strokePath();
+    // Highlight on the shackle for paper depth
+    shackle.lineStyle(size * 0.08, 0xb0a890, 1);
+    shackle.beginPath();
+    shackle.arc(cx - 1, shackleY - 1, shackleR - 1, Math.PI + 0.1, 2 * Math.PI - 0.3, false);
+    shackle.strokePath();
+
+    // Shadow under the body
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.35);
+    shadow.fillRoundedRect(cx - bodyW / 2 + 3, bodyY - bodyH / 2 + 4, bodyW, bodyH, 6);
+
+    // Body — dark paper with a warm brass tint
+    const body = this.add.graphics();
+    body.fillStyle(0x3a2410, 1);
+    body.fillRoundedRect(cx - bodyW / 2, bodyY - bodyH / 2, bodyW, bodyH, 6);
+    body.lineStyle(2, 0x1a0e04, 0.9);
+    body.strokeRoundedRect(cx - bodyW / 2, bodyY - bodyH / 2, bodyW, bodyH, 6);
+
+    // Keyhole — small warm circle + slit
+    const kh = this.add.graphics();
+    kh.fillStyle(0xe8a030, 1);
+    kh.fillCircle(cx, bodyY - size * 0.05, size * 0.14);
+    kh.fillRect(cx - size * 0.05, bodyY - size * 0.05, size * 0.1, size * 0.3);
   }
 
   enterFloor(floorId) {

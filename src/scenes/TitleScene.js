@@ -24,17 +24,22 @@ export class TitleScene extends Phaser.Scene {
     // Bright cheerful landscape — sky + hills + sun glow
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
 
+    // Title center sits at roughly the 1/3-down-the-page "rule of thirds"
+    // band instead of crammed against the top. Previous layout put MATH
+    // near y=125 which looked top-heavy on iPad.
+    const titleCy = Math.round(GAME_HEIGHT * 0.38);
+
     // Scatter flowers + clouds, but keep them out of the title area
     scatterPapercutDecor(this, GAME_WIDTH, GAME_HEIGHT, {
       seed: 42, theme: 'garden',
-      excludeRect: { x: GAME_WIDTH / 2, y: area.top + 200, w: GAME_WIDTH * 0.85, h: 380 },
+      excludeRect: { x: GAME_WIDTH / 2, y: titleCy, w: GAME_WIDTH * 0.85, h: 380 },
     });
 
     // === TITLE as papercut art (no font) ===
-    drawPapercutTitle(this, area.cx, area.top + 180, 1.4);
+    drawPapercutTitle(this, area.cx, titleCy, 1.4);
 
     // Tagline — placed well below WARRIORS to avoid overlap
-    this.add.text(area.cx, area.top + 410, 'An Educational Adventure', {
+    this.add.text(area.cx, titleCy + 230, 'An Educational Adventure', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '32px',
       color: '#ffffff',

@@ -280,3 +280,50 @@ export function opSymbol(op) {
 export function formatQuestion(q) {
   return `${q.a} ${opSymbol(q.op)} ${q.b} = ?`;
 }
+
+/**
+ * Estimate the mean answer value for questions generated with a given
+ * operator + grade. Used to size enemy HP so a mob takes ~3-5 problems
+ * to defeat and a boss takes ~10-12.
+ *
+ * Returns a number >= 1.
+ */
+export function expectedAnswer(operator, grade) {
+  const g = clampGrade(grade);
+  const table = GRADE_TABLE[g];
+  const midLo = Math.max(0, table.minOperand);
+  const midHi = table.maxOperand;
+  const midA = (midLo + midHi) / 2;
+
+  switch (operator) {
+    case '+': {
+      // (a + b) where both in [min, max]  →  mean ≈ 2 * midA
+      return Math.max(1, Math.round(2 * midA));
+    }
+    case '-': {
+      // With a >= b and both uniformly distributed in [min, max],
+      // mean(a - b) ≈ (max - min) / 3 ~ half the operand range.
+      return Math.max(1, Math.round((midHi - midLo) / 2));
+    }
+    case '*': {
+      // capped at 12 to match genMul
+      const cap = Math.min(midHi, 12);
+      const lo = Math.max(2, midLo);
+      const mid = (lo + cap) / 2;
+      return Math.max(1, Math.round(mid * mid));
+    }
+    case '/': {
+      // answer is the quotient, cap 12
+      const cap = Math.min(midHi, 12);
+      const lo = Math.max(1, midLo);
+      return Math.max(1, Math.round((lo + cap) / 2));
+    }
+    case 'mixed':
+    default: {
+      // average of the ops available in this grade
+      const ops = table.ops;
+      const total = ops.reduce((s, o) => s + expectedAnswer(o, g), 0);
+      return Math.max(1, Math.round(total / ops.length));
+    }
+  }
+}

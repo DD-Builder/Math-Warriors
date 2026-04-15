@@ -4,13 +4,16 @@
  * Data-only module. Scenes read this to pick an appropriate enemy
  * for the current encounter.
  *
- * v0.2 scope: we only use Floor 1 enemies in the first playable battle.
- * Later floors exist in data but won't be instantiated until v0.3+.
+ * HP is computed at spawn time from the player's grade so every
+ * battle takes a consistent number of problems regardless of age:
+ *   - mob: ~3-5 problems   - boss: ~10-12 problems
  *
  * Enemy abilities are declared here by name only. Their implementation
  * lives in combat.js / BattleScene.js once we actually wire them up.
  * For v0.2 all abilities are inert — the enemy just attacks normally.
  */
+
+import { expectedAnswer } from '../systems/math.js';
 
 /**
  * Helper: build an enemy record. Keeps the roster data compact.
@@ -115,22 +118,82 @@ export function pickEnemyForFloor(floor, rng = Math.random) {
 /**
  * Instantiate a combat-ready enemy from a definition. Starts at full HP,
  * safe to mutate.
+ *
+ * HP is now calculated from the expected math-answer damage for the
+ * player's grade so every battle takes a consistent number of correct
+ * answers regardless of grade level:
+ *   - mob enemies:  ~3-5 problems to defeat  (HP ≈ 4 * avgAnswer)
+ *   - boss enemies: ~10-12 problems to defeat (HP ≈ 12 * avgAnswer)
+ *
+ * The per-enemy base maxHp in the roster is kept as a *relative*
+ * difficulty weight inside its floor (tanky vs. fragile) — we normalize
+ * it against the floor's median and apply a small +/- 20% variance.
+ *
+ * @param {string|object} idOrEnemy
+ * @param {object} [opts]
+ * @param {number} [opts.grade]  Player's grade (0-5). Defaults to 3.
+ * @param {boolean} [opts.isBoss] True for boss fights.
  */
-export function spawnEnemy(idOrEnemy) {
+export function spawnEnemy(idOrEnemy, opts = {}) {
   const def = typeof idOrEnemy === 'string' ? getEnemyById(idOrEnemy) : idOrEnemy;
   if (!def) return null;
+
+  const grade = opts.grade ?? 3;
+  const isBoss = opts.isBoss ?? false;
+  const maxHp = computeEnemyHp(def, grade, isBoss);
+
   return {
     id: def.id,
     name: def.name,
     floor: def.floor,
     sprite: def.sprite,
     displayColor: def.displayColor,
-    maxHp: def.maxHp,
-    hp: def.maxHp,
+    maxHp,
+    hp: maxHp,
     atk: def.atk,
     def: def.def,
     ability: def.ability,
+    isBoss,
   };
+}
+
+/**
+ * Pick HP for this enemy so the battle takes the intended number of
+ * correct answers. Pulled out for unit testing.
+ */
+export function computeEnemyHp(def, grade, isBoss) {
+  const op = FLOOR_OPERATORS[def.floor] || '+';
+  const avg = Math.max(1, expectedAnswer(op, grade));
+
+  // Base target in "problems to defeat"
+  const problemsTarget = isBoss ? 12 : 4;
+
+  // Relative difficulty within floor: use the original maxHp as a
+  // weight against the floor's median original maxHp. Gives variety
+  // (tanks vs glass cannons) without letting absolute values drift.
+  const floorPool = ALL_ENEMIES.filter((e) => e.floor === def.floor && !isLegacyBoss(e));
+  const medianOriginalHp = median(floorPool.map((e) => e.maxHp)) || def.maxHp;
+  const weight = isBoss ? 1 : clamp(def.maxHp / medianOriginalHp, 0.75, 1.4);
+
+  const hp = Math.round(avg * problemsTarget * weight);
+  // Floor at a minimum that still takes at least a couple problems even
+  // when the expected answer is tiny (K-grade subtraction avg ~2).
+  const minMob = isBoss ? 40 : 12;
+  return Math.max(minMob, hp);
+}
+
+function median(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+
+// Detect which enemy in each floor is the "boss" by hand-authored HP
+// outlier. Used only to exclude the boss from the mob median.
+function isLegacyBoss(e) {
+  return ['briarking', 'pressure', 'skywhale', 'pyroclast', 'theorem'].includes(e.id);
 }
 
 /** Map floor → primary operator. Used to choose math questions. */

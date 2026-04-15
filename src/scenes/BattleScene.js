@@ -66,7 +66,10 @@ export class BattleScene extends Phaser.Scene {
       this.enemy = { ...data.enemy };
     } else {
       const def = FLOOR_1[Math.floor(Math.random() * FLOOR_1.length)];
-      this.enemy = spawnEnemy(def.id);
+      this.enemy = spawnEnemy(def.id, {
+        grade: data?.grade ?? 3,
+        isBoss: !!data?.isBoss,
+      });
     }
 
     this.floor = data?.floor ?? 1;
@@ -134,7 +137,7 @@ export class BattleScene extends Phaser.Scene {
     drawPapercutBackground(this, this.floor, GAME_WIDTH, bgHeight, 42);
 
     // Floor label top-left (on top of the diorama)
-    this.add.text(30, 20, `FLOOR ${this.floor}`, {
+    this.add.text(30, 20, `QUEST ${this.floor}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: COLORS_CSS.paper,

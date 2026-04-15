@@ -616,8 +616,8 @@ export class MazeScene extends Phaser.Scene {
     }
 
     const enemy = isBoss && enemyId
-      ? spawnEnemy(enemyId)
-      : spawnEnemy(pickEnemyForFloor(this.floorId).id);
+      ? spawnEnemy(enemyId, { grade: this.save.grade, isBoss: true })
+      : spawnEnemy(pickEnemyForFloor(this.floorId).id, { grade: this.save.grade, isBoss: false });
 
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
