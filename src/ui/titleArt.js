@@ -17,10 +17,14 @@
 //
 // Each shape is an array of [x, y] points forming a closed polygon.
 
+// Each letter is expressed as `{ positive: [...], holes: [...] }`.
+// `positive` shapes fill with the main color; `holes` paint the
+// background color on top to "cut out" inner counters (A, R, O).
+// Previously holes were just shapes[1..], which broke H/I/T (their
+// extra shapes are positive, not holes) and made parts vanish.
 const LETTERS = {
-  M: [
-    // Single shape: outer M outline as a 12-point polygon
-    [
+  M: {
+    positive: [[
       [0.00, 1.00], [0.00, 0.00],
       [0.22, 0.00], [0.50, 0.55],
       [0.78, 0.00], [1.00, 0.00],
@@ -28,41 +32,45 @@ const LETTERS = {
       [0.78, 0.40], [0.55, 0.78],
       [0.45, 0.78], [0.22, 0.40],
       [0.22, 1.00],
-    ],
-  ],
-  A: [
-    // Outer A
-    [
+    ]],
+    holes: [],
+  },
+  A: {
+    positive: [[
       [0.00, 1.00], [0.30, 0.00],
       [0.70, 0.00], [1.00, 1.00],
       [0.78, 1.00], [0.70, 0.78],
       [0.30, 0.78], [0.22, 1.00],
-    ],
-    // Hole / inner triangle
-    [
+    ]],
+    holes: [[
       [0.40, 0.55], [0.50, 0.20],
       [0.60, 0.55],
-    ],
-  ],
-  T: [
-    // Top horizontal bar
-    [
+    ]],
+  },
+  T: {
+    positive: [[
       [0.00, 0.00], [1.00, 0.00],
       [1.00, 0.22], [0.62, 0.22],
       [0.62, 1.00], [0.38, 1.00],
       [0.38, 0.22], [0.00, 0.22],
-    ],
-  ],
-  H: [
-    // Left bar
-    [[0.00, 0.00], [0.25, 0.00], [0.25, 1.00], [0.00, 1.00]],
-    // Right bar
-    [[0.75, 0.00], [1.00, 0.00], [1.00, 1.00], [0.75, 1.00]],
-    // Crossbar
-    [[0.25, 0.40], [0.75, 0.40], [0.75, 0.60], [0.25, 0.60]],
-  ],
-  W: [
-    [
+    ]],
+    holes: [],
+  },
+  H: {
+    // Single merged polygon so the whole H has ONE outline + shadow.
+    // The crossbar is part of the outer path — no holes needed.
+    positive: [[
+      [0.00, 0.00], [0.25, 0.00],
+      [0.25, 0.40], [0.75, 0.40],
+      [0.75, 0.00], [1.00, 0.00],
+      [1.00, 1.00], [0.75, 1.00],
+      [0.75, 0.60], [0.25, 0.60],
+      [0.25, 1.00], [0.00, 1.00],
+    ]],
+    holes: [],
+  },
+  W: {
+    positive: [[
       [0.00, 0.00], [0.18, 0.00],
       [0.30, 0.78], [0.42, 0.18],
       [0.58, 0.18], [0.70, 0.78],
@@ -70,51 +78,53 @@ const LETTERS = {
       [0.82, 1.00], [0.62, 1.00],
       [0.50, 0.50], [0.38, 1.00],
       [0.18, 1.00],
-    ],
-  ],
-  R: [
-    // Outer R
-    [
+    ]],
+    holes: [],
+  },
+  R: {
+    positive: [[
       [0.00, 0.00], [0.65, 0.00],
       [0.85, 0.10], [0.95, 0.30],
       [0.85, 0.50], [0.65, 0.55],
       [1.00, 1.00], [0.75, 1.00],
       [0.45, 0.55], [0.25, 0.55],
       [0.25, 1.00], [0.00, 1.00],
-    ],
-    // Hole
-    [
+    ]],
+    holes: [[
       [0.25, 0.20], [0.55, 0.20],
       [0.65, 0.30], [0.55, 0.40],
       [0.25, 0.40],
-    ],
-  ],
-  I: [
-    // Top serif
-    [[0.10, 0.00], [0.90, 0.00], [0.90, 0.20], [0.10, 0.20]],
-    // Stem
-    [[0.38, 0.20], [0.62, 0.20], [0.62, 0.80], [0.38, 0.80]],
-    // Bottom serif
-    [[0.10, 0.80], [0.90, 0.80], [0.90, 1.00], [0.10, 1.00]],
-  ],
-  O: [
-    // Outer O — approximated as an octagon
-    [
+    ]],
+  },
+  I: {
+    // Single "I" with serifs, one continuous outline — avoids 3 separate
+    // shadow stacks and the bgColor-leak artifacts under WARRIORS.
+    positive: [[
+      [0.10, 0.00], [0.90, 0.00],
+      [0.90, 0.20], [0.62, 0.20],
+      [0.62, 0.80], [0.90, 0.80],
+      [0.90, 1.00], [0.10, 1.00],
+      [0.10, 0.80], [0.38, 0.80],
+      [0.38, 0.20], [0.10, 0.20],
+    ]],
+    holes: [],
+  },
+  O: {
+    positive: [[
       [0.30, 0.00], [0.70, 0.00],
       [1.00, 0.30], [1.00, 0.70],
       [0.70, 1.00], [0.30, 1.00],
       [0.00, 0.70], [0.00, 0.30],
-    ],
-    // Hole
-    [
+    ]],
+    holes: [[
       [0.42, 0.20], [0.58, 0.20],
       [0.78, 0.40], [0.78, 0.60],
       [0.58, 0.80], [0.42, 0.80],
       [0.22, 0.60], [0.22, 0.40],
-    ],
-  ],
-  S: [
-    [
+    ]],
+  },
+  S: {
+    positive: [[
       [0.10, 0.00], [1.00, 0.00],
       [1.00, 0.22], [0.32, 0.22],
       [0.30, 0.40], [0.85, 0.40],
@@ -123,9 +133,10 @@ const LETTERS = {
       [0.00, 0.78], [0.68, 0.78],
       [0.70, 0.60], [0.15, 0.60],
       [0.00, 0.45], [0.00, 0.15],
-    ],
-  ],
-  ' ': [],
+    ]],
+    holes: [],
+  },
+  ' ': { positive: [], holes: [] },
 };
 
 /**
@@ -145,58 +156,52 @@ function perturbPolygon(points, scale, rng, jitter = 0.005) {
 }
 
 /**
- * Even-odd polygon fill: draws outer shape filled, then "holes" filled
- * with the background color. For most cases this is a good-enough
- * approximation. Phaser doesn't natively support polygon-with-holes,
- * so we paint the hole on top of the main shape using the background.
+ * Draw one letter's polygons with layered shadow + main + holes.
+ *
+ * `letter` is a `{ positive, holes }` object. All positive shapes are
+ * drawn in `mainColor` (each gets its own shadow so they read as paper
+ * cutouts layered on each other). Holes are painted in `holeColor`
+ * (background) on top to simulate counters inside A / R / O.
  */
-function drawLetterShapes(scene, gx, gy, w, h, shapes, mainColor, shadowColor, holeColor, rng) {
-  const seed = (gx * 31 + gy * 17) | 0;
-  // 1) Shadow layer (slightly offset down-right)
+function drawLetterShapes(scene, gx, gy, w, h, letter, mainColor, shadowColor, holeColor, rng) {
+  const positive = letter.positive || [];
+  const holes = letter.holes || [];
+
+  const toScreen = (pts, ox = 0, oy = 0) =>
+    perturbPolygon(pts, 1, rng).map(([px, py]) => ({
+      x: gx + px * w + ox,
+      y: gy + py * h + oy,
+    }));
+
+  // 1) Shadow layer — one shadow per positive shape so compound letters
+  //    (H has one merged shape now; W/M/S are single) look right.
   const shadow = scene.add.graphics();
   shadow.fillStyle(shadowColor, 0.5);
-  for (let s = 0; s < shapes.length; s++) {
-    if (s === 0) {
-      const pts = perturbPolygon(shapes[s], 1, rng).map(([px, py]) => [
-        gx + px * w + 6,
-        gy + py * h + 8,
-      ]);
-      shadow.fillPoints(pts.map(([x, y]) => ({ x, y })), true);
+  for (const pts of positive) {
+    shadow.fillPoints(toScreen(pts, 6, 8), true);
+  }
+
+  // 2) Main paper fill — every positive shape in mainColor.
+  const main = scene.add.graphics();
+  main.fillStyle(mainColor, 1);
+  for (const pts of positive) {
+    main.fillPoints(toScreen(pts), true);
+  }
+
+  // 3) Holes — paint background color over counters.
+  if (holes.length) {
+    const hole = scene.add.graphics();
+    hole.fillStyle(holeColor, 1);
+    for (const pts of holes) {
+      hole.fillPoints(toScreen(pts), true);
     }
   }
 
-  // 2) Main paper layer
-  const main = scene.add.graphics();
-  main.fillStyle(mainColor, 1);
-  // Main outer shape (first shape)
-  if (shapes[0]) {
-    const pts = perturbPolygon(shapes[0], 1, rng).map(([px, py]) => [
-      gx + px * w,
-      gy + py * h,
-    ]);
-    main.fillPoints(pts.map(([x, y]) => ({ x, y })), true);
-  }
-
-  // 3) Holes — fill with the holeColor (background)
-  const holes = scene.add.graphics();
-  holes.fillStyle(holeColor, 1);
-  for (let s = 1; s < shapes.length; s++) {
-    const pts = perturbPolygon(shapes[s], 1, rng).map(([px, py]) => [
-      gx + px * w,
-      gy + py * h,
-    ]);
-    holes.fillPoints(pts.map(([x, y]) => ({ x, y })), true);
-  }
-
-  // 4) Subtle highlight layer in the upper-left for paper-grain feel
+  // 4) Subtle highlight for paper-grain feel, on every positive shape.
   const hi = scene.add.graphics();
   hi.fillStyle(0xffffff, 0.18);
-  if (shapes[0]) {
-    const pts = perturbPolygon(shapes[0], 1, rng).map(([px, py]) => [
-      gx + px * w - 1,
-      gy + py * h - 1,
-    ]);
-    hi.fillPoints(pts.map(([x, y]) => ({ x, y })), true);
+  for (const pts of positive) {
+    hi.fillPoints(toScreen(pts, -1, -1), true);
   }
 }
 
@@ -215,10 +220,10 @@ function drawWord(scene, word, cx, cy, letterH, mainColor, shadowColor, holeColo
 
   for (let i = 0; i < word.length; i++) {
     const ch = word[i];
-    const shapes = LETTERS[ch];
-    if (!shapes || !shapes.length) continue;
+    const letter = LETTERS[ch];
+    if (!letter || !letter.positive || !letter.positive.length) continue;
     const lx = startX + i * (letterW + gap);
-    drawLetterShapes(scene, lx, topY, letterW, letterH, shapes, mainColor, shadowColor, holeColor, rng);
+    drawLetterShapes(scene, lx, topY, letterW, letterH, letter, mainColor, shadowColor, holeColor, rng);
   }
 
   return wordW;
@@ -226,22 +231,30 @@ function drawWord(scene, word, cx, cy, letterH, mainColor, shadowColor, holeColo
 
 /**
  * Draw the MATH WARRIORS title as organic layered papercut art.
+ *
+ * NOTE on letter holes (A, R, O): the title is drawn directly over the
+ * scene's landscape background with no cream panel behind it, so we
+ * can't paint holes with a "cream" color without creating ugly light
+ * patches. Instead we paint holes with the letter's darker shadow
+ * shade, producing an embossed-cutout look that works on any bg.
+ *
  * @param {Phaser.Scene} scene
  * @param {number} cx - center X
  * @param {number} cy - center Y between MATH and WARRIORS lines
  * @param {number} scale - 1.0 = default size
- * @param {number} bgColor - color of the panel under the title (used to fill letter holes)
  */
-export function drawPapercutTitle(scene, cx, cy, scale = 1, bgColor = 0xfff8e8) {
+export function drawPapercutTitle(scene, cx, cy, scale = 1) {
   const letterH = 110 * scale;
   const lineGap = letterH * 0.5;
 
-  // MATH on top — deep blue paper with darker shadow
-  drawWord(scene, 'MATH', cx, cy - letterH / 2 - lineGap / 2, letterH, 0x3878d8, 0x18406a, bgColor, 12);
+  // MATH on top — deep blue paper with darker shadow (also used as hole fill)
+  const mathMain = 0x3878d8, mathShadow = 0x18406a;
+  drawWord(scene, 'MATH', cx, cy - letterH / 2 - lineGap / 2, letterH, mathMain, mathShadow, mathShadow, 12);
 
   // WARRIORS below — slightly smaller so it fits, red paper
   const warH = letterH * 0.78;
-  drawWord(scene, 'WARRIORS', cx, cy + warH / 2 + lineGap / 2, warH, 0xe04040, 0x781818, bgColor, 34);
+  const warMain = 0xe04040, warShadow = 0x781818;
+  drawWord(scene, 'WARRIORS', cx, cy + warH / 2 + lineGap / 2, warH, warMain, warShadow, warShadow, 34);
 }
 
 /**

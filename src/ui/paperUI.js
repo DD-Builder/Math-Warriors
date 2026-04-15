@@ -111,6 +111,18 @@ function paperPolygonPoints(w, h, seed = 1) {
  * style (still useful for non-button UI panels).
  */
 export function paperRect(scene, x, y, w, h, color, opts = {}) {
+  const bg = scene.add.graphics();
+  const shadow = scene.add.graphics();
+  paintPaperRect(bg, shadow, x, y, w, h, color, opts);
+  return { bg, shadow };
+}
+
+/**
+ * Re-paint existing graphics objects as a paper rect. Used to update
+ * selection state on cards/tabs/buttons without losing the organic
+ * hand-cut look. Same options as paperRect.
+ */
+export function paintPaperRect(bg, shadow, x, y, w, h, color, opts = {}) {
   const radius = opts.radius ?? 16;
   const shadowOff = opts.shadowOff ?? 6;
   const shadowAlpha = opts.shadowAlpha ?? 0.3;
@@ -121,41 +133,35 @@ export function paperRect(scene, x, y, w, h, color, opts = {}) {
   const organic = opts.organic ?? false;
   const seed = opts.seed ?? Math.round(x * 1000 + y);
 
+  bg.clear();
+  shadow.clear();
+
   if (organic) {
-    // Hand-cut paper: polygon with wobbled edges
+    // Hand-cut paper: polygon with wobbled edges. Use the same seed
+    // every time so the shape stays identical between redraws.
     const pts = paperPolygonPoints(w, h, seed);
 
-    // Shadow layer
-    const shadow = scene.add.graphics();
     shadow.fillStyle(0x000000, shadowAlpha);
     shadow.fillPoints(pts.map((p) => ({ x: p.x + x + shadowOff, y: p.y + y + shadowOff })), true);
 
-    // Main paper
-    const bg = scene.add.graphics();
     bg.fillStyle(color, alpha);
     bg.fillPoints(pts.map((p) => ({ x: p.x + x, y: p.y + y })), true);
     if (strokeWidth > 0) {
       bg.lineStyle(strokeWidth, strokeColor, strokeAlpha);
       bg.strokePoints(pts.map((p) => ({ x: p.x + x, y: p.y + y })), true);
     }
-
-    return { bg, shadow };
+    return;
   }
 
-  // Fallback: clean rounded rect
-  const shadow = scene.add.graphics();
   shadow.fillStyle(0x000000, shadowAlpha);
   shadow.fillRoundedRect(x - w / 2 + shadowOff, y - h / 2 + shadowOff, w, h, radius);
 
-  const bg = scene.add.graphics();
   bg.fillStyle(color, alpha);
   bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
   if (strokeWidth > 0) {
     bg.lineStyle(strokeWidth, strokeColor, strokeAlpha);
     bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, radius);
   }
-
-  return { bg, shadow };
 }
 
 /**
@@ -200,7 +206,7 @@ export function PaperButton(scene, x, y, text, opts = {}) {
     shadowOff: 5,
     shadowAlpha: 0.35,
     organic: true,
-    seed: Math.round(x * 1000 + y),
+    seed: opts.seed ?? Math.round(x * 1000 + y),
   });
 
   const label = scene.add.text(x, y, text, {

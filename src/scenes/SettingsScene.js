@@ -71,10 +71,13 @@ export class SettingsScene extends Phaser.Scene {
     // Row 3: Grade
     const gradeNames = ['K', '1st', '2nd', '3rd', '4th', '5th'];
     const gradeY = contentTop + rowH * 2.5;
-    this.add.text(area.cx - 280, gradeY, 'GRADE', {
+    this.add.text(area.cx - 320, gradeY, 'GRADE', {
       ...TEXT.heading(),
-      fontSize: '22px',
+      fontSize: '32px',
       color: '#3a2410',
+      stroke: '#fff8e0',
+      strokeThickness: 3,
+      letterSpacing: 2,
     }).setOrigin(0, 0.5);
     this.add.text(area.cx - 30, gradeY, gradeNames[this.save.grade ?? 3], {
       ...TEXT.heading(),
@@ -97,10 +100,13 @@ export class SettingsScene extends Phaser.Scene {
     const accuracy = s.totalCorrect + s.totalWrong > 0
       ? Math.round((s.totalCorrect / (s.totalCorrect + s.totalWrong)) * 100)
       : 0;
-    this.add.text(area.cx - 280, statsY - 22, 'STATS', {
+    this.add.text(area.cx - 320, statsY - 22, 'STATS', {
       ...TEXT.heading(),
-      fontSize: '22px',
+      fontSize: '32px',
       color: '#3a2410',
+      stroke: '#fff8e0',
+      strokeThickness: 3,
+      letterSpacing: 2,
     }).setOrigin(0, 0.5);
     this.add.text(area.cx + 60, statsY - 22,
       `${s.totalBattles} battles   ${s.totalCorrect} correct   ${this.save.gold} gold   ${accuracy}%`, {
@@ -127,10 +133,13 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   buildVolumeRow(cx, y, label, current, onChange) {
-    this.add.text(cx - 280, y, label, {
+    this.add.text(cx - 320, y, label, {
       ...TEXT.heading(),
-      fontSize: '22px',
+      fontSize: '32px',
       color: '#3a2410',
+      stroke: '#fff8e0',
+      strokeThickness: 3,
+      letterSpacing: 2,
     }).setOrigin(0, 0.5);
 
     const levels = [
@@ -141,7 +150,8 @@ export class SettingsScene extends Phaser.Scene {
     ];
 
     levels.forEach((lvl, i) => {
-      const btnX = cx - 110 + i * 115;
+      // Start buttons further right so the bigger labels don't overlap
+      const btnX = cx - 40 + i * 115;
       const isActive = Math.abs(current - lvl.value) < 0.05;
       PaperButton(this, btnX, y, lvl.label, {
         w: 100, h: 46, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,

@@ -211,7 +211,16 @@ export class BattleScene extends Phaser.Scene {
     });
     const body = enemyGfx.bg;
 
-    const name = this.add.text(x, y - h / 2 - 28, this.enemy.name.toUpperCase(), {
+    // Stack name + HP bar + HP text ABOVE the enemy sprite so they
+    // never get clipped by the papercut ground line or the answer
+    // button strip. Also easier for a kid to see "how close am I to
+    // winning" at a glance.
+    const headY = y - h / 2;
+    const nameY = headY - 64;
+    const hpY = headY - 32;
+    const hpTextY = headY - 10;
+
+    const name = this.add.text(x, nameY, this.enemy.name.toUpperCase(), {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '26px',
       color: COLORS_CSS.paper,
@@ -219,14 +228,13 @@ export class BattleScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setOrigin(0.5);
 
-    const hpY = y + h / 2 + 16;
-    const hpBarBg = this.add.rectangle(x, hpY, w + 10, 18, COLORS.ink)
+    const hpBarBg = this.add.rectangle(x, hpY, w + 20, 20, COLORS.ink)
       .setStrokeStyle(2, COLORS.paperD);
-    const hpBarFill = this.add.rectangle(x - (w + 10) / 2 + 2, hpY, (w + 10 - 4) * (this.enemy.hp / this.enemy.maxHp), 12, 0xc04030)
+    const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (this.enemy.hp / this.enemy.maxHp), 14, 0xc04030)
       .setOrigin(0, 0.5);
-    const hpText = this.add.text(x, hpY + 22, `${this.enemy.hp}/${this.enemy.maxHp}`, {
+    const hpText = this.add.text(x, hpTextY, `${this.enemy.hp}/${this.enemy.maxHp}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '14px',
+      fontSize: '15px',
       color: '#fff8e0',
       stroke: '#1a0e04',
       strokeThickness: 3,
@@ -315,13 +323,18 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.bar.setOrigin(0.5);
     this.eqLines.ans.setOrigin(1, 0.5);
 
-    // Turn label — tucked just above the bottom strip
-    this.turnLabel = this.add.text(area.cx, ansY - ansH / 2 - 18, '', {
+    // Turn label — sits in its OWN little paper pill ABOVE the bottom
+    // answer strip so it can't get clipped by the strip edge.
+    const turnY = stripCenterY - stripH / 2 - 28;
+    PaperPanel(this, area.cx, turnY, 440, 46, {
+      color: 0x1a0e04, alpha: 0.85, radius: 14, shadowOff: 4, shadowAlpha: 0.3,
+    });
+    this.turnLabel = this.add.text(area.cx, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '17px',
+      fontSize: '19px',
       color: '#fff8e0',
       stroke: '#1a0e04',
-      strokeThickness: 4,
+      strokeThickness: 3,
       letterSpacing: 1,
     }).setOrigin(0.5);
 

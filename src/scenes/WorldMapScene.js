@@ -58,12 +58,13 @@ export class WorldMapScene extends Phaser.Scene {
       stroke: '#3a2410',
       strokeThickness: 6,
     }).setOrigin(0.5);
-    this.add.text(GAME_WIDTH / 2, 150, 'Choose Your Floor', {
+    this.add.text(GAME_WIDTH / 2, 150, 'Choose Your Adventure', {
       ...TEXT.body(),
-      fontSize: '20px',
+      fontSize: '22px',
       color: '#fff8e0',
       stroke: '#3a2410',
       strokeThickness: 3,
+      letterSpacing: 2,
     }).setOrigin(0.5);
   }
 
@@ -121,10 +122,12 @@ export class WorldMapScene extends Phaser.Scene {
       }
     }
 
-    // Back to title — bottom-left (inside safe area)
-    PaperButton(this, area.left + 80, area.bottom - 40, 'TITLE', {
-      w: 140, h: 54, color: 0xc8b898, fontSize: 18,
-      textColor: '#3a2410',
+    // Back to title — bottom-left (inside safe area). Styled as a
+    // cream paper pill with a dark arrow + label so it reads clearly
+    // against the green garden background.
+    PaperButton(this, area.left + 100, area.bottom - 40, '\u2190 HOME', {
+      w: 180, h: 62, color: 0xfff4e0, fontSize: 22,
+      textColor: '#b83820',
       onClick: () => {
         audio.play('ui/back');
         this.cameras.main.fadeOut(250, 0, 0, 0);
@@ -302,12 +305,9 @@ export class WorldMapScene extends Phaser.Scene {
         audio.play('ui/confirm');
         this.enterFloor(info.id);
       });
-    } else {
-      // Lock indicator
-      this.add.text(x, y + radius * 0.3, '\u{1F512}', {
-        fontSize: '32px',
-      }).setOrigin(0.5).setAlpha(0.8);
     }
+    // (Locked state already shows the lock emoji as the center operator
+    // above — no need for a second duplicate indicator.)
   }
 
   enterFloor(floorId) {

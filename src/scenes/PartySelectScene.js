@@ -4,7 +4,7 @@ import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
 import { loadSave, writeSave, makeDefaultSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
 
 /**
  * PartySelectScene — pick 3 heroes from 15.
@@ -72,10 +72,10 @@ export class PartySelectScene extends Phaser.Scene {
   }
 
   buildClassTabs(area) {
-    const tabY = area.top + 130;
-    const tabW = 220;
-    const tabH = 60;
-    const gap = 20;
+    const tabY = area.top + 135;
+    const tabW = 240;
+    const tabH = 72;
+    const gap = 24;
     const totalW = 3 * tabW + 2 * gap;
     const startX = area.cx - totalW / 2 + tabW / 2;
     const classes = ['knight', 'wizard', 'bunny'];
@@ -83,15 +83,19 @@ export class PartySelectScene extends Phaser.Scene {
     this.classTabs = {};
     classes.forEach((cls, i) => {
       const x = startX + i * (tabW + gap);
+      // Deterministic seed so re-painting on select doesn't reshuffle
+      // the hand-cut wobble.
+      const seed = 2000 + i * 131;
       const tab = PaperButton(this, x, tabY, this.classLabels[cls], {
-        w: tabW, h: tabH, color: 0xc8b898, fontSize: 18,
+        w: tabW, h: tabH, color: 0xc8b898, fontSize: 20,
         textColor: '#3a2410',
+        seed,
         onClick: () => {
           audio.play('ui/click');
           this.switchClass(cls);
         },
       });
-      this.classTabs[cls] = { ...tab, x, y: tabY, w: tabW, h: tabH };
+      this.classTabs[cls] = { ...tab, x, y: tabY, w: tabW, h: tabH, seed };
     });
     this.updateClassTabs();
   }
@@ -105,17 +109,18 @@ export class PartySelectScene extends Phaser.Scene {
   updateClassTabs() {
     for (const [cls, tab] of Object.entries(this.classTabs)) {
       const isActive = cls === this.activeClass;
-      tab.bg.clear();
-      tab.shadow.clear();
-      const color = isActive ? 0xd07818 : 0xc8b898;
-      const shadowOff = 5;
-      const radius = 14;
-      tab.shadow.fillStyle(0x000000, 0.3);
-      tab.shadow.fillRoundedRect(tab.x - tab.w / 2 + shadowOff, tab.y - tab.h / 2 + shadowOff, tab.w, tab.h, radius);
-      tab.bg.fillStyle(color, 1);
-      tab.bg.fillRoundedRect(tab.x - tab.w / 2, tab.y - tab.h / 2, tab.w, tab.h, radius);
-      tab.bg.lineStyle(isActive ? 4 : 2, 0x000000, 0.2);
-      tab.bg.strokeRoundedRect(tab.x - tab.w / 2, tab.y - tab.h / 2, tab.w, tab.h, radius);
+      // Re-paint organically so the hand-cut look survives selection change.
+      paintPaperRect(tab.bg, tab.shadow, tab.x, tab.y, tab.w, tab.h,
+        isActive ? 0xd07818 : 0xc8b898, {
+        radius: 14,
+        shadowOff: 5,
+        shadowAlpha: isActive ? 0.4 : 0.3,
+        strokeColor: 0x000000,
+        strokeAlpha: 0.2,
+        strokeWidth: isActive ? 4 : 2,
+        organic: true,
+        seed: tab.seed,
+      });
       tab.label.setColor(isActive ? '#fff8e0' : '#3a2410');
     }
   }
@@ -264,14 +269,18 @@ export class PartySelectScene extends Phaser.Scene {
 
   buildConfirmButton(area) {
     const btnH = 74;
+    const btnW = 280;
     const x = area.right - 160;
     const y = area.bottom - btnH / 2 - 10;
+    const seed = 3131;
 
     this.confirmBtn = PaperButton(this, x, y, 'BEGIN', {
-      w: 280, h: btnH, color: 0xc8b898, fontSize: 26,
+      w: btnW, h: btnH, color: 0xc8b898, fontSize: 26,
       textColor: '#6a4c28',
+      seed,
       onClick: () => this.tryConfirm(),
     });
+    this.confirmBtnGeom = { x, y, w: btnW, h: btnH, seed };
 
     this.confirmHint = this.add.text(x, y - btnH / 2 - 18, 'Pick 3 heroes', {
       ...TEXT.small(),
@@ -283,20 +292,17 @@ export class PartySelectScene extends Phaser.Scene {
   updateConfirmButton() {
     const n = this.selections.length;
     const ready = n >= 3;
-    this.confirmBtn.bg.clear();
-    this.confirmBtn.shadow.clear();
-    const w = 280, h = 74, radius = 14;
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const x = area.right - 160;
-    const y = area.bottom - h / 2 - 10;
-    const color = ready ? 0xe84840 : 0xc8b898;
-
-    this.confirmBtn.shadow.fillStyle(0x000000, 0.35);
-    this.confirmBtn.shadow.fillRoundedRect(x - w / 2 + 5, y - h / 2 + 5, w, h, radius);
-    this.confirmBtn.bg.fillStyle(color, 1);
-    this.confirmBtn.bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
-    this.confirmBtn.bg.lineStyle(2, 0x000000, 0.2);
-    this.confirmBtn.bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+    const { x, y, w, h, seed } = this.confirmBtnGeom;
+    paintPaperRect(this.confirmBtn.bg, this.confirmBtn.shadow, x, y, w, h,
+      ready ? 0xe84840 : 0xc8b898, {
+      shadowOff: 5,
+      shadowAlpha: 0.35,
+      strokeColor: 0x000000,
+      strokeAlpha: 0.2,
+      strokeWidth: ready ? 3 : 2,
+      organic: true,
+      seed,
+    });
     this.confirmBtn.label.setColor(ready ? '#fff8e0' : '#6a4c28');
 
     this.confirmHint.setText(ready ? 'Party ready!' : `Pick ${3 - n} more`);

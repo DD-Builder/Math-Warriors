@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { PaperCard, PaperButton, PaperPanel, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperCard, PaperButton, PaperPanel, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { scatterPapercutDecor } from '../ui/titleArt.js';
 
 export class GradeSelectScene extends Phaser.Scene {
@@ -77,7 +77,12 @@ export class GradeSelectScene extends Phaser.Scene {
       const y = startY + row * (cardH + gapY);
 
       const isSelected = g.id === this.selectedGrade;
-      const card = PaperCard(this, x, y, cardW, cardH, g.color, { selected: isSelected });
+      // Fixed seed per card so the hand-cut shape stays identical across
+      // selection changes. Math.round(x*1000+y) would drift on redraw.
+      const seed = 500 + g.id * 97;
+      const card = PaperCard(this, x, y, cardW, cardH, g.color, {
+        selected: isSelected, seed,
+      });
 
       this.add.text(x, y - 35, g.label, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -106,7 +111,7 @@ export class GradeSelectScene extends Phaser.Scene {
         this.selectGrade(g.id);
       });
 
-      this.gradeCards[g.id] = { card, x, y, w: cardW, h: cardH, color: g.color };
+      this.gradeCards[g.id] = { card, x, y, w: cardW, h: cardH, color: g.color, seed };
     });
 
     // CONFIRM button — LOCKED into safe area bottom
@@ -125,17 +130,21 @@ export class GradeSelectScene extends Phaser.Scene {
     this.selectedGrade = id;
     for (const [gid, entry] of Object.entries(this.gradeCards)) {
       const isSelected = Number(gid) === id;
-      entry.card.bg.clear();
-      entry.card.shadow.clear();
-      const { x, y, w, h, color } = entry;
-      const radius = 16;
-      const shadowOff = isSelected ? 3 : 6;
-      entry.card.shadow.fillStyle(0x000000, isSelected ? 0.5 : 0.3);
-      entry.card.shadow.fillRoundedRect(x - w / 2 + shadowOff, y - h / 2 + shadowOff, w, h, radius);
-      entry.card.bg.fillStyle(color, 1);
-      entry.card.bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
-      entry.card.bg.lineStyle(isSelected ? 6 : 2, isSelected ? 0xfff080 : 0x1a0e04, isSelected ? 1 : 0.3);
-      entry.card.bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+      const { x, y, w, h, color, seed } = entry;
+      // Re-paint using the SAME organic polygon algorithm (same seed)
+      // so the hand-cut wobble is preserved. Previously this redraw used
+      // fillRoundedRect which reverted the papercut aesthetic to plain
+      // computer rectangles whenever the user tapped a card.
+      paintPaperRect(entry.card.bg, entry.card.shadow, x, y, w, h, color, {
+        radius: 12,
+        shadowOff: isSelected ? 3 : 5,
+        shadowAlpha: isSelected ? 0.4 : 0.25,
+        strokeColor: isSelected ? COLORS.goldL : 0x000000,
+        strokeAlpha: isSelected ? 0.9 : 0.15,
+        strokeWidth: isSelected ? 4 : 2,
+        organic: true,
+        seed,
+      });
     }
   }
 }
