@@ -11,9 +11,6 @@
  *   - Graceful handling of missing/corrupted localStorage
  *   - Pure functions where possible; side effects (read/write)
  *     isolated so tests can stub them
- *
- * The prototype had no save system at all — closing the tab lost
- * everything. This fixes that from day one.
  */
 
 const STORAGE_KEY = 'mathwarriors.save';

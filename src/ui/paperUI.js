@@ -22,10 +22,16 @@
  */
 
 import { COLORS, COLORS_CSS, MARGIN, BOTTOM_SAFE, TOP_SAFE } from '../config.js';
+import { makeRng } from '../systems/rng.js';
 
 // ------------------------------------------------------------------
 // PAPER SHAPE HELPERS
 // ------------------------------------------------------------------
+
+// Memoize wobbled polygon points by (w,h,seed). Every paper rect
+// redraw would otherwise recompute ~30 identical points via ~60 rng()
+// calls. Shapes are deterministic for a given seed, so once is enough.
+const _polyCache = new Map();
 
 /**
  * Build a hand-cut paper polygon — a slightly imperfect rectangle
@@ -35,15 +41,11 @@ import { COLORS, COLORS_CSS, MARGIN, BOTTOM_SAFE, TOP_SAFE } from '../config.js'
  * translation when drawing.
  */
 function paperPolygonPoints(w, h, seed = 1) {
-  // Use a deterministic RNG so the same button always looks the same
-  let s = ((seed ^ 0x9e3779b9) + 0x6c62272e) >>> 0;
-  const rng = () => {
-    s = (s ^ (s << 13)) >>> 0;
-    s = (s ^ (s >> 17)) >>> 0;
-    s = (s ^ (s << 5)) >>> 0;
-    return s / 4294967296;
-  };
+  const key = `${w}|${h}|${seed}`;
+  const cached = _polyCache.get(key);
+  if (cached) return cached;
 
+  const rng = makeRng(seed);
   const halfW = w / 2;
   const halfH = h / 2;
   const wobble = 3.5; // pixels of edge wobble
@@ -100,6 +102,7 @@ function paperPolygonPoints(w, h, seed = 1) {
   }
   add(-halfW, -halfH + cornerInset);
 
+  _polyCache.set(key, pts);
   return pts;
 }
 
@@ -222,10 +225,8 @@ export function PaperButton(scene, x, y, text, opts = {}) {
 
   if (opts.onClick) {
     zone.on('pointerdown', () => {
-      // Visual feedback — scale-down and back — but fire the click
-      // IMMEDIATELY so it can't be blocked by tween/timer interference.
-      // Previously we fired onClick in an onYoyo callback which could
-      // fail silently if the tween system was paused or events cleared.
+      // Fire the handler immediately — if it were called from the
+      // tween's onYoyo, a paused/cleared tween system could swallow it.
       opts.onClick();
       scene.tweens.add({
         targets: [bg, shadow, label, zone],

@@ -1,10 +1,9 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { generateQuestion, formatQuestion } from '../systems/math.js';
+import { generateQuestion } from '../systems/math.js';
 import {
   getZone,
   advanceMomentum,
-  computeHeroDamage,
   computeEnemyDamage,
   applyDamageResult,
   buildTurnSequence,
@@ -18,12 +17,13 @@ import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
 import { invokeAbility } from '../systems/abilities.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { PaperPanel, PaperButton, PaperBar, paperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
+import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
  *
- * Design principles this scene tries to honor (see docs/DESIGN-PRINCIPLES.md):
+ * Design principles this scene honors (see docs/DESIGN-PRINCIPLES.md):
  *   1. Feedback is the invisible dialogue — every action has visible +
  *      audible + tactile response (screen shake, hit pause, particles)
  *   2. Clarity before complexity — always show HP, momentum, whose turn
@@ -32,18 +32,9 @@ import { PaperPanel, PaperButton, PaperBar, paperRect, updatePaperBar, TEXT, saf
  *   5. Failure is a restart, not a punishment — defeat returns you to
  *      the world map with a full heal, nothing lost
  *
- * v0.4 scope:
- *   - 3 heroes vs. 1 enemy
- *   - Turn order alternates hero/enemy/hero/enemy/...
- *   - Math question appears on the hero's turn
- *   - Correct answer → hero attacks with juice (particles, shake, hit-pause)
- *   - Wrong answer → enemy counter-attacks
- *   - Enemy turn attacks a random living hero
- *   - Victory updates save (gold, HP, floor progress)
- *   - Defeat returns to world map with full party heal
- *
- * Uses placeholder rectangle sprites — built so swapping in real art later
- * is a drop-in replacement.
+ * 3 heroes vs. 1 enemy. Hero turns alternate with an enemy turn. Damage
+ * on a correct answer equals the answer value, scaled by the momentum
+ * zone's heroMult. On defeat, the party is fully healed.
  */
 export class BattleScene extends Phaser.Scene {
   constructor() {
@@ -91,6 +82,14 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'intro';
     this.locked = false;
     this.currentQuestion = null;
+
+    // Load the save once per battle and mutate in place.
+    this.save = loadSave();
+
+    // Per-battle stat accumulators so we report true correct/wrong
+    // counts rather than the end-of-battle streak.
+    this.battleCorrect = 0;
+    this.battleWrong = 0;
   }
 
   create() {
@@ -112,15 +111,16 @@ export class BattleScene extends Phaser.Scene {
     // Show a one-time tutorial toast on the very first battle. Uses
     // the save's totalBattles stat to decide — if this player has
     // never finished a battle, prime them.
-    const save = loadSave();
-    if ((save.stats.totalBattles ?? 0) === 0) {
+    if ((this.save.stats.totalBattles ?? 0) === 0) {
       this.time.delayedCall(700, () => {
-        this.showToast('Tap the right answer to attack!', COLORS_CSS.goldL);
+        if (this.scene.isActive()) {
+          this.showToast('Tap the right answer to attack!', COLORS_CSS.goldL);
+        }
       });
     }
 
     // Fade in
-    this.cameras.main.fadeIn(250, 0, 0, 0);
+    fadeInScene(this);
     this.time.delayedCall(400, () => this.nextTurn());
   }
 
@@ -352,10 +352,12 @@ export class BattleScene extends Phaser.Scene {
     this.answerBtnLayout = { w: btnW, h: ansH, y: ansY, startX, gap: btnGap };
     for (let i = 0; i < 4; i++) {
       const x = startX + i * (btnW + btnGap);
+      const seed = 7000 + i * 211;
       const btn = PaperButton(this, x, ansY, '?', {
         w: btnW, h: ansH,
         color: btnColors[i],
         fontSize: 38,
+        seed,
         onClick: () => {
           if (this.locked) return;
           audio.play('ui/click');
@@ -365,6 +367,7 @@ export class BattleScene extends Phaser.Scene {
       this.answerButtons.push({
         bg: btn.bg, shadow: btn.shadow, label: btn.label, zone: btn.zone,
         baseColor: btnColors[i],
+        seed,
       });
     }
 
@@ -408,16 +411,15 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     endBtnBg.on('pointerdown', () => {
-      // Direct, immediate scene transition. Don't rely on
-      // camerafadeoutcomplete callbacks — they can be cancelled by
-      // removeAllEvents() in showVictory/showDefeat, leaving the
-      // CONTINUE button "stuck" with no apparent way forward.
+      // Direct, immediate scene transition. We don't go through
+      // transitionTo() here because removeAllEvents() in showVictory
+      // /showDefeat can cancel camerafadeoutcomplete callbacks and
+      // strand the CONTINUE button.
       audio.play('ui/confirm');
       const target = this.returnScene;
       const data = this.returnData || undefined;
       this.registry.remove('battleReturnScene');
       this.registry.remove('battleReturnData');
-      this.registry.remove('battleIsBoss');
       this.scene.start(target, data);
     });
 
@@ -482,22 +484,26 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * Redraw a paper-styled answer button with a new fill color and alpha.
-   * Needed because PaperButton uses Phaser.Graphics which doesn't have
-   * setFillStyle — we clear and re-draw.
+   * Recolor an answer button while keeping its organic papercut shape.
+   * Uses the button's stored seed so the wobbled edges stay identical
+   * across redraws.
    */
   recolorAnswerButton(i, color, alpha = 1) {
     const btn = this.answerButtons[i];
     if (!btn || !btn.bg || !this.answerBtnLayout) return;
     const { w, h, y, startX, gap } = this.answerBtnLayout;
-    const radius = 14;
     const x = startX + i * (w + gap);
 
-    btn.bg.clear();
-    btn.bg.fillStyle(color, alpha);
-    btn.bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
-    btn.bg.lineStyle(2, 0x000000, 0.15 * alpha);
-    btn.bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+    paintPaperRect(btn.bg, btn.shadow, x, y, w, h, color, {
+      shadowOff: 5,
+      shadowAlpha: 0.35 * alpha,
+      alpha,
+      strokeColor: 0x000000,
+      strokeAlpha: 0.15 * alpha,
+      strokeWidth: 2,
+      organic: true,
+      seed: btn.seed,
+    });
     btn.label.setAlpha(alpha);
   }
 
@@ -589,6 +595,7 @@ export class BattleScene extends Phaser.Scene {
       audio.play('battle/correct');
 
       this.streak++;
+      this.battleCorrect++;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
       this.updateMomentumBar();
       this.showToast('CORRECT!', COLORS_CSS.greenL);
@@ -652,6 +659,7 @@ export class BattleScene extends Phaser.Scene {
       audio.play('battle/wrong');
 
       this.streak = 0;
+      this.battleWrong++;
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar();
       this.showToast('Try again!', COLORS_CSS.scarletL);
@@ -678,7 +686,7 @@ export class BattleScene extends Phaser.Scene {
       });
     }
 
-    // Snappy turn advance — was 900ms in v0.2, now 550ms per principle #3
+    // Snappy turn advance — see principle #3 (tempo) in DESIGN-PRINCIPLES.md.
     this.time.delayedCall(550, () => this.nextTurn());
   }
 
@@ -688,8 +696,7 @@ export class BattleScene extends Phaser.Scene {
 
   refreshPotionButton() {
     if (!this.potionLabel) return;
-    const save = loadSave();
-    const count = save.potions || 0;
+    const count = this.save.potions || 0;
     this.potionLabel.setText(`POTION ${count}`);
     const canUse = count > 0 && this.phase === 'question';
     if (this.potionBtn && this.potionBtn.bg) {
@@ -703,8 +710,7 @@ export class BattleScene extends Phaser.Scene {
   usePotion() {
     if (this.phase !== 'question' || this.locked) return;
 
-    const save = loadSave();
-    if ((save.potions || 0) <= 0) {
+    if ((this.save.potions || 0) <= 0) {
       this.showToast('No potions left!', COLORS_CSS.scarletL);
       return;
     }
@@ -717,8 +723,8 @@ export class BattleScene extends Phaser.Scene {
     activeHero.hp = Math.min(activeHero.maxHp, activeHero.hp + healAmount);
     const actualHealed = activeHero.hp - before;
 
-    save.potions -= 1;
-    writeSave(save);
+    this.save.potions -= 1;
+    writeSave(this.save);
 
     audio.play('battle/heal');
     this.showToast(`+${actualHealed} HP`, COLORS_CSS.greenL);
@@ -918,10 +924,11 @@ export class BattleScene extends Phaser.Scene {
 
     // Compute rewards
     const goldEarned = 10 + this.floor * 5;
-    const save = loadSave();
+    const save = this.save;
     save.gold += goldEarned;
     save.stats.totalBattles++;
-    save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.streak;
+    save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
+    save.stats.totalWrong = (save.stats.totalWrong ?? 0) + this.battleWrong;
 
     // Update party HP in save (persist health)
     for (let i = 0; i < this.party.length && i < 3; i++) {
@@ -932,10 +939,9 @@ export class BattleScene extends Phaser.Scene {
       save.party[i].maxHp = this.party[i].maxHp;
     }
 
-    // v0.5: mark floor complete only when a boss is defeated. Regular
-    // encounters just add gold and persist HP. If we came directly from
-    // the world map (no maze), we treat any win as a floor complete so
-    // the progression still works if the player is using the fast path.
+    // Mark floor complete on boss defeat. If we came directly from the
+    // world map (no maze wrapper), any win counts so the progression
+    // still advances on the fast path.
     if (this.isBoss || this.returnScene === SCENES.WORLD_MAP) {
       markFloorComplete(save, this.floor);
       // Mark the boss as defeated in the maze state so the exit opens
@@ -948,9 +954,6 @@ export class BattleScene extends Phaser.Scene {
     }
 
     writeSave(save);
-
-    // No camera zoom — it can leave a stale tween that crashes on
-    // scene.start. Visual feedback comes from the overlay alone.
 
     this.endOverlay.titleText.setText('VICTORY!');
     this.endOverlay.subText.setText(`${this.enemy.name} defeated!`);
@@ -969,8 +972,10 @@ export class BattleScene extends Phaser.Scene {
 
     // Full party heal — failure is a restart, not a punishment.
     // See DESIGN-PRINCIPLES.md principle 8.
-    const save = loadSave();
+    const save = this.save;
     save.stats.totalBattles++;
+    save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
+    save.stats.totalWrong = (save.stats.totalWrong ?? 0) + this.battleWrong;
     for (let i = 0; i < this.party.length && i < 3; i++) {
       if (!save.party[i]) save.party[i] = {};
       save.party[i].id = this.party[i].id;

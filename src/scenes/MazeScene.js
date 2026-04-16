@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { getFloor, TILE } from '../data/floors.js';
-import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
+import { loadSave, writeSave } from '../systems/save.js';
 import { spawnHero } from '../data/heroes.js';
 import { spawnEnemy, pickEnemyForFloor } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
+import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 
 /**
  * MazeScene
@@ -17,22 +18,17 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
  * the end gates the exit portal.
  *
  * Design principles this honors:
- *   - Snappy tempo: grid-snap movement at ~8 tiles/sec
- *   - Clarity: fog makes the next step obvious, reveals gradually
- *   - Respect session length: save after every battle, resume where left off
- *   - Failure is a restart: battle defeat returns to the world map,
- *     maze state is preserved via the save file
+ *   - Snappy tempo: grid-snap movement at ~8 tiles/sec.
+ *   - Clarity: fog makes the next step obvious, reveals gradually.
+ *   - Respect session length: save after every battle; resume where left off.
+ *   - Failure is a restart: battle defeat returns to the world map;
+ *     maze state is preserved via the registry and save file.
  *
- * v0.5 scope:
- *   - Tilemap rendered as colored rectangles from data/floors.js
- *   - Keyboard (arrows/WASD) + on-screen d-pad for iPad
- *   - Collision with walls
+ * Features:
+ *   - Tilemap rendered from data/floors.js
+ *   - Tap-to-move on adjacent walkable tiles, plus arrow/WASD keys
  *   - Fog of war with a 3-tile reveal radius
- *   - Chest interaction → gold
- *   - Potion pickup → +1 potion
- *   - Encounter tile → BattleScene → return to maze, tile removed
- *   - Boss tile → BattleScene → mark floor complete → return to world map
- *   - Exit tile → return to world map (after boss defeated)
+ *   - Chests, potions, randomized encounters, a hand-placed boss, and an exit
  *
  * Deferred to future:
  *   - Animated walking sprites (currently a colored square)
@@ -137,10 +133,9 @@ export class MazeScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.fadeIn(250, 0, 0, 0);
     // Use the papercut palette's sky color for the area outside the maze
     const pal = FLOOR_PALETTES[this.floorId] || FLOOR_PALETTES[1];
-    this.cameras.main.setBackgroundColor(pal.sky);
+    fadeInScene(this, 250, pal.sky);
     audio.playMusic(`music/floor-${this.floorId}`);
 
     // Compute tile size and origin so the map fits the screen cleanly.
@@ -393,10 +388,7 @@ export class MazeScene extends Phaser.Scene {
       onClick: () => {
         audio.play('ui/back');
         this.saveMazeState();
-        this.cameras.main.fadeOut(250, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.WORLD_MAP);
-        });
+        transitionTo(this, SCENES.WORLD_MAP);
       },
     });
 
@@ -407,13 +399,10 @@ export class MazeScene extends Phaser.Scene {
       onClick: () => {
         audio.play('ui/click');
         this.saveMazeState();
-        this.cameras.main.fadeOut(200, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.SETTINGS, {
-            returnScene: SCENES.MAZE,
-            returnData: { floor: this.floorId },
-          });
-        });
+        transitionTo(this, SCENES.SETTINGS, {
+          returnScene: SCENES.MAZE,
+          returnData: { floor: this.floorId },
+        }, 200);
       },
     });
   }
@@ -447,34 +436,6 @@ export class MazeScene extends Phaser.Scene {
         this.tryMove({ dx, dy });
       }
     });
-  }
-
-  // Legacy d-pad — no longer built, kept for reference only.
-  buildDpad() {
-    return; // disabled
-    /* eslint-disable */
-    const centerX = GAME_WIDTH - 130;
-    const centerY = GAME_HEIGHT - 260;
-    const btnSize = 80;
-    const offset = 85;
-
-    const make = (x, y, symbol, dir) => {
-      const bg = this.add.rectangle(x, y, btnSize, btnSize, COLORS.ink, 0.85)
-        .setStrokeStyle(4, COLORS.paperD)
-        .setInteractive({ useHandCursor: true });
-      this.add.text(x, y, symbol, {
-        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '32px',
-        color: COLORS_CSS.paper,
-      }).setOrigin(0.5);
-      bg.on('pointerdown', () => this.tryMove(dir));
-    };
-
-    make(centerX,          centerY - offset, '\u25B2', { dx: 0,  dy: -1 });
-    make(centerX,          centerY + offset, '\u25BC', { dx: 0,  dy: 1  });
-    make(centerX - offset, centerY,          '\u25C4', { dx: -1, dy: 0  });
-    make(centerX + offset, centerY,          '\u25BA', { dx: 1,  dy: 0  });
-    /* eslint-enable */
   }
 
   // ================================================================
@@ -593,10 +554,7 @@ export class MazeScene extends Phaser.Scene {
         audio.play('world/floor-complete');
         // Wipe maze state for this floor — next entry starts fresh
         this.registry.remove(`mazeState_${this.floorId}`);
-        this.cameras.main.fadeOut(400, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.WORLD_MAP);
-        });
+        transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
         break;
       }
     }
@@ -605,30 +563,29 @@ export class MazeScene extends Phaser.Scene {
   startBattle(isBoss, enemyId) {
     this.saveMazeState();
 
-    // Signal to BattleScene that completion should come back here, not
-    // go to the world map.
+    // Signal to BattleScene that completion should come back here.
     this.registry.set('battleReturnScene', SCENES.MAZE);
     this.registry.set('battleReturnData', { floor: this.floorId });
-    if (isBoss) {
-      this.registry.set('battleIsBoss', true);
+
+    let def;
+    if (isBoss && enemyId) {
+      def = { id: enemyId };
     } else {
-      this.registry.remove('battleIsBoss');
+      def = pickEnemyForFloor(this.floorId);
+      if (!def) {
+        // No enemies for this floor — skip the battle rather than crash.
+        return;
+      }
     }
+    const enemy = spawnEnemy(def.id, { grade: this.save.grade, isBoss });
 
-    const enemy = isBoss && enemyId
-      ? spawnEnemy(enemyId, { grade: this.save.grade, isBoss: true })
-      : spawnEnemy(pickEnemyForFloor(this.floorId).id, { grade: this.save.grade, isBoss: false });
-
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.BATTLE, {
-        party: this.party,
-        enemy,
-        floor: this.floorId,
-        grade: this.save.grade,
-        isBoss,
-      });
-    });
+    transitionTo(this, SCENES.BATTLE, {
+      party: this.party,
+      enemy,
+      floor: this.floorId,
+      grade: this.save.grade,
+      isBoss,
+    }, 300);
   }
 
   saveMazeState() {

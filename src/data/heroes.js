@@ -1,28 +1,18 @@
 /**
- * Hero roster — the 15 playable characters
+ * Hero roster — the 15 playable characters.
  *
  * Data-only module. Scenes read this to build the party select screen
- * and to instantiate combat-ready heroes.
- *
- * v0.2: only the stats matter; the `sprite` key points at a placeholder
- * for now. When we wire real art, we update the sprite paths and nothing
- * else changes.
- *
- * Class base stats are deliberately *slightly* differentiated. The
- * prototype made all 5 knights identical; we can do better.
+ * and to instantiate combat-ready heroes. Each class has its own base
+ * stats; individual heroes tweak those bases by +/- a couple points so
+ * every hero in a class feels distinct.
  */
 
-// Base stats per class — each individual hero slightly tweaks these.
 const CLASS_BASE = {
   knight: { maxHp: 50, atk: 14, def: 14 },
   wizard: { maxHp: 40, atk: 18, def: 8  },
   bunny:  { maxHp: 45, atk: 16, def: 10 },
 };
 
-/**
- * Helper: build a hero record from class + individual tweaks.
- * Individual tweaks are small (+/- 1-3 on any stat).
- */
 function make(id, name, className, trait, tweak = {}) {
   const base = CLASS_BASE[className];
   return {
@@ -33,9 +23,7 @@ function make(id, name, className, trait, tweak = {}) {
     maxHp: base.maxHp + (tweak.maxHp ?? 0),
     atk:   base.atk   + (tweak.atk   ?? 0),
     def:   base.def   + (tweak.def   ?? 0),
-    // Sprite path resolved by asset loader. Placeholder for v0.2.
     sprite: `heroes/${id}`,
-    // Display color used for placeholder rendering before real art lands.
     displayColor: HERO_COLORS[className],
   };
 }

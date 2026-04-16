@@ -16,18 +16,7 @@
  *   - Dark frame/vignette around the edges
  */
 
-/**
- * Seeded random for deterministic wobble per scene.
- */
-function seededRng(seed) {
-  let s = ((seed ^ 0x9e3779b9) + 0x6c62272e) >>> 0;
-  return () => {
-    s = (s ^ (s << 13)) >>> 0;
-    s = (s ^ (s >> 17)) >>> 0;
-    s = (s ^ (s << 5)) >>> 0;
-    return s / 4294967296;
-  };
-}
+import { makeRng } from './rng.js';
 
 /**
  * Generate a wobbly hill/mountain silhouette as an array of {x, y} points.
@@ -251,7 +240,7 @@ export const FLOOR_PALETTES = {
  */
 export function drawPapercutBackground(scene, floorId, width, height, seed = 42) {
   const pal = FLOOR_PALETTES[floorId] || FLOOR_PALETTES[1];
-  const rng = seededRng(seed + floorId * 1000);
+  const rng = makeRng(seed + floorId * 1000);
   const gfx = scene.add.graphics();
 
   // Sky fill

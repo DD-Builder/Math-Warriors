@@ -9,17 +9,15 @@
  *
  * Guarantees (tested in math.test.js):
  *   - `choices` is ALWAYS length 4
- *   - all four `choices` are distinct positive integers
+ *   - all four `choices` are distinct non-negative integers
  *   - `choices[correctIndex] === answer` is ALWAYS true
  *   - `answer` is ALWAYS a non-negative whole number
  *   - no undefined / NaN / Infinity values ever appear
  *   - for operator '-', answer is non-negative (a >= b)
  *   - for operator '/', a is always a clean multiple of b (no fractions)
  *
- * The prototype's generator had a 50-try cap with no guarantee of 3 unique
- * wrong answers, so it could produce `undefined` entries in the choices
- * array. That bug is impossible here because we generate distractors using
- * a tiered fallback strategy that always terminates with distinct values.
+ * Distractor generation uses a tiered fallback (small offsets → wider
+ * offsets → walk from zero) so it always terminates with distinct values.
  */
 
 // ------------------------------------------------------------------

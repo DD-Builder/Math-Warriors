@@ -4,6 +4,7 @@ import { loadSave, writeSave, clearSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
+import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 
 /**
  * SettingsScene — volume, grade, stats, reset.
@@ -24,8 +25,7 @@ export class SettingsScene extends Phaser.Scene {
   create() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    this.cameras.main.fadeIn(200, 0, 0, 0);
-    this.cameras.main.setBackgroundColor(0x000000);
+    fadeInScene(this, 200);
 
     // Bright bg
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 555);
@@ -86,12 +86,7 @@ export class SettingsScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5);
     PaperButton(this, area.cx + 180, gradeY, 'CHANGE', {
       w: 160, h: 52, color: 0x4a6ca8, fontSize: 18,
-      onClick: () => {
-        this.cameras.main.fadeOut(200, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.GRADE_SELECT);
-        });
-      },
+      onClick: () => transitionTo(this, SCENES.GRADE_SELECT, undefined, 200),
     });
 
     // Row 4: Stats + Reset
@@ -123,12 +118,7 @@ export class SettingsScene extends Phaser.Scene {
     // Back button — bottom center of panel, always visible
     PaperButton(this, area.cx, area.bottom - 50, 'BACK', {
       w: 260, h: 64, color: 0x4aa848, fontSize: 24,
-      onClick: () => {
-        this.cameras.main.fadeOut(200, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(this.returnScene, this.returnData || undefined);
-        });
-      },
+      onClick: () => transitionTo(this, this.returnScene, this.returnData ?? undefined, 200),
     });
   }
 
@@ -174,10 +164,7 @@ export class SettingsScene extends Phaser.Scene {
       return;
     }
     clearSave();
-    this.cameras.main.fadeOut(250, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.TITLE);
-    });
+    transitionTo(this, SCENES.TITLE);
   }
 
   showFlash(message) {

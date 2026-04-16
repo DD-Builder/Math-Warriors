@@ -1,25 +1,16 @@
 /**
  * Combat system
  *
- * Pure functions for damage calculation, momentum management, and turn
- * order. No Phaser dependencies — easy to unit test.
+ * Pure functions for damage, momentum, and turn order. No Phaser
+ * dependencies — trivial to unit test.
  *
- * The prototype had several combat bugs we're explicitly avoiding here:
- *
- *   1. Asymmetric momentum: hero got +25% in ZONE but nothing in HEAT;
- *      enemy got +40% in HEAT but nothing in COOL/ZONE. We make it
- *      symmetric: COOL favors the enemy, HEAT favors the hero.
- *
- *   2. `dmg(HEROES[idx || 0])` bug: when idx was undefined during an
- *      enemy turn, damage always hit hero slot 0. Callers here must
- *      pass an explicit target; there's no implicit fallback.
- *
- *   3. Direct HP mutation: scenes mutated target.hp in a dozen places.
- *      Here, `applyDamage` is the only way to change HP, and it returns
- *      a plain result object — no hidden mutation.
- *
- *   4. Defeat left stale party HP. Here, the scene layer owns party
- *      persistence; combat functions are pure and don't touch saves.
+ * Invariants:
+ *   - Momentum multipliers are symmetric: COOL favors the enemy,
+ *     HEAT favors the hero, ZONE is 1x on both sides.
+ *   - Callers always pass an explicit target to damage functions —
+ *     there is no implicit "current hero".
+ *   - `applyDamageResult` is the only place HP mutates.
+ *   - Combat functions never touch the save file; the scene layer does.
  */
 
 // ------------------------------------------------------------------

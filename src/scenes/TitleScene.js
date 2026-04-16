@@ -3,8 +3,9 @@ import { SCENES, GAME_WIDTH, GAME_HEIGHT, VERSION } from '../config.js';
 import { loadSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { PaperButton, PaperPanel, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { drawPapercutTitle, scatterPapercutDecor } from '../ui/titleArt.js';
+import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 
 export class TitleScene extends Phaser.Scene {
   constructor() {
@@ -14,8 +15,7 @@ export class TitleScene extends Phaser.Scene {
   create() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    this.cameras.main.fadeIn(250, 0, 0, 0);
-    this.cameras.main.setBackgroundColor(0x000000);
+    fadeInScene(this);
     audio.playMusic('music/title');
 
     this.save = loadSave();
@@ -24,9 +24,8 @@ export class TitleScene extends Phaser.Scene {
     // Bright cheerful landscape — sky + hills + sun glow
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
 
-    // Title center sits at roughly the 1/3-down-the-page "rule of thirds"
-    // band instead of crammed against the top. Previous layout put MATH
-    // near y=125 which looked top-heavy on iPad.
+    // Title at the rule-of-thirds band (~38% down) so it doesn't look
+    // top-heavy on iPad.
     const titleCy = Math.round(GAME_HEIGHT * 0.38);
 
     // Scatter flowers + clouds, but keep them out of the title area
@@ -76,26 +75,15 @@ export class TitleScene extends Phaser.Scene {
     // Settings button top-right (inside safe area)
     PaperButton(this, area.right - 75, area.top + 35, 'SETTINGS', {
       w: 140, h: 54, color: 0x4a6ca8, fontSize: 16,
-      onClick: () => {
-        this.cameras.main.fadeOut(200, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.SETTINGS, { returnScene: SCENES.TITLE });
-        });
-      },
+      onClick: () => transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.TITLE }, 200),
     });
   }
 
   onNewGame() {
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.GRADE_SELECT);
-    });
+    transitionTo(this, SCENES.GRADE_SELECT, undefined, 300);
   }
 
   onContinue() {
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.WORLD_MAP);
-    });
+    transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
   }
 }

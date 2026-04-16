@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
 import { loadSave, writeSave, makeDefaultSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
+import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 
 /**
  * PartySelectScene — pick 3 heroes from 15.
@@ -26,8 +27,7 @@ export class PartySelectScene extends Phaser.Scene {
   create() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    this.cameras.main.fadeIn(250, 0, 0, 0);
-    this.cameras.main.setBackgroundColor(0x000000);
+    fadeInScene(this);
     audio.playMusic('music/title');
 
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 333);
@@ -177,16 +177,18 @@ export class PartySelectScene extends Phaser.Scene {
       color: '#ffe0a0',
     }).setOrigin(0.5);
 
-    // Selected badge
+    // Selected badge — both the circle AND the checkmark must be added
+    // to the container, otherwise rebuildHeroGrid's removeAll() leaks
+    // the ✓ text every time the user toggles a selection.
     if (isSelected) {
       const badge = this.add.circle(x + w / 2 - 18, y - h / 2 + 18, 14, 0xf0c040);
       badge.setStrokeStyle(2, 0x1a0e04);
-      this.add.text(x + w / 2 - 18, y - h / 2 + 18, '✓', {
+      const check = this.add.text(x + w / 2 - 18, y - h / 2 + 18, '✓', {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '18px',
         color: '#1a0e04',
       }).setOrigin(0.5);
-      this.heroCardContainer.add(badge);
+      this.heroCardContainer.add([badge, check]);
     }
 
     card.zone.on('pointerdown', () => {
@@ -348,9 +350,6 @@ export class PartySelectScene extends Phaser.Scene {
     save.potions = 2;
     writeSave(save);
 
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.WORLD_MAP);
-    });
+    transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
   }
 }

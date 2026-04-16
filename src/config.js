@@ -16,8 +16,11 @@ export const COLORS = {
 
   // Hero class colors
   cobalt:   0x2e4e88,  // Knight
+  cobaltL:  0x5a7ab8,
   plum:     0x5a1878,  // Wizard
+  plumL:    0x9050c8,
   rose:     0xc02860,  // Bunny
+  roseL:    0xe060a0,
 
   // UI accents
   gold:     0xc07818,
@@ -54,4 +57,4 @@ export const SCENES = {
 export const MARGIN = 40;
 export const BOTTOM_SAFE = 120;
 export const TOP_SAFE = 60;
-export const VERSION = '0.2.0';
+export const VERSION = '0.5.0';

@@ -19,14 +19,8 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     this.buildProgressBar();
-
-    // v0.1 has no real assets to load. Kick off a no-op so the progress
-    // bar draws once and we don't flash past the scene. Real assets will
-    // be added here as the game grows.
-    //
-    // Examples for later:
-    //   this.load.image('logo', 'assets/sprites/ui/logo.png');
-    //   this.load.audio('click', 'assets/audio/click.mp3');
+    // No real assets to load yet — the progress bar just flashes briefly
+    // so the user sees something before TitleScene paints.
   }
 
   create() {

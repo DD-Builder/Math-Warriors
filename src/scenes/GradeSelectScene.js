@@ -4,6 +4,7 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperCard, PaperButton, PaperPanel, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { scatterPapercutDecor } from '../ui/titleArt.js';
+import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 
 export class GradeSelectScene extends Phaser.Scene {
   constructor() {
@@ -17,8 +18,7 @@ export class GradeSelectScene extends Phaser.Scene {
   create() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    this.cameras.main.fadeIn(250, 0, 0, 0);
-    this.cameras.main.setBackgroundColor(0x000000);
+    fadeInScene(this);
     audio.playMusic('music/title');
 
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 777);
@@ -117,12 +117,7 @@ export class GradeSelectScene extends Phaser.Scene {
     // CONFIRM button — LOCKED into safe area bottom
     PaperButton(this, area.cx, area.bottom - confirmBtnH / 2, 'CONFIRM', {
       w: 380, h: confirmBtnH, color: 0x4aa848, fontSize: 30,
-      onClick: () => {
-        this.cameras.main.fadeOut(250, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.PARTY_SELECT, { grade: this.selectedGrade });
-        });
-      },
+      onClick: () => transitionTo(this, SCENES.PARTY_SELECT, { grade: this.selectedGrade }),
     });
   }
 
@@ -131,10 +126,8 @@ export class GradeSelectScene extends Phaser.Scene {
     for (const [gid, entry] of Object.entries(this.gradeCards)) {
       const isSelected = Number(gid) === id;
       const { x, y, w, h, color, seed } = entry;
-      // Re-paint using the SAME organic polygon algorithm (same seed)
-      // so the hand-cut wobble is preserved. Previously this redraw used
-      // fillRoundedRect which reverted the papercut aesthetic to plain
-      // computer rectangles whenever the user tapped a card.
+      // Re-paint with the same seed so the hand-cut wobble survives
+      // the selection-state change.
       paintPaperRect(entry.card.bg, entry.card.shadow, x, y, w, h, color, {
         radius: 12,
         shadowOff: isSelected ? 3 : 5,

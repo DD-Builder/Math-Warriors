@@ -8,9 +8,8 @@
  * battle takes a consistent number of problems regardless of age:
  *   - mob: ~3-5 problems   - boss: ~10-12 problems
  *
- * Enemy abilities are declared here by name only. Their implementation
- * lives in combat.js / BattleScene.js once we actually wire them up.
- * For v0.2 all abilities are inert — the enemy just attacks normally.
+ * Enemy abilities are declared here by name only. Implementations live
+ * in systems/abilities.js; scenes trigger them via invokeAbility().
  */
 
 import { expectedAnswer } from '../systems/math.js';

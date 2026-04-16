@@ -11,6 +11,8 @@
  * tiny perturbations so they don't look perfectly straight.
  */
 
+import { makeRng } from '../systems/rng.js';
+
 // Letter definitions — each letter is one or more polygon shapes
 // expressed in unit coordinates (x and y in 0..1 where 0,0 is top-left).
 // We then perturb edges to look hand-cut.
@@ -19,9 +21,7 @@
 
 // Each letter is expressed as `{ positive: [...], holes: [...] }`.
 // `positive` shapes fill with the main color; `holes` paint the
-// background color on top to "cut out" inner counters (A, R, O).
-// Previously holes were just shapes[1..], which broke H/I/T (their
-// extra shapes are positive, not holes) and made parts vanish.
+// hole color on top to "cut out" inner counters (A, R, O).
 const LETTERS = {
   M: {
     positive: [[
@@ -97,8 +97,8 @@ const LETTERS = {
     ]],
   },
   I: {
-    // Single "I" with serifs, one continuous outline — avoids 3 separate
-    // shadow stacks and the bgColor-leak artifacts under WARRIORS.
+    // Single continuous outline (serifs + stem) so the letter casts
+    // one unified shadow rather than three stacked silhouettes.
     positive: [[
       [0.10, 0.00], [0.90, 0.00],
       [0.90, 0.20], [0.62, 0.20],
@@ -145,8 +145,8 @@ const LETTERS = {
  * points along each edge.
  */
 function perturbPolygon(points, scale, rng, jitter = 0.005) {
-  // Very small jitter so letters keep their recognizable shape.
-  // Higher values were distorting WARRIORS letters into unreadable blobs.
+  // Jitter stays small (<1% of the unit box) so letters keep their
+  // recognizable silhouette — any larger and the glyphs deform.
   const out = [];
   for (let i = 0; i < points.length; i++) {
     const a = points[i];
@@ -371,12 +371,3 @@ function drawStar(scene, cx, cy, size) {
   gfx.fillCircle(cx, cy, size * 0.25);
 }
 
-function makeRng(seed) {
-  let s = ((seed ^ 0x9e3779b9) + 0x6c62272e) >>> 0;
-  return () => {
-    s = (s ^ (s << 13)) >>> 0;
-    s = (s ^ (s >> 17)) >>> 0;
-    s = (s ^ (s << 5)) >>> 0;
-    return s / 4294967296;
-  };
-}

@@ -5,22 +5,19 @@ import { spawnHero, getHeroById } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
+import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 
 /**
  * WorldMapScene
  *
- * Five floor nodes laid out on a curved path across a dark stage.
- * Taps on an unlocked floor → battle. Locked floors show a lock icon
- * and a "complete previous floor" hint.
+ * Five quest nodes on a curved path. Taps on an unlocked quest open
+ * the maze. Locked quests show a papercut padlock.
  *
  * Design principles this honors (see docs/DESIGN-PRINCIPLES.md):
- *   - "Visible progress" — completed floors get a gold star
- *   - "The dopamine loop is the engine" — HUD shows gold + progress
- *   - "Respect session length" — one tap to resume
- *   - "Clarity before complexity" — lock state is obvious at a glance
- *
- * v0.4 scope: placeholder rectangles for floor nodes. Real papercut
- * art slots in later by replacing the rectangles with sprite images.
+ *   - Visible progress — completed quests get a gold star.
+ *   - The dopamine loop is the engine — HUD shows gold + progress.
+ *   - Respect session length — one tap to resume.
+ *   - Clarity before complexity — lock state is obvious at a glance.
  */
 export class WorldMapScene extends Phaser.Scene {
   constructor() {
@@ -32,8 +29,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.fadeIn(250, 0, 0, 0);
-    this.cameras.main.setBackgroundColor(COLORS.ink);
+    fadeInScene(this);
     audio.playMusic('music/map');
 
     this.buildBackground();
@@ -75,17 +71,13 @@ export class WorldMapScene extends Phaser.Scene {
   buildHUD() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    // HOME button — top-left, prominent cream paper pill. Was buried
-    // in the bottom-left where the user couldn't find it.
+    // HOME button — top-left, prominent cream paper pill.
     PaperButton(this, area.left + 110, area.top + 50, '\u2190 HOME', {
       w: 200, h: 72, color: 0xfff4e0, fontSize: 24,
       textColor: '#b83820',
       onClick: () => {
         audio.play('ui/back');
-        this.cameras.main.fadeOut(250, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.TITLE);
-        });
+        transitionTo(this, SCENES.TITLE);
       },
     });
 
@@ -142,10 +134,7 @@ export class WorldMapScene extends Phaser.Scene {
       w: 140, h: 54, color: 0x4a6ca8, fontSize: 26,
       onClick: () => {
         audio.play('ui/click');
-        this.cameras.main.fadeOut(200, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.start(SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP });
-        });
+        transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
       },
     });
   }
@@ -310,16 +299,12 @@ export class WorldMapScene extends Phaser.Scene {
         this.enterFloor(info.id);
       });
     }
-    // (Locked state already shows the lock emoji as the center operator
-    // above — no need for a second duplicate indicator.)
   }
 
   /**
-   * Draw a simple papercut padlock glyph centered at (cx, cy).
-   * Consistent with the rest of the game's hand-cut paper aesthetic —
-   * a dark body with a lighter keyhole and a steel shackle on top.
-   * The emoji 🔒 rendered inconsistently across devices (and the user
-   * disliked how it looked), so we draw it ourselves.
+   * Draw a simple papercut padlock glyph centered at (cx, cy):
+   * dark body, gold keyhole, steel shackle. Hand-drawn so it looks
+   * consistent across devices where emoji glyphs render differently.
    */
   drawPaperPadlock(cx, cy, size = 36) {
     const bodyW = size * 1.3;
@@ -367,9 +352,6 @@ export class WorldMapScene extends Phaser.Scene {
       return;
     }
 
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start(SCENES.MAZE, { floor: floorId });
-    });
+    transitionTo(this, SCENES.MAZE, { floor: floorId }, 300);
   }
 }

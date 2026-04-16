@@ -18,8 +18,8 @@
  *   potion     - pickup, +1 potion
  *   gold       - pickup, +gold
  *
- * v0.5: only Floor 1 has a real layout. Floors 2-5 are placeholders
- * (same layout with a different palette) until per-floor map design is done.
+ * Floor 1 has a bespoke layout; floors 2-5 currently reuse the same
+ * shape with a different palette and will get their own maps later.
  */
 
 export const TILE = {
