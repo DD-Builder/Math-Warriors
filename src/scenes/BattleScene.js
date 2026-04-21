@@ -19,6 +19,7 @@ import { invokeAbility } from '../systems/abilities.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawHeroSprite } from '../ui/heroSprites.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -161,14 +162,7 @@ export class BattleScene extends Phaser.Scene {
       const x = leftAnchor + i * spacing;
       const y = groundY - 70;
 
-      // Smaller paper-cut hero body with drop shadow
-      paperRect(this, x + 4, y + 6, 110, 140, 0x000000, {
-        shadowOff: 0, shadowAlpha: 0.35, organic: true, seed: 100 + i, strokeWidth: 0, alpha: 0.4,
-      });
-      const bodyGfx = paperRect(this, x, y, 110, 140, hero.displayColor, {
-        shadowOff: 0, shadowAlpha: 0, organic: true, seed: 100 + i, strokeWidth: 2,
-      });
-      const body = bodyGfx.bg;
+      const body = drawHeroSprite(this, x, y, hero, { scale: 1 });
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',

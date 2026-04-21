@@ -6,6 +6,7 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawHeroSprite } from '../ui/heroSprites.js';
 
 /**
  * PartySelectScene — pick 3 heroes from 15.
@@ -150,10 +151,8 @@ export class PartySelectScene extends Phaser.Scene {
     // Card paper
     const card = PaperCard(this, x, y, w, h, hero.displayColor, { selected: isSelected });
 
-    // Portrait rect
-    const portrait = this.add.graphics();
-    portrait.fillStyle(0x1a0e04, 0.4);
-    portrait.fillRoundedRect(x - w / 2 + 16, y - h / 2 + 16, w - 32, h * 0.5, 8);
+    // Hero portrait drawn procedurally inside the card
+    const portrait = drawHeroSprite(this, x, y - h * 0.12, hero, { scale: 0.6 });
 
     const name = this.add.text(x, y + h * 0.15, hero.name.toUpperCase(), {
       ...TEXT.heading(),
