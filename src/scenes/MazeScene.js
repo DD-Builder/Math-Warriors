@@ -140,26 +140,29 @@ export class MazeScene extends Phaser.Scene {
     fadeInScene(this, 250, pal.sky);
     audio.playMusic(`music/floor-${this.floorId}`);
 
-    // Compute tile size and origin so the map fits the screen cleanly.
-    // Leave room at the bottom for the HUD/dpad.
-    const hudHeight = 180;
-    const availableW = GAME_WIDTH - 200;   // leave space for dpad on the right
-    const availableH = GAME_HEIGHT - hudHeight - 100;
-    this.tileSize = Math.min(
-      Math.floor(availableW / this.floor.width),
-      Math.floor(availableH / this.floor.height),
-    );
-    this.originX = (GAME_WIDTH - this.tileSize * this.floor.width) / 2 - 80;
-    this.originY = 60;
+    // Tile size — large enough that tiles feel like a real environment.
+    // Camera zooms into ~7x7 visible area and scrolls to follow player.
+    const hudHeight = 140;
+    this.tileSize = 80;
+    this.originX = 0;
+    this.originY = 0;
 
     this.buildTiles();
     this.buildEnvironment();
     this.buildObjects();
     this.buildPlayer();
     this.buildFogOverlay();
+
+    // Camera setup — zoom into the maze, follow the player sprite
+    const cam = this.cameras.main;
+    const mapW = this.floor.width * this.tileSize;
+    const mapH = this.floor.height * this.tileSize;
+    cam.setBounds(0, 0, mapW, mapH + hudHeight);
+    cam.startFollow(this.playerSprite, true, 0.12, 0.12);
+    cam.setDeadzone(40, 40);
+
+    // HUD is drawn in screen-space via a fixed container
     this.buildHUD();
-    // No on-screen d-pad. Movement is tap-on-tile (touch) or
-    // arrow keys / WASD (keyboard).
     this.setupTapToMove();
 
     // Reveal around the starting position
@@ -508,11 +511,14 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   buildHUD() {
+    // Track all objects added during HUD build so we can batch-fix
+    // them to the camera (scrollFactor 0) at the end.
+    const before = this.children.length;
+
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const hudH = 110;
     const hudCenterY = area.bottom - hudH / 2;
 
-    // Paper HUD strip at the bottom
     PaperPanel(this, area.cx, hudCenterY, GAME_WIDTH - 40, hudH, {
       color: 0xfff8e8, alpha: 0.94, radius: 20,
     });
@@ -572,6 +578,13 @@ export class MazeScene extends Phaser.Scene {
         }, 200);
       },
     });
+
+    // Fix all HUD elements to the camera so they don't scroll
+    const after = this.children.length;
+    for (let i = before; i < after; i++) {
+      const child = this.children.getAt(i);
+      if (child && child.setScrollFactor) child.setScrollFactor(0);
+    }
   }
 
   updateHud() {
@@ -594,8 +607,11 @@ export class MazeScene extends Phaser.Scene {
       // Convert pointer screen coords to tile coords using the maze
       // tile origin and size.
       if (this.moving) return;
-      const tileX = Math.floor((pointer.x - this.originX) / this.tileSize);
-      const tileY = Math.floor((pointer.y - this.originY) / this.tileSize);
+      // Convert screen pointer to world coords (accounting for camera scroll)
+      const worldX = pointer.x + this.cameras.main.scrollX;
+      const worldY = pointer.y + this.cameras.main.scrollY;
+      const tileX = Math.floor((worldX - this.originX) / this.tileSize);
+      const tileY = Math.floor((worldY - this.originY) / this.tileSize);
       // Only adjacent (4-directional) tiles count as movement requests
       const dx = tileX - this.playerX;
       const dy = tileY - this.playerY;
