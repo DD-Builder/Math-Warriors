@@ -21,6 +21,7 @@ import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePap
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
+import { makeRng } from '../systems/rng.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -132,13 +133,12 @@ export class BattleScene extends Phaser.Scene {
 
   buildBackground() {
     this.cameras.main.setBackgroundColor(0x000000);
-
-    // Layered papercut diorama — procedurally generated per floor.
-    // The background fills the area above the UI panel.
-    const bgHeight = GAME_HEIGHT * 0.72; // above the UI
+    const bgHeight = GAME_HEIGHT * 0.72;
     drawPapercutBackground(this, this.floor, GAME_WIDTH, bgHeight, 42);
 
-    // Floor label top-left (on top of the diorama)
+    // Floor-specific foreground details to make each level feel unique
+    this.drawBattleThemeDetails(bgHeight);
+
     this.add.text(30, 20, `QUEST ${this.floor}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
@@ -146,6 +146,90 @@ export class BattleScene extends Phaser.Scene {
       stroke: '#000000',
       strokeThickness: 4,
     });
+  }
+
+  drawBattleThemeDetails(bgH) {
+    const g = this.add.graphics();
+    const rng = makeRng(this.floor * 5555);
+    const gndY = bgH * 0.88;
+
+    if (this.floor === 1) {
+      // Garden: flowers along ground, butterflies
+      for (let i = 0; i < 10; i++) {
+        const fx = rng() * GAME_WIDTH;
+        const fy = gndY - rng() * 20;
+        const colors = [0xf06080, 0xf0c040, 0xa0d8f0, 0xf080c0, 0xff8080];
+        g.fillStyle(colors[Math.floor(rng() * colors.length)], 0.7);
+        g.fillCircle(fx, fy, 4 + rng() * 3);
+        g.fillStyle(0xf0f080, 0.8);
+        g.fillCircle(fx, fy, 2);
+      }
+      // Mushrooms
+      for (let i = 0; i < 4; i++) {
+        const mx = 60 + rng() * (GAME_WIDTH - 120);
+        g.fillStyle(0x6a4010, 1);
+        g.fillRect(mx - 2, gndY - 8, 4, 10);
+        g.fillStyle(0xc04818, 0.8);
+        g.fillCircle(mx, gndY - 12, 7 + rng() * 4);
+        g.fillStyle(0xf0e8d0, 0.6);
+        g.fillCircle(mx - 2, gndY - 14, 2);
+      }
+    } else if (this.floor === 2) {
+      // Tidepool: water ripples at ground, bubbles rising
+      for (let i = 0; i < 8; i++) {
+        const bx = rng() * GAME_WIDTH;
+        const by = gndY - 30 - rng() * 120;
+        g.fillStyle(0x40a8c8, 0.2 + rng() * 0.15);
+        g.fillCircle(bx, by, 3 + rng() * 4);
+      }
+      // Seaweed along ground
+      for (let i = 0; i < 6; i++) {
+        const sx = 50 + rng() * (GAME_WIDTH - 100);
+        g.fillStyle(0x186838, 0.6);
+        for (let s = 0; s < 3; s++) {
+          g.fillCircle(sx + (rng() - 0.5) * 8, gndY - s * 12 - 6, 4 + rng() * 3);
+        }
+      }
+    } else if (this.floor === 3) {
+      // Cloud: lightning flashes, floating platforms
+      for (let i = 0; i < 5; i++) {
+        const px = 80 + rng() * (GAME_WIDTH - 160);
+        const py = gndY - 40 - rng() * 80;
+        g.fillStyle(0x7898b8, 0.4);
+        g.fillRoundedRect(px - 30, py, 60 + rng() * 30, 10, 5);
+        g.fillStyle(0x98b8d8, 0.3);
+        g.fillRoundedRect(px - 24, py + 2, 48 + rng() * 20, 6, 3);
+      }
+    } else if (this.floor === 4) {
+      // Ember: lava pools, sparks
+      for (let i = 0; i < 5; i++) {
+        const lx = rng() * GAME_WIDTH;
+        g.fillStyle(0xe04808, 0.3);
+        g.fillCircle(lx, gndY + 4, 12 + rng() * 16);
+        g.fillStyle(0xf0a010, 0.2);
+        g.fillCircle(lx, gndY + 2, 8 + rng() * 10);
+      }
+      // Floating embers
+      for (let i = 0; i < 12; i++) {
+        g.fillStyle(0xf08020, 0.3 + rng() * 0.3);
+        g.fillCircle(rng() * GAME_WIDTH, gndY - rng() * 200, 2 + rng() * 2);
+      }
+    } else if (this.floor === 5) {
+      // Arcane: floating rune circles, magic particles
+      for (let i = 0; i < 4; i++) {
+        const rx = 120 + rng() * (GAME_WIDTH - 240);
+        const ry = gndY - 60 - rng() * 100;
+        g.lineStyle(1.5, 0x8040d0, 0.3);
+        g.strokeCircle(rx, ry, 16 + rng() * 12);
+        g.fillStyle(0x8040d0, 0.15);
+        g.fillCircle(rx, ry, 4);
+      }
+      // Sparkle particles
+      for (let i = 0; i < 15; i++) {
+        g.fillStyle(0xc090f0, 0.2 + rng() * 0.2);
+        g.fillCircle(rng() * GAME_WIDTH, rng() * gndY, 1.5 + rng() * 1.5);
+      }
+    }
   }
 
   buildHeroSprites() {
