@@ -20,6 +20,7 @@ import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawMonsterSprite } from '../ui/monsterSprites.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -199,14 +200,7 @@ export class BattleScene extends Phaser.Scene {
     const y = groundY - 90;
     const w = 200, h = 220;
 
-    // Drop shadow
-    paperRect(this, x + 6, y + 8, w, h, 0x000000, {
-      shadowOff: 0, shadowAlpha: 0.4, organic: true, seed: 999, strokeWidth: 0, alpha: 0.4,
-    });
-    const enemyGfx = paperRect(this, x, y, w, h, this.enemy.displayColor, {
-      shadowOff: 0, shadowAlpha: 0, organic: true, seed: 999, strokeWidth: 3,
-    });
-    const body = enemyGfx.bg;
+    const body = drawMonsterSprite(this, x, y, this.enemy, { scale: 1 });
 
     // Stack name + HP bar + HP text ABOVE the enemy sprite so they
     // never get clipped by the papercut ground line or the answer
