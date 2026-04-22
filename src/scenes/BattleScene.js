@@ -530,7 +530,6 @@ export class BattleScene extends Phaser.Scene {
 
   startHeroTurn() {
     const hero = this.party[this.currentTurn.heroIndex];
-    this.turnLabel.setText(`${hero.name}'s turn — answer the question!`);
     this.phase = 'question';
     this.locked = false;
     this.refreshPotionButton();
@@ -548,6 +547,45 @@ export class BattleScene extends Phaser.Scene {
       this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
     }
 
+    // Boss fights have a countdown timer — race to answer!
+    if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
+    if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
+
+    if (this.isBoss) {
+      const timerDuration = 8000;
+      this.bossTimerStart = this.time.now;
+      this.bossTimerDuration = timerDuration;
+      this.turnLabel.setText(`${hero.name} — HURRY! ⏱`);
+
+      // Visual timer bar above the turn label
+      const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+      const barW = 400;
+      const barY = this.turnLabel.y - 30;
+      this.bossTimerBar = this.add.graphics();
+      this.bossTimerBar.setScrollFactor(0);
+      this.updateBossTimerBar(barW, barY, 1);
+
+      this.bossTimerUpdate = this.time.addEvent({
+        delay: 50,
+        loop: true,
+        callback: () => {
+          const elapsed = this.time.now - this.bossTimerStart;
+          const pct = Math.max(0, 1 - elapsed / timerDuration);
+          this.updateBossTimerBar(barW, barY, pct);
+        },
+      });
+
+      this.bossTimer = this.time.delayedCall(timerDuration, () => {
+        if (this.phase !== 'question' || this.locked) return;
+        this.showToast('TIME UP!', COLORS_CSS.scarletL);
+        // Find a wrong answer index and force-select it
+        const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
+        this.onAnswer(wrongIdx);
+      });
+    } else {
+      this.turnLabel.setText(`${hero.name}'s turn — answer the question!`);
+    }
+
     // Consume ability: if the previous turn was wrong and the enemy has
     // the consume ability, one random wrong answer button is "eaten"
     // and can't be tapped. This forces the player to commit without a
@@ -559,6 +597,26 @@ export class BattleScene extends Phaser.Scene {
       this.recolorAnswerButton(victim, this.answerButtons[victim].baseColor, 0.25);
       this.answerButtons[victim].label.setText('?');
     }
+  }
+
+  updateBossTimerBar(barW, barY, pct) {
+    if (!this.bossTimerBar) return;
+    this.bossTimerBar.clear();
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const bx = area.cx - barW / 2;
+    // Background
+    this.bossTimerBar.fillStyle(0x3a2010, 0.6);
+    this.bossTimerBar.fillRoundedRect(bx, barY, barW, 10, 4);
+    // Fill — color shifts from green to red as time runs out
+    const color = pct > 0.5 ? 0x4aa848 : pct > 0.25 ? 0xe8a030 : 0xe84040;
+    this.bossTimerBar.fillStyle(color, 0.9);
+    this.bossTimerBar.fillRoundedRect(bx, barY, barW * pct, 10, 4);
+  }
+
+  clearBossTimer() {
+    if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
+    if (this.bossTimerUpdate) { this.bossTimerUpdate.remove(); this.bossTimerUpdate = null; }
+    if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
   }
 
   /**
@@ -664,6 +722,7 @@ export class BattleScene extends Phaser.Scene {
   onAnswer(index) {
     if (this.phase !== 'question' || !this.currentQuestion) return;
     this.locked = true;
+    this.clearBossTimer();
 
     const correct = index === this.currentQuestion.correctIndex;
     const btn = this.answerButtons[index];
@@ -993,8 +1052,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'end';
     this.locked = true;
 
-    // CRITICAL: kill ALL pending timers and tweens so no stale nextTurn
-    // or enemy attack callback can restart the turn cycle after victory.
+    this.clearBossTimer();
     this.time.removeAllEvents();
 
     audio.stopMusic();
@@ -1044,6 +1102,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase === 'end') return;
     this.phase = 'end';
     this.locked = true;
+    this.clearBossTimer();
     this.time.removeAllEvents();
     audio.stopMusic();
     audio.play('battle/defeat');

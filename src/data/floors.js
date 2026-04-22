@@ -11,9 +11,11 @@
  *
  * Objects declare their tile position and type. Types:
  *
- *   chest      - gives gold + (eventually) potion on interact
+ *   chest      - gives gold on interact
+ *   fairy      - fairy chest — freeing all 3 reveals the golden chest
+ *   golden     - golden treasure chest — only appears after all fairies freed
  *   encounter  - triggers a random battle when stepped on, then removes itself
- *   boss       - boss battle, unique per floor, marks floor complete
+ *   boss       - boss battle, guards the golden chest area
  *   exit       - appears after boss defeat; tapping it returns to world map
  *   potion     - pickup, +1 potion
  *   gold       - pickup, +gold
@@ -162,6 +164,10 @@ export const FLOORS = [
     objects: [
       { type: 'chest',     x: 3,  y: 3,  loot: { gold: 15 } },
       { type: 'chest',     x: 11, y: 11, loot: { gold: 15 } },
+      { type: 'fairy',     x: 1,  y: 5 },
+      { type: 'fairy',     x: 13, y: 9 },
+      { type: 'fairy',     x: 5,  y: 13 },
+      { type: 'golden',    x: 7,  y: 5 },
       { type: 'potion',    x: 11, y: 3 },
       { type: 'encounter', x: 5,  y: 5 },
       { type: 'encounter', x: 9,  y: 9 },
@@ -180,6 +186,10 @@ export const FLOORS = [
     objects: [
       { type: 'chest',     x: 2,  y: 1,  loot: { gold: 20 } },
       { type: 'chest',     x: 12, y: 13, loot: { gold: 20 } },
+      { type: 'fairy',     x: 1,  y: 1 },
+      { type: 'fairy',     x: 13, y: 13 },
+      { type: 'fairy',     x: 1,  y: 7 },
+      { type: 'golden',    x: 7,  y: 5 },
       { type: 'potion',    x: 12, y: 1 },
       { type: 'encounter', x: 5,  y: 3 },
       { type: 'encounter', x: 9,  y: 3 },
@@ -198,6 +208,10 @@ export const FLOORS = [
     objects: [
       { type: 'chest',     x: 2,  y: 1,  loot: { gold: 25 } },
       { type: 'chest',     x: 12, y: 13, loot: { gold: 25 } },
+      { type: 'fairy',     x: 13, y: 1 },
+      { type: 'fairy',     x: 1,  y: 11 },
+      { type: 'fairy',     x: 11, y: 7 },
+      { type: 'golden',    x: 7,  y: 9 },
       { type: 'potion',    x: 7,  y: 3 },
       { type: 'encounter', x: 3,  y: 5 },
       { type: 'encounter', x: 11, y: 5 },
@@ -216,6 +230,10 @@ export const FLOORS = [
     objects: [
       { type: 'chest',     x: 3,  y: 3,  loot: { gold: 30 } },
       { type: 'chest',     x: 11, y: 11, loot: { gold: 30 } },
+      { type: 'fairy',     x: 1,  y: 3 },
+      { type: 'fairy',     x: 13, y: 11 },
+      { type: 'fairy',     x: 3,  y: 13 },
+      { type: 'golden',    x: 9,  y: 3 },
       { type: 'potion',    x: 11, y: 3 },
       { type: 'encounter', x: 5,  y: 5 },
       { type: 'encounter', x: 9,  y: 5 },
@@ -236,6 +254,10 @@ export const FLOORS = [
       { type: 'chest',     x: 12, y: 1,  loot: { gold: 50 } },
       { type: 'chest',     x: 2,  y: 13, loot: { gold: 50 } },
       { type: 'chest',     x: 12, y: 13, loot: { gold: 50 } },
+      { type: 'fairy',     x: 1,  y: 7 },
+      { type: 'fairy',     x: 13, y: 7 },
+      { type: 'fairy',     x: 7,  y: 13 },
+      { type: 'golden',    x: 7,  y: 5 },
       { type: 'potion',    x: 7,  y: 3 },
       { type: 'potion',    x: 7,  y: 11 },
       { type: 'encounter', x: 3,  y: 5 },

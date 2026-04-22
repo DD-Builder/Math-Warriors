@@ -68,12 +68,14 @@ export class MazeScene extends Phaser.Scene {
       this.objects = mazeState.objects;
       this.fog = mazeState.fog;
       this.bossDefeated = mazeState.bossDefeated;
+      this.fairiesFreed = mazeState.fairiesFreed || 0;
     } else {
       // Fresh entry: reset state
       this.playerX = this.floor.startX;
       this.playerY = this.floor.startY;
       this.fog = this.buildInitialFog();
       this.bossDefeated = false;
+      this.fairiesFreed = 0;
 
       // Hand-placed objects (chests, potions, boss, exit) keep their
       // designated positions. Encounter (monster) tiles get randomized
@@ -400,6 +402,46 @@ export class MazeScene extends Phaser.Scene {
         g.fillStyle(0xffffff, 0.3);
         g.fillCircle(-pw*0.3, ph*0.25, 2);
         bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
+        break;
+      }
+      case 'fairy': {
+        // Glowing fairy chest — pink/sparkle theme
+        const fw = ts * 0.55, fh = ts * 0.42;
+        g.fillStyle(0xc060a0, 1);
+        g.fillRoundedRect(-fw/2, -fh/2, fw, fh, 5);
+        g.fillStyle(0xe088c0, 1);
+        g.fillRoundedRect(-fw/2+3, -fh/2+3, fw-6, fh*0.5, 3);
+        g.fillStyle(0xf0d040, 1);
+        g.fillCircle(0, fh*0.05, 4);
+        g.lineStyle(2, 0x801860, 0.7);
+        g.strokeRoundedRect(-fw/2, -fh/2, fw, fh, 5);
+        // Fairy wings sparkle
+        g.fillStyle(0xf0e0f8, 0.6);
+        g.fillCircle(-fw*0.35, -fh*0.5, 5);
+        g.fillCircle(fw*0.35, -fh*0.5, 5);
+        bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
+        this.tweens.add({ targets: g, alpha: 0.7, duration: 600, yoyo: true, repeat: -1 });
+        break;
+      }
+      case 'golden': {
+        // Golden treasure chest — hidden until all 3 fairies freed
+        const gw = ts * 0.65, gh = ts * 0.5;
+        g.fillStyle(0x000000, 0.3);
+        g.fillRoundedRect(-gw/2+3, -gh/2+4, gw, gh, 5);
+        g.fillStyle(0xb07818, 1);
+        g.fillRoundedRect(-gw/2, -gh/2, gw, gh, 5);
+        g.fillStyle(0xd8a030, 1);
+        g.fillRoundedRect(-gw/2+4, -gh/2+4, gw-8, gh*0.5, 3);
+        g.fillStyle(0xf0e040, 1);
+        g.fillCircle(0, gh*0.05, 5);
+        g.fillStyle(0xf8f080, 0.8);
+        g.fillCircle(-3, -gh*0.15, 3);
+        g.lineStyle(2, 0x806010, 0.8);
+        g.strokeRoundedRect(-gw/2, -gh/2, gw, gh, 5);
+        bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
+        // Hidden until all fairies are freed
+        const allFreed = this.fairiesFreed >= 3;
+        g.setVisible(allFreed);
         break;
       }
       case 'encounter':
@@ -741,6 +783,38 @@ export class MazeScene extends Phaser.Scene {
         this.updateHud();
         break;
       }
+      case 'fairy': {
+        this.fairiesFreed++;
+        obj.consumed = true;
+        this.objectSprites[index]?.destroy();
+        this.objectSprites[index] = null;
+        audio.play('world/chest');
+        const remaining = 3 - this.fairiesFreed;
+        if (remaining > 0) {
+          this.showFloatText(obj.x, obj.y, `FAIRY FREED! ${remaining} left`, '#e088c0');
+        } else {
+          this.showFloatText(obj.x, obj.y, 'ALL FAIRIES FREE!', '#f0d040');
+          this.revealGoldenChest();
+        }
+        this.updateHud();
+        break;
+      }
+      case 'golden': {
+        if (this.fairiesFreed < 3) {
+          this.showFloatText(obj.x, obj.y, 'FREE ALL 3 FAIRIES FIRST', '#e088c0');
+          return;
+        }
+        const gold = 50 + this.floorId * 25;
+        this.save.gold += gold;
+        writeSave(this.save);
+        obj.consumed = true;
+        this.objectSprites[index]?.destroy();
+        this.objectSprites[index] = null;
+        audio.play('world/chest');
+        this.showFloatText(obj.x, obj.y, `GOLDEN CHEST! +${gold} GOLD`, COLORS_CSS.goldL);
+        this.updateHud();
+        break;
+      }
       case 'encounter': {
         obj.consumed = true;
         this.objectSprites[index]?.destroy();
@@ -767,6 +841,18 @@ export class MazeScene extends Phaser.Scene {
         this.registry.remove(`mazeState_${this.floorId}`);
         transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
         break;
+      }
+    }
+  }
+
+  revealGoldenChest() {
+    for (let i = 0; i < this.objects.length; i++) {
+      if (this.objects[i].type === 'golden' && !this.objects[i].consumed) {
+        const sprite = this.objectSprites[i];
+        if (sprite) {
+          // Make all children in the container visible
+          sprite.each(child => { if (child.setVisible) child.setVisible(true); });
+        }
       }
     }
   }
@@ -806,6 +892,7 @@ export class MazeScene extends Phaser.Scene {
       objects: this.objects,
       fog: this.fog,
       bossDefeated: this.bossDefeated,
+      fairiesFreed: this.fairiesFreed,
     });
   }
 
