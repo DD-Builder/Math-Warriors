@@ -233,21 +233,28 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildHeroSprites() {
-    const ansH = 80, stripH = ansH + 32;
-    const visibleTop = 80;
-    const visibleBottom = GAME_HEIGHT - stripH - 130;
-    // Ground line — heroes stand WITH feet on the ground, not floating
-    const groundY = visibleBottom - 20;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    // Layout: heroes in middle-left, standing on the ground strip.
+    // The bottom ~220px is the equation+answer UI. Characters go above.
+    const uiTop = area.bottom - 220;
+    const groundY = uiTop - 30;
 
-    const spacing = Math.min(180, (GAME_WIDTH * 0.45) / 3);
-    const leftAnchor = GAME_WIDTH * 0.10 + spacing / 2;
+    // Draw a ground path strip so heroes aren't on black void
+    const groundGfx = this.add.graphics();
+    groundGfx.fillStyle(0x3a6818, 0.6);
+    groundGfx.fillRect(0, groundY, GAME_WIDTH, uiTop - groundY + 40);
+    groundGfx.fillStyle(0x4a8828, 0.4);
+    groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
+
+    const heroScale = 2;
+    const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
+    const leftAnchor = GAME_WIDTH * 0.08 + spacing / 2;
 
     this.heroSprites = this.party.map((hero, i) => {
       const x = leftAnchor + i * spacing;
-      // Position heroes so their feet (~y+55) touch groundY
-      const y = groundY - 55;
+      const y = groundY - 100;
 
-      const body = drawHeroSprite(this, x, y, hero, { scale: 1 });
+      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale });
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -275,14 +282,12 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildEnemySprite() {
-    const ansH = 80, stripH = ansH + 32;
-    const visibleTop = 80;
-    const visibleBottom = GAME_HEIGHT - stripH - 130;
-    const groundY = visibleBottom - 20;
-    const x = GAME_WIDTH * 0.78;
-    // Monsters are drawn larger (1.6x) so they fill the right side
-    const monsterScale = this.enemy.isBoss ? 1.8 : 1.5;
-    const y = groundY - 70 * monsterScale;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const uiTop = area.bottom - 220;
+    const groundY = uiTop - 30;
+    const x = GAME_WIDTH * 0.76;
+    const monsterScale = this.enemy.isBoss ? 3.5 : 3;
+    const y = groundY - 80 * (monsterScale / 1.5);
     const w = 200, h = 220;
 
     const body = drawMonsterSprite(this, x, y, this.enemy, { scale: monsterScale });
@@ -329,13 +334,15 @@ export class BattleScene extends Phaser.Scene {
     // lives in a tight bottom strip.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    // === BOTTOM: thin strip with answer buttons + potion ===
-    const ansH = 80;
-    const stripH = ansH + 32;
-    const stripCenterY = area.bottom - stripH / 2;
-    const ansY = area.bottom - ansH / 2 - 12;
+    // === BOTTOM UI: equation panel + answer buttons stacked ===
+    const ansH = 90;
+    const eqH = 100;
+    const totalUiH = ansH + eqH + 30;
+    const ansY = area.bottom - ansH / 2 - 8;
+    const eqY = ansY - ansH / 2 - eqH / 2 - 10;
 
-    PaperPanel(this, area.cx, stripCenterY, area.w, stripH, {
+    // Background panel spanning both equation and answers
+    PaperPanel(this, area.cx, area.bottom - totalUiH / 2, area.w, totalUiH + 10, {
       color: 0xfff4e0, alpha: 0.96, radius: 18,
     });
 
@@ -376,14 +383,14 @@ export class BattleScene extends Phaser.Scene {
     this.potionLabel = this.potionBtn.label;
     this.refreshPotionButton();
 
-    // === EQUATION in bottom strip, left of answer buttons ===
-    const noteW = 140;
-    const noteH = stripH - 8;
-    const noteCx = area.left + noteW / 2 + 16;
-    const noteCy = stripCenterY;
+    // === EQUATION — centered above answer buttons, prominent ===
+    const noteW = 220;
+    const noteH = eqH - 6;
+    const noteCx = area.cx;
+    const noteCy = eqY;
 
     PaperPanel(this, noteCx, noteCy, noteW, noteH, {
-      color: 0xfff8e8, alpha: 0.96, radius: 14,
+      color: 0xfff8e8, alpha: 0.98, radius: 14,
     });
 
     this.eqLines = {
@@ -399,7 +406,7 @@ export class BattleScene extends Phaser.Scene {
 
     // Turn label — sits in its OWN little paper pill ABOVE the bottom
     // answer strip so it can't get clipped by the strip edge.
-    const turnY = stripCenterY - stripH / 2 - 28;
+    const turnY = eqY - eqH / 2 - 28;
     PaperPanel(this, area.cx, turnY, 440, 46, {
       color: 0x1a0e04, alpha: 0.85, radius: 14, shadowOff: 4, shadowAlpha: 0.3,
     });
@@ -412,13 +419,11 @@ export class BattleScene extends Phaser.Scene {
       letterSpacing: 1,
     }).setOrigin(0.5);
 
-    // === ANSWER BUTTONS — bottom row, right of the equation panel ===
-    const eqRight = noteCx + noteW / 2 + 12;
-    const ansAreaW = area.right - eqRight - 8;
-    const btnW = Math.min(200, (ansAreaW - 3 * 14) / 4);
-    const btnGap = 14;
+    // === ANSWER BUTTONS — bottom row, centered full width ===
+    const btnW = Math.min(240, (area.w - 3 * 16 - 40) / 4);
+    const btnGap = 16;
     const totalW = 4 * btnW + 3 * btnGap;
-    const startX = eqRight + totalW / 2 - totalW / 2 + btnW / 2;
+    const startX = area.cx - totalW / 2 + btnW / 2;
     const btnColors = [0x3888d8, 0xe84840, 0x4aa848, 0x9050c8];
 
     this.answerButtons = [];
