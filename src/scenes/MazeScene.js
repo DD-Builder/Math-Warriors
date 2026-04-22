@@ -153,6 +153,7 @@ export class MazeScene extends Phaser.Scene {
     this.originY = 60;
 
     this.buildTiles();
+    this.buildEnvironment();
     this.buildObjects();
     this.buildPlayer();
     this.buildFogOverlay();
@@ -237,6 +238,97 @@ export class MazeScene extends Phaser.Scene {
       const fc = flowerColors[Math.floor(rng() * flowerColors.length)];
       this.add.circle(sx + ox, sy + oy, 3, fc, 0.7);
       this.add.circle(sx + ox, sy + oy, 1.5, 0xf0f080, 0.8);
+    }
+  }
+
+  buildEnvironment() {
+    const ts = this.tileSize;
+    const rng = makeRng(this.floorId * 7777);
+    const fid = this.floorId;
+
+    for (let y = 0; y < this.floor.height; y++) {
+      for (let x = 0; x < this.floor.width; x++) {
+        const t = this.floor.tiles[y][x];
+        if (t !== TILE.WALL) continue;
+        const sx = this.originX + x * ts + ts / 2;
+        const sy = this.originY + y * ts + ts / 2;
+        const r = rng();
+        if (r > 0.6) continue;
+
+        const g = this.add.graphics();
+        if (fid === 1) this.drawGardenWall(g, sx, sy, ts, rng);
+        else if (fid === 2) this.drawTidepoolWall(g, sx, sy, ts, rng);
+        else if (fid === 3) this.drawCloudWall(g, sx, sy, ts, rng);
+        else if (fid === 4) this.drawEmberWall(g, sx, sy, ts, rng);
+        else if (fid === 5) this.drawArcaneWall(g, sx, sy, ts, rng);
+      }
+    }
+  }
+
+  drawGardenWall(g, sx, sy, ts, rng) {
+    const h = ts * (0.4 + rng() * 0.4);
+    // Tree trunk
+    g.fillStyle(0x4a3010, 1);
+    g.fillRect(sx - 3, sy - h * 0.2, 6, h * 0.6);
+    // Canopy — layered circles
+    g.fillStyle(0x1a5010, 0.9);
+    g.fillCircle(sx, sy - h * 0.4, ts * 0.3 + rng() * 4);
+    g.fillStyle(0x2a7018, 0.8);
+    g.fillCircle(sx + 2, sy - h * 0.45, ts * 0.22 + rng() * 3);
+    // Bush at base
+    if (rng() > 0.5) {
+      g.fillStyle(0x1e4810, 0.7);
+      g.fillCircle(sx + (rng() - 0.5) * ts * 0.4, sy + ts * 0.2, ts * 0.18);
+    }
+  }
+
+  drawTidepoolWall(g, sx, sy, ts, rng) {
+    // Rock + coral
+    g.fillStyle(0x0a1828, 0.9);
+    g.fillCircle(sx + (rng() - 0.5) * 6, sy + (rng() - 0.5) * 6, ts * 0.32 + rng() * 4);
+    g.fillStyle(0x102838, 0.7);
+    g.fillCircle(sx + 3, sy - 2, ts * 0.24);
+    // Coral branch
+    if (rng() > 0.4) {
+      const cc = [0x1a6880, 0x2890a0, 0x50b8c0][Math.floor(rng() * 3)];
+      g.fillStyle(cc, 0.7);
+      g.fillCircle(sx + (rng() - 0.5) * ts * 0.3, sy - ts * 0.2, ts * 0.12);
+      g.fillCircle(sx + (rng() - 0.5) * ts * 0.3, sy - ts * 0.3, ts * 0.08);
+    }
+  }
+
+  drawCloudWall(g, sx, sy, ts, rng) {
+    // Cloud puffs
+    const n = 2 + Math.floor(rng() * 2);
+    for (let i = 0; i < n; i++) {
+      g.fillStyle(0xd0dce8, 0.5 + rng() * 0.3);
+      g.fillCircle(sx + (rng() - 0.5) * ts * 0.5, sy + (rng() - 0.5) * ts * 0.4, ts * 0.18 + rng() * 6);
+    }
+  }
+
+  drawEmberWall(g, sx, sy, ts, rng) {
+    // Lava rock
+    g.fillStyle(0x1a0808, 0.9);
+    g.fillCircle(sx + (rng() - 0.5) * 6, sy + (rng() - 0.5) * 6, ts * 0.3 + rng() * 4);
+    g.fillStyle(0x2a1008, 0.7);
+    g.fillCircle(sx + 2, sy, ts * 0.22);
+    // Ember glow crack
+    if (rng() > 0.5) {
+      g.fillStyle(0xe04808, 0.4);
+      g.fillCircle(sx + (rng() - 0.5) * ts * 0.2, sy + (rng() - 0.5) * ts * 0.2, ts * 0.08);
+    }
+  }
+
+  drawArcaneWall(g, sx, sy, ts, rng) {
+    // Rune pillar
+    g.fillStyle(0x180a30, 0.9);
+    g.fillRect(sx - ts * 0.2, sy - ts * 0.3, ts * 0.4, ts * 0.6);
+    g.fillStyle(0x281848, 0.7);
+    g.fillRect(sx - ts * 0.14, sy - ts * 0.25, ts * 0.28, ts * 0.5);
+    // Glow rune
+    if (rng() > 0.4) {
+      g.fillStyle(0x8040d0, 0.4);
+      g.fillCircle(sx, sy, ts * 0.1);
     }
   }
 
