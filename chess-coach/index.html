@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Chess Chronicle — a private coach</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,500;1,9..144,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <p class="eyebrow">No. I · An antiquarian review</p>
+      <h1 class="wordmark">Chess&nbsp;Chronicle</h1>
+      <p class="subtitle"><em>A private accounting of one&rsquo;s games.</em></p>
+      <div class="double-rule" aria-hidden="true"></div>
+    </header>
+
+    <section id="setup" class="setup">
+      <label class="field">
+        <span class="field-label">chess.com username</span>
+        <input id="username" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="DinosaurDog">
+      </label>
+      <div class="actions">
+        <button id="fetchBtn" class="btn btn-primary" type="button">Fetch archives</button>
+        <button id="clearBtn" class="btn btn-ghost" type="button">Clear cache</button>
+      </div>
+    </section>
+
+    <div id="errorHost" class="error-host" hidden></div>
+
+    <section id="progress" class="progress" hidden>
+      <p id="progressLabel" class="progress-label">Working&hellip;</p>
+      <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+    </section>
+
+    <section id="results" class="results" hidden>
+      <p id="pullQuote" class="pull"></p>
+
+      <section id="overview" class="section overview"></section>
+
+      <section class="section">
+        <p class="eyebrow">Figure I</p>
+        <h2 class="section-title">Rating over time</h2>
+        <div id="ratingTabs" class="tabs"></div>
+        <div id="ratingChart" class="chart"></div>
+      </section>
+
+      <section class="section">
+        <p class="eyebrow">Figure II</p>
+        <h2 class="section-title">Activity</h2>
+        <div id="activityChart" class="chart"></div>
+      </section>
+
+      <div class="two-col">
+        <section id="colorPanel" class="section"></section>
+        <section id="timeClassPanel" class="section"></section>
+      </div>
+
+      <section id="openingsSection" class="section"></section>
+
+      <section id="terminationsSection" class="section"></section>
+
+      <div class="export-bar">
+        <button id="exportPgn" class="btn btn-ghost" type="button">Export combined PGN</button>
+        <button id="exportJson" class="btn btn-ghost" type="button">Export JSON analysis</button>
+      </div>
+    </section>
+
+    <footer class="colophon">
+      <p>Typeset in <em>Fraunces</em> &amp; <span class="mono">JetBrains&nbsp;Mono</span>. Data from chess.com&rsquo;s public API.</p>
+    </footer>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
