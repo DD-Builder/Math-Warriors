@@ -530,27 +530,23 @@ export class MazeScene extends Phaser.Scene {
       ...TEXT.body(), fontSize: '16px', color: '#3a2410',
     }).setOrigin(0, 0.5);
 
-    // Party strip — center of HUD
+    // Party strip — center of HUD with mini hero sprites
     const partyCx = area.cx;
     const partyY = hudCenterY;
     for (let i = 0; i < this.party.length; i++) {
       const hero = this.party[i];
       const x = partyCx - 120 + i * 110;
-      const box = this.add.graphics();
-      box.fillStyle(hero.displayColor, 1);
-      box.fillRoundedRect(x - 30, partyY - 25, 60, 32, 6);
-      box.lineStyle(1, 0x1a0e04, 0.3);
-      box.strokeRoundedRect(x - 30, partyY - 25, 60, 32, 6);
-      this.add.text(x, partyY + 20, hero.name, {
+      const spriteScale = 0.35;
+      drawHeroSprite(this, x, partyY - 10, hero, { scale: spriteScale });
+      this.add.text(x, partyY + 22, hero.name, {
         ...TEXT.stat(), fontSize: '10px', color: '#3a2410',
       }).setOrigin(0.5);
-      // HP bar
       const pct = hero.hp / hero.maxHp;
       const hpBg = this.add.graphics();
       hpBg.fillStyle(0x3a2410, 0.4);
-      hpBg.fillRoundedRect(x - 30, partyY + 10, 60, 4, 2);
+      hpBg.fillRoundedRect(x - 30, partyY + 12, 60, 4, 2);
       hpBg.fillStyle(0x4aa848, 1);
-      hpBg.fillRoundedRect(x - 30, partyY + 10, 60 * pct, 4, 2);
+      hpBg.fillRoundedRect(x - 30, partyY + 12, 60 * pct, 4, 2);
     }
 
     // World Map button — right side
