@@ -451,27 +451,35 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   buildPlayer() {
-    // Render all 3 party members clustered on the lead's tile,
-    // staggered slightly so they're all visible. The lead is largest
-    // and most forward; the back two are smaller and offset diagonally.
-    const sx = this.originX + this.playerX * this.tileSize + this.tileSize / 2;
-    const sy = this.originY + this.playerY * this.tileSize + this.tileSize / 2;
-    this.playerSprite = this.add.container(sx, sy);
+    // Each party member gets their own container. The leader is at the
+    // current tile; followers trail behind at previous positions.
+    const ts = this.tileSize;
+    const spriteScale = ts / 140 * 0.85;
+    const startSx = this.originX + this.playerX * ts + ts / 2;
+    const startSy = this.originY + this.playerY * ts + ts / 2;
 
-    const layout = [
-      { dx: 0,                   dy: 0,                   scale: 1.0 }, // lead, front-center
-      { dx: -this.tileSize * 0.22, dy: -this.tileSize * 0.18, scale: 0.78 }, // back-left
-      { dx:  this.tileSize * 0.22, dy: -this.tileSize * 0.18, scale: 0.78 }, // back-right
-    ];
+    // Position trail — followers walk where the leader just was.
+    // Initialize all at the starting position.
+    this.posTrail = [];
+    for (let i = 0; i < this.party.length; i++) {
+      this.posTrail.push({ x: this.playerX, y: this.playerY });
+    }
 
+    this.followerSprites = [];
+    // Draw followers first (behind), leader last (on top)
     for (let i = this.party.length - 1; i >= 0; i--) {
       const hero = this.party[i];
       if (!hero) continue;
-      const slot = layout[i];
-      const spriteScale = this.tileSize / 140 * slot.scale * 0.9;
-      const gfx = drawHeroSprite(this, slot.dx, slot.dy, hero, { scale: spriteScale });
-      this.playerSprite.add(gfx);
+      const sx = this.originX + this.posTrail[i].x * ts + ts / 2;
+      const sy = this.originY + this.posTrail[i].y * ts + ts / 2;
+      const container = this.add.container(sx, sy);
+      const sc = i === 0 ? spriteScale : spriteScale * 0.8;
+      const gfx = drawHeroSprite(this, 0, 0, hero, { scale: sc });
+      container.add(gfx);
+      this.followerSprites[i] = container;
     }
+    // The leader's container is what the camera follows
+    this.playerSprite = this.followerSprites[0];
   }
 
   // ================================================================
@@ -647,21 +655,41 @@ export class MazeScene extends Phaser.Scene {
     if (this.floor.tiles[ny][nx] === TILE.WALL) return;
 
     this.moving = true;
+
+    // Shift position trail — each follower inherits the position
+    // that was one step ahead of them.
+    for (let i = this.posTrail.length - 1; i > 0; i--) {
+      this.posTrail[i] = { ...this.posTrail[i - 1] };
+    }
+    this.posTrail[0] = { x: nx, y: ny };
     this.playerX = nx;
     this.playerY = ny;
-    const tx = this.originX + nx * this.tileSize + this.tileSize / 2;
-    const ty = this.originY + ny * this.tileSize + this.tileSize / 2;
 
-    // Kill any existing player tweens to avoid conflicts
-    this.tweens.killTweensOf(this.playerSprite);
+    const ts = this.tileSize;
 
-    // Safety: if the tween somehow doesn't complete, force-unlock after 300ms
+    // Tween each party member to their new trail position
+    for (let i = 0; i < this.followerSprites.length; i++) {
+      const sprite = this.followerSprites[i];
+      if (!sprite) continue;
+      const target = this.posTrail[i];
+      const destX = this.originX + target.x * ts + ts / 2;
+      const destY = this.originY + target.y * ts + ts / 2;
+      this.tweens.killTweensOf(sprite);
+      this.tweens.add({
+        targets: sprite,
+        x: destX,
+        y: destY,
+        duration: 130 + i * 30,
+        ease: 'Linear',
+      });
+    }
+
     this.time.delayedCall(300, () => { this.moving = false; });
 
     this.tweens.add({
       targets: this.playerSprite,
-      x: tx,
-      y: ty,
+      x: this.originX + nx * ts + ts / 2,
+      y: this.originY + ny * ts + ts / 2,
       duration: 130,
       ease: 'Linear',
       onComplete: () => {
