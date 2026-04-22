@@ -149,19 +149,19 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildHeroSprites() {
-    // Heroes occupy the lower-left portion of the visible area, BELOW
-    // the top momentum bar but ABOVE the bottom answer buttons.
     const ansH = 80, stripH = ansH + 32;
     const visibleTop = 80;
-    const visibleBottom = GAME_HEIGHT - stripH - 130; // BOTTOM_SAFE = 120 + buffer
-    const groundY = (visibleTop + visibleBottom) / 2 + 60;
+    const visibleBottom = GAME_HEIGHT - stripH - 130;
+    // Ground line — heroes stand WITH feet on the ground, not floating
+    const groundY = visibleBottom - 20;
 
     const spacing = Math.min(180, (GAME_WIDTH * 0.45) / 3);
     const leftAnchor = GAME_WIDTH * 0.10 + spacing / 2;
 
     this.heroSprites = this.party.map((hero, i) => {
       const x = leftAnchor + i * spacing;
-      const y = groundY - 70;
+      // Position heroes so their feet (~y+55) touch groundY
+      const y = groundY - 55;
 
       const body = drawHeroSprite(this, x, y, hero, { scale: 1 });
 
@@ -191,16 +191,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildEnemySprite() {
-    // Match the new hero positioning math
     const ansH = 80, stripH = ansH + 32;
     const visibleTop = 80;
     const visibleBottom = GAME_HEIGHT - stripH - 130;
-    const groundY = (visibleTop + visibleBottom) / 2 + 60;
-    const x = GAME_WIDTH * 0.80;
-    const y = groundY - 90;
+    const groundY = visibleBottom - 20;
+    const x = GAME_WIDTH * 0.78;
+    // Monsters are drawn larger (1.6x) so they fill the right side
+    const monsterScale = this.enemy.isBoss ? 1.8 : 1.5;
+    const y = groundY - 70 * monsterScale;
     const w = 200, h = 220;
 
-    const body = drawMonsterSprite(this, x, y, this.enemy, { scale: 1 });
+    const body = drawMonsterSprite(this, x, y, this.enemy, { scale: monsterScale });
 
     // Stack name + HP bar + HP text ABOVE the enemy sprite so they
     // never get clipped by the papercut ground line or the answer
@@ -291,23 +292,21 @@ export class BattleScene extends Phaser.Scene {
     this.potionLabel = this.potionBtn.label;
     this.refreshPotionButton();
 
-    // === FLOATING EQUATION as a small paper note in the middle area ===
-    // Positioned above the heroes/enemy in the area between top bar and
-    // answer buttons. Stays out of the way so characters remain visible.
-    const noteW = 180;
-    const noteH = 180;
-    const noteCx = area.cx;
-    const noteCy = topY + 60 + noteH / 2;
+    // === EQUATION in bottom strip, left of answer buttons ===
+    const noteW = 140;
+    const noteH = stripH - 8;
+    const noteCx = area.left + noteW / 2 + 16;
+    const noteCy = stripCenterY;
 
     PaperPanel(this, noteCx, noteCy, noteW, noteH, {
       color: 0xfff8e8, alpha: 0.96, radius: 14,
     });
 
     this.eqLines = {
-      a:    this.add.text(noteCx + 30, noteCy - 50, '', this.eqLineStyle()),
-      opB:  this.add.text(noteCx + 30, noteCy - 8,  '', this.eqLineStyle()),
-      bar:  this.add.text(noteCx,      noteCy + 22, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '24px', color: '#6a4c28' })),
-      ans:  this.add.text(noteCx + 30, noteCy + 56, '?', this.eqLineStyle({ color: '#b86820' })),
+      a:    this.add.text(noteCx + 20, noteCy - 26, '', this.eqLineStyle({ fontSize: '32px' })),
+      opB:  this.add.text(noteCx + 20, noteCy,      '', this.eqLineStyle({ fontSize: '32px' })),
+      bar:  this.add.text(noteCx,      noteCy + 16, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '16px', color: '#6a4c28' })),
+      ans:  this.add.text(noteCx + 20, noteCy + 34, '?', this.eqLineStyle({ fontSize: '32px', color: '#b86820' })),
     };
     this.eqLines.a.setOrigin(1, 0.5);
     this.eqLines.opB.setOrigin(1, 0.5);
@@ -329,11 +328,13 @@ export class BattleScene extends Phaser.Scene {
       letterSpacing: 1,
     }).setOrigin(0.5);
 
-    // === ANSWER BUTTONS — bottom row ===
-    const btnW = Math.min(220, (area.w - 3 * 18) / 4);
-    const btnGap = 18;
+    // === ANSWER BUTTONS — bottom row, right of the equation panel ===
+    const eqRight = noteCx + noteW / 2 + 12;
+    const ansAreaW = area.right - eqRight - 8;
+    const btnW = Math.min(200, (ansAreaW - 3 * 14) / 4);
+    const btnGap = 14;
     const totalW = 4 * btnW + 3 * btnGap;
-    const startX = area.cx - totalW / 2 + btnW / 2;
+    const startX = eqRight + totalW / 2 - totalW / 2 + btnW / 2;
     const btnColors = [0x3888d8, 0xe84840, 0x4aa848, 0x9050c8];
 
     this.answerButtons = [];
