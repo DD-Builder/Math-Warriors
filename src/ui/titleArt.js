@@ -188,20 +188,21 @@ function drawLetterShapes(scene, gx, gy, w, h, letter, mainColor, shadowColor, h
     main.fillPoints(toScreen(pts), true);
   }
 
-  // 3) Holes — paint background color over counters.
+  // 3) Highlight for paper-grain feel — drawn BEFORE holes so it
+  //    doesn't bleed white into the A/R/O counters.
+  const hi = scene.add.graphics();
+  hi.fillStyle(0xffffff, 0.18);
+  for (const pts of positive) {
+    hi.fillPoints(toScreen(pts, -1, -1), true);
+  }
+
+  // 4) Holes — paint on top of everything to cut out counters.
   if (holes.length) {
     const hole = scene.add.graphics();
     hole.fillStyle(holeColor, 1);
     for (const pts of holes) {
       hole.fillPoints(toScreen(pts), true);
     }
-  }
-
-  // 4) Subtle highlight for paper-grain feel, on every positive shape.
-  const hi = scene.add.graphics();
-  hi.fillStyle(0xffffff, 0.18);
-  for (const pts of positive) {
-    hi.fillPoints(toScreen(pts, -1, -1), true);
   }
 }
 

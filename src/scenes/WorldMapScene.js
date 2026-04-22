@@ -6,6 +6,7 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawHeroSprite } from '../ui/heroSprites.js';
 
 /**
  * WorldMapScene
@@ -95,35 +96,30 @@ export class WorldMapScene extends Phaser.Scene {
       ...TEXT.heading(), fontSize: '22px', color: '#4aa848',
     }).setOrigin(0, 0.5);
 
-    // Party strip — top-right
+    // Party strip — top-right with mini hero sprites
     if (this.save.party && this.save.party.length > 0) {
-      const stripW = 280;
+      const stripW = 320;
       const stripCx = area.right - stripW / 2;
       const stripY = area.top + 50;
-      PaperPanel(this, stripCx, stripY, stripW, 70, {
+      PaperPanel(this, stripCx, stripY, stripW, 80, {
         color: 0xfff8e8, alpha: 0.95, radius: 18,
       });
-      this.add.text(stripCx - stripW / 2 + 14, stripY - 20, 'PARTY', {
+      this.add.text(stripCx - stripW / 2 + 14, stripY - 28, 'PARTY', {
         ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
       });
       for (let i = 0; i < 3; i++) {
-        const x = stripCx - stripW / 2 + 70 + i * 64;
+        const x = stripCx - stripW / 2 + 70 + i * 90;
         const slot = this.save.party[i];
         if (slot) {
           const def = getHeroById(slot.id);
           if (def) {
-            const box = this.add.graphics();
-            box.fillStyle(def.displayColor, 1);
-            box.fillRoundedRect(x - 22, stripY - 16, 44, 32, 6);
-            box.lineStyle(1, 0x1a0e04, 0.3);
-            box.strokeRoundedRect(x - 22, stripY - 16, 44, 32, 6);
-            // HP bar below
+            drawHeroSprite(this, x, stripY - 6, def, { scale: 0.4 });
             const pct = (slot.hp ?? slot.maxHp) / slot.maxHp;
             const hpBg = this.add.graphics();
-            hpBg.fillStyle(0x3a2410, 0.6);
-            hpBg.fillRoundedRect(x - 22, stripY + 20, 44, 4, 2);
+            hpBg.fillStyle(0x3a2410, 0.5);
+            hpBg.fillRoundedRect(x - 24, stripY + 22, 48, 5, 2);
             hpBg.fillStyle(0x4aa848, 1);
-            hpBg.fillRoundedRect(x - 22, stripY + 20, 44 * pct, 4, 2);
+            hpBg.fillRoundedRect(x - 24, stripY + 22, 48 * pct, 5, 2);
           }
         }
       }
