@@ -8,6 +8,8 @@ import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawHeroSprite } from '../ui/heroSprites.js';
+import { makeRng } from '../systems/rng.js';
 
 /**
  * MazeScene
@@ -173,18 +175,68 @@ export class MazeScene extends Phaser.Scene {
 
   buildTiles() {
     this.tileSprites = [];
+    const ts = this.tileSize;
+    const pal = this.floor.palette;
+    const rng = makeRng(this.floorId * 9999);
+
     for (let y = 0; y < this.floor.height; y++) {
       const row = [];
       for (let x = 0; x < this.floor.width; x++) {
         const t = this.floor.tiles[y][x];
         const color = this.colorForTile(t);
-        const sx = this.originX + x * this.tileSize + this.tileSize / 2;
-        const sy = this.originY + y * this.tileSize + this.tileSize / 2;
-        const rect = this.add.rectangle(sx, sy, this.tileSize, this.tileSize, color)
-          .setStrokeStyle(1, 0x000000, 0.2);
+        const sx = this.originX + x * ts + ts / 2;
+        const sy = this.originY + y * ts + ts / 2;
+
+        // Base tile
+        const rect = this.add.rectangle(sx, sy, ts, ts, color);
+
+        // Add texture variation for non-wall tiles
+        if (t !== TILE.WALL) {
+          // Slight color variation per tile for organic feel
+          const shade = Phaser.Display.Color.IntegerToColor(color);
+          const vary = (rng() - 0.5) * 16;
+          const varColor = Phaser.Display.Color.GetColor(
+            Math.max(0, Math.min(255, shade.red + vary)),
+            Math.max(0, Math.min(255, shade.green + vary)),
+            Math.max(0, Math.min(255, shade.blue + vary))
+          );
+          rect.setFillStyle(varColor);
+
+          // Grass tufts / pebbles on floor tiles
+          if (t === TILE.FLOOR && rng() > 0.55) {
+            this.addTileDecor(sx, sy, ts, rng, pal);
+          }
+        } else {
+          rect.setStrokeStyle(1, 0x000000, 0.3);
+        }
+
         row.push(rect);
       }
       this.tileSprites.push(row);
+    }
+  }
+
+  addTileDecor(sx, sy, ts, rng, pal) {
+    const type = rng();
+    const ox = (rng() - 0.5) * ts * 0.5;
+    const oy = (rng() - 0.5) * ts * 0.5;
+    const decorColor = pal.decor || pal.path || 0x4a8830;
+
+    if (type < 0.3) {
+      // Small grass tuft
+      const g = this.add.graphics();
+      g.fillStyle(decorColor, 0.6);
+      g.fillTriangle(sx+ox-3, sy+oy+4, sx+ox, sy+oy-6, sx+ox+3, sy+oy+4);
+      g.fillTriangle(sx+ox+2, sy+oy+4, sx+ox+5, sy+oy-4, sx+ox+8, sy+oy+4);
+    } else if (type < 0.55) {
+      // Small pebble
+      this.add.circle(sx + ox, sy + oy, 2 + rng() * 2, pal.wall, 0.3);
+    } else if (type < 0.75) {
+      // Flower dot
+      const flowerColors = [0xf06080, 0xf0c040, 0xa0d8f0, 0xf080c0];
+      const fc = flowerColors[Math.floor(rng() * flowerColors.length)];
+      this.add.circle(sx + ox, sy + oy, 3, fc, 0.7);
+      this.add.circle(sx + ox, sy + oy, 1.5, 0xf0f080, 0.8);
     }
   }
 
@@ -221,43 +273,76 @@ export class MazeScene extends Phaser.Scene {
     const group = this.add.container(sx, sy);
 
     let icon, bg;
+    const ts = this.tileSize;
+    const g = this.add.graphics();
+
     switch (obj.type) {
-      case 'chest':
-        bg = this.add.rectangle(0, 0, this.tileSize * 0.7, this.tileSize * 0.6, COLORS.gold)
-          .setStrokeStyle(2, COLORS.ink);
-        icon = this.add.text(0, 0, '\u{1F4B0}', { fontSize: `${this.tileSize * 0.5}px` }).setOrigin(0.5);
+      case 'chest': {
+        const cw = ts * 0.6, ch = ts * 0.45;
+        g.fillStyle(0x6a4010, 1);
+        g.fillRoundedRect(-cw/2, -ch/2, cw, ch, 4);
+        g.fillStyle(0x8a5818, 1);
+        g.fillRoundedRect(-cw/2+3, -ch/2+3, cw-6, ch*0.55, 3);
+        g.fillStyle(0xc07818, 1);
+        g.fillRoundedRect(-cw*0.15, -2, cw*0.3, ch*0.3, 2);
+        g.fillStyle(0xe8a030, 1);
+        g.fillCircle(0, ch*0.05, 3);
+        g.lineStyle(2, 0x3a2008, 0.6);
+        g.strokeRoundedRect(-cw/2, -ch/2, cw, ch, 4);
+        bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         break;
-      case 'potion':
-        bg = this.add.circle(0, 0, this.tileSize * 0.35, COLORS.plum)
-          .setStrokeStyle(2, COLORS.ink);
-        icon = this.add.text(0, 0, '\u{1F9EA}', { fontSize: `${this.tileSize * 0.5}px` }).setOrigin(0.5);
+      }
+      case 'potion': {
+        const pw = ts * 0.22, ph = ts * 0.35;
+        g.fillStyle(0x4a1878, 1);
+        g.fillRoundedRect(-pw, 0, pw*2, ph, 6);
+        g.fillStyle(0x9050c8, 0.8);
+        g.fillRoundedRect(-pw+3, 3, pw*2-6, ph-6, 4);
+        g.fillStyle(0x3a1060, 1);
+        g.fillRect(-pw*0.5, -ph*0.3, pw, ph*0.3);
+        g.fillStyle(0x6030a0, 1);
+        g.fillCircle(0, -ph*0.3, pw*0.6);
+        g.fillStyle(0xffffff, 0.3);
+        g.fillCircle(-pw*0.3, ph*0.25, 2);
+        bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         break;
+      }
       case 'encounter':
-        // Hidden — monsters are a surprise. We still create a sprite
-        // so the object is tracked for collision, but it's invisible.
         bg = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         break;
-      case 'boss':
-        bg = this.add.circle(0, 0, this.tileSize * 0.45, 0x8a1010)
-          .setStrokeStyle(4, COLORS.goldL);
-        icon = this.add.text(0, 0, '\u{1F480}', { fontSize: `${this.tileSize * 0.55}px` }).setOrigin(0.5);
-        this.tweens.add({
-          targets: bg,
-          scale: 1.1,
-          duration: 800,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.inOut',
-        });
+      case 'boss': {
+        const br = ts * 0.42;
+        g.fillStyle(0x000000, 0.3);
+        g.fillCircle(3, 4, br);
+        g.fillStyle(0x6a0808, 1);
+        g.fillCircle(0, 0, br);
+        g.fillStyle(0x9c1010, 1);
+        g.fillCircle(0, 0, br * 0.75);
+        g.fillStyle(0xf0e040, 0.9);
+        g.fillCircle(0, 0, br * 0.25);
+        g.lineStyle(3, 0xe8a030, 0.8);
+        g.strokeCircle(0, 0, br);
+        bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
+        this.tweens.add({ targets: g, scale: 1.1, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
         break;
-      case 'exit':
-        bg = this.add.circle(0, 0, this.tileSize * 0.45, COLORS.goldL)
-          .setStrokeStyle(4, COLORS.gold);
-        icon = this.add.text(0, 0, '\u{2728}', { fontSize: `${this.tileSize * 0.55}px` }).setOrigin(0.5);
+      }
+      case 'exit': {
+        const er = ts * 0.4;
+        g.fillStyle(0x000000, 0.2);
+        g.fillCircle(2, 3, er);
+        g.fillStyle(0xc07818, 1);
+        g.fillCircle(0, 0, er);
+        g.fillStyle(0xe8a030, 1);
+        g.fillCircle(0, 0, er * 0.7);
+        g.fillStyle(0xf0e040, 0.8);
+        g.fillCircle(0, 0, er * 0.35);
+        g.lineStyle(3, 0xc07818, 0.9);
+        g.strokeCircle(0, 0, er);
+        bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         bg.setVisible(this.bossDefeated);
-        icon.setVisible(this.bossDefeated);
         break;
+      }
       default:
         return null;
     }
@@ -288,16 +373,10 @@ export class MazeScene extends Phaser.Scene {
       const hero = this.party[i];
       if (!hero) continue;
       const slot = layout[i];
-      const bw = this.tileSize * 0.5 * slot.scale;
-      const bh = this.tileSize * 0.62 * slot.scale;
-      const body = this.add.rectangle(slot.dx, slot.dy, bw, bh, hero.displayColor)
-        .setStrokeStyle(2, COLORS.ink);
-      const head = this.add.circle(slot.dx, slot.dy - bh * 0.45, this.tileSize * 0.10 * slot.scale, 0xf0d8b0)
-        .setStrokeStyle(2, COLORS.ink);
-      this.playerSprite.add([body, head]);
+      const spriteScale = this.tileSize / 140 * slot.scale * 0.9;
+      const gfx = drawHeroSprite(this, slot.dx, slot.dy, hero, { scale: spriteScale });
+      this.playerSprite.add(gfx);
     }
-
-    // No idle bob — it conflicts with movement tweens on the same target.
   }
 
   // ================================================================

@@ -154,9 +154,10 @@ export const FLOORS = [
     // art arrives — drives the mood of each floor.
     palette: {
       wall:  0x1e4018,
-      floor: 0x3a2010,
+      floor: 0x3a7028,
       path:  0x8a6830,
       water: 0x1a4060,
+      decor: 0x2a5818,
     },
     objects: [
       { type: 'chest',     x: 3,  y: 3,  loot: { gold: 15 } },
@@ -175,7 +176,7 @@ export const FLOORS = [
     name: 'Tidepool Ruins',
     tileset: 'ocean',
     width: 15, height: 15, tiles: FLOOR_2_TILES, startX: 1, startY: 13,
-    palette: { wall: 0x0e2040, floor: 0x182848, path: 0x3060a0, water: 0x1a4880 },
+    palette: { wall: 0x0e2040, floor: 0x1a3858, path: 0x3060a0, water: 0x1a4880, decor: 0x184068 },
     objects: [
       { type: 'chest',     x: 2,  y: 1,  loot: { gold: 20 } },
       { type: 'chest',     x: 12, y: 13, loot: { gold: 20 } },
@@ -193,7 +194,7 @@ export const FLOORS = [
     name: 'Cloud Maze',
     tileset: 'sky',
     width: 15, height: 15, tiles: FLOOR_3_TILES, startX: 1, startY: 13,
-    palette: { wall: 0x1a2838, floor: 0x4a5868, path: 0x7898b8, water: 0xb0c8e0 },
+    palette: { wall: 0x1a2838, floor: 0x5a6878, path: 0x7898b8, water: 0xb0c8e0, decor: 0x4a5868 },
     objects: [
       { type: 'chest',     x: 2,  y: 1,  loot: { gold: 25 } },
       { type: 'chest',     x: 12, y: 13, loot: { gold: 25 } },
@@ -211,7 +212,7 @@ export const FLOORS = [
     name: 'Ember Caves',
     tileset: 'lava',
     width: 15, height: 15, tiles: FLOOR_4_TILES, startX: 1, startY: 13,
-    palette: { wall: 0x1a0808, floor: 0x3a1608, path: 0x8a2010, water: 0xa03008 },
+    palette: { wall: 0x1a0808, floor: 0x4a2810, path: 0x8a2010, water: 0xa03008, decor: 0x3a1808 },
     objects: [
       { type: 'chest',     x: 3,  y: 3,  loot: { gold: 30 } },
       { type: 'chest',     x: 11, y: 11, loot: { gold: 30 } },
@@ -229,7 +230,7 @@ export const FLOORS = [
     name: 'Mending Room',
     tileset: 'arcane',
     width: 15, height: 15, tiles: FLOOR_5_TILES, startX: 1, startY: 13,
-    palette: { wall: 0x140828, floor: 0x281048, path: 0x5830a0, water: 0x4018a0 },
+    palette: { wall: 0x140828, floor: 0x301850, path: 0x5830a0, water: 0x4018a0, decor: 0x281040 },
     objects: [
       { type: 'chest',     x: 2,  y: 1,  loot: { gold: 50 } },
       { type: 'chest',     x: 12, y: 1,  loot: { gold: 50 } },
