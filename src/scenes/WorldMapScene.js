@@ -125,6 +125,16 @@ export class WorldMapScene extends Phaser.Scene {
       }
     }
 
+    // Shop — bottom-center
+    PaperButton(this, area.cx, area.bottom - 40, 'SHOP', {
+      w: 180, h: 62, color: 0xd07818, fontSize: 22,
+      textColor: '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.SHOP, undefined, 200);
+      },
+    });
+
     // Settings — bottom-right
     PaperButton(this, area.right - 80, area.bottom - 40, '⚙', {
       w: 140, h: 54, color: 0x4a6ca8, fontSize: 26,

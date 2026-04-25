@@ -46,6 +46,7 @@ export const SCENES = {
   WORLD_MAP: 'WorldMapScene',
   MAZE: 'MazeScene',
   BATTLE: 'BattleScene',
+  SHOP: 'ShopScene',
   SETTINGS: 'SettingsScene',
 };
 
