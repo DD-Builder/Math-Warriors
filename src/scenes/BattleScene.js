@@ -279,6 +279,18 @@ export class BattleScene extends Phaser.Scene {
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y };
     });
+
+    // Idle bob — gentle sine wave on each hero
+    this.heroSprites.forEach((hs, i) => {
+      this.tweens.add({
+        targets: hs.body,
+        y: '-=6',
+        duration: 1200 + i * 200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    });
   }
 
   buildEnemySprite() {
@@ -322,6 +334,17 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.enemySprite = { body, name, hpBarBg, hpBarFill, hpText, x, y };
+
+    // Enemy idle pulse — subtle menacing sway
+    this.tweens.add({
+      targets: body,
+      scaleX: 1.03,
+      scaleY: 0.97,
+      duration: 1400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
   }
 
   // ================================================================
@@ -735,7 +758,11 @@ export class BattleScene extends Phaser.Scene {
       this.battleCorrect++;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
       this.updateMomentumBar();
-      this.showToast('CORRECT!', COLORS_CSS.greenL);
+      if (this.streak >= 3) {
+        this.showToast(`${this.streak}x STREAK!`, COLORS_CSS.goldL);
+      } else {
+        this.showToast('CORRECT!', COLORS_CSS.greenL);
+      }
 
       // Fire the enemy's ability hook — some abilities react to
       // correct answers (e.g., shell_split triggers on hp threshold)
@@ -924,13 +951,9 @@ export class BattleScene extends Phaser.Scene {
 
   flashEnemy(result) {
     const s = this.enemySprite;
-    this.tweens.add({
-      targets: s.body,
-      alpha: 0.3,
-      duration: 60,
-      yoyo: true,
-      repeat: 1,
-    });
+    // White flash + shake
+    this.tweens.add({ targets: s.body, alpha: 0.2, duration: 50, yoyo: true, repeat: 2 });
+    this.tweens.add({ targets: s.body, x: s.x + 8, duration: 40, yoyo: true, repeat: 3 });
     this.floatDamageNumber(s.x, s.y - 100, result.modifiedDamage, '#60ff60');
   }
 
@@ -1091,11 +1114,21 @@ export class BattleScene extends Phaser.Scene {
 
     writeSave(save);
 
-    this.endOverlay.titleText.setText('VICTORY!');
-    this.endOverlay.subText.setText(`${this.enemy.name} defeated!`);
-    this.endOverlay.rewardsText.setText(`+${goldEarned} GOLD`);
-    this.endOverlay.setVisible(true);
-    this.endOverlay.setAlpha(1);
+    // Enemy fade-out + gold coin burst
+    this.tweens.add({ targets: this.enemySprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 600, ease: 'Back.in' });
+    this.burstParticles(this.enemySprite.x, this.enemySprite.y, 0xe8a030);
+    this.burstParticles(this.enemySprite.x, this.enemySprite.y, 0xf0d040);
+
+    const accuracy = this.battleCorrect + this.battleWrong > 0
+      ? Math.round((this.battleCorrect / (this.battleCorrect + this.battleWrong)) * 100) : 100;
+
+    this.time.delayedCall(500, () => {
+      this.endOverlay.titleText.setText('VICTORY!');
+      this.endOverlay.subText.setText(`${this.enemy.name} defeated!`);
+      this.endOverlay.rewardsText.setText(`+${goldEarned} GOLD  •  ${accuracy}% accuracy  •  ${this.streak} best streak`);
+      this.endOverlay.setVisible(true);
+      this.endOverlay.setAlpha(1);
+    });
   }
 
   showDefeat() {
@@ -1122,9 +1155,19 @@ export class BattleScene extends Phaser.Scene {
     }
     writeSave(save);
 
+    // Encouraging messages — rotate through them
+    const msgs = [
+      "You'll get them next time!",
+      "Practice makes perfect!",
+      "Every try makes you stronger!",
+      "Don't give up — heroes never quit!",
+      "Take a breath and try again!",
+    ];
+    const msg = msgs[Math.floor(Math.random() * msgs.length)];
+
     this.endOverlay.titleText.setText('RETREAT!');
-    this.endOverlay.subText.setText('Your party retreats to camp.\nHeal up and try again!');
-    this.endOverlay.rewardsText.setText('');
+    this.endOverlay.subText.setText(`Your party retreats to camp.\n${msg}`);
+    this.endOverlay.rewardsText.setText(`You got ${this.battleCorrect} correct this battle!`);
     this.endOverlay.setVisible(true);
     this.endOverlay.setAlpha(1);
   }
