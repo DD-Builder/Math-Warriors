@@ -726,7 +726,26 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(350, () => {
       const target = pickRandomLivingHero(this.party);
       if (!target) return this.showDefeat();
+
+      const cls = target.class || 'knight';
+
+      // Bunny dodge — 30% chance to avoid all damage
+      if (cls === 'bunny' && Math.random() < 0.3) {
+        this.showToast(`${target.name} DODGES!`, '#e86898');
+        audio.play('battle/hit-hero');
+        this.time.delayedCall(450, () => this.nextTurn());
+        return;
+      }
+
       const result = computeEnemyDamage(this.enemy, target, { momentum: this.momentum });
+
+      // Knight shield block — 40% chance to halve incoming damage
+      if (cls === 'knight' && Math.random() < 0.4) {
+        result.modifiedDamage = Math.max(1, Math.round(result.modifiedDamage / 2));
+        result.newHp = Math.max(0, target.hp - result.modifiedDamage);
+        this.showToast(`${target.name} BLOCKS! Half damage!`, '#5a7ab8');
+      }
+
       applyDamageResult(target, result);
       this.hitFlash();
       this.flashHero(target, result);
@@ -773,18 +792,43 @@ export class BattleScene extends Phaser.Scene {
         activeHero: this.party[this.currentTurn.heroIndex],
       });
 
-      // DAMAGE = the math answer. Per design: getting "6+6=12" right
-      // deals 12 damage. This makes the math directly meaningful.
-      // Momentum still applies as a multiplier on top.
+      // DAMAGE = answer × momentum × class bonus.
       const baseDamage = this.currentQuestion.answer;
       const zone = getZone(this.momentum);
-      const modified = Math.max(1, Math.round(baseDamage * zone.heroMult));
+      const hero = this.party[this.currentTurn.heroIndex];
+      const cls = hero.class || 'knight';
+
+      // Class-specific damage modifiers
+      let classMult = 1;
+      let hitCount = 1;
+      if (cls === 'knight') {
+        classMult = 1.3; // heavy single hit
+      } else if (cls === 'wizard') {
+        if (this.streak >= 5) {
+          // Streak 5+: heal weakest ally 10 HP
+          const weakest = this.party.filter(h => h.hp > 0).sort((a, b) => a.hp - b.hp)[0];
+          if (weakest) {
+            weakest.hp = Math.min(weakest.maxHp, weakest.hp + 10);
+            this.showToast(`${weakest.name} healed 10 HP!`, '#60ff60');
+            this.updateAllHeroHp();
+          }
+        }
+        classMult = this.streak >= 3 ? 1.5 : 1.0; // streak bonus
+      } else if (cls === 'bunny') {
+        hitCount = 2 + (this.streak >= 4 ? 1 : 0); // 2-3 hit combo
+        classMult = 1.0 / hitCount * 1.2; // split damage but 20% total bonus
+      }
+
+      const totalDmg = Math.max(1, Math.round(baseDamage * zone.heroMult * classMult));
+      const modified = hitCount > 1 ? Math.max(1, Math.round(totalDmg / hitCount)) * hitCount : totalDmg;
       const newHp = Math.max(0, this.enemy.hp - modified);
       const result = {
         baseDamage,
         modifiedDamage: modified,
         newHp,
         killed: newHp === 0 && this.enemy.hp > 0,
+        hitCount,
+        cls,
       };
       applyDamageResult(this.enemy, result);
 
@@ -1024,6 +1068,10 @@ export class BattleScene extends Phaser.Scene {
       s.body.setAlpha(0.2);
       s.name.setAlpha(0.3);
     }
+  }
+
+  updateAllHeroHp() {
+    this.party.forEach(h => { if (h && h.hp > 0) this.updateHeroHp(h); });
   }
 
   updateEnemyHp() {
