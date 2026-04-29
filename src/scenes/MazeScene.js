@@ -12,6 +12,7 @@ import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
 import { DIALOGUE } from '../data/dialogue.js';
+import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 
 /**
  * MazeScene
@@ -784,6 +785,10 @@ export class MazeScene extends Phaser.Scene {
         audio.play('world/chest');
         this.showFloatText(obj.x, obj.y, `+${gold} GOLD`, COLORS_CSS.goldL);
         this.updateHud();
+        if (shouldShowTutorial('FIRST_CHEST')) {
+          markTutorialShown('FIRST_CHEST');
+          this.dialogue.show([{ speaker: 'Hint', text: getTutorialText('FIRST_CHEST') }]);
+        }
         break;
       }
       case 'potion': {
@@ -806,7 +811,12 @@ export class MazeScene extends Phaser.Scene {
         const remaining = 3 - this.fairiesFreed;
         if (remaining > 0) {
           this.showFloatText(obj.x, obj.y, `FAIRY FREED! ${remaining} left`, '#e088c0');
-          if (DIALOGUE.fairy_freed) this.dialogue.show(DIALOGUE.fairy_freed);
+          if (shouldShowTutorial('FIRST_FAIRY')) {
+            markTutorialShown('FIRST_FAIRY');
+            this.dialogue.show([{ speaker: 'Hint', text: getTutorialText('FIRST_FAIRY') }]);
+          } else if (DIALOGUE.fairy_freed) {
+            this.dialogue.show(DIALOGUE.fairy_freed);
+          }
         } else {
           this.showFloatText(obj.x, obj.y, 'ALL FAIRIES FREE!', '#f0d040');
           this.revealGoldenChest();

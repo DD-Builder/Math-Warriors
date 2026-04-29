@@ -23,6 +23,7 @@ import { drawHeroSprite } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { makeRng } from '../systems/rng.js';
 import { computeLevel, levelBonuses } from '../data/heroes.js';
+import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -558,6 +559,11 @@ export class BattleScene extends Phaser.Scene {
     this.locked = false;
     this.refreshPotionButton();
 
+    if (shouldShowTutorial('FIRST_BATTLE')) {
+      markTutorialShown('FIRST_BATTLE');
+      this.showToast(getTutorialText('FIRST_BATTLE'), COLORS_CSS.goldL);
+    }
+
     this.currentQuestion = generateQuestion({
       operator: this.operator,
       grade: this.grade,
@@ -871,7 +877,12 @@ export class BattleScene extends Phaser.Scene {
       this.battleWrong++;
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar();
-      this.showToast('Try again!', COLORS_CSS.scarletL);
+      if (shouldShowTutorial('FIRST_WRONG')) {
+        markTutorialShown('FIRST_WRONG');
+        this.showToast(getTutorialText('FIRST_WRONG'), COLORS_CSS.goldL);
+      } else {
+        this.showToast('Try again!', COLORS_CSS.scarletL);
+      }
 
       // Fire enemy ability hook for wrong answers — most interesting
       // side effects trigger here (sporulate boost, crown tally, consume)
