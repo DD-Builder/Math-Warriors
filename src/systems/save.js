@@ -14,7 +14,7 @@
  */
 
 const STORAGE_KEY = 'mathwarriors.save';
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 // ------------------------------------------------------------------
 // DEFAULT SAVE SHAPE
@@ -29,6 +29,7 @@ export function makeDefaultSave() {
     party: [],          // populated at party-select time
     gold: 0,
     potions: 2,
+    inventory: [],
     floors: [
       { id: 1, unlocked: true,  complete: false, bestStreak: 0 },
       { id: 2, unlocked: false, complete: false, bestStreak: 0 },
@@ -63,8 +64,18 @@ export function makeDefaultSave() {
 // add a new one at the end.
 
 const MIGRATIONS = [
-  // Example for when we add version 2:
-  // { from: 1, to: 2, migrate: (save) => ({ ...save, newField: 'default' }) },
+  {
+    from: 1, to: 2,
+    migrate: (save) => {
+      // Add xp, level to each party member; add inventory array
+      const party = (save.party || []).map(h => ({
+        ...h,
+        xp: h.xp ?? 0,
+        level: h.level ?? 1,
+      }));
+      return { ...save, party, inventory: save.inventory || [] };
+    },
+  },
 ];
 
 /**

@@ -22,6 +22,7 @@ import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { makeRng } from '../systems/rng.js';
+import { computeLevel, levelBonuses } from '../data/heroes.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -1137,13 +1138,30 @@ export class BattleScene extends Phaser.Scene {
     save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
     save.stats.totalWrong = (save.stats.totalWrong ?? 0) + this.battleWrong;
 
-    // Update party HP in save (persist health)
+    // Award XP and check for level ups
+    const xpEarned = 10 + this.floor * 5 + this.battleCorrect * 2;
+    let leveledUp = [];
     for (let i = 0; i < this.party.length && i < 3; i++) {
       if (!save.party[i]) save.party[i] = {};
       save.party[i].id = this.party[i].id;
       save.party[i].name = this.party[i].name;
       save.party[i].hp = this.party[i].hp;
       save.party[i].maxHp = this.party[i].maxHp;
+      // XP + level
+      const oldLevel = save.party[i].level || 1;
+      save.party[i].xp = (save.party[i].xp || 0) + xpEarned;
+      const newLevel = computeLevel(save.party[i].xp);
+      if (newLevel > oldLevel) {
+        save.party[i].level = newLevel;
+        const bonus = levelBonuses(newLevel);
+        const oldBonus = levelBonuses(oldLevel);
+        const hpGain = bonus.maxHp - oldBonus.maxHp;
+        save.party[i].maxHp += hpGain;
+        save.party[i].hp = Math.min(save.party[i].hp + hpGain, save.party[i].maxHp);
+        leveledUp.push(save.party[i].name);
+      } else {
+        save.party[i].level = newLevel;
+      }
     }
 
     // Mark floor complete on boss defeat. If we came directly from the
@@ -1173,7 +1191,11 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(500, () => {
       this.endOverlay.titleText.setText('VICTORY!');
       this.endOverlay.subText.setText(`${this.enemy.name} defeated!`);
-      this.endOverlay.rewardsText.setText(`+${goldEarned} GOLD  •  ${accuracy}% accuracy  •  ${this.streak} best streak`);
+      let rewardText = `+${goldEarned} GOLD  •  +${xpEarned} XP  •  ${accuracy}%`;
+      if (leveledUp.length > 0) {
+        rewardText += `\n⭐ ${leveledUp.join(' & ')} LEVELED UP!`;
+      }
+      this.endOverlay.rewardsText.setText(rewardText);
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
     });

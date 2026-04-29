@@ -101,3 +101,39 @@ export function spawnHero(idOrHero) {
     def: def.def,
   };
 }
+
+// XP thresholds per level. Index = level (1-based), value = total XP needed.
+const LEVEL_THRESHOLDS = [0, 0, 100, 250, 500, 800, 1200, 1800, 2600, 3600, 5000];
+
+/**
+ * Compute the stat bonuses for a given level.
+ * Each level above 1 grants +3 maxHp, +1 atk, +1 def.
+ */
+export function levelBonuses(level) {
+  const lvl = Math.max(1, level || 1);
+  return {
+    maxHp: (lvl - 1) * 3,
+    atk: (lvl - 1),
+    def: (lvl - 1),
+  };
+}
+
+/**
+ * Check if a hero's XP qualifies for a level up.
+ * Returns the new level (may be same as current if no level up).
+ */
+export function computeLevel(xp) {
+  let level = 1;
+  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 1; i--) {
+    if (xp >= LEVEL_THRESHOLDS[i]) { level = i; break; }
+  }
+  return level;
+}
+
+/**
+ * XP needed to reach the next level from current level.
+ */
+export function xpToNextLevel(level) {
+  const next = Math.min(level + 1, LEVEL_THRESHOLDS.length - 1);
+  return LEVEL_THRESHOLDS[next] || 9999;
+}
