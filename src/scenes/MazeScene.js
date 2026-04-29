@@ -10,6 +10,8 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
+import { DialogueOverlay } from '../ui/DialogueOverlay.js';
+import { DIALOGUE } from '../data/dialogue.js';
 
 /**
  * MazeScene
@@ -62,6 +64,7 @@ export class MazeScene extends Phaser.Scene {
 
     // Check if we're returning from a battle (state saved in registry)
     const mazeState = this.registry.get(`mazeState_${this.floorId}`);
+    this.freshEntry = !mazeState;
     if (mazeState) {
       this.playerX = mazeState.x;
       this.playerY = mazeState.y;
@@ -169,6 +172,17 @@ export class MazeScene extends Phaser.Scene {
 
     // Reveal around the starting position
     this.revealFog(this.playerX, this.playerY, 3);
+
+    // Dialogue overlay for story beats
+    this.dialogue = new DialogueOverlay(this);
+
+    // Show floor entry dialogue on first visit (not on return from battle)
+    if (this.freshEntry) {
+      const key = `floor${this.floorId}_entry`;
+      if (DIALOGUE[key]) {
+        this.time.delayedCall(500, () => this.dialogue.show(DIALOGUE[key]));
+      }
+    }
 
     // Input
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -792,9 +806,11 @@ export class MazeScene extends Phaser.Scene {
         const remaining = 3 - this.fairiesFreed;
         if (remaining > 0) {
           this.showFloatText(obj.x, obj.y, `FAIRY FREED! ${remaining} left`, '#e088c0');
+          if (DIALOGUE.fairy_freed) this.dialogue.show(DIALOGUE.fairy_freed);
         } else {
           this.showFloatText(obj.x, obj.y, 'ALL FAIRIES FREE!', '#f0d040');
           this.revealGoldenChest();
+          if (DIALOGUE.all_fairies_freed) this.dialogue.show(DIALOGUE.all_fairies_freed);
         }
         this.updateHud();
         break;
@@ -837,9 +853,16 @@ export class MazeScene extends Phaser.Scene {
           return;
         }
         audio.play('world/floor-complete');
-        // Wipe maze state for this floor — next entry starts fresh
         this.registry.remove(`mazeState_${this.floorId}`);
-        transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
+        // Show victory dialogue before leaving
+        const victKey = `floor${this.floorId}_victory`;
+        if (DIALOGUE[victKey]) {
+          this.dialogue.show(DIALOGUE[victKey]).then(() => {
+            transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
+          });
+        } else {
+          transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
+        }
         break;
       }
     }
@@ -860,7 +883,6 @@ export class MazeScene extends Phaser.Scene {
   startBattle(isBoss, enemyId) {
     this.saveMazeState();
 
-    // Signal to BattleScene that completion should come back here.
     this.registry.set('battleReturnScene', SCENES.MAZE);
     this.registry.set('battleReturnData', { floor: this.floorId });
 
@@ -869,12 +891,21 @@ export class MazeScene extends Phaser.Scene {
       def = { id: enemyId };
     } else {
       def = pickEnemyForFloor(this.floorId);
-      if (!def) {
-        // No enemies for this floor — skip the battle rather than crash.
-        return;
-      }
+      if (!def) return;
     }
     const enemy = spawnEnemy(def.id, { grade: this.save.grade, isBoss });
+
+    // Boss pre-fight dialogue, then transition to battle
+    const bossKey = `floor${this.floorId}_boss`;
+    if (isBoss && DIALOGUE[bossKey]) {
+      this.dialogue.show(DIALOGUE[bossKey]).then(() => {
+        transitionTo(this, SCENES.BATTLE, {
+          party: this.party, enemy, floor: this.floorId,
+          grade: this.save.grade, isBoss,
+        }, 300);
+      });
+      return;
+    }
 
     transitionTo(this, SCENES.BATTLE, {
       party: this.party,
