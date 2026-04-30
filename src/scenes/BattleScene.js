@@ -850,23 +850,98 @@ export class BattleScene extends Phaser.Scene {
         return; // skip the normal turn advance below
       }
 
-      // Animate attacker forward, then back
+      // Class-specific attack animation
       const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
-      this.tweens.add({
-        targets: heroSprite.body,
-        x: heroSprite.x + 60,
-        duration: 120,
-        yoyo: true,
-        ease: 'Sine.inOut',
-        onYoyo: () => {
-          this.hitFlash();
-          this.flashEnemy(result);
-          this.updateEnemyHp();
-          audio.play('battle/hit-enemy');
-          this.shakeCamera(0.008, 200);
-          this.burstParticles(this.enemySprite.x, this.enemySprite.y, 0xe8a030);
-        },
-      });
+      const enemyX = this.enemySprite.x;
+      const enemyY = this.enemySprite.y;
+
+      if (cls === 'knight') {
+        // Knight: lunge forward with sword slash
+        this.tweens.add({
+          targets: heroSprite.body,
+          x: heroSprite.x + 120,
+          duration: 180,
+          ease: 'Back.out',
+          onComplete: () => {
+            this.hitFlash();
+            this.flashEnemy(result);
+            this.updateEnemyHp();
+            audio.play('battle/hit-enemy');
+            this.shakeCamera(0.012, 250);
+            this.burstParticles(enemyX - 40, enemyY, 0x8898b8);
+            // Slash line
+            const slash = this.add.graphics();
+            slash.lineStyle(4, 0xc8d8e8, 0.9);
+            slash.beginPath(); slash.moveTo(enemyX - 60, enemyY - 40); slash.lineTo(enemyX + 20, enemyY + 30); slash.strokePath();
+            this.tweens.add({ targets: slash, alpha: 0, duration: 300, onComplete: () => slash.destroy() });
+            // Return
+            this.tweens.add({ targets: heroSprite.body, x: heroSprite.x, duration: 200, delay: 100, ease: 'Sine.in' });
+          },
+        });
+      } else if (cls === 'wizard') {
+        // Wizard: projectile arc from wizard to enemy
+        const orb = this.add.circle(heroSprite.x, heroSprite.y - 40, 12, 0x9050c8);
+        const orbGlow = this.add.circle(heroSprite.x, heroSprite.y - 40, 8, 0xc080f0, 0.6);
+        const midX = (heroSprite.x + enemyX) / 2;
+        const midY = Math.min(heroSprite.y, enemyY) - 120;
+        // Simulate arc with two sequential tweens
+        this.tweens.add({
+          targets: [orb, orbGlow], x: midX, y: midY, duration: 200, ease: 'Sine.out',
+          onComplete: () => {
+            this.tweens.add({
+              targets: [orb, orbGlow], x: enemyX, y: enemyY, duration: 200, ease: 'Sine.in',
+              onComplete: () => {
+                orb.destroy(); orbGlow.destroy();
+                this.hitFlash();
+                this.flashEnemy(result);
+                this.updateEnemyHp();
+                audio.play('battle/hit-enemy');
+                this.shakeCamera(0.008, 200);
+                this.burstParticles(enemyX, enemyY, 0xc080f0);
+              },
+            });
+          },
+        });
+      } else if (cls === 'bunny') {
+        // Bunny: rapid multi-hit dash combo
+        const hits = result.hitCount || 2;
+        let hitIdx = 0;
+        const doHit = () => {
+          if (hitIdx >= hits) {
+            this.tweens.add({ targets: heroSprite.body, x: heroSprite.x, duration: 150, ease: 'Sine.in' });
+            return;
+          }
+          const dir = hitIdx % 2 === 0 ? 1 : -1;
+          this.tweens.add({
+            targets: heroSprite.body,
+            x: heroSprite.x + 80 + dir * 20,
+            duration: 80,
+            ease: 'Linear',
+            onComplete: () => {
+              if (hitIdx === 0) {
+                this.flashEnemy(result);
+                this.updateEnemyHp();
+                audio.play('battle/hit-enemy');
+              }
+              this.burstParticles(enemyX - 20 + dir * 15, enemyY + (hitIdx - 1) * 20, 0xe86898);
+              this.shakeCamera(0.006, 100);
+              hitIdx++;
+              this.tweens.add({ targets: heroSprite.body, x: heroSprite.x + 40, duration: 60, onComplete: doHit });
+            },
+          });
+        };
+        doHit();
+      } else {
+        // Fallback: simple lunge
+        this.tweens.add({
+          targets: heroSprite.body, x: heroSprite.x + 60, duration: 120, yoyo: true, ease: 'Sine.inOut',
+          onYoyo: () => {
+            this.hitFlash(); this.flashEnemy(result); this.updateEnemyHp();
+            audio.play('battle/hit-enemy'); this.shakeCamera(0.008, 200);
+            this.burstParticles(enemyX, enemyY, 0xe8a030);
+          },
+        });
+      }
     } else {
       this.recolorAnswerButton(index, 0xc04040, 1);
       // Flash the correct one in green too
