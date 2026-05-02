@@ -566,7 +566,15 @@ export class MazeScene extends Phaser.Scene {
         if (nx < 0 || nx >= this.floor.width || ny < 0 || ny >= this.floor.height) continue;
         if (dx * dx + dy * dy > radius * radius + 1) continue;
         this.fog[ny][nx] = true;
-        if (this.fogSprites[ny][nx]) this.fogSprites[ny][nx].setVisible(false);
+        if (this.fogSprites[ny][nx] && this.fogSprites[ny][nx].visible) {
+          this.tweens.add({
+            targets: this.fogSprites[ny][nx],
+            alpha: 0,
+            duration: 400,
+            ease: 'Sine.out',
+            onComplete: () => { if (this.fogSprites[ny]?.[nx]) this.fogSprites[ny][nx].setVisible(false); },
+          });
+        }
       }
     }
   }

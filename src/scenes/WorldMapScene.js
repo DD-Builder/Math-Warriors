@@ -207,6 +207,24 @@ export class WorldMapScene extends Phaser.Scene {
       if (active) {
         pathGfx.lineStyle(3, 0xffe080, 0.9);
         strokePolyline(pathGfx, pts);
+        // Sparkle traveling along completed path
+        this.time.addEvent({
+          delay: 1500 + i * 400,
+          loop: true,
+          callback: () => {
+            const sparkle = this.add.circle(pts[0].x, pts[0].y, 3, 0xf0e040, 0.8);
+            let step = 0;
+            this.time.addEvent({
+              delay: 40, loop: true,
+              callback: () => {
+                step++;
+                if (step >= pts.length) { sparkle.destroy(); return; }
+                sparkle.setPosition(pts[step].x, pts[step].y);
+                sparkle.setAlpha(0.8 - (step / pts.length) * 0.6);
+              },
+            });
+          },
+        });
       }
     }
 

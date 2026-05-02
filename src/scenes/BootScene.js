@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { unlockAudio } from '../systems/synthAudio.js';
 
 /**
  * BootScene
@@ -27,7 +28,9 @@ export class BootScene extends Phaser.Scene {
     // Dismiss the HTML loading overlay now that Phaser is rendering.
     this.game.events.emit('ready');
 
-    // Advance to the title screen.
+    // Unlock Web Audio on first user gesture (iOS Safari requirement)
+    this.input.once('pointerdown', () => unlockAudio());
+
     this.scene.start(SCENES.TITLE);
   }
 

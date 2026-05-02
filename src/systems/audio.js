@@ -67,14 +67,16 @@ export const SOUNDS = {
 // via `scene.game.registry.get('audio')` or via the convenience
 // `audio` export that's lazy-initialized.
 
+import { SYNTH_SFX, unlockAudio } from './synthAudio.js';
+
 class AudioManager {
   constructor() {
-    this.game = null;                 // set by init()
+    this.game = null;
     this.musicVolume = 0.8;
     this.sfxVolume = 1.0;
     this.muted = false;
-    this.currentMusic = null;         // active looping track key
-    this._currentMusicObj = null;     // active Phaser Sound instance
+    this.currentMusic = null;
+    this._currentMusicObj = null;
   }
 
   /**
@@ -119,16 +121,22 @@ class AudioManager {
   play(key, opts = {}) {
     if (this.muted) return;
     const entry = SOUNDS[key];
-    if (!entry || !entry.file) return;
-    if (!this.game || !this.game.sound) return;
+    if (!entry) return;
 
-    try {
-      const volume = (opts.volume ?? entry.volume) *
-        (entry.category === 'music' ? this.musicVolume : this.sfxVolume);
-      this.game.sound.play(key, { volume, ...opts });
-    } catch (err) {
-      // Don't crash the game over a missing sound
-      console.warn(`[audio] Failed to play ${key}:`, err);
+    // If a real file is loaded, use Phaser's audio
+    if (entry.file && this.game?.sound) {
+      try {
+        const volume = (opts.volume ?? entry.volume) *
+          (entry.category === 'music' ? this.musicVolume : this.sfxVolume);
+        this.game.sound.play(key, { volume, ...opts });
+        return;
+      } catch { /* fall through to synth */ }
+    }
+
+    // Fall back to procedural synthesized SFX
+    if (entry.category !== 'music' && this.sfxVolume > 0) {
+      const synth = SYNTH_SFX[key];
+      if (synth) { unlockAudio(); synth(); }
     }
   }
 

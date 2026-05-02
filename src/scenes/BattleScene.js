@@ -141,6 +141,9 @@ export class BattleScene extends Phaser.Scene {
     // Floor-specific foreground details to make each level feel unique
     this.drawBattleThemeDetails(bgHeight);
 
+    // Ambient floating particles — drift upward slowly for atmosphere
+    this.startAmbientParticles(bgHeight);
+
     this.add.text(30, 20, `QUEST ${this.floor}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
@@ -232,6 +235,39 @@ export class BattleScene extends Phaser.Scene {
         g.fillCircle(rng() * GAME_WIDTH, rng() * gndY, 1.5 + rng() * 1.5);
       }
     }
+  }
+
+  startAmbientParticles(bgH) {
+    const colors = {
+      1: [0x4a8830, 0xf06080, 0xf0c040],
+      2: [0x40a8c8, 0x2870a8, 0x58b8e8],
+      3: [0xd0dce8, 0xa0b8d0, 0xffffff],
+      4: [0xf08020, 0xe04808, 0xf0a010],
+      5: [0xc090f0, 0x8040d0, 0xe0b0ff],
+    };
+    const palette = colors[this.floor] || colors[1];
+
+    this.time.addEvent({
+      delay: 800,
+      loop: true,
+      callback: () => {
+        if (this.phase === 'end') return;
+        const px = Math.random() * GAME_WIDTH;
+        const py = bgH * 0.9;
+        const color = palette[Math.floor(Math.random() * palette.length)];
+        const size = 2 + Math.random() * 3;
+        const p = this.add.circle(px, py, size, color, 0.4 + Math.random() * 0.3);
+        this.tweens.add({
+          targets: p,
+          y: py - 80 - Math.random() * 120,
+          x: px + (Math.random() - 0.5) * 60,
+          alpha: 0,
+          duration: 2000 + Math.random() * 1500,
+          ease: 'Sine.out',
+          onComplete: () => p.destroy(),
+        });
+      },
+    });
   }
 
   buildHeroSprites() {
