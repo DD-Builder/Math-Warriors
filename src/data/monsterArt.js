@@ -424,5 +424,237 @@ R.L([[-10,10],[-6,8],[0,9],[6,8],[10,10],[8,13],[0,12],[-8,13]],MAG4,31,{ns:true
 R.gshadow(0,46,38,7);G.restore();
 },
 };
-export var FLOOR5_MONSTERS = {};
-export var BOSSES = {};
+export var FLOOR5_MONSTERS = {
+runebound: function(R, t) {
+var G = R.G; G.save();
+var RUNE = '#6a4ec8', RUNEL = '#9878e8', DARK = '#2a1848', GLO = '#b898ff';
+var bob = Math.sin(t * 1.8) * 3;
+G.translate(0, bob);
+R.gshadow(0, 44, 32, 6);
+R.L([[-22,-30],[-8,-42],[8,-42],[22,-30],[26,-10],[22,14],[12,28],[-12,28],[-22,14],[-26,-10]], DARK, 50, {sx:2,sy:3,sp:14});
+R.L([[-18,-26],[-6,-36],[6,-36],[18,-26],[22,-8],[18,10],[10,22],[-10,22],[-18,10],[-22,-8]], RUNE, 51, {sx:2,sy:2,sp:12});
+for (var i = 0; i < 6; i++) {
+  var a = i / 6 * Math.PI * 2 + t * 0.6;
+  var rx = Math.cos(a) * 14, ry = Math.sin(a) * 14 - 6;
+  R.Ld(rx, ry, 3, GLO, 52 + i, {sx:1,sy:1,sp:6,ns:true});
+}
+R.glow(0, -6, 18, 18, RUNEL, 0.3, 10);
+R.Ld(-8, -14, 4, '#fff', 60, {ns:true}); R.Ld(8, -14, 4, '#fff', 61, {ns:true});
+R.Ld(-8, -14, 2, '#1a0828', 62, {ns:true}); R.Ld(8, -14, 2, '#1a0828', 63, {ns:true});
+R.L([[-6, 4],[0, 8],[6, 4]], RUNEL, 64, {sx:1,sy:1,sp:4,ns:true});
+G.restore();
+},
+hexweave: function(R, t) {
+var G = R.G; G.save();
+var HEX = '#3a8868', HEXL = '#58c898', DARK = '#142828', GLOW = '#80ffc0';
+var bob = Math.sin(t * 2.2) * 2.5;
+G.translate(0, bob);
+R.gshadow(0, 42, 30, 5);
+var spin = t * 0.4;
+for (var ring = 0; ring < 3; ring++) {
+  var n = 6, rad = 10 + ring * 10;
+  for (var i = 0; i < n; i++) {
+    var a = i / n * Math.PI * 2 + spin * (ring % 2 === 0 ? 1 : -1);
+    var x = Math.cos(a) * rad, y = Math.sin(a) * rad - 4;
+    R.Ld(x, y, 4 - ring * 0.5, ring === 0 ? HEXL : HEX, 70 + ring * 10 + i, {sx:1,sy:1,sp:6});
+    if (ring < 2) {
+      var a2 = (i + 0.5) / n * Math.PI * 2 + spin * (ring % 2 === 0 ? 1 : -1);
+      R.ln(Math.cos(a) * rad, Math.sin(a) * rad - 4, Math.cos(a2) * (rad + 10), Math.sin(a2) * (rad + 10) - 4, HEXL, 0.8, 0.3);
+    }
+  }
+}
+R.glow(0, -4, 12, 12, GLOW, 0.25, 8);
+R.Ld(0, -4, 6, DARK, 100, {sx:1,sy:1,sp:8});
+R.Ld(-3, -6, 2, '#fff', 101, {ns:true}); R.Ld(3, -6, 2, '#fff', 102, {ns:true});
+R.Ld(-3, -6, 1, DARK, 103, {ns:true}); R.Ld(3, -6, 1, DARK, 104, {ns:true});
+G.restore();
+},
+grimoire: function(R, t) {
+var G = R.G; G.save();
+var COV = '#5a2828', COVL = '#8a4848', PAGE = '#e8dcc0', DARK = '#1a0808', GLOW = '#ffd080';
+var flap = Math.sin(t * 2.0) * 4;
+R.gshadow(0, 44, 34, 6);
+R.L([[-24,-28 - flap],[-20,-32],[20,-32],[24,-28 + flap],[24,24 + flap],[20,28],[0,26],[-20,28],[-24,24 - flap]], COV, 110, {sx:2,sy:2,sp:12});
+R.L([[-20,-26],[-16,-30],[16,-30],[20,-26],[20,22],[16,26],[0,24],[-16,26],[-20,22]], PAGE, 111, {sx:1,sy:1,sp:10});
+R.L([[-18,-24],[18,-24],[18,20],[-18,20]], PAGE, 112, {sx:1,sy:1,sp:8,ns:true});
+for (var i = 0; i < 5; i++) {
+  var ly = -16 + i * 8;
+  R.ln(-14, ly, 14, ly, '#8a7860', 0.6, 0.3);
+}
+R.L([[0,-2],[2,2],[-2,2]], GLOW, 113, {ns:true});
+R.glow(0, 0, 10, 10, GLOW, 0.3 + Math.sin(t * 3) * 0.1, 6);
+R.Ld(-6, -10, 3, '#fff', 114, {ns:true}); R.Ld(6, -10, 3, '#fff', 115, {ns:true});
+R.Ld(-6, -10, 1.5, DARK, 116, {ns:true}); R.Ld(6, -10, 1.5, DARK, 117, {ns:true});
+R.L([[-4, 6],[0, 10],[4, 6]], COVL, 118, {sx:1,sy:1,sp:3,ns:true});
+G.restore();
+},
+familiar: function(R, t) {
+var G = R.G; G.save();
+var FUR = '#282848', FURL = '#484878', EYE = '#ff6080', DARK = '#0a0818', GLOW = '#8060c0';
+var bob = Math.sin(t * 2.6) * 3;
+var tail = Math.sin(t * 3.0) * 8;
+G.translate(0, bob);
+R.gshadow(0, 38, 24, 5);
+R.L([[tail - 4, 10],[tail + 16, -8],[tail + 14, -12],[tail + 4, -6],[0, 12]], FURL, 120, {sx:1,sy:2,sp:8});
+R.ellipse(0, 4, 16, 20, FUR, 121, {sx:2,sy:2,sp:12});
+R.Ld(0, 2, 12, FURL, 122, {sx:2,sy:2,sp:10});
+R.L([[-12,-16],[-16,-28],[-6,-18]], FUR, 123, {sx:1,sy:1,sp:4});
+R.L([[12,-16],[16,-28],[6,-18]], FUR, 124, {sx:1,sy:1,sp:4});
+R.L([[-12,-16],[-14,-26],[-6,-18]], FURL, 125, {sx:1,sy:1,sp:3});
+R.L([[12,-16],[14,-26],[6,-18]], FURL, 126, {sx:1,sy:1,sp:3});
+R.Ld(-6, -4, 4, EYE, 127, {ns:true}); R.Ld(6, -4, 4, EYE, 128, {ns:true});
+R.Ld(-6, -4, 2, '#fff', 129, {ns:true}); R.Ld(6, -4, 2, '#fff', 130, {ns:true});
+R.glow(-6, -4, 6, 6, EYE, 0.3, 4); R.glow(6, -4, 6, 6, EYE, 0.3, 4);
+R.L([[-3, 6],[0, 4],[3, 6]], DARK, 131, {ns:true});
+G.restore();
+},
+theorem: function(R, t) {
+var G = R.G; G.save();
+var THEO = '#c0a030', THEOL = '#e8c848', DARK = '#281808', GLOW = '#ffe880', INK = '#1a1008';
+var pulse = Math.sin(t * 1.4) * 0.08 + 1.0;
+G.scale(pulse, pulse);
+R.gshadow(0, 46, 36, 7);
+R.L([[-28,-20],[-18,-36],[0,-42],[18,-36],[28,-20],[30,4],[24,24],[14,34],[0,38],[-14,34],[-24,24],[-30,4]], DARK, 140, {sx:3,sy:3,sp:16});
+R.L([[-24,-16],[-14,-30],[0,-36],[14,-30],[24,-16],[26,2],[20,20],[12,28],[0,32],[-12,28],[-20,20],[-26,2]], THEO, 141, {sx:2,sy:2,sp:14});
+R.glow(0, 0, 28, 28, GLOW, 0.2 + Math.sin(t * 2) * 0.08, 14);
+for (var i = 0; i < 3; i++) {
+  var a = i / 3 * Math.PI * 2 + t * 0.5;
+  var ox = Math.cos(a) * 16, oy = Math.sin(a) * 16 - 2;
+  R.Ld(ox, oy, 4, THEOL, 142 + i, {sx:1,sy:1,sp:6});
+  R.glow(ox, oy, 6, 6, GLOW, 0.3, 4);
+}
+R.Ld(-8, -10, 5, '#fff', 150, {ns:true}); R.Ld(8, -10, 5, '#fff', 151, {ns:true});
+R.Ld(-8, -10, 2.5, INK, 152, {ns:true}); R.Ld(8, -10, 2.5, INK, 153, {ns:true});
+R.glow(-8, -10, 4, 4, GLOW, 0.2, 3); R.glow(8, -10, 4, 4, GLOW, 0.2, 3);
+R.L([[-6, 8],[0, 14],[6, 8]], THEOL, 154, {sx:1,sy:1,sp:4,ns:true});
+G.restore();
+},
+};
+export var BOSSES = {
+sigma: function(R, t) {
+var G = R.G; G.save();
+var BODY = '#2a6828', BODYL = '#3a9838', BARK = '#1a3818', CROWN = '#58c848', GLOW = '#80ff60';
+var sway = Math.sin(t * 0.8) * 2;
+G.translate(sway, 0);
+R.gshadow(0, 56, 48, 10);
+R.L([[-36,-40],[-20,-56],[0,-64],[20,-56],[36,-40],[42,-10],[38,20],[28,40],[16,48],[0,50],[-16,48],[-28,40],[-38,20],[-42,-10]], BARK, 200, {sx:3,sy:4,sp:18});
+R.L([[-30,-34],[-16,-48],[0,-56],[16,-48],[30,-34],[36,-8],[32,16],[24,34],[12,42],[0,44],[-12,42],[-24,34],[-32,16],[-36,-8]], BODY, 201, {sx:2,sy:3,sp:16});
+for (var i = 0; i < 5; i++) {
+  var a = (i - 2) / 5 * Math.PI * 0.6 - Math.PI / 2;
+  var bx = Math.cos(a) * 38, by = Math.sin(a) * 38 - 20;
+  var bx2 = Math.cos(a) * 52, by2 = Math.sin(a) * 52 - 24;
+  R.L([[bx-3,by],[bx2,by2-4],[bx2+2,by2],[bx2,by2+4],[bx+3,by]], CROWN, 202+i, {sx:2,sy:2,sp:6});
+  R.glow(bx2, by2, 6, 6, GLOW, 0.3, 5);
+}
+R.glow(0, -10, 30, 30, GLOW, 0.15, 16);
+R.Ld(-12, -16, 7, '#fff', 210, {ns:true}); R.Ld(12, -16, 7, '#fff', 211, {ns:true});
+R.Ld(-12, -16, 3.5, '#0a1808', 212, {ns:true}); R.Ld(12, -16, 3.5, '#0a1808', 213, {ns:true});
+R.glow(-12, -16, 6, 6, GLOW, 0.2, 4); R.glow(12, -16, 6, 6, GLOW, 0.2, 4);
+R.L([[-14, 6],[-8, 2],[0, 6],[8, 2],[14, 6],[10, 12],[0, 14],[-10, 12]], BARK, 214, {sx:2,sy:1,sp:6});
+for (var v = 0; v < 4; v++) {
+  var vx = -18 + v * 12, vy = 20 + Math.sin(t * 1.2 + v) * 3;
+  R.L([[vx-3,vy],[vx,vy-10],[vx+3,vy],[vx,vy+6]], BODYL, 216+v, {sx:1,sy:2,sp:4});
+}
+G.restore();
+},
+null_boss: function(R, t) {
+var G = R.G; G.save();
+var VOID = '#181838', VOIDL = '#282858', RIM = '#4848a8', GLOW = '#6868e8', WHITE = '#c0c0ff';
+var pulse = Math.sin(t * 1.2) * 0.06 + 1.0;
+G.scale(pulse, pulse);
+R.gshadow(0, 54, 44, 9);
+R.Ld(0, -4, 44, VOID, 230, {sx:3,sy:3,sp:22});
+R.Ld(0, -4, 38, VOIDL, 231, {sx:2,sy:2,sp:20});
+for (var ring = 0; ring < 3; ring++) {
+  var n = 8 + ring * 4, rad = 16 + ring * 10;
+  for (var i = 0; i < n; i++) {
+    var a = i / n * Math.PI * 2 + t * (0.3 + ring * 0.15) * (ring % 2 === 0 ? 1 : -1);
+    var x = Math.cos(a) * rad, y = Math.sin(a) * rad - 4;
+    R.Ld(x, y, 2 - ring * 0.3, ring === 0 ? WHITE : RIM, 232 + ring*20 + i, {ns:true});
+  }
+}
+R.glow(0, -4, 24, 24, GLOW, 0.2, 16);
+var holeR = 10 + Math.sin(t * 2) * 2;
+R.Ld(0, -4, holeR, '#000010', 280, {ns:true});
+R.glow(0, -4, holeR + 4, holeR + 4, GLOW, 0.4, 8);
+R.Ld(-14, -14, 5, WHITE, 281, {ns:true}); R.Ld(14, -14, 5, WHITE, 282, {ns:true});
+R.Ld(-14, -14, 2.5, '#000020', 283, {ns:true}); R.Ld(14, -14, 2.5, '#000020', 284, {ns:true});
+G.restore();
+},
+manyfold: function(R, t) {
+var G = R.G; G.save();
+var SKY = '#4878b8', SKYL = '#68a8e8', CLOUD = '#c8d8f0', DARK = '#1a2838', GLOW = '#88c8ff';
+var bob = Math.sin(t * 1.0) * 4;
+G.translate(0, bob);
+R.gshadow(0, 58, 50, 10);
+R.ellipse(0, 0, 42, 36, DARK, 300, {sx:3,sy:3,sp:16});
+R.ellipse(0, 0, 36, 30, SKY, 301, {sx:2,sy:2,sp:14});
+R.ellipse(-16, -8, 14, 12, CLOUD, 302, {sx:2,sy:2,sp:8,sa:0.2});
+R.ellipse(16, -8, 14, 12, CLOUD, 303, {sx:2,sy:2,sp:8,sa:0.2});
+R.ellipse(0, -14, 12, 10, CLOUD, 304, {sx:2,sy:2,sp:8,sa:0.2});
+for (var i = 0; i < 4; i++) {
+  var a = i / 4 * Math.PI * 2 + t * 0.5;
+  var ox = Math.cos(a) * 28, oy = Math.sin(a) * 22;
+  R.Ld(ox, oy, 8, SKYL, 305+i, {sx:2,sy:2,sp:8});
+  R.glow(ox, oy, 10, 10, GLOW, 0.2, 6);
+}
+R.glow(0, 0, 20, 20, GLOW, 0.15, 12);
+R.Ld(-10, -6, 6, '#fff', 310, {ns:true}); R.Ld(10, -6, 6, '#fff', 311, {ns:true});
+R.Ld(-10, -6, 3, DARK, 312, {ns:true}); R.Ld(10, -6, 3, DARK, 313, {ns:true});
+R.L([[-8, 10],[0, 16],[8, 10]], SKYL, 314, {sx:1,sy:1,sp:4,ns:true});
+G.restore();
+},
+schism: function(R, t) {
+var G = R.G; G.save();
+var FIRE = '#c83020', FIREL = '#e86040', LAVA = '#ff8830', ASH = '#2a1010', DARK = '#180808', GLOW = '#ff6040';
+var shake = Math.sin(t * 6) * (Math.sin(t * 0.8) > 0.5 ? 2 : 0);
+G.translate(shake, 0);
+R.gshadow(0, 56, 46, 9);
+R.L([[-32,-30],[-18,-48],[0,-54],[18,-48],[32,-30],[36,0],[30,26],[18,40],[0,44],[-18,40],[-30,26],[-36,0]], ASH, 320, {sx:3,sy:4,sp:16});
+R.L([[-26,-24],[-14,-40],[0,-46],[14,-40],[26,-24],[30,-2],[24,20],[14,32],[0,36],[-14,32],[-24,20],[-30,-2]], FIRE, 321, {sx:2,sy:3,sp:14});
+R.L([[0,-46],[2,-20],[6,0],[2,20],[0,36],[-2,20],[-6,0],[-2,-20]], LAVA, 322, {sx:1,sy:1,sp:8,sa:0.1});
+R.glow(0, -4, 8, 40, GLOW, 0.2, 10);
+for (var i = 0; i < 6; i++) {
+  var fy = -30 + i * 12;
+  var fx = (i % 2 === 0 ? -1 : 1) * (8 + Math.sin(t * 2 + i) * 4);
+  R.glow(fx, fy, 6, 6, LAVA, 0.3 + Math.sin(t * 3 + i) * 0.1, 5);
+}
+R.Ld(-12, -16, 6, LAVA, 330, {ns:true}); R.Ld(12, -16, 6, LAVA, 331, {ns:true});
+R.Ld(-12, -16, 3, '#fff', 332, {ns:true}); R.Ld(12, -16, 3, '#fff', 333, {ns:true});
+R.L([[-10, 8],[-4, 4],[0, 8],[4, 4],[10, 8],[6, 14],[0, 12],[-6, 14]], FIREL, 334, {sx:1,sy:1,sp:6});
+G.restore();
+},
+the_unknown: function(R, t) {
+var G = R.G; G.save();
+var ARCANE = '#8848c8', ARCL = '#a868e8', CORE = '#d0a0ff', DARK = '#120828', GLOW = '#c080ff', GOLD = '#ffd060';
+var float = Math.sin(t * 0.9) * 5;
+G.translate(0, float);
+R.gshadow(0, 58, 50, 11);
+R.L([[-34,-36],[-18,-52],[0,-58],[18,-52],[34,-36],[40,-8],[36,18],[26,38],[14,48],[0,52],[-14,48],[-26,38],[-36,18],[-40,-8]], DARK, 350, {sx:4,sy:4,sp:20});
+R.L([[-28,-30],[-14,-44],[0,-50],[14,-44],[28,-30],[34,-6],[30,14],[22,32],[12,40],[0,44],[-12,40],[-22,32],[-30,14],[-34,-6]], ARCANE, 351, {sx:3,sy:3,sp:18});
+R.glow(0, -2, 32, 32, GLOW, 0.18, 18);
+for (var i = 0; i < 5; i++) {
+  var a = i / 5 * Math.PI * 2 + t * 0.4;
+  var r = 24 + Math.sin(t * 1.5 + i * 1.2) * 4;
+  var sx = Math.cos(a) * r, sy = Math.sin(a) * r - 2;
+  R.Ld(sx, sy, 5, ARCL, 352+i, {sx:1,sy:1,sp:6});
+  R.glow(sx, sy, 8, 8, GLOW, 0.25, 5);
+}
+R.Ld(0, -20, 10, CORE, 360, {sx:2,sy:2,sp:10});
+R.glow(0, -20, 14, 14, GOLD, 0.3 + Math.sin(t * 2) * 0.1, 8);
+G.save(); G.font = 'bold 18px serif'; G.textAlign = 'center'; G.textBaseline = 'middle';
+G.fillStyle = DARK; G.globalAlpha = 0.8; G.fillText('?', 0, -20); G.restore();
+R.Ld(-14, -8, 7, '#fff', 361, {ns:true}); R.Ld(14, -8, 7, '#fff', 362, {ns:true});
+R.Ld(-14, -8, 3.5, DARK, 363, {ns:true}); R.Ld(14, -8, 3.5, DARK, 364, {ns:true});
+R.glow(-14, -8, 6, 6, GLOW, 0.2, 4); R.glow(14, -8, 6, 6, GLOW, 0.2, 4);
+R.L([[-10, 14],[0, 22],[10, 14]], ARCL, 365, {sx:1,sy:1,sp:4,ns:true});
+for (var o = 0; o < 8; o++) {
+  var oa = o / 8 * Math.PI * 2 - t * 0.3;
+  var orb = 40 + Math.sin(t + o) * 4;
+  var ox = Math.cos(oa) * orb, oy = Math.sin(oa) * orb - 2;
+  R.Ld(ox, oy, 2.5, GOLD, 370+o, {ns:true});
+  R.glow(ox, oy, 4, 4, GOLD, 0.3, 3);
+}
+G.restore();
+},
+};
