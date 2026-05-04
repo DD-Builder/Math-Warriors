@@ -373,12 +373,13 @@ export class BattleScene extends Phaser.Scene {
 
     this.enemySprite = { body, name, hpBarBg, hpBarFill, hpText, x, y };
 
-    // Enemy idle pulse — subtle menacing sway
+    // Enemy idle pulse — very subtle breathing
+    const ms = body.scaleX || monsterScale;
     this.tweens.add({
       targets: body,
-      scaleX: 1.03,
-      scaleY: 0.97,
-      duration: 1400,
+      scaleX: ms * 1.01,
+      scaleY: ms * 0.99,
+      duration: 1800,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.inOut',
@@ -445,20 +446,20 @@ export class BattleScene extends Phaser.Scene {
     this.refreshPotionButton();
 
     // === EQUATION — centered above answer buttons, prominent ===
-    const noteW = 220;
-    const noteH = eqH - 6;
+    const noteW = 260;
+    const noteH = eqH + 10;
     const noteCx = area.cx;
-    const noteCy = eqY;
+    const noteCy = eqY - 4;
 
     PaperPanel(this, noteCx, noteCy, noteW, noteH, {
       color: 0xfff8e8, alpha: 0.98, radius: 14,
     });
 
     this.eqLines = {
-      a:    this.add.text(noteCx + 20, noteCy - 26, '', this.eqLineStyle({ fontSize: '32px' })),
-      opB:  this.add.text(noteCx + 20, noteCy,      '', this.eqLineStyle({ fontSize: '32px' })),
-      bar:  this.add.text(noteCx,      noteCy + 16, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '16px', color: '#6a4c28' })),
-      ans:  this.add.text(noteCx + 20, noteCy + 34, '?', this.eqLineStyle({ fontSize: '32px', color: '#b86820' })),
+      a:    this.add.text(noteCx + 30, noteCy - 30, '', this.eqLineStyle({ fontSize: '44px', color: '#1a0e04' })),
+      opB:  this.add.text(noteCx + 30, noteCy + 4,  '', this.eqLineStyle({ fontSize: '44px', color: '#1a0e04' })),
+      bar:  this.add.text(noteCx,      noteCy + 24, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '20px', color: '#6a4c28' })),
+      ans:  this.add.text(noteCx + 30, noteCy + 46, '?', this.eqLineStyle({ fontSize: '44px', color: '#b86820' })),
     };
     this.eqLines.a.setOrigin(1, 0.5);
     this.eqLines.opB.setOrigin(1, 0.5);

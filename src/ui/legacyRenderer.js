@@ -228,14 +228,16 @@ export function createHeroCanvas(w, h, bgColor, drawFn, topExt, botExt) {
   var cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
   var R = makeRenderer(cv);
-  R.clear(bgColor || '#181828');
-  // Vignette
-  var ctx = cv.getContext('2d');
-  var vg = ctx.createRadialGradient(w * .5, h * .4, h * .04, w * .5, h * .4, h * .88);
-  vg.addColorStop(0, 'rgba(255,255,255,0.09)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.26)');
-  ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
-  // Draw hero
+  if (bgColor) {
+    R.clear(bgColor);
+    var ctx = cv.getContext('2d');
+    var vg = ctx.createRadialGradient(w * .5, h * .4, h * .04, w * .5, h * .4, h * .88);
+    vg.addColorStop(0, 'rgba(255,255,255,0.09)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.26)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+  } else {
+    R.clear();
+  }
   var te = topExt || 80, be = botExt || 78;
   var sc = (h - 14) / (te + be) * 0.89;
   try { drawFn(R, w * .5, 7 + te * sc, sc); } catch (e) { /* ignore draw errors */ }
@@ -247,7 +249,7 @@ export function createMonsterCanvas(size, bgColor, drawFn, t) {
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
   var R = new Rndr(cv);
-  R.clear(bgColor || '#0a1410');
+  R.clear(bgColor || null);
   // Translate to center so draw functions work at origin
   var G = cv.getContext('2d');
   G.save(); G.translate(size / 2, size / 2);

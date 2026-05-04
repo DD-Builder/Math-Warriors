@@ -32,7 +32,7 @@ function getHeroCanvas(hero) {
   const art = ART_LOOKUP[id];
   if (!art || !art.draw) return null;
 
-  const cv = createHeroCanvas(HERO_W, HERO_H, art.cardBg, art.draw, art.topExt, art.botExt);
+  const cv = createHeroCanvas(HERO_W, HERO_H, null, art.draw, art.topExt, art.botExt);
   CANVAS_CACHE[id] = cv;
   return cv;
 }
