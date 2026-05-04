@@ -10,6 +10,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
+import { ensureTileTextures, getTileTextureKey } from '../ui/tileTextures.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
@@ -197,41 +198,20 @@ export class MazeScene extends Phaser.Scene {
   buildTiles() {
     this.tileSprites = [];
     const ts = this.tileSize;
-    const pal = this.floor.palette;
-    const rng = makeRng(this.floorId * 9999);
+
+    ensureTileTextures(this, this.floorId, ts);
 
     for (let y = 0; y < this.floor.height; y++) {
       const row = [];
       for (let x = 0; x < this.floor.width; x++) {
         const t = this.floor.tiles[y][x];
-        const color = this.colorForTile(t);
         const sx = this.originX + x * ts + ts / 2;
         const sy = this.originY + y * ts + ts / 2;
 
-        // Base tile
-        const rect = this.add.rectangle(sx, sy, ts, ts, color);
-
-        // Add texture variation for non-wall tiles
-        if (t !== TILE.WALL) {
-          // Slight color variation per tile for organic feel
-          const shade = Phaser.Display.Color.IntegerToColor(color);
-          const vary = (rng() - 0.5) * 16;
-          const varColor = Phaser.Display.Color.GetColor(
-            Math.max(0, Math.min(255, shade.red + vary)),
-            Math.max(0, Math.min(255, shade.green + vary)),
-            Math.max(0, Math.min(255, shade.blue + vary))
-          );
-          rect.setFillStyle(varColor);
-
-          // Grass tufts / pebbles on floor tiles
-          if (t === TILE.FLOOR && rng() > 0.55) {
-            this.addTileDecor(sx, sy, ts, rng, pal);
-          }
-        } else {
-          rect.setStrokeStyle(1, 0x000000, 0.3);
-        }
-
-        row.push(rect);
+        const texKey = getTileTextureKey(this.floorId, t, x, y);
+        const img = this.add.image(sx, sy, texKey);
+        img.setDisplaySize(ts, ts);
+        row.push(img);
       }
       this.tileSprites.push(row);
     }
