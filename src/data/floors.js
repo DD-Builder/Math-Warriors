@@ -29,6 +29,7 @@ export const TILE = {
   FLOOR: 1,
   PATH:  2,
   WATER: 3,
+  SECRET: 4,
 };
 
 // Shorthand for readability
@@ -36,26 +37,35 @@ const W = TILE.WALL;
 const F = TILE.FLOOR;
 const P = TILE.PATH;
 const Q = TILE.WATER;
+const S = TILE.SECRET;
 
-// Floor 1 — The Garden
-// Spiral inward: player starts bottom-left, boss at top-center.
-// Several outer loops with dead-end chests, inner sanctum holds boss.
+// Floor 1 — The Garden (19x25, ported from v0.2 reference)
 const FLOOR_1_TILES = [
-  [W,W,W,W,W,W,W,W,W,W,W,W,W,W,W],
-  [W,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
-  [W,F,W,W,W,W,W,F,W,W,W,W,W,F,W],
-  [W,F,W,F,F,F,F,F,F,F,F,F,W,F,W],
-  [W,F,W,F,W,W,W,W,W,W,W,F,W,F,W],
-  [W,F,W,F,W,F,F,F,F,F,W,F,W,F,W],
-  [W,F,W,F,W,F,W,W,W,F,W,F,W,F,W],
-  [W,F,P,P,P,F,W,F,W,F,P,P,P,F,W],
-  [W,F,W,F,W,F,W,F,W,F,W,F,W,F,W],
-  [W,F,W,F,W,F,F,F,F,F,W,F,W,F,W],
-  [W,F,W,F,W,W,W,W,W,W,W,F,W,F,W],
-  [W,F,W,F,F,F,F,F,F,F,F,F,W,F,W],
-  [W,F,W,W,W,W,W,F,W,W,W,W,W,F,W],
-  [W,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,W,W,W,W,W,W,W,W],
+  [W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W],
+  [W,P,P,P,P,P,W,F,F,F,F,F,W,F,F,F,F,F,W],
+  [W,P,W,W,W,P,W,F,W,F,W,F,W,F,W,F,W,F,W],
+  [W,P,W,F,W,P,W,F,W,F,W,F,W,F,W,F,W,F,W],
+  [W,P,W,F,F,P,P,P,W,F,W,F,F,F,W,F,W,F,W],
+  [W,P,W,W,F,W,W,P,W,W,W,W,W,W,W,W,W,F,W],
+  [W,P,P,P,W,F,W,P,W,F,F,F,F,F,W,F,F,F,W],
+  [W,W,W,P,W,F,W,P,W,F,W,W,W,F,W,W,W,W,W],
+  [W,F,F,P,F,F,S,P,P,P,W,F,F,F,F,F,F,F,W],
+  [W,F,W,P,W,W,W,W,W,P,W,F,W,W,W,W,W,F,W],
+  [W,F,W,P,P,P,P,P,W,P,W,F,F,F,F,F,W,F,W],
+  [W,F,W,W,W,W,W,P,W,P,W,W,W,W,W,F,W,F,W],
+  [W,F,F,F,F,F,W,P,W,P,P,P,P,P,W,F,W,F,W],
+  [W,W,W,W,W,F,W,P,W,W,W,W,W,P,W,F,W,W,W],
+  [W,F,F,F,W,F,W,P,F,F,F,F,W,P,W,F,F,F,W],
+  [W,F,W,F,W,F,W,W,W,Q,Q,F,W,P,W,W,W,F,W],
+  [W,F,W,F,F,F,W,F,W,Q,Q,F,W,P,P,P,W,F,W],
+  [W,F,W,W,W,W,W,F,W,F,F,F,W,W,W,P,W,F,W],
+  [W,F,F,F,F,F,F,F,W,F,W,W,W,F,W,P,W,F,W],
+  [W,W,W,W,W,W,W,W,W,F,W,F,F,F,W,P,W,F,W],
+  [W,F,F,F,F,F,F,F,F,F,W,F,W,W,W,P,W,W,W],
+  [W,F,W,W,W,W,W,W,W,W,W,F,W,F,F,P,F,F,W],
+  [W,F,W,F,F,F,F,F,F,F,W,F,W,F,W,W,W,F,W],
+  [W,F,F,F,W,W,W,W,W,F,F,F,W,F,F,F,F,F,W],
+  [W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W],
 ];
 
 // Floor 2 — Tidepool Ruins
@@ -147,13 +157,11 @@ export const FLOORS = [
     id: 1,
     name: 'The Garden',
     tileset: 'garden',
-    width:  15,
-    height: 15,
+    width:  19,
+    height: 25,
     tiles: FLOOR_1_TILES,
     startX: 1,
-    startY: 13,
-    // Palette overrides for the tile renderer. Placeholder until real
-    // art arrives — drives the mood of each floor.
+    startY: 23,
     palette: {
       wall:  0x1e4018,
       floor: 0x3a7028,
@@ -162,19 +170,22 @@ export const FLOORS = [
       decor: 0x2a5818,
     },
     objects: [
-      { type: 'chest',     x: 3,  y: 3,  loot: { gold: 15 } },
-      { type: 'chest',     x: 11, y: 11, loot: { gold: 15 } },
-      { type: 'fairy',     x: 1,  y: 5 },
-      { type: 'fairy',     x: 13, y: 9 },
-      { type: 'fairy',     x: 5,  y: 13 },
-      { type: 'golden',    x: 7,  y: 5 },
+      { type: 'fairy',     x: 3,  y: 3 },
+      { type: 'fairy',     x: 15, y: 11 },
+      { type: 'fairy',     x: 9,  y: 20 },
+      { type: 'golden',    x: 9,  y: 3 },
+      { type: 'chest',     x: 1,  y: 14, loot: { gold: 20 } },
       { type: 'potion',    x: 11, y: 3 },
-      { type: 'encounter', x: 5,  y: 5 },
-      { type: 'encounter', x: 9,  y: 9 },
-      { type: 'encounter', x: 3,  y: 11 },
-      { type: 'encounter', x: 11, y: 5 },
-      { type: 'boss',      x: 7,  y: 3, enemyId: 'briarking' },
-      { type: 'exit',      x: 7,  y: 1 },
+      { type: 'gold',      x: 3,  y: 6 },
+      { type: 'gold',      x: 15, y: 16 },
+      { type: 'gold',      x: 11, y: 23 },
+      { type: 'encounter', x: 3,  y: 1 },
+      { type: 'encounter', x: 15, y: 10 },
+      { type: 'encounter', x: 1,  y: 16 },
+      { type: 'encounter', x: 9,  y: 19 },
+      { type: 'encounter', x: 13, y: 13 },
+      { type: 'boss',      x: 9,  y: 2, enemyId: 'briarking' },
+      { type: 'exit',      x: 9,  y: 1 },
     ],
   },
   {

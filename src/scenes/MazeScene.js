@@ -150,12 +150,11 @@ export class MazeScene extends Phaser.Scene {
     // Tile size — large enough that tiles feel like a real environment.
     // Camera zooms into ~7x7 visible area and scrolls to follow player.
     const hudHeight = 140;
-    this.tileSize = 80;
+    this.tileSize = 56;
     this.originX = 0;
     this.originY = 0;
 
     this.buildTiles();
-    this.buildEnvironment();
     this.buildObjects();
     this.buildPlayer();
     this.buildFogOverlay();
@@ -199,8 +198,6 @@ export class MazeScene extends Phaser.Scene {
     this.tileSprites = [];
     const ts = this.tileSize;
 
-    ensureTileTextures(this, this.floorId, ts);
-
     for (let y = 0; y < this.floor.height; y++) {
       const row = [];
       for (let x = 0; x < this.floor.width; x++) {
@@ -208,7 +205,7 @@ export class MazeScene extends Phaser.Scene {
         const sx = this.originX + x * ts + ts / 2;
         const sy = this.originY + y * ts + ts / 2;
 
-        const texKey = getTileTextureKey(this.floorId, t, x, y);
+        const texKey = getTileTextureKey(this, this.floorId, t, x, y, ts);
         const img = this.add.image(sx, sy, texKey);
         img.setDisplaySize(ts, ts);
         row.push(img);
