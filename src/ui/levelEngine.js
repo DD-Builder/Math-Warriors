@@ -23,6 +23,41 @@ var LV_PAL = {
   fairy0: '#88aaff', fairy1: '#ffaa44', fairy2: '#44ffaa'
 };
 
+// ─── FLOOR PALETTES ─────────────────────────────────────────────
+
+var FLOOR_PALS = {
+  2: { // Tidepool
+    wall0: '#0a1828', wall1: '#0e2038', wall2: '#142840', wall3: '#1a3048',
+    floor0: '#1a3050', floorL: '#203858',
+    path0: '#384858', pathS: '#506878', pathL: '#607888',
+    water0: '#081420', water1: '#0c1c30', waterHL: '#2868a0',
+    accent: '#c04880', accentL: '#e86898', coral: '#a04060',
+  },
+  3: { // Cloud
+    wall0: '#1a2030', wall1: '#283040', wall2: '#384050', wall3: '#485868',
+    floor0: '#607080', floorL: '#788898',
+    path0: '#8898a8', pathS: '#a0b0c0', pathL: '#b8c8d8',
+    water0: '#c8d8e8', water1: '#d8e8f8', waterHL: '#f0f8ff',
+    accent: '#f8d830', accentL: '#ffe848', wisp: '#e0e8f0',
+  },
+  4: { // Ember
+    wall0: '#1a0808', wall1: '#280e08', wall2: '#381408', wall3: '#481c0c',
+    floor0: '#3a2010', floorL: '#4a2818',
+    path0: '#584030', pathS: '#685040', pathL: '#786050',
+    water0: '#601808', water1: '#802010', waterHL: '#e06010',
+    accent: '#e04008', accentL: '#f06818', ember: '#ff8020',
+  },
+  5: { // Arcane
+    wall0: '#100818', wall1: '#180c28', wall2: '#201038', wall3: '#281848',
+    floor0: '#201030', floorL: '#281840',
+    path0: '#382050', pathS: '#483068', pathL: '#584080',
+    water0: '#180830', water1: '#200c40', waterHL: '#6030c0',
+    accent: '#c060f0', accentL: '#d880ff', rune: '#8040d0',
+  },
+};
+
+var _floorTheme = 1;
+
 // ─── TILE CONSTANTS ─────────────────────────────────────────────
 
 var LV_TILE = 56;
@@ -170,6 +205,134 @@ function LV_drawWater(sx, sy, ts, tx, ty, t) {
   LV_cut(LV_PAL.pondHL, 0, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.18 + Math.sin(t * 2 + ty) * ts * 0.04, ts * 0.35, ts * 0.05); });
 }
 
+// ─── FLOOR 2: TIDEPOOL TILES ────────────────────────────────────
+
+function LV_drawWall_tidepool(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[2], r = mkRng(tx * 31 + ty * 97 + 201);
+  LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.2 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.55); });
+  LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.35 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
+  if (r() < 0.3) {
+    var cr = mkRng(tx * 17 + ty * 37 + 3); var cx = sx + ts * (0.2 + cr() * 0.6), cy = sy + ts * (0.15 + cr() * 0.3);
+    LV_cut(P.coral, 2, function () { _G.arc(cx, cy, ts * 0.08, 0, Math.PI * 2); });
+    LV_cut(P.accent, 1, function () { _G.arc(cx + ts * 0.05, cy - ts * 0.03, ts * 0.05, 0, Math.PI * 2); });
+  }
+}
+function LV_drawFloor_tidepool(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[2], r = mkRng(tx * 19 + ty * 53 + 202);
+  LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+}
+function LV_drawPath_tidepool(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[2];
+  LV_cut(P.path0, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  var stones = [[sx + ts * 0.04, sy + ts * 0.04, ts * 0.44, ts * 0.44], [sx + ts * 0.52, sy + ts * 0.04, ts * 0.44, ts * 0.44], [sx + ts * 0.04, sy + ts * 0.52, ts * 0.44, ts * 0.44], [sx + ts * 0.52, sy + ts * 0.52, ts * 0.44, ts * 0.44]];
+  for (var si = 0; si < 4; si++) { var st = stones[si]; var sr = mkRng(tx * 41 + ty * 83 + si * 11); LV_cut(si % 2 === 0 ? P.pathS : P.pathL, 2, (function (s, r2) { return function () { LV_wobRect(s[0] + r2() * 2, s[1] + r2() * 2, s[2] - r2() * 2, s[3] - r2() * 2, mkRng(si * 7 + tx + ty), 1.5); }; })(st, sr)); }
+}
+function LV_drawWater_tidepool(sx, sy, ts, tx, ty, t) {
+  var P = FLOOR_PALS[2];
+  LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
+  LV_cut(P.waterHL, 0, function () { _G.rect(sx + ts * 0.1, sy + ts * 0.15 + Math.sin(t * 1.8 + ty) * ts * 0.05, ts * 0.4, ts * 0.04); });
+}
+
+// ─── FLOOR 3: CLOUD TILES ──────────────────────────────────────
+
+function LV_drawWall_cloud(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[3], r = mkRng(tx * 31 + ty * 97 + 301);
+  LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.12 + r() * 0.1), 4 + Math.floor(r() * 2), r2, 0.4); });
+  LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.28 + r() * 0.08), 3 + Math.floor(r() * 2), r2, 0.35); });
+  if (r() < 0.18) { var wr = mkRng(tx * 23 + ty * 41); LV_cut(P.wisp, 0, function () { _G.arc(sx + ts * (0.3 + wr() * 0.4), sy + ts * (0.15 + wr() * 0.2), ts * 0.06, 0, Math.PI * 2); }); }
+}
+function LV_drawFloor_cloud(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[3], r = mkRng(tx * 19 + ty * 53 + 302);
+  LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.arc(sx + ts * (0.3 + pr() * 0.4), sy + ts * (0.3 + pr() * 0.4), ts * (0.12 + pr() * 0.08), 0, Math.PI * 2); }); }
+}
+function LV_drawPath_cloud(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[3];
+  LV_cut(P.path0, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.pathS : P.pathL, 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
+}
+function LV_drawWater_cloud(sx, sy, ts, tx, ty, t) {
+  var P = FLOOR_PALS[3];
+  LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.12, ts * 0.84, ts * 0.7); });
+  LV_cut(P.waterHL, 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.4 + Math.sin(t * 1.5 + tx) * ts * 0.06, ts * 0.18, 0, Math.PI * 2); });
+}
+
+// ─── FLOOR 4: EMBER TILES ──────────────────────────────────────
+
+function LV_drawWall_ember(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[4], r = mkRng(tx * 31 + ty * 97 + 401);
+  LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.18 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.65); });
+  LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.32 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.55); });
+  if (r() < 0.25) { var lr = mkRng(tx * 37 + ty * 53); _G.save(); _G.strokeStyle = P.ember; _G.lineWidth = 1.2; _G.globalAlpha = 0.4; _G.beginPath(); _G.moveTo(sx + lr() * ts, sy); _G.lineTo(sx + lr() * ts, sy + ts); _G.stroke(); _G.restore(); }
+}
+function LV_drawFloor_ember(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[4], r = mkRng(tx * 19 + ty * 53 + 402);
+  LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  if (r() < 0.45) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+  if (r() < 0.08) { LV_cut(P.accent, 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.5, ts * 0.04, 0, Math.PI * 2); }); }
+}
+function LV_drawPath_ember(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[4];
+  LV_cut(P.path0, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.pathS : P.pathL, 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
+}
+function LV_drawWater_ember(sx, sy, ts, tx, ty, t) {
+  var P = FLOOR_PALS[4];
+  LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
+  LV_cut(P.ember, 0, function () { _G.arc(sx + ts * (0.3 + Math.sin(t * 2.5 + tx) * 0.15), sy + ts * 0.5, ts * 0.06, 0, Math.PI * 2); });
+}
+
+// ─── FLOOR 5: ARCANE TILES ─────────────────────────────────────
+
+function LV_drawWall_arcane(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[5], r = mkRng(tx * 31 + ty * 97 + 501);
+  LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.5); });
+  LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
+  if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); _G.save(); _G.globalAlpha = 0.15; _G.fillStyle = P.accent; _G.beginPath(); _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
+}
+function LV_drawFloor_arcane(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[5], r = mkRng(tx * 19 + ty * 53 + 502);
+  LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+}
+function LV_drawPath_arcane(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[5];
+  LV_cut(P.path0, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.pathS : P.pathL, 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
+}
+function LV_drawWater_arcane(sx, sy, ts, tx, ty, t) {
+  var P = FLOOR_PALS[5];
+  LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
+  LV_cut(P.accent, 0, function () { _G.arc(sx + ts * (0.4 + Math.sin(t * 2 + ty * 0.5) * 0.1), sy + ts * 0.45, ts * 0.08 + Math.sin(t * 3) * ts * 0.02, 0, Math.PI * 2); });
+}
+
+// ─── THEME DISPATCH ─────────────────────────────────────────────
+
+var _tileFns = {
+  1: { wall: LV_drawWall, floor: LV_drawFloor, path: LV_drawPath, water: LV_drawWater },
+  2: { wall: LV_drawWall_tidepool, floor: LV_drawFloor_tidepool, path: LV_drawPath_tidepool, water: LV_drawWater_tidepool },
+  3: { wall: LV_drawWall_cloud, floor: LV_drawFloor_cloud, path: LV_drawPath_cloud, water: LV_drawWater_cloud },
+  4: { wall: LV_drawWall_ember, floor: LV_drawFloor_ember, path: LV_drawPath_ember, water: LV_drawWater_ember },
+  5: { wall: LV_drawWall_arcane, floor: LV_drawFloor_arcane, path: LV_drawPath_arcane, water: LV_drawWater_arcane },
+};
+
+function _drawTile(tt, sx, sy, ts, tx, ty, t) {
+  var fns = _tileFns[_floorTheme] || _tileFns[1];
+  if (tt === LV_TW) fns.wall(sx, sy, ts, tx, ty);
+  else if (tt === LV_TP) fns.path(sx, sy, ts, tx, ty);
+  else if (tt === LV_TQ) fns.water(sx, sy, ts, tx, ty, t);
+  else fns.floor(sx, sy, ts, tx, ty);
+}
+
 // ─── OBJECT DRAWING (1:1 from reference) ────────────────────────
 
 function LV_drawChest(sx, sy, ts, o) {
@@ -308,10 +471,7 @@ function LV_draw(t) {
     if (scx + ts < 0 || scx > _W || scy + ts < 0 || scy > _H) continue;
     if (!_fog[ty2][tx2]) { _G.fillStyle = '#080402'; _G.fillRect(scx, scy, ts + 1, ts + 1); continue; }
     var tt2 = _map[ty2][tx2];
-    if (tt2 === LV_TW) LV_drawWall(scx, scy, ts, tx2, ty2);
-    else if (tt2 === LV_TP) LV_drawPath(scx, scy, ts, tx2, ty2);
-    else if (tt2 === LV_TQ) LV_drawWater(scx, scy, ts, tx2, ty2, t);
-    else LV_drawFloor(scx, scy, ts, tx2, ty2);
+    _drawTile(tt2, scx, scy, ts, tx2, ty2, t);
   }
   // Objects
   for (var oi = 0; oi < _objs.length; oi++) {
@@ -612,5 +772,9 @@ export function markDead(id) {
 }
 
 // ─── ADDITIONAL EXPORTS (for backward compatibility / palette access) ──
+
+export function setFloorTheme(floorId) {
+  _floorTheme = floorId;
+}
 
 export { LV_PAL, LV_TILE };

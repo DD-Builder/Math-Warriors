@@ -10,7 +10,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, setFloorTheme } from '../ui/levelEngine.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
@@ -75,14 +75,14 @@ export class MazeScene extends Phaser.Scene {
       this.objects = mazeState.objects;
       this.fog = mazeState.fog;
       this.bossDefeated = mazeState.bossDefeated;
-      this.fairiesFreed = mazeState.fairiesFreed || 0;
+      this.challengeProgress = mazeState.fairiesFreed || 0;
     } else {
       // Fresh entry: reset state
       this.playerX = this.floor.startX;
       this.playerY = this.floor.startY;
       this.fog = this.buildInitialFog();
       this.bossDefeated = false;
-      this.fairiesFreed = 0;
+      this.challengeProgress = 0;
 
       // Hand-placed objects (chests, potions, boss, exit) keep their
       // designated positions. Encounter (monster) tiles get randomized
@@ -171,12 +171,13 @@ export class MazeScene extends Phaser.Scene {
       fairyCol: '#88aaff',
     }));
 
+    setFloorTheme(this.floorId);
     initLevel(GAME_WIDTH, GAME_HEIGHT, this.floor.tiles, engineObjs, heroCanvases, this.playerX, this.playerY);
 
     // Restore state if returning from battle
     if (!this.freshEntry && this.fog) {
       setGameState({
-        fairies: this.fairiesFreed || 0,
+        fairies: this.challengeProgress || 0,
         hasKey: this.bossDefeated,
         dead: {},
         fog: this.fog,
@@ -466,7 +467,7 @@ export class MazeScene extends Phaser.Scene {
         g.strokeRoundedRect(-gw/2, -gh/2, gw, gh, 5);
         bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         // Hidden until all fairies are freed
-        const allFreed = this.fairiesFreed >= 3;
+        const allFreed = this.challengeProgress >= 3;
         g.setVisible(allFreed);
         break;
       }
@@ -775,32 +776,35 @@ export class MazeScene extends Phaser.Scene {
         this.updateHud();
         break;
       }
-      case 'fairy': {
-        this.fairiesFreed++;
+      case 'fairy':
+      case 'valve':
+      case 'beacon':
+      case 'vent':
+      case 'fragment': {
+        this.challengeProgress++;
         obj.consumed = true;
         this.objectSprites[index]?.destroy();
         this.objectSprites[index] = null;
         audio.play('world/chest');
-        const remaining = 3 - this.fairiesFreed;
+        const ch = this.floor.challenge || { count: 3, label: 'ITEM', verb: 'found', allDoneMsg: 'Challenge complete!' };
+        const remaining = ch.count - this.challengeProgress;
         if (remaining > 0) {
-          this.showFloatText(obj.x, obj.y, `FAIRY FREED! ${remaining} left`, '#e088c0');
+          this.showFloatText(obj.x, obj.y, `${ch.label} ${ch.verb}! ${remaining} left`, '#e088c0');
           if (shouldShowTutorial('FIRST_FAIRY')) {
             markTutorialShown('FIRST_FAIRY');
             this.dialogue.show([{ speaker: 'Hint', text: getTutorialText('FIRST_FAIRY') }]);
-          } else if (DIALOGUE.fairy_freed) {
-            this.dialogue.show(DIALOGUE.fairy_freed);
           }
         } else {
-          this.showFloatText(obj.x, obj.y, 'ALL FAIRIES FREE!', '#f0d040');
+          this.showFloatText(obj.x, obj.y, ch.allDoneMsg, '#f0d040');
           this.revealGoldenChest();
-          if (DIALOGUE.all_fairies_freed) this.dialogue.show(DIALOGUE.all_fairies_freed);
         }
         this.updateHud();
         break;
       }
       case 'golden': {
-        if (this.fairiesFreed < 3) {
-          this.showFloatText(obj.x, obj.y, 'FREE ALL 3 FAIRIES FIRST', '#e088c0');
+        const ch2 = this.floor.challenge || { count: 3 };
+        if (this.challengeProgress < ch2.count) {
+          this.showFloatText(obj.x, obj.y, `COMPLETE THE CHALLENGE FIRST`, '#e088c0');
           return;
         }
         const gold = 50 + this.floorId * 25;
@@ -907,7 +911,7 @@ export class MazeScene extends Phaser.Scene {
       objects: this.objects,
       fog: gs.fog || this.fog,
       bossDefeated: gs.hasKey || this.bossDefeated,
-      fairiesFreed: gs.fairies || this.fairiesFreed,
+      fairiesFreed: gs.fairies || this.challengeProgress,
     });
   }
 
