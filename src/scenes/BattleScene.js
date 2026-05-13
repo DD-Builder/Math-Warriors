@@ -342,14 +342,10 @@ export class BattleScene extends Phaser.Scene {
 
     const body = drawMonsterSprite(this, x, y, this.enemy, { scale: monsterScale });
 
-    // Stack name + HP bar + HP text ABOVE the enemy sprite so they
-    // never get clipped by the papercut ground line or the answer
-    // button strip. Also easier for a kid to see "how close am I to
-    // winning" at a glance.
-    const headY = y - h / 2;
-    const nameY = headY - 64;
-    const hpY = headY - 32;
-    const hpTextY = headY - 10;
+    const spriteHalfH = 80 * monsterScale / 2;
+    const nameY = y - spriteHalfH - 50;
+    const hpY = y - spriteHalfH - 28;
+    const hpTextY = y - spriteHalfH - 8;
 
     const name = this.add.text(x, nameY, this.enemy.name.toUpperCase(), {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -405,7 +401,7 @@ export class BattleScene extends Phaser.Scene {
 
     // Background panel spanning both equation and answers
     PaperPanel(this, area.cx, area.bottom - totalUiH / 2, area.w, totalUiH + 10, {
-      color: 0xfff4e0, alpha: 0.96, radius: 18,
+      color: 0xfff4e0, alpha: 0.72, radius: 18,
     });
 
     // === TOP: floor name + momentum bar (slim) ===
@@ -446,31 +442,31 @@ export class BattleScene extends Phaser.Scene {
     this.refreshPotionButton();
 
     // === EQUATION — centered above answer buttons, prominent ===
-    const noteW = 260;
-    const noteH = eqH + 10;
+    const noteW = 280;
+    const noteH = eqH + 30;
     const noteCx = area.cx;
-    const noteCy = eqY - 4;
+    const noteCy = eqY;
 
     PaperPanel(this, noteCx, noteCy, noteW, noteH, {
-      color: 0xfff8e8, alpha: 0.98, radius: 14,
+      color: 0xfff8e8, alpha: 0.92, radius: 14,
     });
 
     this.eqLines = {
-      a:    this.add.text(noteCx + 30, noteCy - 30, '', this.eqLineStyle({ fontSize: '44px', color: '#1a0e04' })),
-      opB:  this.add.text(noteCx + 30, noteCy + 4,  '', this.eqLineStyle({ fontSize: '44px', color: '#1a0e04' })),
-      bar:  this.add.text(noteCx,      noteCy + 24, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '20px', color: '#6a4c28' })),
-      ans:  this.add.text(noteCx + 30, noteCy + 46, '?', this.eqLineStyle({ fontSize: '44px', color: '#b86820' })),
+      a:    this.add.text(noteCx + 20, noteCy - 34, '', this.eqLineStyle({ fontSize: '48px', color: '#1a0e04' })),
+      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '48px', color: '#1a0e04' })),
+      bar:  this.add.text(noteCx,      noteCy + 28, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '22px', color: '#6a4c28' })),
+      ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '48px', color: '#b86820' })),
     };
     this.eqLines.a.setOrigin(1, 0.5);
     this.eqLines.opB.setOrigin(1, 0.5);
     this.eqLines.bar.setOrigin(0.5);
-    this.eqLines.ans.setOrigin(1, 0.5);
+    this.eqLines.ans.setOrigin(0.5, 0.5);
 
-    // Turn label — sits in its OWN little paper pill ABOVE the bottom
-    // answer strip so it can't get clipped by the strip edge.
-    const turnY = eqY - eqH / 2 - 28;
-    PaperPanel(this, area.cx, turnY, 440, 46, {
-      color: 0x1a0e04, alpha: 0.85, radius: 14, shadowOff: 4, shadowAlpha: 0.3,
+    // Turn label — between characters and bottom UI
+    const uiTopEdge = area.bottom - totalUiH - 5;
+    const turnY = uiTopEdge - 24;
+    PaperPanel(this, area.cx, turnY, 440, 42, {
+      color: 0x1a0e04, alpha: 0.82, radius: 14, shadowOff: 3, shadowAlpha: 0.25,
     });
     this.turnLabel = this.add.text(area.cx, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
