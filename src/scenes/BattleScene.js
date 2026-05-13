@@ -912,10 +912,15 @@ export class BattleScene extends Phaser.Scene {
         this.showToast('CORRECT!', COLORS_CSS.greenL);
       }
 
+      // Target the current enemy
+      const targetIdx = this.currentTarget;
+      const targetEnemy = this.enemies[targetIdx] || this.enemy;
+      const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
+
       // Fire the enemy's ability hook — some abilities react to
       // correct answers (e.g., shell_split triggers on hp threshold)
-      invokeAbility(this.enemy.ability, 'onHeroCorrect', {
-        enemy: this.enemy,
+      invokeAbility(targetEnemy.ability, 'onHeroCorrect', {
+        enemy: targetEnemy,
         party: this.party,
         scene: this,
         activeHero: this.party[this.currentTurn.heroIndex],
@@ -950,119 +955,311 @@ export class BattleScene extends Phaser.Scene {
 
       const totalDmg = Math.max(1, Math.round(baseDamage * zone.heroMult * classMult));
       const modified = hitCount > 1 ? Math.max(1, Math.round(totalDmg / hitCount)) * hitCount : totalDmg;
-      const newHp = Math.max(0, this.enemy.hp - modified);
+      const newHp = Math.max(0, targetEnemy.hp - modified);
       const result = {
         baseDamage,
         modifiedDamage: modified,
         newHp,
-        killed: newHp === 0 && this.enemy.hp > 0,
+        killed: newHp === 0 && targetEnemy.hp > 0,
         hitCount,
         cls,
       };
-      applyDamageResult(this.enemy, result);
+      applyDamageResult(targetEnemy, result);
 
       // Check for kill IMMEDIATELY — don't wait for animations
-      if (this.enemy.hp <= 0) {
+      if (targetEnemy.hp <= 0) {
         this.hitFlash();
-        this.flashEnemy(result);
-        this.updateEnemyHp();
-        this.burstParticles(this.enemySprite.x, this.enemySprite.y, 0xe8a030);
+        this.flashEnemy(result, targetIdx);
+        this.updateEnemyHp(targetIdx);
+        this.burstParticles(targetSprite.x, targetSprite.y, 0xe8a030);
         this.shakeCamera(0.012, 300);
-        this.time.delayedCall(400, () => this.showVictory());
-        return; // skip the normal turn advance below
-      }
+        // Fade out the killed enemy sprite
+        this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 300 });
+        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 300 });
+        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 300 });
+        if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 300 });
+        // Check if ALL enemies are dead
+        if (this.allEnemiesDead()) {
+          this.time.delayedCall(400, () => this.showVictory());
+          return; // skip the normal turn advance below
+        }
+        // Not all dead: auto-advance target to next alive enemy
+        const nextAlive = this.findNextAliveEnemy();
+        if (nextAlive >= 0) this.currentTarget = nextAlive;
+        // Fall through to turn advance
+      } else {
+        // Class-specific attack animation (enemy survived)
+        const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
+        const enemyX = targetSprite.x;
+        const enemyY = targetSprite.y;
 
-      // Class-specific attack animation
-      const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
-      const enemyX = this.enemySprite.x;
-      const enemyY = this.enemySprite.y;
-
-      if (cls === 'knight') {
-        // Knight: lunge forward with sword slash
-        this.tweens.add({
-          targets: heroSprite.body,
-          x: heroSprite.x + 120,
-          duration: 180,
-          ease: 'Back.out',
-          onComplete: () => {
-            this.hitFlash();
-            this.flashEnemy(result);
-            this.updateEnemyHp();
-            audio.play('battle/hit-enemy');
-            this.shakeCamera(0.012, 250);
-            this.burstParticles(enemyX - 40, enemyY, 0x8898b8);
-            // Slash line
-            const slash = this.add.graphics();
-            slash.lineStyle(4, 0xc8d8e8, 0.9);
-            slash.beginPath(); slash.moveTo(enemyX - 60, enemyY - 40); slash.lineTo(enemyX + 20, enemyY + 30); slash.strokePath();
-            this.tweens.add({ targets: slash, alpha: 0, duration: 300, onComplete: () => slash.destroy() });
-            // Return
-            this.tweens.add({ targets: heroSprite.body, x: heroSprite.x, duration: 200, delay: 100, ease: 'Sine.in' });
-          },
-        });
-      } else if (cls === 'wizard') {
-        // Wizard: projectile arc from wizard to enemy
-        const orb = this.add.circle(heroSprite.x, heroSprite.y - 40, 12, 0x9050c8);
-        const orbGlow = this.add.circle(heroSprite.x, heroSprite.y - 40, 8, 0xc080f0, 0.6);
-        const midX = (heroSprite.x + enemyX) / 2;
-        const midY = Math.min(heroSprite.y, enemyY) - 120;
-        // Simulate arc with two sequential tweens
-        this.tweens.add({
-          targets: [orb, orbGlow], x: midX, y: midY, duration: 200, ease: 'Sine.out',
-          onComplete: () => {
-            this.tweens.add({
-              targets: [orb, orbGlow], x: enemyX, y: enemyY, duration: 200, ease: 'Sine.in',
-              onComplete: () => {
-                orb.destroy(); orbGlow.destroy();
-                this.hitFlash();
-                this.flashEnemy(result);
-                this.updateEnemyHp();
-                audio.play('battle/hit-enemy');
-                this.shakeCamera(0.008, 200);
-                this.burstParticles(enemyX, enemyY, 0xc080f0);
-              },
-            });
-          },
-        });
-      } else if (cls === 'bunny') {
-        // Bunny: rapid multi-hit dash combo
-        const hits = result.hitCount || 2;
-        let hitIdx = 0;
-        const doHit = () => {
-          if (hitIdx >= hits) {
-            this.tweens.add({ targets: heroSprite.body, x: heroSprite.x, duration: 150, ease: 'Sine.in' });
-            return;
-          }
-          const dir = hitIdx % 2 === 0 ? 1 : -1;
+        if (cls === 'knight') {
+          // Knight: lunge to ENEMY position, curved slash arc, yellow-white sparks
           this.tweens.add({
             targets: heroSprite.body,
-            x: heroSprite.x + 80 + dir * 20,
-            duration: 80,
-            ease: 'Linear',
+            x: enemyX - 80,
+            duration: 200,
+            ease: 'Back.out',
             onComplete: () => {
-              if (hitIdx === 0) {
-                this.flashEnemy(result);
-                this.updateEnemyHp();
-                audio.play('battle/hit-enemy');
+              this.hitFlash();
+              this.flashEnemy(result, targetIdx);
+              this.updateEnemyHp(targetIdx);
+              audio.play('battle/hit-enemy');
+              this.shakeCamera(0.008, 250);
+              // Curved slash arc (bezier) ON the enemy
+              const slash = this.add.graphics();
+              slash.lineStyle(5, 0xf0e8c0, 0.95);
+              slash.beginPath();
+              slash.moveTo(enemyX - 40, enemyY - 50);
+              // Approximate bezier with quadratic curve points
+              const cp1x = enemyX + 30, cp1y = enemyY - 30;
+              const cp2x = enemyX + 20, cp2y = enemyY + 40;
+              const endX = enemyX - 30, endY = enemyY + 50;
+              const steps = 12;
+              for (let t = 1; t <= steps; t++) {
+                const p = t / steps;
+                const ip = 1 - p;
+                const sx = ip*ip*ip*(enemyX - 40) + 3*ip*ip*p*cp1x + 3*ip*p*p*cp2x + p*p*p*endX;
+                const sy = ip*ip*ip*(enemyY - 50) + 3*ip*ip*p*cp1y + 3*ip*p*p*cp2y + p*p*p*endY;
+                slash.lineTo(sx, sy);
               }
-              this.burstParticles(enemyX - 20 + dir * 15, enemyY + (hitIdx - 1) * 20, 0xe86898);
-              this.shakeCamera(0.006, 100);
-              hitIdx++;
-              this.tweens.add({ targets: heroSprite.body, x: heroSprite.x + 40, duration: 60, onComplete: doHit });
+              slash.strokePath();
+              this.tweens.add({ targets: slash, alpha: 0, duration: 300, onComplete: () => slash.destroy() });
+              // Yellow-white sparks at enemy position
+              for (let i = 0; i < 8; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 20 + Math.random() * 30;
+                const sparkColor = Math.random() > 0.5 ? 0xfff8c0 : 0xf0d040;
+                const sp = this.add.circle(enemyX, enemyY, 3 + Math.random() * 3, sparkColor);
+                this.tweens.add({
+                  targets: sp,
+                  x: enemyX + Math.cos(angle) * dist,
+                  y: enemyY + Math.sin(angle) * dist,
+                  alpha: 0, duration: 300 + Math.random() * 150,
+                  onComplete: () => sp.destroy(),
+                });
+              }
+              // Return
+              this.tweens.add({ targets: heroSprite.body, x: heroSprite.x, duration: 150, delay: 80, ease: 'Sine.in' });
             },
           });
-        };
-        doHit();
-      } else {
-        // Fallback: simple lunge
-        this.tweens.add({
-          targets: heroSprite.body, x: heroSprite.x + 60, duration: 120, yoyo: true, ease: 'Sine.inOut',
-          onYoyo: () => {
-            this.hitFlash(); this.flashEnemy(result); this.updateEnemyHp();
-            audio.play('battle/hit-enemy'); this.shakeCamera(0.008, 200);
-            this.burstParticles(enemyX, enemyY, 0xe8a030);
-          },
-        });
+        } else if (cls === 'wizard') {
+          // Wizard: elemental bolt based on current question operator
+          const op = this.currentQuestion?.op || '+';
+          let boltColor, glowColor, boltSize, boltStyle;
+          if (op === '+') {
+            boltColor = 0xff6020; glowColor = 0xff8040; boltSize = 16; boltStyle = 'fire';
+          } else if (op === '-') {
+            boltColor = 0xf0e020; glowColor = 0xffffff; boltSize = 12; boltStyle = 'lightning';
+          } else if (op === '*') {
+            boltColor = 0x40c0f0; glowColor = 0x80e0ff; boltSize = 14; boltStyle = 'ice';
+          } else {
+            boltColor = 0x8040c0; glowColor = 0xc080f0; boltSize = 14; boltStyle = 'void';
+          }
+
+          const startX = heroSprite.x;
+          const startY = heroSprite.y - 40;
+
+          if (boltStyle === 'lightning') {
+            // Lightning: zigzag path in 3 segments with white flash on impact
+            const segments = 3;
+            const dx = (enemyX - startX) / segments;
+            const dy = (enemyY - startY) / segments;
+            const bolt = this.add.circle(startX, startY, boltSize, boltColor);
+            const glow = this.add.circle(startX, startY, boltSize * 0.6, glowColor, 0.6);
+            let seg = 0;
+            const doSeg = () => {
+              if (seg >= segments) {
+                bolt.destroy(); glow.destroy();
+                this.cameras.main.flash(80, 255, 255, 255, false, null, null, 0.3);
+                this.hitFlash();
+                this.flashEnemy(result, targetIdx);
+                this.updateEnemyHp(targetIdx);
+                audio.play('battle/hit-enemy');
+                this.shakeCamera(0.008, 200);
+                this.burstParticles(enemyX, enemyY, boltColor);
+                return;
+              }
+              const zigOffset = (seg % 2 === 0 ? 1 : -1) * (40 + Math.random() * 30);
+              const nx = startX + dx * (seg + 1) + (seg < segments - 1 ? zigOffset : 0);
+              const ny = startY + dy * (seg + 1) + (seg < segments - 1 ? zigOffset * 0.3 : 0);
+              this.tweens.add({
+                targets: [bolt, glow], x: nx, y: ny, duration: 70, ease: 'Linear',
+                onComplete: () => { seg++; doSeg(); },
+              });
+            };
+            doSeg();
+          } else if (boltStyle === 'ice') {
+            // Ice shard: straight fast shot, frost burst on impact
+            const shard = this.add.rectangle(startX, startY, boltSize, boltSize * 2.5, boltColor);
+            shard.setRotation(Math.atan2(enemyY - startY, enemyX - startX));
+            const glow = this.add.circle(startX, startY, boltSize * 0.5, glowColor, 0.5);
+            this.tweens.add({
+              targets: [shard, glow], x: enemyX, y: enemyY, duration: 150, ease: 'Linear',
+              onComplete: () => {
+                shard.destroy(); glow.destroy();
+                this.hitFlash();
+                this.flashEnemy(result, targetIdx);
+                this.updateEnemyHp(targetIdx);
+                audio.play('battle/hit-enemy');
+                this.shakeCamera(0.008, 200);
+                // Frost burst: light blue particles spreading outward
+                for (let i = 0; i < 10; i++) {
+                  const angle = (i / 10) * Math.PI * 2;
+                  const dist = 30 + Math.random() * 25;
+                  const fp = this.add.circle(enemyX, enemyY, 4 + Math.random() * 3, 0x80e0ff, 0.8);
+                  this.tweens.add({
+                    targets: fp, x: enemyX + Math.cos(angle) * dist, y: enemyY + Math.sin(angle) * dist,
+                    alpha: 0, duration: 400, onComplete: () => fp.destroy(),
+                  });
+                }
+              },
+            });
+          } else if (boltStyle === 'void') {
+            // Void bolt: spiral path, dark implosion at impact
+            const orb = this.add.circle(startX, startY, boltSize, boltColor);
+            const glow = this.add.circle(startX, startY, boltSize * 0.6, glowColor, 0.5);
+            const spiralSteps = 8;
+            const totalDist = Math.sqrt((enemyX - startX) ** 2 + (enemyY - startY) ** 2);
+            let step = 0;
+            const doSpiral = () => {
+              if (step >= spiralSteps) {
+                orb.destroy(); glow.destroy();
+                this.hitFlash();
+                this.flashEnemy(result, targetIdx);
+                this.updateEnemyHp(targetIdx);
+                audio.play('battle/hit-enemy');
+                this.shakeCamera(0.008, 200);
+                // Dark implosion: particles rush inward then vanish
+                for (let i = 0; i < 10; i++) {
+                  const angle = (i / 10) * Math.PI * 2;
+                  const dist = 40 + Math.random() * 20;
+                  const dp = this.add.circle(enemyX + Math.cos(angle) * dist, enemyY + Math.sin(angle) * dist, 5, 0x4020a0, 0.8);
+                  this.tweens.add({
+                    targets: dp, x: enemyX, y: enemyY, alpha: 0, scale: 0.2,
+                    duration: 250, onComplete: () => dp.destroy(),
+                  });
+                }
+                return;
+              }
+              const t = (step + 1) / spiralSteps;
+              const baseX = startX + (enemyX - startX) * t;
+              const baseY = startY + (enemyY - startY) * t;
+              const spiralR = 30 * (1 - t);
+              const angle = t * Math.PI * 4;
+              const nx = baseX + Math.cos(angle) * spiralR;
+              const ny = baseY + Math.sin(angle) * spiralR;
+              this.tweens.add({
+                targets: [orb, glow], x: nx, y: ny, duration: 50, ease: 'Linear',
+                onComplete: () => { step++; doSpiral(); },
+              });
+            };
+            doSpiral();
+          } else {
+            // Fire bolt: trailing orange particles
+            const orb = this.add.circle(startX, startY, boltSize, boltColor);
+            const glow = this.add.circle(startX, startY, boltSize * 0.6, glowColor, 0.6);
+            const midX = (startX + enemyX) / 2;
+            const midY = Math.min(startY, enemyY) - 80;
+            // Trail particles during flight
+            const trailTimer = this.time.addEvent({
+              delay: 40, loop: true,
+              callback: () => {
+                const tp = this.add.circle(orb.x, orb.y, 4 + Math.random() * 3, 0xff8020, 0.6);
+                this.tweens.add({ targets: tp, alpha: 0, scale: 0.3, duration: 200, onComplete: () => tp.destroy() });
+              },
+            });
+            this.tweens.add({
+              targets: [orb, glow], x: midX, y: midY, duration: 200, ease: 'Sine.out',
+              onComplete: () => {
+                this.tweens.add({
+                  targets: [orb, glow], x: enemyX, y: enemyY, duration: 200, ease: 'Sine.in',
+                  onComplete: () => {
+                    trailTimer.remove();
+                    orb.destroy(); glow.destroy();
+                    this.hitFlash();
+                    this.flashEnemy(result, targetIdx);
+                    this.updateEnemyHp(targetIdx);
+                    audio.play('battle/hit-enemy');
+                    this.shakeCamera(0.008, 200);
+                    this.burstParticles(enemyX, enemyY, boltColor);
+                  },
+                });
+              },
+            });
+          }
+        } else if (cls === 'bunny') {
+          // Bunny: martial arts combo — dash TO enemy, multi-hit with pink particles
+          const hits = result.hitCount || 2;
+          let hitIdx = 0;
+          // Dash to enemy position
+          this.tweens.add({
+            targets: heroSprite.body,
+            x: enemyX - 50,
+            duration: 100,
+            ease: 'Quad.out',
+            onComplete: () => {
+              const doHit = () => {
+                if (hitIdx >= hits) {
+                  // Return to original position
+                  this.tweens.add({ targets: heroSprite.body, x: heroSprite.x, y: heroSprite.y, duration: 150, ease: 'Sine.in' });
+                  return;
+                }
+                if (hitIdx === 0) {
+                  // Hit 1: Left hook
+                  this.tweens.add({
+                    targets: heroSprite.body, x: enemyX - 30, duration: 100, ease: 'Linear',
+                    onComplete: () => {
+                      this.flashEnemy(result, targetIdx);
+                      this.updateEnemyHp(targetIdx);
+                      audio.play('battle/hit-enemy');
+                      this.burstParticles(enemyX, enemyY, 0xe86898);
+                      this.shakeCamera(0.006, 100);
+                      hitIdx++;
+                      this.time.delayedCall(50, doHit);
+                    },
+                  });
+                } else if (hitIdx === 1) {
+                  // Hit 2: Right kick
+                  this.tweens.add({
+                    targets: heroSprite.body, x: enemyX + 30, duration: 100, ease: 'Linear',
+                    onComplete: () => {
+                      this.burstParticles(enemyX, enemyY, 0xe86898);
+                      this.shakeCamera(0.006, 100);
+                      hitIdx++;
+                      this.time.delayedCall(50, doHit);
+                    },
+                  });
+                } else if (hitIdx === 2) {
+                  // Hit 3: Uppercut (only if streak >= 4)
+                  this.tweens.add({
+                    targets: heroSprite.body, x: enemyX, y: enemyY + 30, duration: 100, ease: 'Linear',
+                    onComplete: () => {
+                      // Enemy bounces up 20px
+                      this.tweens.add({ targets: targetSprite.body, y: targetSprite.y - 20, duration: 100, yoyo: true, ease: 'Sine.out' });
+                      this.burstParticles(enemyX, enemyY - 10, 0xe86898);
+                      this.shakeCamera(0.008, 120);
+                      hitIdx++;
+                      this.time.delayedCall(50, doHit);
+                    },
+                  });
+                }
+              };
+              doHit();
+            },
+          });
+        } else {
+          // Fallback: simple lunge
+          this.tweens.add({
+            targets: heroSprite.body, x: heroSprite.x + 60, duration: 120, yoyo: true, ease: 'Sine.inOut',
+            onYoyo: () => {
+              this.hitFlash(); this.flashEnemy(result, targetIdx); this.updateEnemyHp(targetIdx);
+              audio.play('battle/hit-enemy'); this.shakeCamera(0.008, 200);
+              this.burstParticles(enemyX, enemyY, 0xe8a030);
+            },
+          });
+        }
       }
     } else {
       this.recolorAnswerButton(index, 0xc04040, 1);
@@ -1083,8 +1280,9 @@ export class BattleScene extends Phaser.Scene {
 
       // Fire enemy ability hook for wrong answers — most interesting
       // side effects trigger here (sporulate boost, crown tally, consume)
-      invokeAbility(this.enemy.ability, 'onHeroWrong', {
-        enemy: this.enemy,
+      const wrongTargetEnemy = this.enemies[this.currentTarget] || this.enemy;
+      invokeAbility(wrongTargetEnemy.ability, 'onHeroWrong', {
+        enemy: wrongTargetEnemy,
         party: this.party,
         scene: this,
         activeHero: this.party[this.currentTurn.heroIndex],
@@ -1093,7 +1291,8 @@ export class BattleScene extends Phaser.Scene {
       // Brief pause, then enemy counters
       this.time.delayedCall(300, () => {
         const target = this.party[this.currentTurn.heroIndex];
-        const result = computeEnemyDamage(this.enemy, target, { momentum: this.momentum });
+        const counterEnemy = this.enemies[this.currentTarget] || this.enemy;
+        const result = computeEnemyDamage(counterEnemy, target, { momentum: this.momentum });
         applyDamageResult(target, result);
         this.hitFlash();
         this.flashHero(target, result);
@@ -1202,8 +1401,9 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  flashEnemy(result) {
-    const s = this.enemySprite;
+  flashEnemy(result, targetIdx) {
+    const idx = targetIdx ?? this.currentTarget;
+    const s = this.enemySprites[idx] || this.enemySprite;
     // White flash + shake
     this.tweens.add({ targets: s.body, alpha: 0.2, duration: 50, yoyo: true, repeat: 2 });
     this.tweens.add({ targets: s.body, x: s.x + 8, duration: 40, yoyo: true, repeat: 3 });
@@ -1283,16 +1483,19 @@ export class BattleScene extends Phaser.Scene {
     this.party.forEach(h => { if (h && h.hp > 0) this.updateHeroHp(h); });
   }
 
-  updateEnemyHp() {
-    const pct = Math.max(0, this.enemy.hp / this.enemy.maxHp);
+  updateEnemyHp(targetIdx) {
+    const idx = targetIdx ?? this.currentTarget;
+    const enemy = this.enemies[idx] || this.enemy;
+    const sprite = this.enemySprites[idx] || this.enemySprite;
+    const pct = Math.max(0, enemy.hp / enemy.maxHp);
     const fullW = 200 + 10 - 4; // matches buildEnemySprite
     this.tweens.add({
-      targets: this.enemySprite.hpBarFill,
+      targets: sprite.hpBarFill,
       width: fullW * pct,
       duration: 300,
       ease: 'Cubic.out',
     });
-    this.enemySprite.hpText.setText(`${this.enemy.hp}/${this.enemy.maxHp}`);
+    sprite.hpText.setText(`${enemy.hp}/${enemy.maxHp}`);
   }
 
   updateMomentumBar() {
@@ -1388,17 +1591,35 @@ export class BattleScene extends Phaser.Scene {
 
     writeSave(save);
 
-    // Enemy fade-out + gold coin burst
-    this.tweens.add({ targets: this.enemySprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 600, ease: 'Back.in' });
-    this.burstParticles(this.enemySprite.x, this.enemySprite.y, 0xe8a030);
-    this.burstParticles(this.enemySprite.x, this.enemySprite.y, 0xf0d040);
+    // Enemy fade-out + gold coin burst (all enemy sprites)
+    const spritesToFade = this.enemySprites || [this.enemySprite];
+    for (let ei = 0; ei < spritesToFade.length; ei++) {
+      const es = spritesToFade[ei];
+      if (!es) continue;
+      try {
+        if (es.body) {
+          this.tweens.add({ targets: es.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 600, ease: 'Back.in' });
+        }
+        this.burstParticles(es.x, es.y, 0xe8a030);
+        this.burstParticles(es.x, es.y, 0xf0d040);
+        if (es.name) this.tweens.add({ targets: es.name, alpha: 0, duration: 400 });
+        if (es.hpBarBg) this.tweens.add({ targets: es.hpBarBg, alpha: 0, duration: 400 });
+        if (es.hpBarFill) this.tweens.add({ targets: es.hpBarFill, alpha: 0, duration: 400 });
+        if (es.hpText) this.tweens.add({ targets: es.hpText, alpha: 0, duration: 400 });
+      } catch (_) { /* defensive: don't let sprite cleanup prevent victory */ }
+    }
 
     const accuracy = this.battleCorrect + this.battleWrong > 0
       ? Math.round((this.battleCorrect / (this.battleCorrect + this.battleWrong)) * 100) : 100;
 
+    // Build defeated names
+    const defeatedNames = this.enemies.length > 1
+      ? this.enemies.map(e => e.name).join(' & ')
+      : this.enemy.name;
+
     this.time.delayedCall(500, () => {
       this.endOverlay.titleText.setText('VICTORY!');
-      this.endOverlay.subText.setText(`${this.enemy.name} defeated!`);
+      this.endOverlay.subText.setText(`${defeatedNames} defeated!`);
       let rewardText = `+${goldEarned} GOLD  •  +${xpEarned} XP  •  ${accuracy}%`;
       if (leveledUp.length > 0) {
         rewardText += `\n⭐ ${leveledUp.join(' & ')} LEVELED UP!`;
