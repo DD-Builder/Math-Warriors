@@ -259,9 +259,7 @@ function LV_drawPartyMember(px, py, ts, idx, moving, t) {
 
 function LV_drawMinimap() {
   if (!_minimapCanvas) {
-    _minimapCanvas = (typeof OffscreenCanvas !== 'undefined')
-      ? new OffscreenCanvas(120, 120)
-      : document.createElement('canvas');
+    _minimapCanvas = document.createElement('canvas');
     _minimapCanvas.width = 120;
     _minimapCanvas.height = 120;
     _minimapG = _minimapCanvas.getContext('2d');
@@ -435,14 +433,10 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   _heroCanvases = heroCanvases || [];
   _deathParticles = [];
 
-  // Create offscreen canvas
-  if (typeof OffscreenCanvas !== 'undefined') {
-    _canvas = new OffscreenCanvas(_W, _H);
-  } else {
-    _canvas = document.createElement('canvas');
-    _canvas.width = _W;
-    _canvas.height = _H;
-  }
+  // Create offscreen canvas (must be HTMLCanvasElement for Phaser compatibility)
+  _canvas = document.createElement('canvas');
+  _canvas.width = _W;
+  _canvas.height = _H;
   _G = _canvas.getContext('2d');
 
   // Minimap will be created lazily in LV_drawMinimap

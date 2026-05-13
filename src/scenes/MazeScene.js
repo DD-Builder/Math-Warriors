@@ -704,9 +704,11 @@ export class MazeScene extends Phaser.Scene {
     // Refresh the Phaser texture from the level engine canvas
     if (this.textures.exists('level-canvas')) {
       const tex = this.textures.get('level-canvas');
-      tex.getSourceImage();
-      tex.update();
-      this.levelImage.setTexture('level-canvas');
+      if (tex.refresh) {
+        tex.refresh();
+      } else if (tex.update) {
+        tex.update();
+      }
     }
 
     // Sync player tile position for interaction checks

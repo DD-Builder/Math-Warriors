@@ -121,8 +121,8 @@ function drawCloud(gfx, cx, cy, width, height, color, rng) {
 export const FLOOR_PALETTES = {
   // Special "menu" palette — warm, inviting, used for title/grade/party screens
   menu: {
-    sky:     0x78b8e8,
-    skyGlow: 0xd0e8f8,
+    sky:     0x88c8f0,
+    skyGlow: 0xe0f0ff,
     layers: [
       { color: 0x58a848, shadow: 0x2c7828, peakH: 0.18, peaks: 3 },
       { color: 0x68c050, shadow: 0x388830, peakH: 0.22, peaks: 4 },

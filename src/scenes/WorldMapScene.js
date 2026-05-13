@@ -74,7 +74,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     // HOME button — top-left, prominent cream paper pill.
     PaperButton(this, area.left + 110, area.top + 50, '\u2190 HOME', {
-      w: 200, h: 72, color: 0xfff4e0, fontSize: 24,
+      w: 200, h: 72, color: 0xffffff, fontSize: 24,
       textColor: '#b83820',
       onClick: () => {
         audio.play('ui/back');
@@ -85,7 +85,7 @@ export class WorldMapScene extends Phaser.Scene {
     // Gold + potions — paper pill just right of the HOME button
     const goldX = area.left + 240;
     PaperPanel(this, goldX + 110, area.top + 50, 220, 60, {
-      color: 0xfff8e8, alpha: 0.95, radius: 18,
+      color: 0xffffff, alpha: 0.95, radius: 18,
     });
     this.add.text(goldX + 15, area.top + 50, '💰', { fontSize: '26px' }).setOrigin(0, 0.5);
     this.add.text(goldX + 52, area.top + 42, `${this.save.gold}`, {
@@ -102,7 +102,7 @@ export class WorldMapScene extends Phaser.Scene {
       const stripCx = area.right - stripW / 2;
       const stripY = area.top + 50;
       PaperPanel(this, stripCx, stripY, stripW, 80, {
-        color: 0xfff8e8, alpha: 0.95, radius: 18,
+        color: 0xffffff, alpha: 0.95, radius: 18,
       });
       this.add.text(stripCx - stripW / 2 + 14, stripY - 28, 'PARTY', {
         ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
@@ -251,7 +251,7 @@ export class WorldMapScene extends Phaser.Scene {
     ring.setStrokeStyle(5, locked ? 0x5a5040 : 0xfff8e0);
 
     // Inner cream circle
-    this.add.circle(x, y, radius - 10, locked ? 0x5a5040 : 0xfff8e8, locked ? 0.8 : 1);
+    this.add.circle(x, y, radius - 10, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1);
 
     // Floor number badge — top-left little paper tag
     const numX = x - radius * 0.7;
@@ -289,7 +289,7 @@ export class WorldMapScene extends Phaser.Scene {
     const labelW = 220;
     const labelH = 52;
     PaperPanel(this, x, labelY, labelW, labelH, {
-      color: locked ? 0xc8b898 : 0xfff8e8,
+      color: locked ? 0xc8b898 : 0xffffff,
       alpha: 0.95,
       radius: 12,
     });
