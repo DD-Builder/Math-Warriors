@@ -6,26 +6,25 @@
  */
 
 export const DIALOGUE = {
-  // ── FLOOR 1: THE GARDEN ──
+  // ── FLOOR 1: THE GARDEN (Challenge: Free 3 fairies) ──
   floor1_entry: [
     { speaker: 'Elder Fairy', text: 'Heroes! The Great Equation that holds our world together has shattered into five fragments.' },
     { speaker: 'Elder Fairy', text: 'The Number Eaters have swallowed each piece and hidden in their lairs.' },
-    { speaker: 'Elder Fairy', text: 'This garden was once beautiful, but the Addition Fragment is fading. Find my three sisters trapped in fairy chests, then face the guardian!' },
+    { speaker: 'Elder Fairy', text: 'Three fairies are trapped in enchanted chests throughout this garden. Free them all to unlock the golden treasure — then face the Briar King!' },
   ],
   floor1_boss: [
     { speaker: 'Briar King', text: 'You think you can just ADD things up and win? Numbers mean nothing in MY garden!' },
-    { speaker: 'Narrator', text: 'The Briar King blocks your path. Answer quickly — he grows stronger with every mistake!' },
+    { speaker: 'Narrator', text: 'The Briar King blocks your path. Answer quickly!' },
   ],
   floor1_victory: [
     { speaker: 'Elder Fairy', text: 'The Addition Fragment is restored! The garden blooms again!' },
     { speaker: 'Elder Fairy', text: 'Four fragments remain. The Tidepool Ruins await...' },
   ],
 
-  // ── FLOOR 2: TIDEPOOL RUINS ──
+  // ── FLOOR 2: TIDEPOOL RUINS (Challenge: Activate 3 drain valves) ──
   floor2_entry: [
-    { speaker: 'Water Fairy', text: 'The tides are wrong. Things that should be here are... missing.' },
-    { speaker: 'Water Fairy', text: 'The Subtraction Fragment was stolen by The Pressure. It hides deep in these ruins.' },
-    { speaker: 'Water Fairy', text: 'Be careful — these creatures drain your strength!' },
+    { speaker: 'Water Fairy', text: 'The tides are flooding these ruins! The Subtraction Fragment has been stolen by The Pressure.' },
+    { speaker: 'Water Fairy', text: 'Three ancient drain valves are hidden in the depths. Find and activate all three to lower the water and reach the boss lair!' },
   ],
   floor2_boss: [
     { speaker: 'The Pressure', text: 'I will subtract EVERYTHING from you. Your strength. Your hope. Your answers.' },
@@ -35,10 +34,10 @@ export const DIALOGUE = {
     { speaker: 'Water Fairy', text: 'Three more fragments to find. The clouds above hold the next...' },
   ],
 
-  // ── FLOOR 3: CLOUD MAZE ──
+  // ── FLOOR 3: CLOUD MAZE (Challenge: Light 3 sky beacons) ──
   floor3_entry: [
-    { speaker: 'Sky Fairy', text: 'Up here, the clouds are multiplying out of control!' },
-    { speaker: 'Sky Fairy', text: 'The Multiplication Fragment powers this realm. Without it, everything duplicates endlessly.' },
+    { speaker: 'Sky Fairy', text: 'A terrible storm rages across the sky realm! The Multiplication Fragment has thrown everything into chaos.' },
+    { speaker: 'Sky Fairy', text: 'Three sky beacons must be lit to part the clouds and reveal the Skywhale\'s lair. Find them scattered across the floating islands!' },
   ],
   floor3_boss: [
     { speaker: 'Skywhale', text: 'I contain MULTITUDES! For every one of you, there are a thousand of me!' },
@@ -48,10 +47,10 @@ export const DIALOGUE = {
     { speaker: 'Sky Fairy', text: 'Two fragments remain. Descend into the Ember Caves...' },
   ],
 
-  // ── FLOOR 4: EMBER CAVES ──
+  // ── FLOOR 4: EMBER CAVES (Challenge: Seal 3 lava vents) ──
   floor4_entry: [
-    { speaker: 'Fire Fairy', text: 'The caves are splitting apart! Lava divides every path!' },
-    { speaker: 'Fire Fairy', text: 'The Division Fragment is cracking the earth itself. Please, stop Pyroclast before it\'s too late!' },
+    { speaker: 'Fire Fairy', text: 'The caves are splitting apart! Lava pours through every crack!' },
+    { speaker: 'Fire Fairy', text: 'Three volcanic vents must be sealed before you can reach Pyroclast. Find them deep in the tunnels and shut them down!' },
   ],
   floor4_boss: [
     { speaker: 'Pyroclast', text: 'I will DIVIDE you into ashes! Nothing survives the core!' },
@@ -61,10 +60,10 @@ export const DIALOGUE = {
     { speaker: 'Fire Fairy', text: 'One final fragment. The Mending Room holds the last piece of the Great Equation...' },
   ],
 
-  // ── FLOOR 5: MENDING ROOM ──
+  // ── FLOOR 5: THE MENDING ROOM (Challenge: Place 3 equation fragments) ──
   floor5_entry: [
-    { speaker: 'All Fairies', text: 'This is it. The final fragment lies within the Mending Room.' },
-    { speaker: 'All Fairies', text: 'The Theorem guards the last piece. It knows every operation — addition, subtraction, multiplication, and division.' },
+    { speaker: 'All Fairies', text: 'This is it — the final chamber where the Great Equation can be restored.' },
+    { speaker: 'All Fairies', text: 'Three equation fragments are scattered on pedestals throughout this vast hall. Place each one to awaken The Theorem — then defeat it!' },
     { speaker: 'All Fairies', text: 'You must use EVERYTHING you\'ve learned. We believe in you!' },
   ],
   floor5_boss: [
@@ -78,7 +77,7 @@ export const DIALOGUE = {
     { speaker: 'Narrator', text: 'Thank you for playing Math Warriors!' },
   ],
 
-  // ── FAIRY FREED ──
+  // ── CHALLENGE PROGRESS ──
   fairy_freed: [
     { speaker: 'Rescued Fairy', text: 'Thank you for freeing me! I was so scared in that chest!' },
   ],
