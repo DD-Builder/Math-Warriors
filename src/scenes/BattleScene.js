@@ -58,20 +58,42 @@ export class BattleScene extends Phaser.Scene {
       ];
     }
 
-    if (data?.enemy) {
-      this.enemy = { ...data.enemy };
-    } else {
-      const def = FLOOR_1[Math.floor(Math.random() * FLOOR_1.length)];
-      this.enemy = spawnEnemy(def.id, {
-        grade: data?.grade ?? 3,
-        isBoss: !!data?.isBoss,
-      });
-    }
-
     this.floor = data?.floor ?? 1;
     this.grade = data?.grade ?? 3;
     this.operator = FLOOR_OPERATORS[this.floor] ?? '+';
     this.isBoss = !!data?.isBoss;
+
+    // --- Multi-monster encounter setup ---
+    if (data?.enemy) {
+      // Single enemy passed directly (legacy / test compat)
+      this.enemies = [{ ...data.enemy }];
+    } else if (this.isBoss) {
+      // Boss encounters: always 1 boss
+      const def = FLOOR_1[Math.floor(Math.random() * FLOOR_1.length)];
+      this.enemies = [spawnEnemy(def.id, { grade: this.grade, isBoss: true })];
+    } else {
+      // Regular encounters: weighted 1-3 monsters
+      const roll = Math.random();
+      const count = roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3;
+      const hpScale = count === 1 ? 1.0 : count === 2 ? 0.6 : 0.45;
+      this.enemies = [];
+      for (let i = 0; i < count; i++) {
+        const def = FLOOR_1[Math.floor(Math.random() * FLOOR_1.length)];
+        const e = spawnEnemy(def.id, { grade: this.grade, isBoss: false });
+        // Scale HP for multi-monster encounters
+        if (count > 1) {
+          e.maxHp = Math.max(1, Math.round(e.maxHp * hpScale));
+          e.hp = e.maxHp;
+        }
+        this.enemies.push(e);
+      }
+    }
+
+    // Backward compatibility: this.enemy always points to first enemy
+    this.enemy = this.enemies[0];
+
+    // Current target index for hero attacks
+    this.currentTarget = 0;
 
     // Return destination — set by MazeScene when it triggers a battle.
     // Undefined means "came from somewhere that isn't the maze"
@@ -105,13 +127,15 @@ export class BattleScene extends Phaser.Scene {
 
     audio.playMusic('music/battle');
 
-    // Fire the enemy's onBattleStart hook so any ability state can
+    // Fire each enemy's onBattleStart hook so any ability state can
     // initialize
-    invokeAbility(this.enemy.ability, 'onBattleStart', {
-      enemy: this.enemy,
-      party: this.party,
-      scene: this,
-    });
+    for (const enemy of this.enemies) {
+      invokeAbility(enemy.ability, 'onBattleStart', {
+        enemy,
+        party: this.party,
+        scene: this,
+      });
+    }
 
     // Show a one-time tutorial toast on the very first battle. Uses
     // the save's totalBattles stat to decide — if this player has
@@ -335,51 +359,69 @@ export class BattleScene extends Phaser.Scene {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const uiTop = area.bottom - 220;
     const groundY = uiTop - 30;
-    const x = GAME_WIDTH * 0.76;
-    const monsterScale = this.enemy.isBoss ? 3.5 : 3;
-    const y = groundY - 80 * (monsterScale / 1.5);
-    const w = 200, h = 220;
+    const centerX = GAME_WIDTH * 0.76;
+    const count = this.enemies.length;
 
-    const body = drawMonsterSprite(this, x, y, this.enemy, { scale: monsterScale });
+    // Layout offsets: spread enemies vertically
+    const yOffsets = count === 1 ? [0]
+      : count === 2 ? [-80, 80]
+      : [-110, 0, 110];
 
-    const spriteHalfH = 80 * monsterScale / 2;
-    const nameY = y - spriteHalfH - 50;
-    const hpY = y - spriteHalfH - 28;
-    const hpTextY = y - spriteHalfH - 8;
+    this.enemySprites = [];
 
-    const name = this.add.text(x, nameY, this.enemy.name.toUpperCase(), {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '26px',
-      color: COLORS_CSS.paper,
-      stroke: COLORS_CSS.scarlet,
-      strokeThickness: 4,
-    }).setOrigin(0.5);
+    for (let ei = 0; ei < count; ei++) {
+      const enemy = this.enemies[ei];
+      const baseScale = enemy.isBoss ? 3.5 : (count >= 3 ? 2.5 : 3);
+      const monsterScale = baseScale;
+      const x = centerX;
+      const y = groundY - 80 * (monsterScale / 1.5) + yOffsets[ei];
+      const w = 200, h = 220;
 
-    const hpBarBg = this.add.rectangle(x, hpY, w + 20, 20, COLORS.ink)
-      .setStrokeStyle(2, COLORS.paperD);
-    const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (this.enemy.hp / this.enemy.maxHp), 14, 0xc04030)
-      .setOrigin(0, 0.5);
-    const hpText = this.add.text(x, hpTextY, `${this.enemy.hp}/${this.enemy.maxHp}`, {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '15px',
-      color: '#fff8e0',
-      stroke: '#1a0e04',
-      strokeThickness: 3,
-    }).setOrigin(0.5);
+      const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
 
-    this.enemySprite = { body, name, hpBarBg, hpBarFill, hpText, x, y };
+      const spriteHalfH = 80 * monsterScale / 2;
+      const nameY = y - spriteHalfH - 50;
+      const hpY = y - spriteHalfH - 28;
+      const hpTextY = y - spriteHalfH - 8;
 
-    // Enemy idle pulse — very subtle breathing
-    const ms = body.scaleX || monsterScale;
-    this.tweens.add({
-      targets: body,
-      scaleX: ms * 1.01,
-      scaleY: ms * 0.99,
-      duration: 1800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.inOut',
-    });
+      const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: count >= 3 ? '20px' : '26px',
+        color: COLORS_CSS.paper,
+        stroke: COLORS_CSS.scarlet,
+        strokeThickness: 4,
+      }).setOrigin(0.5);
+
+      const hpBarBg = this.add.rectangle(x, hpY, w + 20, 20, COLORS.ink)
+        .setStrokeStyle(2, COLORS.paperD);
+      const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (enemy.hp / enemy.maxHp), 14, 0xc04030)
+        .setOrigin(0, 0.5);
+      const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '15px',
+        color: '#fff8e0',
+        stroke: '#1a0e04',
+        strokeThickness: 3,
+      }).setOrigin(0.5);
+
+      const spriteData = { body, name, hpBarBg, hpBarFill, hpText, x, y };
+      this.enemySprites.push(spriteData);
+
+      // Enemy idle pulse — very subtle breathing
+      const ms = body.scaleX || monsterScale;
+      this.tweens.add({
+        targets: body,
+        scaleX: ms * 1.01,
+        scaleY: ms * 0.99,
+        duration: 1800 + ei * 200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    }
+
+    // Backward compat: this.enemySprite points to first enemy sprite
+    this.enemySprite = this.enemySprites[0];
   }
 
   // ================================================================
@@ -569,11 +611,33 @@ export class BattleScene extends Phaser.Scene {
   // TURN FLOW
   // ================================================================
 
+  /** Check if all enemies are dead */
+  allEnemiesDead() {
+    return this.enemies.every(e => e.hp <= 0);
+  }
+
+  /** Find the next alive enemy index starting from current target, or -1 */
+  findNextAliveEnemy() {
+    // Try from currentTarget forward
+    for (let i = this.currentTarget; i < this.enemies.length; i++) {
+      if (this.enemies[i].hp > 0) return i;
+    }
+    // Wrap around from start
+    for (let i = 0; i < this.currentTarget; i++) {
+      if (this.enemies[i].hp > 0) return i;
+    }
+    return -1;
+  }
+
   nextTurn() {
     if (this.phase === 'end') return;
 
     if (isPartyDefeated(this.party)) return this.showDefeat();
-    if (this.enemy.hp <= 0) return this.showVictory();
+    if (this.allEnemiesDead()) return this.showVictory();
+
+    // Auto-advance target to next alive enemy
+    const nextAlive = this.findNextAliveEnemy();
+    if (nextAlive >= 0) this.currentTarget = nextAlive;
 
     const result = advanceTurn(this.turnSeq, this.turnIdx, this.party);
     if (!result) return this.showDefeat();
@@ -743,7 +807,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   startEnemyTurn() {
-    this.turnLabel.setText(`${this.enemy.name} attacks!`);
+    const aliveEnemies = this.enemies.filter(e => e.hp > 0);
+    const attackerNames = aliveEnemies.map(e => e.name).join(' & ');
+    this.turnLabel.setText(`${attackerNames} attack${aliveEnemies.length > 1 ? '' : 's'}!`);
     this.clearEquationDisplay();
     this.phase = 'enemy';
     this.locked = true;
@@ -754,47 +820,70 @@ export class BattleScene extends Phaser.Scene {
       this.answerButtons[i].label.setText('');
     }
 
-    // Enemy windup animation
-    this.tweens.add({
-      targets: this.enemySprite.body,
-      x: this.enemySprite.x - 40,
-      duration: 150,
-      yoyo: true,
-      ease: 'Sine.inOut',
-    });
+    // Each alive enemy attacks once, spread across heroes
+    const livingHeroes = this.party.filter(h => h && h.hp > 0);
+    if (livingHeroes.length === 0) return this.showDefeat();
 
-    this.time.delayedCall(350, () => {
-      const target = pickRandomLivingHero(this.party);
-      if (!target) return this.showDefeat();
-
-      const cls = target.class || 'knight';
-
-      // Bunny dodge — 30% chance to avoid all damage
-      if (cls === 'bunny' && Math.random() < 0.3) {
-        this.showToast(`${target.name} DODGES!`, '#e86898');
-        audio.play('battle/hit-hero');
-        this.time.delayedCall(450, () => this.nextTurn());
+    let attackIndex = 0;
+    const doEnemyAttack = (enemyIdx) => {
+      if (enemyIdx >= aliveEnemies.length) {
+        this.time.delayedCall(250, () => this.nextTurn());
         return;
       }
 
-      const result = computeEnemyDamage(this.enemy, target, { momentum: this.momentum });
+      const attacker = aliveEnemies[enemyIdx];
+      const attackerSpriteIdx = this.enemies.indexOf(attacker);
+      const attackerSprite = this.enemySprites[attackerSpriteIdx];
 
-      // Knight shield block — 40% chance to halve incoming damage
-      if (cls === 'knight' && Math.random() < 0.4) {
-        result.modifiedDamage = Math.max(1, Math.round(result.modifiedDamage / 2));
-        result.newHp = Math.max(0, target.hp - result.modifiedDamage);
-        this.showToast(`${target.name} BLOCKS! Half damage!`, '#5a7ab8');
+      // Pick target hero: spread attacks (enemy 0 → hero 0, enemy 1 → hero 1, etc)
+      const currentLiving = this.party.filter(h => h && h.hp > 0);
+      if (currentLiving.length === 0) return this.showDefeat();
+      const target = currentLiving[attackIndex % currentLiving.length];
+      attackIndex++;
+
+      // Enemy windup animation
+      if (attackerSprite) {
+        this.tweens.add({
+          targets: attackerSprite.body,
+          x: attackerSprite.x - 40,
+          duration: 150,
+          yoyo: true,
+          ease: 'Sine.inOut',
+        });
       }
 
-      applyDamageResult(target, result);
-      this.hitFlash();
-      this.flashHero(target, result);
-      this.updateHeroHp(target);
-      this.shakeCamera(0.01, 250);
-      audio.play('battle/hit-hero');
+      this.time.delayedCall(350, () => {
+        const cls = target.class || 'knight';
 
-      this.time.delayedCall(450, () => this.nextTurn());
-    });
+        // Bunny dodge — 30% chance to avoid all damage
+        if (cls === 'bunny' && Math.random() < 0.3) {
+          this.showToast(`${target.name} DODGES!`, '#e86898');
+          audio.play('battle/hit-hero');
+          this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
+          return;
+        }
+
+        const result = computeEnemyDamage(attacker, target, { momentum: this.momentum });
+
+        // Knight shield block — 40% chance to halve incoming damage
+        if (cls === 'knight' && Math.random() < 0.4) {
+          result.modifiedDamage = Math.max(1, Math.round(result.modifiedDamage / 2));
+          result.newHp = Math.max(0, target.hp - result.modifiedDamage);
+          this.showToast(`${target.name} BLOCKS! Half damage!`, '#5a7ab8');
+        }
+
+        applyDamageResult(target, result);
+        this.hitFlash();
+        this.flashHero(target, result);
+        this.updateHeroHp(target);
+        this.shakeCamera(0.01, 250);
+        audio.play('battle/hit-hero');
+
+        this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
+      });
+    };
+
+    doEnemyAttack(0);
   }
 
   // ================================================================
