@@ -148,26 +148,26 @@ export class PartySelectScene extends Phaser.Scene {
   createHeroCard(x, y, w, h, hero, heroIndex) {
     const isSelected = this.isHeroSelected(this.activeClass, heroIndex);
 
-    // Card paper
-    const bgHex = getHeroCardBg(hero.id);
-    const cardColor = parseInt(bgHex.replace('#', ''), 16);
+    // Card paper — light joyful backgrounds per class
+    const cardColors = { knight: 0x88b8e8, wizard: 0xa888d8, bunny: 0xf0a8b8 };
+    const cardColor = cardColors[this.activeClass] || 0xb8d0e8;
     const card = PaperCard(this, x, y, w, h, cardColor, { selected: isSelected });
 
-    // Hero portrait drawn procedurally inside the card
-    const portrait = drawHeroSprite(this, x, y - h * 0.12, hero, { scale: 0.6 });
+    // Hero portrait — large and prominent
+    const portrait = drawHeroSprite(this, x, y - h * 0.08, hero, { scale: 0.85 });
 
-    const name = this.add.text(x, y + h * 0.15, hero.name.toUpperCase(), {
+    const name = this.add.text(x, y + h * 0.20, hero.name.toUpperCase(), {
       ...TEXT.heading(),
       fontSize: '18px',
-      color: '#fff8e0',
-      stroke: '#1a0e04',
+      color: '#2a1808',
+      stroke: '#ffffff',
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    const trait = this.add.text(x, y + h * 0.28, hero.trait, {
+    const trait = this.add.text(x, y + h * 0.32, hero.trait, {
       ...TEXT.body(),
       fontSize: '13px',
-      color: '#fff8e0',
+      color: '#3a2410',
       align: 'center',
       wordWrap: { width: w - 24 },
     }).setOrigin(0.5, 0);
@@ -175,7 +175,7 @@ export class PartySelectScene extends Phaser.Scene {
     const stats = this.add.text(x, y + h * 0.45, `HP ${hero.maxHp}  ATK ${hero.atk}  DEF ${hero.def}`, {
       ...TEXT.stat(),
       fontSize: '11px',
-      color: '#ffe0a0',
+      color: '#4a3018',
     }).setOrigin(0.5);
 
     // Selected badge — both the circle AND the checkmark must be added
@@ -231,7 +231,7 @@ export class PartySelectScene extends Phaser.Scene {
         slotBg.strokeRoundedRect(sx - slotW / 2, sy - slotH / 2, slotW, slotH, radius);
       }
 
-      const portrait = this.add.rectangle(sx, sy - 10, slotW - 16, slotH - 40, 0x3a2410, 0.5);
+      const portrait = this.add.rectangle(sx, sy - 10, slotW - 16, slotH - 40, 0xd0c8b0, 0.5);
       const nameTxt = this.add.text(sx, sy + slotH / 2 - 14, '—', {
         ...TEXT.stat(),
         fontSize: '11px',
@@ -257,13 +257,15 @@ export class PartySelectScene extends Phaser.Scene {
     for (let i = 0; i < 3; i++) {
       const slot = this.partySlots[i];
       const sel = this.selections[i];
+      if (slot.heroSprite) { slot.heroSprite.destroy(); slot.heroSprite = null; }
       if (sel) {
         const hero = this.classes[sel.class][sel.index];
-        slot.portrait.setFillStyle(hero.displayColor, 1);
+        slot.portrait.setFillStyle(0xd0c8b0, 0.3);
+        slot.heroSprite = drawHeroSprite(this, slot.sx, slot.sy - 12, hero, { scale: 0.45 });
         slot.nameTxt.setText(hero.name.toUpperCase());
         slot.nameTxt.setColor('#3a2410');
       } else {
-        slot.portrait.setFillStyle(0x3a2410, 0.4);
+        slot.portrait.setFillStyle(0xd0c8b0, 0.5);
         slot.nameTxt.setText('—');
         slot.nameTxt.setColor('#6a4c28');
       }

@@ -248,14 +248,14 @@ export function drawPapercutTitle(scene, cx, cy, scale = 1) {
   const letterH = 110 * scale;
   const lineGap = letterH * 0.5;
 
-  // MATH on top — deep blue paper with darker shadow (also used as hole fill)
-  const mathMain = 0x3878d8, mathShadow = 0x18406a;
-  drawWord(scene, 'MATH', cx, cy - letterH / 2 - lineGap / 2, letterH, mathMain, mathShadow, mathShadow, 12);
+  // MATH on top — deep blue paper; holes use sky-like color for see-through effect
+  const mathMain = 0x3878d8, mathShadow = 0x18406a, mathHole = 0x78b8e8;
+  drawWord(scene, 'MATH', cx, cy - letterH / 2 - lineGap / 2, letterH, mathMain, mathShadow, mathHole, 12);
 
   // WARRIORS below — slightly smaller so it fits, red paper
   const warH = letterH * 0.78;
-  const warMain = 0xe04040, warShadow = 0x781818;
-  drawWord(scene, 'WARRIORS', cx, cy + warH / 2 + lineGap / 2, warH, warMain, warShadow, warShadow, 34);
+  const warMain = 0xe04040, warShadow = 0x781818, warHole = 0x60a838;
+  drawWord(scene, 'WARRIORS', cx, cy + warH / 2 + lineGap / 2, warH, warMain, warShadow, warHole, 34);
 }
 
 /**

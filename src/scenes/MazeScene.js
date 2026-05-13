@@ -209,6 +209,19 @@ export class MazeScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
     this._lastInteractCheck = 0;
+    this._touchDir = null;
+
+    this.input.on('pointerdown', (pointer) => {
+      const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2;
+      const dx = pointer.x - cx, dy = pointer.y - cy;
+      if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        this._touchDir = dx > 0 ? 'right' : 'left';
+      } else {
+        this._touchDir = dy > 0 ? 'down' : 'up';
+      }
+    });
+    this.input.on('pointerup', () => { this._touchDir = null; });
   }
 
   // ================================================================
@@ -680,17 +693,19 @@ export class MazeScene extends Phaser.Scene {
 
   update(time) {
     const keys = {};
-    if (this.cursors.left.isDown || this.wasd.A.isDown) keys.ArrowLeft = true;
-    if (this.cursors.right.isDown || this.wasd.D.isDown) keys.ArrowRight = true;
-    if (this.cursors.up.isDown || this.wasd.W.isDown) keys.ArrowUp = true;
-    if (this.cursors.down.isDown || this.wasd.S.isDown) keys.ArrowDown = true;
+    if (this.cursors.left.isDown || this.wasd.A.isDown || this._touchDir === 'left') keys.ArrowLeft = true;
+    if (this.cursors.right.isDown || this.wasd.D.isDown || this._touchDir === 'right') keys.ArrowRight = true;
+    if (this.cursors.up.isDown || this.wasd.W.isDown || this._touchDir === 'up') keys.ArrowUp = true;
+    if (this.cursors.down.isDown || this.wasd.S.isDown || this._touchDir === 'down') keys.ArrowDown = true;
 
     updateLevel(keys);
     drawLevel(time / 1000);
 
     // Refresh the Phaser texture from the level engine canvas
     if (this.textures.exists('level-canvas')) {
-      this.textures.get('level-canvas').getSourceImage();
+      const tex = this.textures.get('level-canvas');
+      tex.getSourceImage();
+      tex.update();
       this.levelImage.setTexture('level-canvas');
     }
 
