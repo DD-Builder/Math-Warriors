@@ -157,19 +157,26 @@ export class MazeScene extends Phaser.Scene {
     });
 
     // Convert floor objects to level engine format
-    const engineObjs = this.objects.map(o => ({
-      type: o.type === 'golden' ? 'chestG' : o.type === 'encounter' ? 'monster' : o.type,
-      tx: o.x, ty: o.y,
-      id: o.id,
-      alive: !o.consumed,
-      open: !!o.consumed && (o.type === 'chest' || o.type === 'fairy' || o.type === 'golden'),
-      hidden: o.type === 'encounter',
-      visible: o.type === 'exit' ? this.bossDefeated : true,
-      kind: 'sprout',
-      respawnAt: 0,
-      loot: o.type === 'fairy' ? 'fairy' : undefined,
-      fairyCol: '#88aaff',
-    }));
+    const challengeType = this.floor.challenge?.type || 'fairy';
+    const engineObjs = this.objects.map(o => {
+      let engineType = o.type;
+      if (o.type === 'golden') engineType = 'chestG';
+      else if (o.type === 'encounter') engineType = 'monster';
+      else if (o.type === challengeType || o.type === 'fairy' || o.type === 'valve' || o.type === 'beacon' || o.type === 'vent' || o.type === 'fragment') engineType = 'chest';
+      return {
+        type: engineType,
+        tx: o.x, ty: o.y,
+        id: o.id,
+        alive: !o.consumed,
+        open: !!o.consumed,
+        hidden: o.type === 'encounter',
+        visible: o.type === 'exit' ? this.bossDefeated : true,
+        kind: 'sprout',
+        respawnAt: 0,
+        loot: (o.type === challengeType || o.type === 'fairy') ? 'fairy' : undefined,
+        fairyCol: '#88aaff',
+      };
+    });
 
     setFloorTheme(this.floorId);
     initLevel(GAME_WIDTH, GAME_HEIGHT, this.floor.tiles, engineObjs, heroCanvases, this.playerX, this.playerY);
@@ -712,10 +719,14 @@ export class MazeScene extends Phaser.Scene {
       }
     }
 
-    // Sync player tile position for interaction checks
+    // Sync player tile position and check interactions
     const tile = getPartyTile();
+    const prevX = this.playerX, prevY = this.playerY;
     this.playerX = tile.tx;
     this.playerY = tile.ty;
+    if (this.playerX !== prevX || this.playerY !== prevY) {
+      this.checkObjectAt(this.playerX, this.playerY);
+    }
   }
 
   tryMove({ dx, dy }) {
@@ -754,8 +765,7 @@ export class MazeScene extends Phaser.Scene {
         this.save.gold += gold;
         writeSave(this.save);
         obj.consumed = true;
-        this.objectSprites[index]?.destroy();
-        this.objectSprites[index] = null;
+        markDead(obj.id);
         audio.play('world/chest');
         this.showFloatText(obj.x, obj.y, `+${gold} GOLD`, COLORS_CSS.goldL);
         this.updateHud();
@@ -769,8 +779,7 @@ export class MazeScene extends Phaser.Scene {
         this.save.potions += 1;
         writeSave(this.save);
         obj.consumed = true;
-        this.objectSprites[index]?.destroy();
-        this.objectSprites[index] = null;
+        markDead(obj.id);
         audio.play('world/gold');
         this.showFloatText(obj.x, obj.y, '+1 POTION', COLORS_CSS.plumL);
         this.updateHud();
@@ -783,8 +792,7 @@ export class MazeScene extends Phaser.Scene {
       case 'fragment': {
         this.challengeProgress++;
         obj.consumed = true;
-        this.objectSprites[index]?.destroy();
-        this.objectSprites[index] = null;
+        markDead(obj.id);
         audio.play('world/chest');
         const ch = this.floor.challenge || { count: 3, label: 'ITEM', verb: 'found', allDoneMsg: 'Challenge complete!' };
         const remaining = ch.count - this.challengeProgress;
@@ -818,18 +826,26 @@ export class MazeScene extends Phaser.Scene {
         this.updateHud();
         break;
       }
+      case 'gold': {
+        this.save.gold += 8;
+        writeSave(this.save);
+        obj.consumed = true;
+        markDead(obj.id);
+        audio.play('world/gold');
+        this.showFloatText(obj.x, obj.y, '+8 GOLD', COLORS_CSS.goldL);
+        this.updateHud();
+        break;
+      }
       case 'encounter': {
         obj.consumed = true;
-        this.objectSprites[index]?.destroy();
-        this.objectSprites[index] = null;
+        markDead(obj.id);
         audio.play('world/encounter');
         this.startBattle(false);
         break;
       }
       case 'boss': {
         obj.consumed = true;
-        this.objectSprites[index]?.destroy();
-        this.objectSprites[index] = null;
+        markDead(obj.id);
         audio.play('world/encounter');
         this.startBattle(true, obj.enemyId);
         break;
@@ -920,8 +936,8 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   showFloatText(tileX, tileY, text, color) {
-    const sx = this.originX + tileX * this.tileSize + this.tileSize / 2;
-    const sy = this.originY + tileY * this.tileSize - 20;
+    const sx = GAME_WIDTH / 2;
+    const sy = GAME_HEIGHT / 2 - 60;
     const t = this.add.text(sx, sy, text, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '18px',
