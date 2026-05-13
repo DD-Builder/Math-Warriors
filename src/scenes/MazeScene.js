@@ -10,7 +10,9 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
-import { ensureTileTextures, getTileTextureKey } from '../ui/tileTextures.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead } from '../ui/levelEngine.js';
+import { createHeroCanvas } from '../ui/legacyRenderer.js';
+import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
@@ -142,42 +144,61 @@ export class MazeScene extends Phaser.Scene {
   }
 
   create() {
-    // Use the papercut palette's sky color for the area outside the maze
     const pal = FLOOR_PALETTES[this.floorId] || FLOOR_PALETTES[1];
     fadeInScene(this, 250, pal.sky);
     audio.playMusic(`music/floor-${this.floorId}`);
 
-    // Tile size — large enough that tiles feel like a real environment.
-    // Camera zooms into ~7x7 visible area and scrolls to follow player.
-    const hudHeight = 140;
-    this.tileSize = 56;
-    this.originX = 0;
-    this.originY = 0;
+    // Pre-render hero canvases for the level engine party display
+    const allArt = [...KNIGHTS, ...WIZARDS, ...BUNNIES];
+    const heroCanvases = this.party.map(h => {
+      const art = allArt.find(a => a.id === h.id);
+      if (art && art.draw) return createHeroCanvas(80, 110, null, art.draw, art.topExt, art.botExt);
+      return null;
+    });
 
-    this.buildTiles();
-    this.buildObjects();
-    this.buildPlayer();
-    this.buildFogOverlay();
+    // Convert floor objects to level engine format
+    const engineObjs = this.objects.map(o => ({
+      type: o.type === 'golden' ? 'chestG' : o.type === 'encounter' ? 'monster' : o.type,
+      tx: o.x, ty: o.y,
+      id: o.id,
+      alive: !o.consumed,
+      open: !!o.consumed && (o.type === 'chest' || o.type === 'fairy' || o.type === 'golden'),
+      hidden: o.type === 'encounter',
+      visible: o.type === 'exit' ? this.bossDefeated : true,
+      kind: 'sprout',
+      respawnAt: 0,
+      loot: o.type === 'fairy' ? 'fairy' : undefined,
+      fairyCol: '#88aaff',
+    }));
 
-    // Camera setup — zoom into the maze, follow the player sprite
-    const cam = this.cameras.main;
-    const mapW = this.floor.width * this.tileSize;
-    const mapH = this.floor.height * this.tileSize;
-    cam.setBounds(0, 0, mapW, mapH + hudHeight);
-    cam.startFollow(this.playerSprite, true, 0.12, 0.12);
-    cam.setDeadzone(40, 40);
+    initLevel(GAME_WIDTH, GAME_HEIGHT, this.floor.tiles, engineObjs, heroCanvases, this.playerX, this.playerY);
 
-    // HUD is drawn in screen-space via a fixed container
+    // Restore state if returning from battle
+    if (!this.freshEntry && this.fog) {
+      setGameState({
+        fairies: this.fairiesFreed || 0,
+        hasKey: this.bossDefeated,
+        dead: {},
+        fog: this.fog,
+        partyX: this.playerX * 56 + 28,
+        partyY: this.playerY * 56 + 28,
+        objects: this.objects.filter(o => o.consumed).map(o => ({
+          id: o.id, alive: false, open: true, hidden: false, visible: true, respawnAt: 0,
+        })),
+      });
+    }
+
+    // Draw first frame and add as Phaser texture
+    drawLevel(0);
+    const cv = getCanvas();
+    if (this.textures.exists('level-canvas')) this.textures.remove('level-canvas');
+    this.textures.addCanvas('level-canvas', cv);
+    this.levelImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'level-canvas');
+    this.levelImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+
     this.buildHUD();
-    this.setupTapToMove();
 
-    // Reveal around the starting position
-    this.revealFog(this.playerX, this.playerY, 3);
-
-    // Dialogue overlay for story beats
     this.dialogue = new DialogueOverlay(this);
-
-    // Show floor entry dialogue on first visit (not on return from battle)
     if (this.freshEntry) {
       const key = `floor${this.floorId}_entry`;
       if (DIALOGUE[key]) {
@@ -185,9 +206,9 @@ export class MazeScene extends Phaser.Scene {
       }
     }
 
-    // Input
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
+    this._lastInteractCheck = 0;
   }
 
   // ================================================================
@@ -535,25 +556,7 @@ export class MazeScene extends Phaser.Scene {
     }
   }
 
-  revealFog(cx, cy, radius) {
-    for (let dy = -radius; dy <= radius; dy++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        const nx = cx + dx;
-        const ny = cy + dy;
-        if (nx < 0 || nx >= this.floor.width || ny < 0 || ny >= this.floor.height) continue;
-        if (dx * dx + dy * dy > radius * radius + 1) continue;
-        this.fog[ny][nx] = true;
-        if (this.fogSprites[ny][nx] && this.fogSprites[ny][nx].visible) {
-          this.tweens.add({
-            targets: this.fogSprites[ny][nx],
-            alpha: 0,
-            duration: 400,
-            ease: 'Sine.out',
-            onComplete: () => { if (this.fogSprites[ny]?.[nx]) this.fogSprites[ny][nx].setVisible(false); },
-          });
-        }
-      }
-    }
+  revealFog() {
   }
 
   // ================================================================
@@ -675,71 +678,39 @@ export class MazeScene extends Phaser.Scene {
   // MOVEMENT
   // ================================================================
 
-  update() {
-    if (this.moving) return;
+  update(time) {
+    const keys = {};
+    if (this.cursors.left.isDown || this.wasd.A.isDown) keys.ArrowLeft = true;
+    if (this.cursors.right.isDown || this.wasd.D.isDown) keys.ArrowRight = true;
+    if (this.cursors.up.isDown || this.wasd.W.isDown) keys.ArrowUp = true;
+    if (this.cursors.down.isDown || this.wasd.S.isDown) keys.ArrowDown = true;
 
-    let dir = null;
-    if (this.cursors.left.isDown || this.wasd.A.isDown) dir = { dx: -1, dy: 0 };
-    else if (this.cursors.right.isDown || this.wasd.D.isDown) dir = { dx: 1, dy: 0 };
-    else if (this.cursors.up.isDown || this.wasd.W.isDown) dir = { dx: 0, dy: -1 };
-    else if (this.cursors.down.isDown || this.wasd.S.isDown) dir = { dx: 0, dy: 1 };
+    updateLevel(keys);
+    drawLevel(time / 1000);
 
-    if (dir) this.tryMove(dir);
+    // Refresh the Phaser texture from the level engine canvas
+    if (this.textures.exists('level-canvas')) {
+      this.textures.get('level-canvas').getSourceImage();
+      this.levelImage.setTexture('level-canvas');
+    }
+
+    // Sync player tile position for interaction checks
+    const tile = getPartyTile();
+    this.playerX = tile.tx;
+    this.playerY = tile.ty;
   }
 
   tryMove({ dx, dy }) {
-    if (this.moving) return;
-
-    const nx = this.playerX + dx;
-    const ny = this.playerY + dy;
-
-    if (nx < 0 || nx >= this.floor.width || ny < 0 || ny >= this.floor.height) return;
-    if (this.floor.tiles[ny][nx] === TILE.WALL) return;
-
-    this.moving = true;
-
-    // Shift position trail — each follower inherits the position
-    // that was one step ahead of them.
-    for (let i = this.posTrail.length - 1; i > 0; i--) {
-      this.posTrail[i] = { ...this.posTrail[i - 1] };
-    }
-    this.posTrail[0] = { x: nx, y: ny };
-    this.playerX = nx;
-    this.playerY = ny;
-
-    const ts = this.tileSize;
-
-    // Tween each party member to their new trail position
-    for (let i = 0; i < this.followerSprites.length; i++) {
-      const sprite = this.followerSprites[i];
-      if (!sprite) continue;
-      const target = this.posTrail[i];
-      const destX = this.originX + target.x * ts + ts / 2;
-      const destY = this.originY + target.y * ts + ts / 2;
-      this.tweens.killTweensOf(sprite);
-      this.tweens.add({
-        targets: sprite,
-        x: destX,
-        y: destY,
-        duration: 130 + i * 30,
-        ease: 'Linear',
-      });
-    }
-
-    this.time.delayedCall(300, () => { this.moving = false; });
-
-    this.tweens.add({
-      targets: this.playerSprite,
-      x: this.originX + nx * ts + ts / 2,
-      y: this.originY + ny * ts + ts / 2,
-      duration: 130,
-      ease: 'Linear',
-      onComplete: () => {
-        this.moving = false;
-        this.revealFog(nx, ny, 3);
-        this.checkObjectAt(nx, ny);
-      },
-    });
+    // Feed a burst of movement frames to the level engine
+    const keys = {};
+    if (dx < 0) keys.ArrowLeft = true;
+    if (dx > 0) keys.ArrowRight = true;
+    if (dy < 0) keys.ArrowUp = true;
+    if (dy > 0) keys.ArrowDown = true;
+    for (let i = 0; i < 30; i++) updateLevel(keys);
+    const tile = getPartyTile();
+    this.playerX = tile.tx;
+    this.playerY = tile.ty;
   }
 
   // ================================================================
@@ -912,13 +883,14 @@ export class MazeScene extends Phaser.Scene {
   }
 
   saveMazeState() {
+    const gs = getGameState();
     this.registry.set(`mazeState_${this.floorId}`, {
       x: this.playerX,
       y: this.playerY,
       objects: this.objects,
-      fog: this.fog,
-      bossDefeated: this.bossDefeated,
-      fairiesFreed: this.fairiesFreed,
+      fog: gs.fog || this.fog,
+      bossDefeated: gs.hasKey || this.bossDefeated,
+      fairiesFreed: gs.fairies || this.fairiesFreed,
     });
   }
 
