@@ -167,43 +167,71 @@ function drawLetterShapes(scene, gx, gy, w, h, letter, mainColor, shadowColor, h
   const positive = letter.positive || [];
   const holes = letter.holes || [];
 
-  const toScreen = (pts, ox = 0, oy = 0) =>
-    perturbPolygon(pts, 1, rng).map(([px, py]) => ({
-      x: gx + px * w + ox,
-      y: gy + py * h + oy,
-    }));
+  const toCanvas = (pts, ox, oy) =>
+    perturbPolygon(pts, 1, rng).map(([px, py]) => [px * w + ox, py * h + oy]);
 
-  // 1) Shadow layer — one shadow per positive shape so compound letters
-  //    (H has one merged shape now; W/M/S are single) look right.
+  // Shadow — drawn as Phaser graphics (behind everything)
   const shadow = scene.add.graphics();
   shadow.fillStyle(shadowColor, 0.5);
   for (const pts of positive) {
-    shadow.fillPoints(toScreen(pts, 6, 8), true);
+    shadow.fillPoints(toCanvas(pts, 6, 8).map(([x, y]) => ({ x: gx + x, y: gy + y })), true);
   }
 
-  // 2) Main paper fill — every positive shape in mainColor.
-  const main = scene.add.graphics();
-  main.fillStyle(mainColor, 1);
+  // Render letter with true transparent holes onto an offscreen canvas
+  const pad = 4;
+  const cw = Math.ceil(w) + pad * 2;
+  const ch = Math.ceil(h) + pad * 2;
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const G = cv.getContext('2d');
+
+  const hexToCSS = (hex) => {
+    const r = (hex >> 16) & 0xff, g = (hex >> 8) & 0xff, b = hex & 0xff;
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  };
+
+  // Draw main color
+  G.fillStyle = hexToCSS(mainColor);
   for (const pts of positive) {
-    main.fillPoints(toScreen(pts), true);
+    const cp = toCanvas(pts, pad, pad);
+    G.beginPath();
+    G.moveTo(cp[0][0], cp[0][1]);
+    for (let i = 1; i < cp.length; i++) G.lineTo(cp[i][0], cp[i][1]);
+    G.closePath();
+    G.fill();
   }
 
-  // 3) Highlight for paper-grain feel — drawn BEFORE holes so it
-  //    doesn't bleed white into the A/R/O counters.
-  const hi = scene.add.graphics();
-  hi.fillStyle(0xffffff, 0.18);
+  // Highlight
+  G.fillStyle = 'rgba(255,255,255,0.18)';
   for (const pts of positive) {
-    hi.fillPoints(toScreen(pts, -1, -1), true);
+    const cp = toCanvas(pts, pad - 1, pad - 1);
+    G.beginPath();
+    G.moveTo(cp[0][0], cp[0][1]);
+    for (let i = 1; i < cp.length; i++) G.lineTo(cp[i][0], cp[i][1]);
+    G.closePath();
+    G.fill();
   }
 
-  // 4) Holes — paint on top of everything to cut out counters.
+  // Cut out holes with destination-out (true transparency)
   if (holes.length) {
-    const hole = scene.add.graphics();
-    hole.fillStyle(holeColor, 1);
+    G.globalCompositeOperation = 'destination-out';
+    G.fillStyle = 'rgba(0,0,0,1)';
     for (const pts of holes) {
-      hole.fillPoints(toScreen(pts), true);
+      const cp = toCanvas(pts, pad, pad);
+      G.beginPath();
+      G.moveTo(cp[0][0], cp[0][1]);
+      for (let i = 1; i < cp.length; i++) G.lineTo(cp[i][0], cp[i][1]);
+      G.closePath();
+      G.fill();
     }
+    G.globalCompositeOperation = 'source-over';
   }
+
+  // Add to Phaser as a texture and display
+  const key = 'letter-' + gx + '-' + gy + '-' + Math.random().toString(36).slice(2, 6);
+  scene.textures.addCanvas(key, cv);
+  const img = scene.add.image(gx + w / 2, gy + h / 2, key);
+  img.setDisplaySize(w + pad, h + pad);
 }
 
 /**
