@@ -577,7 +577,7 @@ export class BattleScene extends Phaser.Scene {
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const baseScale = enemy.isBoss ? 1.75 : (count >= 3 ? 1.25 : 1.5);
+      const baseScale = enemy.isBoss ? 2.5 : (count >= 3 ? 1.5 : 2.0);
       const monsterScale = baseScale;
       const x = centerX;
       const y = groundY - 80 * (monsterScale / 1.5) + yOffsets[ei];
