@@ -594,12 +594,18 @@ export class MazeScene extends Phaser.Scene {
     const hudCenterY = area.bottom - hudH / 2;
 
     PaperPanel(this, area.cx, hudCenterY, GAME_WIDTH - 40, hudH, {
-      color: 0xfff8e8, alpha: 0.94, radius: 20,
+      color: 0xfff8e8, alpha: 0.25, radius: 20,
     });
 
     // Floor name — left side
     this.add.text(area.left + 20, hudCenterY - 24, `F${this.floorId}: ${this.floor.name.toUpperCase()}`, {
       ...TEXT.heading(), fontSize: '18px', color: '#d07818',
+    }).setOrigin(0, 0.5);
+
+    // Challenge progress counter
+    const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
+    this.hudChallenge = this.add.text(area.left + 20, hudCenterY - 42, `${ch.label} ${this.challengeProgress}/${ch.count}`, {
+      ...TEXT.stat(), fontSize: '13px', color: '#3a2410',
     }).setOrigin(0, 0.5);
 
     // Gold + potions in a row on the left
@@ -617,16 +623,16 @@ export class MazeScene extends Phaser.Scene {
       const hero = this.party[i];
       const x = partyCx - 120 + i * 110;
       const spriteScale = 0.35;
-      drawHeroSprite(this, x, partyY - 10, hero, { scale: spriteScale });
-      this.add.text(x, partyY + 22, hero.name, {
+      drawHeroSprite(this, x, partyY - 18, hero, { scale: spriteScale });
+      this.add.text(x, partyY + 26, hero.name, {
         ...TEXT.stat(), fontSize: '10px', color: '#3a2410',
       }).setOrigin(0.5);
       const pct = hero.hp / hero.maxHp;
       const hpBg = this.add.graphics();
       hpBg.fillStyle(0x3a2410, 0.4);
-      hpBg.fillRoundedRect(x - 30, partyY + 12, 60, 4, 2);
+      hpBg.fillRoundedRect(x - 30, partyY + 36, 60, 4, 2);
       hpBg.fillStyle(0x4aa848, 1);
-      hpBg.fillRoundedRect(x - 30, partyY + 12, 60 * pct, 4, 2);
+      hpBg.fillRoundedRect(x - 30, partyY + 36, 60 * pct, 4, 2);
     }
 
     // World Map button — right side
@@ -664,6 +670,10 @@ export class MazeScene extends Phaser.Scene {
   updateHud() {
     this.hudGold.setText(`\u{1FA99} ${this.save.gold}`);
     this.hudPotions.setText(`\u{1F9EA} ${this.save.potions}`);
+    if (this.hudChallenge) {
+      const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
+      this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
+    }
   }
 
   // ================================================================

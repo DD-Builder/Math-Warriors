@@ -578,15 +578,17 @@ export class BattleScene extends Phaser.Scene {
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const baseScale = enemy.isBoss ? 3.0 : (count >= 3 ? 1.8 : 2.5);
+      const baseScale = enemy.isBoss ? 3.5 : (count >= 3 ? 2.2 : 2.8);
       const monsterScale = baseScale;
       const x = centerX;
-      const y = groundY - 80 * (monsterScale / 1.5) + yOffsets[ei];
+      // Position monster so its bottom edge sits on the ground line
+      const spriteHalfPx = (320 / 2) * monsterScale;
+      const y = groundY - spriteHalfPx * 0.6 + yOffsets[ei];
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
 
-      const spriteHalfH = 80 * monsterScale / 2;
+      const spriteHalfH = (320 / 2) * monsterScale * 0.6;
       const nameY = y - spriteHalfH - 50;
       const hpY = y - spriteHalfH - 28;
       const hpTextY = y - spriteHalfH - 8;
