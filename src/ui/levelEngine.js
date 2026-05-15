@@ -26,12 +26,12 @@ var LV_PAL = {
 // ─── FLOOR PALETTES ─────────────────────────────────────────────
 
 var FLOOR_PALS = {
-  2: { // Tidepool
-    wall0: '#0a1828', wall1: '#0e2038', wall2: '#142840', wall3: '#1a3048',
-    floor0: '#1a3050', floorL: '#203858',
-    path0: '#384858', pathS: '#506878', pathL: '#607888',
-    water0: '#081420', water1: '#0c1c30', waterHL: '#2868a0',
-    accent: '#c04880', accentL: '#e86898', coral: '#a04060',
+  2: { // Tidepool — bright coastal (beach/marsh/water)
+    wall0: '#6a5838', wall1: '#7a6848', wall2: '#8a7858', wall3: '#9a8868',
+    floor0: '#c8b890', floorL: '#d8c8a0',
+    path0: '#8a7050', pathS: '#a08860', pathL: '#b8a070',
+    water0: '#2890b0', water1: '#38a8c8', waterHL: '#60d0e8',
+    accent: '#e06888', accentL: '#f088a0', coral: '#e87060',
   },
   3: { // Cloud
     wall0: '#1a2030', wall1: '#283040', wall2: '#384050', wall3: '#485868',

@@ -75,7 +75,7 @@ export class BattleScene extends Phaser.Scene {
       // Regular encounters: weighted 1-3 monsters
       const roll = Math.random();
       const count = roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3;
-      const hpScale = count === 1 ? 1.0 : count === 2 ? 0.6 : 0.45;
+      const hpScale = count === 1 ? 1.0 : count === 2 ? 0.75 : 0.5;
       this.enemies = [];
       for (let i = 0; i < count; i++) {
         const def = FLOOR_1[Math.floor(Math.random() * FLOOR_1.length)];
@@ -308,7 +308,7 @@ export class BattleScene extends Phaser.Scene {
     groundGfx.fillStyle(0x4a8828, 0.4);
     groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
 
-    const heroScale = 2;
+    const heroScale = 0.85;
     const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
     const leftAnchor = GAME_WIDTH * 0.08 + spacing / 2;
 
@@ -371,7 +371,7 @@ export class BattleScene extends Phaser.Scene {
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const baseScale = enemy.isBoss ? 3.5 : (count >= 3 ? 2.5 : 3);
+      const baseScale = enemy.isBoss ? 1.75 : (count >= 3 ? 1.25 : 1.5);
       const monsterScale = baseScale;
       const x = centerX;
       const y = groundY - 80 * (monsterScale / 1.5) + yOffsets[ei];

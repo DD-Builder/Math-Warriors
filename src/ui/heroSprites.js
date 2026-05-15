@@ -22,8 +22,8 @@ const ART_LOOKUP = {};
 const CANVAS_CACHE = {};
 
 // Default canvas dimensions for hero portraits
-const HERO_W = 148;
-const HERO_H = 192;
+const HERO_W = 296;
+const HERO_H = 384;
 
 function getHeroCanvas(hero) {
   const id = hero.id;

@@ -700,6 +700,7 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   update(time) {
+    if (this.dialogue?.active) return;
     const keys = {};
     if (this.cursors.left.isDown || this.wasd.A.isDown || this._touchDir === 'left') keys.ArrowLeft = true;
     if (this.cursors.right.isDown || this.wasd.D.isDown || this._touchDir === 'right') keys.ArrowRight = true;
@@ -844,6 +845,11 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'boss': {
+        const bch = this.floor.challenge || { count: 3 };
+        if (this.challengeProgress < bch.count) {
+          this.showFloatText(obj.x, obj.y, 'COMPLETE THE CHALLENGE FIRST!', '#e088c0');
+          return;
+        }
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/encounter');
