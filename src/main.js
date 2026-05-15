@@ -40,6 +40,20 @@ const config = {
 
 const game = new Phaser.Game(config);
 
+// Force Phaser to recalculate layout when the app resumes from background.
+// iPad Safari web apps can misalign after minimize/restore or split-screen.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && game.scale) {
+    game.scale.refresh();
+  }
+});
+window.addEventListener('resize', () => {
+  if (game.scale) game.scale.refresh();
+});
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => { if (game.scale) game.scale.refresh(); }, 200);
+});
+
 // Wire the audio manager to the game instance.
 audio.init(game);
 
