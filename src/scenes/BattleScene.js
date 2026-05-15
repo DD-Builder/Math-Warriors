@@ -110,6 +110,9 @@ export class BattleScene extends Phaser.Scene {
     this.locked = false;
     this.currentQuestion = null;
 
+    // Battle background variant (0-2) for visual variety on same floor
+    this.battleVariant = this.registry.get('battleVariant') ?? 0;
+
     // Load the save once per battle and mutate in place.
     this.save = loadSave();
 
@@ -1037,149 +1040,157 @@ export class BattleScene extends Phaser.Scene {
             },
           });
         } else if (cls === 'wizard') {
-          // Wizard: elemental bolt based on current question operator
+          // Wizard: dramatic elemental beams/bolts based on operator
           const op = this.currentQuestion?.op || '+';
-          let boltColor, glowColor, boltSize, boltStyle;
+          const beamStartX = heroSprite.x + 60;
+          const beamStartY = heroSprite.y - 40;
+          const beamEndX = enemyX;
+          const beamEndY = enemyY;
+
           if (op === '+') {
-            boltColor = 0xff6020; glowColor = 0xff8040; boltSize = 16; boltStyle = 'fire';
+            // FIRE BEAM: wide rectangle from wizard to enemy, trailing particles
+            const beam = this.add.graphics();
+            const angle = Math.atan2(beamEndY - beamStartY, beamEndX - beamStartX);
+            const dist = Math.sqrt((beamEndX - beamStartX) ** 2 + (beamEndY - beamStartY) ** 2);
+            beam.fillStyle(0xff6020, 0.85);
+            beam.save();
+            beam.translateCanvas(beamStartX, beamStartY);
+            beam.rotateCanvas(angle);
+            beam.fillRect(0, -10, dist, 20);
+            beam.restore();
+            // Fire trail particles along beam length
+            for (let i = 0; i < 15; i++) {
+              const t = Math.random();
+              const px = beamStartX + (beamEndX - beamStartX) * t;
+              const py = beamStartY + (beamEndY - beamStartY) * t + (Math.random() - 0.5) * 20;
+              const fp = this.add.circle(px, py, 3 + Math.random() * 4, 0xff8020, 0.7);
+              this.tweens.add({
+                targets: fp, y: py - 20 - Math.random() * 20, alpha: 0, scale: 0.3,
+                duration: 200 + Math.random() * 150, onComplete: () => fp.destroy(),
+              });
+            }
+            // Impact: damage + camera shake
+            this.hitFlash();
+            this.flashEnemy(result, targetIdx);
+            this.updateEnemyHp(targetIdx);
+            audio.play('battle/hit-enemy');
+            this.shakeCamera(0.012, 300);
+            this.burstParticles(beamEndX, beamEndY, 0xff6020);
+            // Hold beam 250ms then fade
+            this.tweens.add({ targets: beam, alpha: 0, duration: 250, onComplete: () => beam.destroy() });
           } else if (op === '-') {
-            boltColor = 0xf0e020; glowColor = 0xffffff; boltSize = 12; boltStyle = 'lightning';
+            // LIGHTNING BOLT: jagged connected line segments, instant
+            const bolt = this.add.graphics();
+            bolt.lineStyle(6, 0xf0e020, 1);
+            bolt.beginPath();
+            bolt.moveTo(beamStartX, beamStartY);
+            const segs = 6 + Math.floor(Math.random() * 3); // 6-8 segments
+            for (let i = 1; i <= segs; i++) {
+              const t = i / segs;
+              const lx = beamStartX + (beamEndX - beamStartX) * t;
+              const ly = beamStartY + (beamEndY - beamStartY) * t;
+              const offsetY = (i < segs) ? (Math.random() - 0.5) * 60 : 0;
+              bolt.lineTo(lx, ly + offsetY);
+            }
+            bolt.strokePath();
+            // White screen flash
+            const flash = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0.4);
+            this.tweens.add({ targets: flash, alpha: 0, duration: 100, onComplete: () => flash.destroy() });
+            // Impact: damage
+            this.hitFlash();
+            this.flashEnemy(result, targetIdx);
+            this.updateEnemyHp(targetIdx);
+            audio.play('battle/hit-enemy');
+            this.shakeCamera(0.008, 200);
+            this.burstParticles(beamEndX, beamEndY, 0xf0e020);
+            // Hold bolt 200ms then fade
+            this.tweens.add({ targets: bolt, alpha: 0, duration: 200, onComplete: () => bolt.destroy() });
           } else if (op === '*') {
-            boltColor = 0x40c0f0; glowColor = 0x80e0ff; boltSize = 14; boltStyle = 'ice';
-          } else {
-            boltColor = 0x8040c0; glowColor = 0xc080f0; boltSize = 14; boltStyle = 'void';
-          }
-
-          const startX = heroSprite.x;
-          const startY = heroSprite.y - 40;
-
-          if (boltStyle === 'lightning') {
-            // Lightning: zigzag path in 3 segments with white flash on impact
-            const segments = 3;
-            const dx = (enemyX - startX) / segments;
-            const dy = (enemyY - startY) / segments;
-            const bolt = this.add.circle(startX, startY, boltSize, boltColor);
-            const glow = this.add.circle(startX, startY, boltSize * 0.6, glowColor, 0.6);
-            let seg = 0;
-            const doSeg = () => {
-              if (seg >= segments) {
-                bolt.destroy(); glow.destroy();
-                this.cameras.main.flash(80, 255, 255, 255, false, null, null, 0.3);
-                this.hitFlash();
-                this.flashEnemy(result, targetIdx);
-                this.updateEnemyHp(targetIdx);
-                audio.play('battle/hit-enemy');
-                this.shakeCamera(0.008, 200);
-                this.burstParticles(enemyX, enemyY, boltColor);
-                return;
-              }
-              const zigOffset = (seg % 2 === 0 ? 1 : -1) * (40 + Math.random() * 30);
-              const nx = startX + dx * (seg + 1) + (seg < segments - 1 ? zigOffset : 0);
-              const ny = startY + dy * (seg + 1) + (seg < segments - 1 ? zigOffset * 0.3 : 0);
-              this.tweens.add({
-                targets: [bolt, glow], x: nx, y: ny, duration: 70, ease: 'Linear',
-                onComplete: () => { seg++; doSeg(); },
-              });
-            };
-            doSeg();
-          } else if (boltStyle === 'ice') {
-            // Ice shard: straight fast shot, frost burst on impact
-            const shard = this.add.rectangle(startX, startY, boltSize, boltSize * 2.5, boltColor);
-            shard.setRotation(Math.atan2(enemyY - startY, enemyX - startX));
-            const glow = this.add.circle(startX, startY, boltSize * 0.5, glowColor, 0.5);
+            // ICE SHARD: crystalline polygon, shoots straight 150ms
+            const shard = this.add.graphics();
+            const shardAngle = Math.atan2(beamEndY - beamStartY, beamEndX - beamStartX);
+            // Draw elongated diamond (6 points)
+            shard.fillStyle(0x40c0f0, 0.9);
+            shard.beginPath();
+            shard.moveTo(25, 0);   // tip
+            shard.lineTo(8, -10);
+            shard.lineTo(-8, -8);
+            shard.lineTo(-25, 0);  // back
+            shard.lineTo(-8, 8);
+            shard.lineTo(8, 10);
+            shard.closePath();
+            shard.fillPath();
+            shard.lineStyle(2, 0x80e0ff, 0.7);
+            shard.strokePath();
+            shard.setPosition(beamStartX, beamStartY);
+            shard.setRotation(shardAngle);
             this.tweens.add({
-              targets: [shard, glow], x: enemyX, y: enemyY, duration: 150, ease: 'Linear',
+              targets: shard, x: beamEndX, y: beamEndY, duration: 150, ease: 'Linear',
               onComplete: () => {
-                shard.destroy(); glow.destroy();
+                shard.destroy();
                 this.hitFlash();
                 this.flashEnemy(result, targetIdx);
                 this.updateEnemyHp(targetIdx);
                 audio.play('battle/hit-enemy');
                 this.shakeCamera(0.008, 200);
-                // Frost burst: light blue particles spreading outward
-                for (let i = 0; i < 10; i++) {
-                  const angle = (i / 10) * Math.PI * 2;
-                  const dist = 30 + Math.random() * 25;
-                  const fp = this.add.circle(enemyX, enemyY, 4 + Math.random() * 3, 0x80e0ff, 0.8);
+                // 12 ice fragment particles burst outward
+                for (let i = 0; i < 12; i++) {
+                  const a = (i / 12) * Math.PI * 2;
+                  const d = 30 + Math.random() * 25;
+                  const fp = this.add.circle(beamEndX, beamEndY, 3 + Math.random() * 3, 0x80e0ff, 0.8);
                   this.tweens.add({
-                    targets: fp, x: enemyX + Math.cos(angle) * dist, y: enemyY + Math.sin(angle) * dist,
-                    alpha: 0, duration: 400, onComplete: () => fp.destroy(),
+                    targets: fp, x: beamEndX + Math.cos(a) * d, y: beamEndY + Math.sin(a) * d,
+                    alpha: 0, duration: 350, onComplete: () => fp.destroy(),
                   });
                 }
+                // Frost overlay flash
+                const frost = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x80d0f0, 0.15);
+                this.tweens.add({ targets: frost, alpha: 0, duration: 200, onComplete: () => frost.destroy() });
               },
             });
-          } else if (boltStyle === 'void') {
-            // Void bolt: spiral path, dark implosion at impact
-            const orb = this.add.circle(startX, startY, boltSize, boltColor);
-            const glow = this.add.circle(startX, startY, boltSize * 0.6, glowColor, 0.5);
-            const spiralSteps = 8;
-            const totalDist = Math.sqrt((enemyX - startX) ** 2 + (enemyY - startY) ** 2);
-            let step = 0;
-            const doSpiral = () => {
-              if (step >= spiralSteps) {
-                orb.destroy(); glow.destroy();
-                this.hitFlash();
-                this.flashEnemy(result, targetIdx);
-                this.updateEnemyHp(targetIdx);
-                audio.play('battle/hit-enemy');
-                this.shakeCamera(0.008, 200);
-                // Dark implosion: particles rush inward then vanish
-                for (let i = 0; i < 10; i++) {
-                  const angle = (i / 10) * Math.PI * 2;
-                  const dist = 40 + Math.random() * 20;
-                  const dp = this.add.circle(enemyX + Math.cos(angle) * dist, enemyY + Math.sin(angle) * dist, 5, 0x4020a0, 0.8);
-                  this.tweens.add({
-                    targets: dp, x: enemyX, y: enemyY, alpha: 0, scale: 0.2,
-                    duration: 250, onComplete: () => dp.destroy(),
-                  });
-                }
-                return;
-              }
-              const t = (step + 1) / spiralSteps;
-              const baseX = startX + (enemyX - startX) * t;
-              const baseY = startY + (enemyY - startY) * t;
-              const spiralR = 30 * (1 - t);
-              const angle = t * Math.PI * 4;
-              const nx = baseX + Math.cos(angle) * spiralR;
-              const ny = baseY + Math.sin(angle) * spiralR;
-              this.tweens.add({
-                targets: [orb, glow], x: nx, y: ny, duration: 50, ease: 'Linear',
-                onComplete: () => { step++; doSpiral(); },
-              });
-            };
-            doSpiral();
           } else {
-            // Fire bolt: trailing orange particles
-            const orb = this.add.circle(startX, startY, boltSize, boltColor);
-            const glow = this.add.circle(startX, startY, boltSize * 0.6, glowColor, 0.6);
-            const midX = (startX + enemyX) / 2;
-            const midY = Math.min(startY, enemyY) - 80;
-            // Trail particles during flight
-            const trailTimer = this.time.addEvent({
-              delay: 40, loop: true,
-              callback: () => {
-                const tp = this.add.circle(orb.x, orb.y, 4 + Math.random() * 3, 0xff8020, 0.6);
-                this.tweens.add({ targets: tp, alpha: 0, scale: 0.3, duration: 200, onComplete: () => tp.destroy() });
-              },
-            });
-            this.tweens.add({
-              targets: [orb, glow], x: midX, y: midY, duration: 200, ease: 'Sine.out',
-              onComplete: () => {
-                this.tweens.add({
-                  targets: [orb, glow], x: enemyX, y: enemyY, duration: 200, ease: 'Sine.in',
-                  onComplete: () => {
-                    trailTimer.remove();
-                    orb.destroy(); glow.destroy();
-                    this.hitFlash();
-                    this.flashEnemy(result, targetIdx);
-                    this.updateEnemyHp(targetIdx);
-                    audio.play('battle/hit-enemy');
-                    this.shakeCamera(0.008, 200);
-                    this.burstParticles(enemyX, enemyY, boltColor);
-                  },
-                });
-              },
-            });
+            // VOID BEAM: dark energy beam with orbiting purple particles, implosion
+            const beam = this.add.graphics();
+            const angle = Math.atan2(beamEndY - beamStartY, beamEndX - beamStartX);
+            const dist = Math.sqrt((beamEndX - beamStartX) ** 2 + (beamEndY - beamStartY) ** 2);
+            beam.fillStyle(0x8040c0, 0.8);
+            beam.save();
+            beam.translateCanvas(beamStartX, beamStartY);
+            beam.rotateCanvas(angle);
+            beam.fillRect(0, -8, dist, 16);
+            beam.restore();
+            // 8 purple spiral particles along beam
+            const spirals = [];
+            for (let i = 0; i < 8; i++) {
+              const t = (i + 1) / 9;
+              const px = beamStartX + (beamEndX - beamStartX) * t;
+              const py = beamStartY + (beamEndY - beamStartY) * t;
+              const orbitR = 16;
+              const sp = this.add.circle(px + Math.cos(i * 0.8) * orbitR, py + Math.sin(i * 0.8) * orbitR, 4, 0xc080f0, 0.7);
+              spirals.push(sp);
+              this.tweens.add({ targets: sp, alpha: 0, scale: 0.5, duration: 300, onComplete: () => sp.destroy() });
+            }
+            // Impact: damage + dark flash
+            this.hitFlash();
+            this.flashEnemy(result, targetIdx);
+            this.updateEnemyHp(targetIdx);
+            audio.play('battle/hit-enemy');
+            this.shakeCamera(0.008, 200);
+            // Implosion: particles rush INWARD toward hit point
+            for (let i = 0; i < 10; i++) {
+              const a = (i / 10) * Math.PI * 2;
+              const d = 40 + Math.random() * 20;
+              const dp = this.add.circle(beamEndX + Math.cos(a) * d, beamEndY + Math.sin(a) * d, 5, 0x4020a0, 0.8);
+              this.tweens.add({
+                targets: dp, x: beamEndX, y: beamEndY, alpha: 0, scale: 0.2,
+                duration: 250, onComplete: () => dp.destroy(),
+              });
+            }
+            // Dark flash overlay
+            const darkFlash = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x200830, 0.3);
+            this.tweens.add({ targets: darkFlash, alpha: 0, duration: 200, onComplete: () => darkFlash.destroy() });
+            // Fade beam
+            this.tweens.add({ targets: beam, alpha: 0, duration: 250, onComplete: () => beam.destroy() });
           }
         } else if (cls === 'bunny') {
           // Bunny: martial arts combo — dash TO enemy, multi-hit with pink particles
