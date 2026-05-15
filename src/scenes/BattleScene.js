@@ -12,7 +12,7 @@ import {
   pickRandomLivingHero,
 } from '../systems/combat.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
-import { spawnEnemy, FLOOR_1, FLOOR_OPERATORS } from '../data/enemies.js';
+import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
 import { invokeAbility } from '../systems/abilities.js';
@@ -64,23 +64,24 @@ export class BattleScene extends Phaser.Scene {
     this.isBoss = !!data?.isBoss;
 
     // --- Multi-monster encounter setup ---
+    const bossIds = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'theorem'];
+    const floorPool = getEnemiesForFloor(this.floor).filter(e => !bossIds.includes(e.id));
+    const safePick = () => floorPool.length > 0 ? floorPool[Math.floor(Math.random() * floorPool.length)] : getEnemiesForFloor(1)[0];
+
     if (data?.enemy) {
-      // Single enemy passed directly (legacy / test compat)
       this.enemies = [{ ...data.enemy }];
     } else if (this.isBoss) {
-      // Boss encounters: always 1 boss
-      const def = FLOOR_1[Math.floor(Math.random() * FLOOR_1.length)];
-      this.enemies = [spawnEnemy(def.id, { grade: this.grade, isBoss: true })];
+      const bossId = data?.enemyId || bossIds[this.floor - 1] || 'briarking';
+      const bossDef = getEnemyById(bossId) || safePick();
+      this.enemies = [spawnEnemy(bossDef.id, { grade: this.grade, isBoss: true })];
     } else {
-      // Regular encounters: weighted 1-3 monsters
       const roll = Math.random();
       const count = roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3;
       const hpScale = count === 1 ? 1.0 : count === 2 ? 0.75 : 0.5;
       this.enemies = [];
       for (let i = 0; i < count; i++) {
-        const def = FLOOR_1[Math.floor(Math.random() * FLOOR_1.length)];
+        const def = safePick();
         const e = spawnEnemy(def.id, { grade: this.grade, isBoss: false });
-        // Scale HP for multi-monster encounters
         if (count > 1) {
           e.maxHp = Math.max(1, Math.round(e.maxHp * hpScale));
           e.hp = e.maxHp;
@@ -577,7 +578,7 @@ export class BattleScene extends Phaser.Scene {
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const baseScale = enemy.isBoss ? 2.5 : (count >= 3 ? 1.5 : 2.0);
+      const baseScale = enemy.isBoss ? 3.0 : (count >= 3 ? 1.8 : 2.5);
       const monsterScale = baseScale;
       const x = centerX;
       const y = groundY - 80 * (monsterScale / 1.5) + yOffsets[ei];
