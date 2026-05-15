@@ -182,84 +182,287 @@ export class BattleScene extends Phaser.Scene {
 
   drawBattleThemeDetails(bgH) {
     const g = this.add.graphics();
-    const rng = makeRng(this.floor * 5555);
+    const rng = makeRng(this.floor * 5555 + (this.battleVariant || 0) * 1111);
     const gndY = bgH * 0.88;
+    const v = this.battleVariant || 0;
 
     if (this.floor === 1) {
-      // Garden: flowers along ground, butterflies
-      for (let i = 0; i < 10; i++) {
-        const fx = rng() * GAME_WIDTH;
-        const fy = gndY - rng() * 20;
-        const colors = [0xf06080, 0xf0c040, 0xa0d8f0, 0xf080c0, 0xff8080];
-        g.fillStyle(colors[Math.floor(rng() * colors.length)], 0.7);
-        g.fillCircle(fx, fy, 4 + rng() * 3);
-        g.fillStyle(0xf0f080, 0.8);
-        g.fillCircle(fx, fy, 2);
-      }
-      // Mushrooms
-      for (let i = 0; i < 4; i++) {
-        const mx = 60 + rng() * (GAME_WIDTH - 120);
-        g.fillStyle(0x6a4010, 1);
-        g.fillRect(mx - 2, gndY - 8, 4, 10);
-        g.fillStyle(0xc04818, 0.8);
-        g.fillCircle(mx, gndY - 12, 7 + rng() * 4);
-        g.fillStyle(0xf0e8d0, 0.6);
-        g.fillCircle(mx - 2, gndY - 14, 2);
+      if (v === 0) {
+        // Flower garden: flowers along ground, mushrooms
+        for (let i = 0; i < 10; i++) {
+          const fx = rng() * GAME_WIDTH;
+          const fy = gndY - rng() * 20;
+          const colors = [0xf06080, 0xf0c040, 0xa0d8f0, 0xf080c0, 0xff8080];
+          g.fillStyle(colors[Math.floor(rng() * colors.length)], 0.7);
+          g.fillCircle(fx, fy, 4 + rng() * 3);
+          g.fillStyle(0xf0f080, 0.8);
+          g.fillCircle(fx, fy, 2);
+        }
+        for (let i = 0; i < 4; i++) {
+          const mx = 60 + rng() * (GAME_WIDTH - 120);
+          g.fillStyle(0x6a4010, 1);
+          g.fillRect(mx - 2, gndY - 8, 4, 10);
+          g.fillStyle(0xc04818, 0.8);
+          g.fillCircle(mx, gndY - 12, 7 + rng() * 4);
+          g.fillStyle(0xf0e8d0, 0.6);
+          g.fillCircle(mx - 2, gndY - 14, 2);
+        }
+      } else if (v === 1) {
+        // Mossy forest clearing: tree stumps, ferns, fallen leaves
+        for (let i = 0; i < 5; i++) {
+          const tx = 40 + rng() * (GAME_WIDTH - 80);
+          g.fillStyle(0x5a3810, 0.7);
+          g.fillRect(tx - 8, gndY - 10, 16, 12);
+          g.fillStyle(0x3a6020, 0.5);
+          g.fillCircle(tx, gndY - 12, 10 + rng() * 5);
+        }
+        for (let i = 0; i < 12; i++) {
+          const lx = rng() * GAME_WIDTH;
+          const ly = gndY - rng() * 10;
+          const lc = rng() > 0.5 ? 0xa07020 : 0xc09030;
+          g.fillStyle(lc, 0.4);
+          g.fillCircle(lx, ly, 2 + rng() * 2);
+        }
+        for (let i = 0; i < 6; i++) {
+          const fx = 30 + rng() * (GAME_WIDTH - 60);
+          g.fillStyle(0x408030, 0.5);
+          g.fillTriangle(fx, gndY, fx - 6, gndY - 14 - rng() * 8, fx + 6, gndY - 14 - rng() * 8);
+        }
+      } else {
+        // Sunlit meadow: tall grass, butterflies, dandelions
+        for (let i = 0; i < 14; i++) {
+          const gx = rng() * GAME_WIDTH;
+          g.fillStyle(0x60a830, 0.5);
+          g.fillRect(gx, gndY - 12 - rng() * 10, 2, 14 + rng() * 8);
+        }
+        for (let i = 0; i < 6; i++) {
+          const dx = rng() * GAME_WIDTH;
+          const dy = gndY - 16 - rng() * 10;
+          g.fillStyle(0xf0e8a0, 0.7);
+          g.fillCircle(dx, dy, 3);
+          g.fillStyle(0xf8f0c0, 0.4);
+          for (let s = 0; s < 4; s++) {
+            const a = (s / 4) * Math.PI * 2;
+            g.fillCircle(dx + Math.cos(a) * 5, dy + Math.sin(a) * 5, 1.5);
+          }
+        }
+        for (let i = 0; i < 4; i++) {
+          const bx = rng() * GAME_WIDTH;
+          const by = gndY - 40 - rng() * 80;
+          g.fillStyle(0xf0c040, 0.5);
+          g.fillCircle(bx - 4, by, 3);
+          g.fillCircle(bx + 4, by, 3);
+        }
       }
     } else if (this.floor === 2) {
-      // Tidepool: water ripples at ground, bubbles rising
-      for (let i = 0; i < 8; i++) {
-        const bx = rng() * GAME_WIDTH;
-        const by = gndY - 30 - rng() * 120;
-        g.fillStyle(0x40a8c8, 0.2 + rng() * 0.15);
-        g.fillCircle(bx, by, 3 + rng() * 4);
-      }
-      // Seaweed along ground
-      for (let i = 0; i < 6; i++) {
-        const sx = 50 + rng() * (GAME_WIDTH - 100);
-        g.fillStyle(0x186838, 0.6);
-        for (let s = 0; s < 3; s++) {
-          g.fillCircle(sx + (rng() - 0.5) * 8, gndY - s * 12 - 6, 4 + rng() * 3);
+      if (v === 0) {
+        // Sandy beach: sand ground, palm tree silhouettes, shells
+        g.fillStyle(0xd8c080, 0.3);
+        g.fillRect(0, gndY - 4, GAME_WIDTH, 10);
+        for (let i = 0; i < 3; i++) {
+          const px = 80 + rng() * (GAME_WIDTH - 160);
+          g.fillStyle(0x6a4818, 0.6);
+          g.fillRect(px - 3, gndY - 50, 6, 52);
+          g.fillStyle(0x308828, 0.5);
+          g.fillTriangle(px, gndY - 55, px - 30, gndY - 35, px + 30, gndY - 35);
+          g.fillTriangle(px, gndY - 50, px - 25, gndY - 30, px + 25, gndY - 30);
+        }
+        for (let i = 0; i < 8; i++) {
+          const sx = rng() * GAME_WIDTH;
+          g.fillStyle(0xf0e0c0, 0.5);
+          g.fillCircle(sx, gndY - rng() * 6, 2 + rng() * 2);
+        }
+      } else if (v === 1) {
+        // Murky marsh: green-brown ground, cattails, lily pads
+        g.fillStyle(0x506030, 0.25);
+        g.fillRect(0, gndY - 4, GAME_WIDTH, 10);
+        for (let i = 0; i < 6; i++) {
+          const cx = 40 + rng() * (GAME_WIDTH - 80);
+          g.fillStyle(0x405020, 0.6);
+          g.fillRect(cx, gndY - 30 - rng() * 15, 2, 32);
+          g.fillStyle(0x604020, 0.7);
+          g.fillCircle(cx + 1, gndY - 34 - rng() * 15, 3);
+        }
+        for (let i = 0; i < 5; i++) {
+          const lx = rng() * GAME_WIDTH;
+          g.fillStyle(0x40882a, 0.35);
+          g.fillCircle(lx, gndY + rng() * 4, 6 + rng() * 4);
+        }
+      } else {
+        // Rocky shoreline: grey rocks, crashing wave arcs, seaweed
+        for (let i = 0; i < 7; i++) {
+          const rx = rng() * GAME_WIDTH;
+          const rs = 6 + rng() * 10;
+          g.fillStyle(0x808890, 0.5);
+          g.fillCircle(rx, gndY - rng() * 8, rs);
+          g.fillStyle(0x909aa0, 0.3);
+          g.fillCircle(rx + 3, gndY - 2 - rng() * 6, rs * 0.7);
+        }
+        for (let i = 0; i < 4; i++) {
+          const wx = rng() * GAME_WIDTH;
+          g.lineStyle(2, 0x80c0e0, 0.35);
+          g.beginPath();
+          g.arc(wx, gndY, 12 + rng() * 10, -Math.PI, 0, false);
+          g.strokePath();
+        }
+        for (let i = 0; i < 5; i++) {
+          const sx = 50 + rng() * (GAME_WIDTH - 100);
+          g.fillStyle(0x186838, 0.5);
+          for (let s = 0; s < 3; s++) {
+            g.fillCircle(sx + (rng() - 0.5) * 6, gndY - s * 10 - 4, 3 + rng() * 2);
+          }
         }
       }
     } else if (this.floor === 3) {
-      // Cloud: lightning flashes, floating platforms
-      for (let i = 0; i < 5; i++) {
-        const px = 80 + rng() * (GAME_WIDTH - 160);
-        const py = gndY - 40 - rng() * 80;
-        g.fillStyle(0x7898b8, 0.4);
-        g.fillRoundedRect(px - 30, py, 60 + rng() * 30, 10, 5);
-        g.fillStyle(0x98b8d8, 0.3);
-        g.fillRoundedRect(px - 24, py + 2, 48 + rng() * 20, 6, 3);
+      if (v === 0) {
+        // Cloud platforms: floating rectangular platforms
+        for (let i = 0; i < 5; i++) {
+          const px = 80 + rng() * (GAME_WIDTH - 160);
+          const py = gndY - 40 - rng() * 80;
+          g.fillStyle(0x7898b8, 0.4);
+          g.fillRoundedRect(px - 30, py, 60 + rng() * 30, 10, 5);
+          g.fillStyle(0x98b8d8, 0.3);
+          g.fillRoundedRect(px - 24, py + 2, 48 + rng() * 20, 6, 3);
+        }
+      } else if (v === 1) {
+        // Stormy sky: dark clouds, rain streaks, distant lightning
+        for (let i = 0; i < 6; i++) {
+          const cx = rng() * GAME_WIDTH;
+          const cy = gndY - 80 - rng() * 100;
+          g.fillStyle(0x485868, 0.4);
+          g.fillCircle(cx, cy, 20 + rng() * 15);
+          g.fillCircle(cx + 15, cy - 5, 14 + rng() * 10);
+        }
+        for (let i = 0; i < 10; i++) {
+          const rx = rng() * GAME_WIDTH;
+          const ry = gndY - rng() * 150;
+          g.lineStyle(1, 0xa0b8d0, 0.2);
+          g.beginPath();
+          g.moveTo(rx, ry);
+          g.lineTo(rx - 3, ry + 18);
+          g.strokePath();
+        }
+        g.lineStyle(2, 0xf0e860, 0.25);
+        const lx = 60 + rng() * (GAME_WIDTH - 120);
+        g.beginPath();
+        g.moveTo(lx, gndY - 160);
+        g.lineTo(lx + 6, gndY - 130);
+        g.lineTo(lx - 4, gndY - 100);
+        g.strokePath();
+      } else {
+        // Sunset cloudscape: warm-tinted clouds, sun glow, haze
+        for (let i = 0; i < 5; i++) {
+          const cx = rng() * GAME_WIDTH;
+          const cy = gndY - 60 - rng() * 80;
+          g.fillStyle(0xd09060, 0.3);
+          g.fillCircle(cx, cy, 18 + rng() * 14);
+          g.fillStyle(0xe0a878, 0.2);
+          g.fillCircle(cx + 12, cy - 4, 12 + rng() * 8);
+        }
+        g.fillStyle(0xf0c040, 0.15);
+        g.fillCircle(GAME_WIDTH * 0.8, gndY - 130, 30);
+        g.fillStyle(0xf0d060, 0.08);
+        g.fillCircle(GAME_WIDTH * 0.8, gndY - 130, 55);
       }
     } else if (this.floor === 4) {
-      // Ember: lava pools, sparks
-      for (let i = 0; i < 5; i++) {
-        const lx = rng() * GAME_WIDTH;
-        g.fillStyle(0xe04808, 0.3);
-        g.fillCircle(lx, gndY + 4, 12 + rng() * 16);
-        g.fillStyle(0xf0a010, 0.2);
-        g.fillCircle(lx, gndY + 2, 8 + rng() * 10);
-      }
-      // Floating embers
-      for (let i = 0; i < 12; i++) {
-        g.fillStyle(0xf08020, 0.3 + rng() * 0.3);
-        g.fillCircle(rng() * GAME_WIDTH, gndY - rng() * 200, 2 + rng() * 2);
+      if (v === 0) {
+        // Lava pools: glowing lava at ground, floating embers
+        for (let i = 0; i < 5; i++) {
+          const lx = rng() * GAME_WIDTH;
+          g.fillStyle(0xe04808, 0.3);
+          g.fillCircle(lx, gndY + 4, 12 + rng() * 16);
+          g.fillStyle(0xf0a010, 0.2);
+          g.fillCircle(lx, gndY + 2, 8 + rng() * 10);
+        }
+        for (let i = 0; i < 12; i++) {
+          g.fillStyle(0xf08020, 0.3 + rng() * 0.3);
+          g.fillCircle(rng() * GAME_WIDTH, gndY - rng() * 200, 2 + rng() * 2);
+        }
+      } else if (v === 1) {
+        // Volcanic crags: jagged rock spires, smoke wisps, ash
+        for (let i = 0; i < 5; i++) {
+          const sx = 60 + rng() * (GAME_WIDTH - 120);
+          const sh = 20 + rng() * 30;
+          g.fillStyle(0x3a2820, 0.6);
+          g.fillTriangle(sx, gndY, sx - 8 - rng() * 6, gndY, sx + rng() * 4, gndY - sh);
+        }
+        for (let i = 0; i < 6; i++) {
+          const wx = rng() * GAME_WIDTH;
+          const wy = gndY - 30 - rng() * 60;
+          g.fillStyle(0x808080, 0.15);
+          g.fillCircle(wx, wy, 8 + rng() * 6);
+          g.fillCircle(wx + 6, wy - 6, 6 + rng() * 4);
+        }
+        for (let i = 0; i < 10; i++) {
+          g.fillStyle(0x604040, 0.25);
+          g.fillCircle(rng() * GAME_WIDTH, gndY - rng() * 160, 1 + rng() * 1.5);
+        }
+      } else {
+        // Magma cavern: stalactites hanging down, lava glow, crystals
+        for (let i = 0; i < 6; i++) {
+          const sx = rng() * GAME_WIDTH;
+          const sl = 15 + rng() * 20;
+          g.fillStyle(0x504038, 0.5);
+          g.fillTriangle(sx - 4, 0, sx + 4, 0, sx, sl);
+        }
+        g.fillStyle(0xf06010, 0.12);
+        g.fillRect(0, gndY - 2, GAME_WIDTH, 8);
+        for (let i = 0; i < 4; i++) {
+          const cx = 80 + rng() * (GAME_WIDTH - 160);
+          const cy = gndY - 20 - rng() * 40;
+          g.fillStyle(0xe06030, 0.4);
+          g.fillTriangle(cx, cy - 10, cx - 4, cy + 4, cx + 4, cy + 4);
+          g.fillStyle(0xf08040, 0.3);
+          g.fillTriangle(cx + 2, cy - 8, cx - 2, cy + 2, cx + 6, cy + 2);
+        }
       }
     } else if (this.floor === 5) {
-      // Arcane: floating rune circles, magic particles
-      for (let i = 0; i < 4; i++) {
-        const rx = 120 + rng() * (GAME_WIDTH - 240);
-        const ry = gndY - 60 - rng() * 100;
-        g.lineStyle(1.5, 0x8040d0, 0.3);
-        g.strokeCircle(rx, ry, 16 + rng() * 12);
-        g.fillStyle(0x8040d0, 0.15);
-        g.fillCircle(rx, ry, 4);
-      }
-      // Sparkle particles
-      for (let i = 0; i < 15; i++) {
-        g.fillStyle(0xc090f0, 0.2 + rng() * 0.2);
-        g.fillCircle(rng() * GAME_WIDTH, rng() * gndY, 1.5 + rng() * 1.5);
+      if (v === 0) {
+        // Arcane: floating rune circles, magic particles
+        for (let i = 0; i < 4; i++) {
+          const rx = 120 + rng() * (GAME_WIDTH - 240);
+          const ry = gndY - 60 - rng() * 100;
+          g.lineStyle(1.5, 0x8040d0, 0.3);
+          g.strokeCircle(rx, ry, 16 + rng() * 12);
+          g.fillStyle(0x8040d0, 0.15);
+          g.fillCircle(rx, ry, 4);
+        }
+        for (let i = 0; i < 15; i++) {
+          g.fillStyle(0xc090f0, 0.2 + rng() * 0.2);
+          g.fillCircle(rng() * GAME_WIDTH, rng() * gndY, 1.5 + rng() * 1.5);
+        }
+      } else if (v === 1) {
+        // Void rift: dark tears in space, swirling energy, star dots
+        for (let i = 0; i < 3; i++) {
+          const rx = 100 + rng() * (GAME_WIDTH - 200);
+          const ry = gndY - 50 - rng() * 80;
+          g.fillStyle(0x180828, 0.5);
+          g.fillEllipse(rx, ry, 30 + rng() * 20, 8 + rng() * 6);
+          g.lineStyle(1, 0xa060e0, 0.4);
+          g.strokeEllipse(rx, ry, 32 + rng() * 20, 10 + rng() * 6);
+        }
+        for (let i = 0; i < 20; i++) {
+          g.fillStyle(0xe0d0ff, 0.15 + rng() * 0.2);
+          g.fillCircle(rng() * GAME_WIDTH, rng() * gndY, 1 + rng());
+        }
+      } else {
+        // Crystal sanctum: large crystal formations, prismatic sparkle
+        for (let i = 0; i < 5; i++) {
+          const cx = 60 + rng() * (GAME_WIDTH - 120);
+          const ch = 18 + rng() * 22;
+          const cc = [0x8060d0, 0x60a0d0, 0xd060a0][Math.floor(rng() * 3)];
+          g.fillStyle(cc, 0.4);
+          g.fillTriangle(cx, gndY - ch, cx - 6, gndY, cx + 6, gndY);
+          g.fillStyle(0xffffff, 0.15);
+          g.fillTriangle(cx + 1, gndY - ch + 4, cx - 2, gndY - 4, cx + 5, gndY - 4);
+        }
+        for (let i = 0; i < 10; i++) {
+          const sx = rng() * GAME_WIDTH;
+          const sy = rng() * gndY;
+          const sc = [0xf0c0ff, 0xc0f0ff, 0xfff0c0][Math.floor(rng() * 3)];
+          g.fillStyle(sc, 0.25);
+          g.fillCircle(sx, sy, 1.5 + rng());
+        }
       }
     }
   }

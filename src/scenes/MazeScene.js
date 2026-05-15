@@ -894,6 +894,7 @@ export class MazeScene extends Phaser.Scene {
 
     this.registry.set('battleReturnScene', SCENES.MAZE);
     this.registry.set('battleReturnData', { floor: this.floorId });
+    this.registry.set('battleVariant', Math.floor(this.playerY / (this.floor.height / 3)));
 
     let def;
     if (isBoss && enemyId) {
