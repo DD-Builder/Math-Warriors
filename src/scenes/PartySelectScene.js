@@ -35,7 +35,7 @@ export class PartySelectScene extends Phaser.Scene {
 
     // Cream backdrop
     PaperPanel(this, area.cx, area.cy, area.w - 20, area.h - 20, {
-      color: 0xffffff, alpha: 0.95, radius: 28,
+      color: 0xffffff, alpha: 1.0, radius: 28,
     });
 
     // Header

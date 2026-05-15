@@ -41,11 +41,15 @@ const config = {
 const game = new Phaser.Game(config);
 
 // iPad Safari standalone web apps freeze the canvas on background.
-// No amount of scale.refresh() fixes this reliably. The only
-// bulletproof solution: reload the page on resume.
+// On resume, save maze state then reload to get a clean canvas.
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
-    location.reload();
+    // Give Phaser a frame to save state before reloading
+    const activeScene = game.scene.getScenes(true)[0];
+    if (activeScene && activeScene.saveMazeState) {
+      activeScene.saveMazeState();
+    }
+    setTimeout(() => location.reload(), 50);
   }
 });
 

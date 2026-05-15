@@ -50,7 +50,7 @@ export class DialogueOverlay {
     // Continue button — visible, tappable, inside the panel
     const btnX = area.right - 120;
     const btnY = panelY + 40;
-    this.continueBtn = PaperButton(scene, btnX, btnY, 'CONTINUE ▶', {
+    this.continueBtn = PaperButton(scene, btnX, btnY, 'CONTINUE', {
       w: 180, h: 44, color: 0xc07818, fontSize: 14,
       onClick: () => {
         if (!this.active) return;

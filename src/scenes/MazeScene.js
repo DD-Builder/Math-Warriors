@@ -67,7 +67,8 @@ export class MazeScene extends Phaser.Scene {
       .filter(Boolean);
 
     // Check if we're returning from a battle (state saved in registry)
-    const mazeState = this.registry.get(`mazeState_${this.floorId}`);
+    let mazeState = this.registry.get(`mazeState_${this.floorId}`);
+    if (!mazeState) { try { const s = localStorage.getItem(`mw_maze_${this.floorId}`); if (s) mazeState = JSON.parse(s); } catch (e) { /* ignore */ } }
     this.freshEntry = !mazeState;
     if (mazeState) {
       this.playerX = mazeState.x;
@@ -594,7 +595,7 @@ export class MazeScene extends Phaser.Scene {
     const hudCenterY = area.bottom - hudH / 2;
 
     PaperPanel(this, area.cx, hudCenterY, GAME_WIDTH - 40, hudH, {
-      color: 0xfff8e8, alpha: 0.25, radius: 20,
+      color: 0x1a0e04, alpha: 0.75, radius: 20,
     });
 
     // Floor name — left side
@@ -938,14 +939,16 @@ export class MazeScene extends Phaser.Scene {
 
   saveMazeState() {
     const gs = getGameState();
-    this.registry.set(`mazeState_${this.floorId}`, {
+    const state = {
       x: this.playerX,
       y: this.playerY,
       objects: this.objects,
       fog: gs.fog || this.fog,
       bossDefeated: gs.hasKey || this.bossDefeated,
       fairiesFreed: gs.fairies || this.challengeProgress,
-    });
+    };
+    this.registry.set(`mazeState_${this.floorId}`, state);
+    try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
   }
 
   // ================================================================

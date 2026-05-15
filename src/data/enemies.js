@@ -107,9 +107,10 @@ export function getEnemiesForFloor(floor) {
   return ALL_ENEMIES.filter((e) => e.floor === floor);
 }
 
-/** Pick a random enemy for the given floor. */
+/** Pick a random NON-BOSS enemy for the given floor. */
+const BOSS_IDS = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'theorem'];
 export function pickEnemyForFloor(floor, rng = Math.random) {
-  const pool = getEnemiesForFloor(floor);
+  const pool = getEnemiesForFloor(floor).filter(e => !BOSS_IDS.includes(e.id));
   if (pool.length === 0) return null;
   return pool[Math.floor(rng() * pool.length)];
 }

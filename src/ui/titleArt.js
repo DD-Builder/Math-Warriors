@@ -270,27 +270,15 @@ function drawWord(scene, word, cx, cy, letterH, mainColor, shadowColor, holeColo
  * @param {number} scale - 1.0 = default size
  */
 export function drawPapercutTitle(scene, cx, cy, scale = 1) {
-  const mathSize = Math.round(120 * scale);
-  const warSize = Math.round(90 * scale);
-  const lineGap = mathSize * 0.35;
+  const letterH = 110 * scale;
+  const lineGap = letterH * 0.5;
 
-  scene.add.text(cx, cy - lineGap, 'MATH', {
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-    fontSize: `${mathSize}px`,
-    color: '#3878d8',
-    stroke: '#ffffff',
-    strokeThickness: Math.round(8 * scale),
-    letterSpacing: 4,
-  }).setOrigin(0.5);
+  const mathMain = 0x3878d8, mathShadow = 0x1a3060;
+  drawWord(scene, 'MATH', cx, cy - letterH / 2 - lineGap / 2, letterH, mathMain, mathShadow, mathShadow, 12);
 
-  scene.add.text(cx, cy + lineGap, 'WARRIORS', {
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-    fontSize: `${warSize}px`,
-    color: '#e04040',
-    stroke: '#ffffff',
-    strokeThickness: Math.round(7 * scale),
-    letterSpacing: 3,
-  }).setOrigin(0.5);
+  const warH = letterH * 0.78;
+  const warMain = 0xe04040, warShadow = 0x781818;
+  drawWord(scene, 'WARRIORS', cx, cy + warH / 2 + lineGap / 2, warH, warMain, warShadow, warShadow, 34);
 }
 
 /**
