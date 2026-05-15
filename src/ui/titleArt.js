@@ -324,24 +324,49 @@ function drawWord(scene, word, cx, cy, letterH, mainColor, shadowColor, holeColo
  * @param {number} scale - 1.0 = default size
  */
 export function drawPapercutTitle(scene, cx, cy, scale = 1) {
-  const letterH = 110 * scale;
-  const lineGap = letterH * 0.5;
+  const mathSize = Math.round(130 * scale);
+  const warSize = Math.round(100 * scale);
+  const lineGap = mathSize * 0.3;
 
-  const mathMain = 0x4888e0, mathShadow = 0x1a3060;
-  const mathImg = drawWord(scene, 'MATH', cx, cy - letterH / 2 - lineGap / 2, letterH, mathMain, mathShadow, mathShadow, 12);
+  // MATH — bold blue with dark outline and shadow
+  const mathShadow = scene.add.text(cx + 4, cy - lineGap + 4, 'MATH', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: `${mathSize}px`,
+    color: '#1a3060',
+    letterSpacing: 8,
+  }).setOrigin(0.5).setAlpha(0.4);
 
-  const warH = letterH * 0.78;
-  const warMain = 0xe85050, warShadow = 0x881818;
-  const warImg = drawWord(scene, 'WARRIORS', cx, cy + warH / 2 + lineGap / 2, warH, warMain, warShadow, warShadow, 34);
+  const mathText = scene.add.text(cx, cy - lineGap, 'MATH', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: `${mathSize}px`,
+    color: '#4888e0',
+    stroke: '#1a3060',
+    strokeThickness: Math.round(6 * scale),
+    letterSpacing: 8,
+  }).setOrigin(0.5);
+
+  // WARRIORS — bold red with dark outline and shadow
+  const warShadow = scene.add.text(cx + 4, cy + lineGap + warSize * 0.15 + 4, 'WARRIORS', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: `${warSize}px`,
+    color: '#601818',
+    letterSpacing: 6,
+  }).setOrigin(0.5).setAlpha(0.4);
+
+  const warText = scene.add.text(cx, cy + lineGap + warSize * 0.15, 'WARRIORS', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: `${warSize}px`,
+    color: '#e85050',
+    stroke: '#601818',
+    strokeThickness: Math.round(5 * scale),
+    letterSpacing: 6,
+  }).setOrigin(0.5);
 
   // Gentle floating animation
-  if (mathImg) {
-    scene.tweens.add({ targets: mathImg, y: mathImg.y - 4, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-  }
-  if (warImg) {
-    scene.tweens.add({ targets: warImg, y: warImg.y + 3, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: 400 });
-  }
+  scene.tweens.add({ targets: [mathText, mathShadow], y: '-=4', duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+  scene.tweens.add({ targets: [warText, warShadow], y: '+=3', duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: 400 });
 }
+
 
 /**
  * Scatter decorative papercut elements around a scene — clouds, flowers,
