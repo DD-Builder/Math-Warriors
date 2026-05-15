@@ -326,11 +326,11 @@ export class BattleScene extends Phaser.Scene {
         strokeThickness: 3,
       }).setOrigin(0.5);
 
-      const hpBarBg = this.add.rectangle(x, y + 110, 150, 14, COLORS.ink)
+      const hpBarBg = this.add.rectangle(x, y + 80, 150, 14, COLORS.ink)
         .setStrokeStyle(2, COLORS.paperD);
-      const hpBarFill = this.add.rectangle(x - 73, y + 110, 146, 10, 0x40c040)
+      const hpBarFill = this.add.rectangle(x - 73, y + 80, 146, 10, 0x40c040)
         .setOrigin(0, 0.5);
-      const hpText = this.add.text(x, y + 134, `${hero.hp}/${hero.maxHp}`, {
+      const hpText = this.add.text(x, y + 96, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '14px',
         color: COLORS_CSS.paper,
@@ -434,17 +434,10 @@ export class BattleScene extends Phaser.Scene {
     // lives in a tight bottom strip.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    // === BOTTOM UI: equation panel + answer buttons stacked ===
-    const ansH = 90;
-    const eqH = 100;
-    const totalUiH = ansH + eqH + 30;
+    // === BOTTOM UI: no enclosing box — equation + answers float over battle ===
+    const ansH = 100;
     const ansY = area.bottom - ansH / 2 - 8;
-    const eqY = ansY - ansH / 2 - eqH / 2 - 10;
-
-    // Background panel spanning both equation and answers
-    PaperPanel(this, area.cx, area.bottom - totalUiH / 2, area.w, totalUiH + 10, {
-      color: 0xfff4e0, alpha: 0.72, radius: 18,
-    });
+    const eqY = ansY - ansH / 2 - 60;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -483,36 +476,35 @@ export class BattleScene extends Phaser.Scene {
     this.potionLabel = this.potionBtn.label;
     this.refreshPotionButton();
 
-    // === EQUATION — centered above answer buttons, prominent ===
-    const noteW = 280;
-    const noteH = eqH + 30;
+    // === EQUATION — compact dark pill floating over the battle ===
+    const noteW = 300;
+    const noteH = 110;
     const noteCx = area.cx;
     const noteCy = eqY;
 
     PaperPanel(this, noteCx, noteCy, noteW, noteH, {
-      color: 0xfff8e8, alpha: 0.92, radius: 14,
+      color: 0x1a0e04, alpha: 0.85, radius: 18, shadowOff: 4, shadowAlpha: 0.3,
     });
 
     this.eqLines = {
-      a:    this.add.text(noteCx + 20, noteCy - 34, '', this.eqLineStyle({ fontSize: '48px', color: '#1a0e04' })),
-      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '48px', color: '#1a0e04' })),
-      bar:  this.add.text(noteCx,      noteCy + 28, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '22px', color: '#6a4c28' })),
-      ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '48px', color: '#b86820' })),
+      a:    this.add.text(noteCx + 20, noteCy - 34, '', this.eqLineStyle({ fontSize: '48px', color: '#fff8e0' })),
+      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '48px', color: '#e8a030' })),
+      bar:  this.add.text(noteCx,      noteCy + 28, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '22px', color: '#a08860' })),
+      ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '48px', color: '#f0c040' })),
     };
     this.eqLines.a.setOrigin(1, 0.5);
     this.eqLines.opB.setOrigin(1, 0.5);
     this.eqLines.bar.setOrigin(0.5);
     this.eqLines.ans.setOrigin(0.5, 0.5);
 
-    // Turn label — between characters and bottom UI
-    const uiTopEdge = area.bottom - totalUiH - 5;
-    const turnY = uiTopEdge - 24;
-    PaperPanel(this, area.cx, turnY, 440, 42, {
-      color: 0x1a0e04, alpha: 0.82, radius: 14, shadowOff: 3, shadowAlpha: 0.25,
+    // Turn label — slim pill at the top of the math area
+    const turnY = eqY - noteH / 2 - 26;
+    PaperPanel(this, area.cx, turnY, 360, 36, {
+      color: 0x1a0e04, alpha: 0.82, radius: 12, shadowOff: 2, shadowAlpha: 0.2,
     });
     this.turnLabel = this.add.text(area.cx, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '19px',
+      fontSize: '16px',
       color: '#fff8e0',
       stroke: '#1a0e04',
       strokeThickness: 3,
