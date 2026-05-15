@@ -19,7 +19,8 @@ const config = {
   parent: 'game',
   backgroundColor: COLORS.bg,
   scale: {
-    mode: Phaser.Scale.NONE,
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
   },
@@ -39,44 +40,14 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-// Force Phaser to recalculate layout when the app resumes from background.
-// iPad Safari standalone web apps freeze canvas on background; on resume
-// the viewport can be stale. We force a full resize cycle.
-function forceResize() {
-  if (!game.scale) return;
-  const parent = game.scale.parent;
-  if (parent) {
-    game.scale.resize(GAME_WIDTH, GAME_HEIGHT);
-    game.scale.refresh();
-  }
-  // Also force the canvas to fill via CSS in case the scale manager doesn't
-  const canvas = game.canvas;
-  if (canvas) {
-    canvas.style.width = '';
-    canvas.style.height = '';
-    canvas.style.marginLeft = '';
-    canvas.style.marginTop = '';
-  }
-  // Retry after a short delay — iOS sometimes reports wrong dimensions initially
-  setTimeout(() => {
-    if (game.scale) {
-      game.scale.refresh();
-    }
-  }, 100);
-  setTimeout(() => {
-    if (game.scale) {
-      game.scale.refresh();
-    }
-  }, 500);
-}
-
+// iPad Safari standalone web apps freeze the canvas on background.
+// No amount of scale.refresh() fixes this reliably. The only
+// bulletproof solution: reload the page on resume.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) forceResize();
+  if (!document.hidden) {
+    location.reload();
+  }
 });
-window.addEventListener('resize', forceResize);
-window.addEventListener('orientationchange', () => setTimeout(forceResize, 300));
-window.addEventListener('focus', forceResize);
-window.addEventListener('pageshow', forceResize);
 
 // Triple-tap top-left corner to force reload (safety net if display is stuck)
 let cornerTaps = 0, cornerTimer = null;
