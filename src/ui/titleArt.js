@@ -244,19 +244,73 @@ function drawWord(scene, word, cx, cy, letterH, mainColor, shadowColor, holeColo
   const wordW = word.length * letterW + (word.length - 1) * gap;
   const startX = cx - wordW / 2;
   const topY = cy - letterH / 2;
-
   const rng = makeRng(seed);
 
+  const toScreen = (pts, ox, oy, w, h) =>
+    perturbPolygon(pts, 1, rng).map(([px, py]) => ({ x: ox + px * w, y: oy + py * h }));
+
+  // Shadow
+  const shadow = scene.add.graphics();
+  shadow.fillStyle(shadowColor, 0.5);
   for (let i = 0; i < word.length; i++) {
-    const ch = word[i];
-    const letter = LETTERS[ch];
-    if (!letter || !letter.positive || !letter.positive.length) continue;
+    const letter = LETTERS[word[i]];
+    if (!letter || !letter.positive.length) continue;
     const lx = startX + i * (letterW + gap);
-    drawLetterShapes(scene, lx, topY, letterW, letterH, letter, mainColor, shadowColor, holeColor, rng);
+    for (const pts of letter.positive)
+      shadow.fillPoints(toScreen(pts, lx + 6, topY + 8, letterW, letterH), true);
   }
 
-  return wordW;
+  // Main fill
+  const main = scene.add.graphics();
+  main.fillStyle(mainColor, 1);
+  for (let i = 0; i < word.length; i++) {
+    const letter = LETTERS[word[i]];
+    if (!letter || !letter.positive.length) continue;
+    const lx = startX + i * (letterW + gap);
+    for (const pts of letter.positive)
+      main.fillPoints(toScreen(pts, lx, topY, letterW, letterH), true);
+  }
+
+  // Highlight
+  const hi = scene.add.graphics();
+  hi.fillStyle(0xffffff, 0.15);
+  for (let i = 0; i < word.length; i++) {
+    const letter = LETTERS[word[i]];
+    if (!letter || !letter.positive.length) continue;
+    const lx = startX + i * (letterW + gap);
+    for (const pts of letter.positive)
+      hi.fillPoints(toScreen(pts, lx - 1, topY - 1, letterW, letterH), true);
+  }
+
+  // Holes — use a GeometryMask to cut through to the background
+  let hasHoles = false;
+  const holeMaskGfx = scene.make.graphics({ x: 0, y: 0, add: false });
+  // First fill the entire word area as visible
+  holeMaskGfx.fillStyle(0xffffff);
+  holeMaskGfx.fillRect(startX - 10, topY - 10, wordW + 20, letterH + 20);
+  // Then cut out the holes by NOT drawing those areas
+  // Actually for geometry mask: white = visible, black = hidden
+  // We need to make holes transparent — so fill everything EXCEPT holes
+  // Simpler: create hole shapes and use them as an inverted mask
+  for (let i = 0; i < word.length; i++) {
+    const letter = LETTERS[word[i]];
+    if (!letter || !letter.holes || !letter.holes.length) continue;
+    hasHoles = true;
+    const lx = startX + i * (letterW + gap);
+    holeMaskGfx.fillStyle(0x000000);
+    for (const pts of letter.holes)
+      holeMaskGfx.fillPoints(toScreen(pts, lx, topY, letterW, letterH), true);
+  }
+
+  if (hasHoles) {
+    const mask = holeMaskGfx.createGeometryMask();
+    main.setMask(mask);
+    hi.setMask(mask);
+  }
+
+  return main;
 }
+
 
 /**
  * Draw the MATH WARRIORS title as clean, crisp Phaser text objects.
@@ -273,12 +327,20 @@ export function drawPapercutTitle(scene, cx, cy, scale = 1) {
   const letterH = 110 * scale;
   const lineGap = letterH * 0.5;
 
-  const mathMain = 0x3878d8, mathShadow = 0x1a3060;
-  drawWord(scene, 'MATH', cx, cy - letterH / 2 - lineGap / 2, letterH, mathMain, mathShadow, mathShadow, 12);
+  const mathMain = 0x4888e0, mathShadow = 0x1a3060;
+  const mathImg = drawWord(scene, 'MATH', cx, cy - letterH / 2 - lineGap / 2, letterH, mathMain, mathShadow, mathShadow, 12);
 
   const warH = letterH * 0.78;
-  const warMain = 0xe04040, warShadow = 0x781818;
-  drawWord(scene, 'WARRIORS', cx, cy + warH / 2 + lineGap / 2, warH, warMain, warShadow, warShadow, 34);
+  const warMain = 0xe85050, warShadow = 0x881818;
+  const warImg = drawWord(scene, 'WARRIORS', cx, cy + warH / 2 + lineGap / 2, warH, warMain, warShadow, warShadow, 34);
+
+  // Gentle floating animation
+  if (mathImg) {
+    scene.tweens.add({ targets: mathImg, y: mathImg.y - 4, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+  }
+  if (warImg) {
+    scene.tweens.add({ targets: warImg, y: warImg.y + 3, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: 400 });
+  }
 }
 
 /**
@@ -337,17 +399,24 @@ export function scatterPapercutDecor(scene, gameW, gameH, opts = {}) {
 
 function drawCloud(scene, cx, cy, w, h) {
   const gfx = scene.add.graphics();
-  gfx.fillStyle(0x000000, 0.15);
-  for (let i = 0; i < 4; i++) {
-    const bx = cx + (i / 3 - 0.5) * w + 4;
-    const by = cy + 5;
-    gfx.fillCircle(bx, by, w / 5);
+  const bumps = 6;
+  // Shadow
+  gfx.fillStyle(0x000000, 0.1);
+  for (let i = 0; i < bumps; i++) {
+    const t = i / (bumps - 1);
+    const bx = cx + (t - 0.5) * w + 3;
+    const r = w / 5 * (0.8 + Math.sin(t * Math.PI) * 0.5);
+    gfx.fillCircle(bx, cy + 4, r);
   }
-  gfx.fillStyle(0xffffff, 0.92);
-  for (let i = 0; i < 4; i++) {
-    const bx = cx + (i / 3 - 0.5) * w;
-    gfx.fillCircle(bx, cy, w / 5);
+  // Main cloud
+  gfx.fillStyle(0xffffff, 0.95);
+  for (let i = 0; i < bumps; i++) {
+    const t = i / (bumps - 1);
+    const bx = cx + (t - 0.5) * w;
+    const r = w / 5 * (0.8 + Math.sin(t * Math.PI) * 0.5);
+    gfx.fillCircle(bx, cy, r);
   }
+  return gfx;
 }
 
 function drawFlower(scene, cx, cy, size, rng) {

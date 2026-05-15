@@ -40,10 +40,10 @@ export class TitleScene extends Phaser.Scene {
     // Tagline — placed well below WARRIORS to avoid overlap
     this.add.text(area.cx, titleCy + 230, 'An Educational Adventure', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '32px',
-      color: '#ffffff',
-      stroke: '#1a4a6a',
-      strokeThickness: 5,
+      fontSize: '36px',
+      color: '#f0d060',
+      stroke: '#5a3010',
+      strokeThickness: 6,
       letterSpacing: 2,
     }).setOrigin(0.5);
 
@@ -51,16 +51,16 @@ export class TitleScene extends Phaser.Scene {
     if (this.hasProgress) {
       // NEW GAME on top, CONTINUE below — per request
       PaperButton(this, area.cx, area.bottom - 150, 'NEW GAME', {
-        w: 360, h: 80, color: 0x4aa848, fontSize: 30,
+        w: 420, h: 80, color: 0x58c848, fontSize: 30,
         onClick: () => this.onNewGame(),
       });
       PaperButton(this, area.cx, area.bottom - 50, 'CONTINUE', {
-        w: 360, h: 80, color: 0xe84840, fontSize: 30,
+        w: 420, h: 80, color: 0xf0a030, fontSize: 30,
         onClick: () => this.onContinue(),
       });
     } else {
       PaperButton(this, area.cx, area.bottom - 50, 'START ADVENTURE', {
-        w: 460, h: 90, color: 0xe84840, fontSize: 32,
+        w: 480, h: 90, color: 0xf05050, fontSize: 32,
         onClick: () => this.onNewGame(),
       });
     }
@@ -68,13 +68,13 @@ export class TitleScene extends Phaser.Scene {
     // Version tag bottom-right (inside safe area)
     this.add.text(area.right, area.bottom + 40, `v${VERSION}`, {
       ...TEXT.stat(),
-      fontSize: '14px',
+      fontSize: '11px',
       color: '#8a7a60',
-    }).setOrigin(1, 1);
+    }).setOrigin(1, 1).setAlpha(0.3);
 
     // Settings button top-right (inside safe area)
     PaperButton(this, area.right - 75, area.top + 35, 'SETTINGS', {
-      w: 140, h: 54, color: 0x4a6ca8, fontSize: 16,
+      w: 160, h: 54, color: 0x6090c0, fontSize: 16,
       onClick: () => transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.TITLE }, 200),
     });
   }
