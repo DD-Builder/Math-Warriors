@@ -26,7 +26,7 @@ export class GradeSelectScene extends Phaser.Scene {
 
     // Cream paper panel centered in safe area
     PaperPanel(this, area.cx, area.cy, area.w, area.h, {
-      color: 0xfff8e8, alpha: 0.94, radius: 32,
+      color: 0xffffff, alpha: 0.95, radius: 32,
     });
 
     // Header — inside safe area top
