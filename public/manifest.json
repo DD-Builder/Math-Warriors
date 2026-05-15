@@ -1,0 +1,15 @@
+{
+  "name": "Math Warriors",
+  "short_name": "Math Warriors",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0a0604",
+  "theme_color": "#58c8f0",
+  "icons": [
+    {
+      "src": "./icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
