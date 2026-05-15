@@ -1,22 +1,15 @@
 name: Deploy to GitHub Pages
 
 on:
-  # Deploy on push to main (production) or the active feature branch (preview).
-  # When we're ready to cut a real release, we'll merge to main and drop the
-  # feature-branch trigger.
   push:
     branches:
       - main
-      - 'claude/**'
-  # Allow manual runs from the Actions tab
   workflow_dispatch:
 
-# Allow only one deploy at a time; skip any queued runs behind a new push
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
-# Minimum permissions needed to publish to Pages
 permissions:
   contents: read
   pages: write

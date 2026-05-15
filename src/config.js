@@ -59,4 +59,3 @@ export const MARGIN = 40;
 export const BOTTOM_SAFE = 120;
 export const TOP_SAFE = 60;
 export const VERSION = '0.5.0';
-// cache-bust 1778873010
