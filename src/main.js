@@ -41,17 +41,53 @@ const config = {
 const game = new Phaser.Game(config);
 
 // Force Phaser to recalculate layout when the app resumes from background.
-// iPad Safari web apps can misalign after minimize/restore or split-screen.
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && game.scale) {
+// iPad Safari standalone web apps freeze canvas on background; on resume
+// the viewport can be stale. We force a full resize cycle.
+function forceResize() {
+  if (!game.scale) return;
+  const parent = game.scale.parent;
+  if (parent) {
+    game.scale.resize(GAME_WIDTH, GAME_HEIGHT);
     game.scale.refresh();
   }
+  // Also force the canvas to fill via CSS in case the scale manager doesn't
+  const canvas = game.canvas;
+  if (canvas) {
+    canvas.style.width = '';
+    canvas.style.height = '';
+    canvas.style.marginLeft = '';
+    canvas.style.marginTop = '';
+  }
+  // Retry after a short delay — iOS sometimes reports wrong dimensions initially
+  setTimeout(() => {
+    if (game.scale) {
+      game.scale.refresh();
+    }
+  }, 100);
+  setTimeout(() => {
+    if (game.scale) {
+      game.scale.refresh();
+    }
+  }, 500);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) forceResize();
 });
-window.addEventListener('resize', () => {
-  if (game.scale) game.scale.refresh();
-});
-window.addEventListener('orientationchange', () => {
-  setTimeout(() => { if (game.scale) game.scale.refresh(); }, 200);
+window.addEventListener('resize', forceResize);
+window.addEventListener('orientationchange', () => setTimeout(forceResize, 300));
+window.addEventListener('focus', forceResize);
+window.addEventListener('pageshow', forceResize);
+
+// Triple-tap top-left corner to force reload (safety net if display is stuck)
+let cornerTaps = 0, cornerTimer = null;
+document.addEventListener('pointerdown', (e) => {
+  if (e.clientX < 80 && e.clientY < 80) {
+    cornerTaps++;
+    clearTimeout(cornerTimer);
+    cornerTimer = setTimeout(() => { cornerTaps = 0; }, 1000);
+    if (cornerTaps >= 3) { location.reload(); }
+  }
 });
 
 // Wire the audio manager to the game instance.
