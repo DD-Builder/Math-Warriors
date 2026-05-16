@@ -598,24 +598,43 @@ export class MazeScene extends Phaser.Scene {
       color: 0x1a0e04, alpha: 0.75, radius: 20,
     });
 
-    // Floor name — left side
-    this.add.text(area.left + 20, hudCenterY - 24, `F${this.floorId}: ${this.floor.name.toUpperCase()}`, {
-      ...TEXT.heading(), fontSize: '18px', color: '#d07818',
+    // Floor name — top-left of HUD
+    this.add.text(area.left + 20, hudCenterY - 36, `F${this.floorId}: ${this.floor.name.toUpperCase()}`, {
+      ...TEXT.heading(), fontSize: '16px', color: '#f0d060',
+      stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
-    // Challenge progress counter
-    const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
-    this.hudChallenge = this.add.text(area.left + 20, hudCenterY - 42, `${ch.label} ${this.challengeProgress}/${ch.count}`, {
-      ...TEXT.stat(), fontSize: '13px', color: '#3a2410',
-    }).setOrigin(0, 0.5);
+    // Status cards — compact colored pills with white text
+    const ch = this.floor.challenge || { count: 3, label: 'QUEST' };
+    const cardY = hudCenterY + 4;
+    const cardH = 40;
+    const cardW = 90;
+    const cardGap = 8;
+    const cardStartX = area.left + 24;
+    const cardStyle = { fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '18px', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
 
-    // Gold + potions in a row on the left
-    this.hudGold = this.add.text(area.left + 20, hudCenterY + 8, `💰 ${this.save.gold}`, {
-      ...TEXT.body(), fontSize: '16px', color: '#3a2410',
-    }).setOrigin(0, 0.5);
-    this.hudPotions = this.add.text(area.left + 120, hudCenterY + 8, `🧪 ${this.save.potions}`, {
-      ...TEXT.body(), fontSize: '16px', color: '#3a2410',
-    }).setOrigin(0, 0.5);
+    // Gold card
+    const g1 = this.add.graphics();
+    g1.fillStyle(0xc08818, 0.9); g1.fillRoundedRect(cardStartX, cardY - cardH / 2, cardW, cardH, 8);
+    this.hudGold = this.add.text(cardStartX + cardW / 2, cardY, `${this.save.gold}`, cardStyle).setOrigin(0.5);
+
+    // Potion card
+    const px = cardStartX + cardW + cardGap;
+    const g2 = this.add.graphics();
+    g2.fillStyle(0x6828a0, 0.9); g2.fillRoundedRect(px, cardY - cardH / 2, cardW, cardH, 8);
+    this.hudPotions = this.add.text(px + cardW / 2, cardY, `${this.save.potions}`, cardStyle).setOrigin(0.5);
+
+    // Challenge card
+    const cx2 = px + cardW + cardGap;
+    const g3 = this.add.graphics();
+    g3.fillStyle(0x3888d0, 0.9); g3.fillRoundedRect(cx2, cardY - cardH / 2, cardW + 20, cardH, 8);
+    this.hudChallenge = this.add.text(cx2 + (cardW + 20) / 2, cardY, `${this.challengeProgress}/${ch.count}`, cardStyle).setOrigin(0.5);
+
+    // Card labels (tiny, below)
+    const labelStyle = { ...TEXT.stat(), fontSize: '10px', color: '#c0b090' };
+    this.add.text(cardStartX + cardW / 2, cardY + cardH / 2 + 8, 'GOLD', labelStyle).setOrigin(0.5);
+    this.add.text(px + cardW / 2, cardY + cardH / 2 + 8, 'POTIONS', labelStyle).setOrigin(0.5);
+    this.add.text(cx2 + (cardW + 20) / 2, cardY + cardH / 2 + 8, ch.label.toUpperCase(), labelStyle).setOrigin(0.5);
 
     // Party strip — center of HUD with mini hero sprites
     const partyCx = area.cx;
@@ -669,8 +688,8 @@ export class MazeScene extends Phaser.Scene {
   }
 
   updateHud() {
-    this.hudGold.setText(`\u{1FA99} ${this.save.gold}`);
-    this.hudPotions.setText(`\u{1F9EA} ${this.save.potions}`);
+    this.hudGold.setText(`${this.save.gold}`);
+    this.hudPotions.setText(`${this.save.potions}`);
     if (this.hudChallenge) {
       const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
       this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
@@ -905,36 +924,25 @@ export class MazeScene extends Phaser.Scene {
 
     this.registry.set('battleReturnScene', SCENES.MAZE);
     this.registry.set('battleReturnData', { floor: this.floorId });
-    this.registry.set('battleVariant', Math.floor(this.playerY / (this.floor.height / 3)));
+    this.registry.set('battleVariant', Math.floor(Math.random() * 3));
 
-    let def;
-    if (isBoss && enemyId) {
-      def = { id: enemyId };
-    } else {
-      def = pickEnemyForFloor(this.floorId);
-      if (!def) return;
-    }
-    const enemy = spawnEnemy(def.id, { grade: this.save.grade, isBoss });
+    const battleData = {
+      party: this.party,
+      floor: this.floorId,
+      grade: this.save.grade,
+      isBoss,
+      enemyId: isBoss ? enemyId : undefined,
+    };
 
-    // Boss pre-fight dialogue, then transition to battle
     const bossKey = `floor${this.floorId}_boss`;
     if (isBoss && DIALOGUE[bossKey]) {
       this.dialogue.show(DIALOGUE[bossKey]).then(() => {
-        transitionTo(this, SCENES.BATTLE, {
-          party: this.party, enemy, floor: this.floorId,
-          grade: this.save.grade, isBoss,
-        }, 300);
+        transitionTo(this, SCENES.BATTLE, battleData, 300);
       });
       return;
     }
 
-    transitionTo(this, SCENES.BATTLE, {
-      party: this.party,
-      enemy,
-      floor: this.floorId,
-      grade: this.save.grade,
-      isBoss,
-    }, 300);
+    transitionTo(this, SCENES.BATTLE, battleData, 300);
   }
 
   saveMazeState() {
@@ -945,7 +953,7 @@ export class MazeScene extends Phaser.Scene {
       objects: this.objects,
       fog: gs.fog || this.fog,
       bossDefeated: gs.hasKey || this.bossDefeated,
-      fairiesFreed: gs.fairies || this.challengeProgress,
+      fairiesFreed: this.challengeProgress,
     };
     this.registry.set(`mazeState_${this.floorId}`, state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }

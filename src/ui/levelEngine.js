@@ -141,7 +141,7 @@ function LV_tileAt(wx, wy) {
 }
 
 function LV_walkable(wx, wy) {
-  var m = LV_TILE * 0.3;
+  var m = LV_TILE * 0.18;
   return LV_tileAt(wx - m, wy - m) !== LV_TW && LV_tileAt(wx + m, wy - m) !== LV_TW &&
          LV_tileAt(wx - m, wy + m) !== LV_TW && LV_tileAt(wx + m, wy + m) !== LV_TW;
 }
@@ -618,7 +618,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
     x: (startX + 0.5) * LV_TILE,
     y: (startY + 0.5) * LV_TILE,
     vx: 0, vy: 0,
-    speed: 2.4,
+    speed: 2.8,
     trail: [],
     trailLen: 20,
     facing: 'down',
