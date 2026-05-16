@@ -105,25 +105,25 @@ const FLOOR_2_TILES = [
 ];
 
 // Floor 3 — Cloud Maze (25x33)
-// Three diagonal zones: Calm Sky (top-left), Storm Zone (middle), Sunset Heights (bottom-right).
+// Three diagonal zones: Calm Sky (top-left, d<16), Storm Zone (middle, 16<=d<36), Sunset Heights (bottom-right, d>=36).
 // Player starts bottom-left (1,31), boss in calm zone near (5,3). 3 sky beacons (one per zone).
 const FLOOR_3_TILES = [
   [W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W],
   [W,F,F,F,F,F,W,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,W,W,W],
   [W,F,W,W,F,F,F,F,W,W,F,F,F,F,W,W,W,W,W,W,W,W,W,W,W],
   [W,F,F,Q,F,F,F,F,F,W,F,F,F,W,W,W,W,W,W,W,W,W,W,W,W],
-  [W,W,F,W,F,F,F,W,F,F,F,W,F,W,W,W,W,W,W,W,W,W,W,W,W],
-  [W,F,F,F,W,F,F,F,W,F,F,F,F,F,W,W,W,W,W,W,W,W,W,W,W],
-  [W,F,W,F,F,F,W,F,F,F,F,W,F,F,F,W,W,W,W,W,W,W,W,W,W],
-  [W,F,W,W,F,F,F,F,F,F,W,F,F,W,F,F,W,W,W,W,W,W,W,W,W],
-  [W,F,F,F,F,F,W,F,F,W,F,F,W,F,F,F,F,W,W,W,W,W,W,W,W],
-  [W,W,F,W,F,F,F,F,W,F,F,W,F,F,W,F,F,F,W,W,W,W,W,W,W],
-  [W,F,F,F,F,F,F,W,F,F,F,F,F,W,F,F,F,F,F,W,W,W,W,W,W],
-  [W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,F,W,F,F,F,W,W,W,W,W],
-  [W,W,W,F,F,W,F,F,W,F,F,F,F,W,F,F,F,F,W,F,F,W,W,W,W],
-  [W,W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,W,F,F,F,F,F,W,W,W],
-  [W,W,W,W,W,F,F,F,F,F,W,F,F,F,F,W,F,F,F,W,F,F,F,W,W],
-  [W,W,W,W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,W,F,F,F,F,F,W],
+  [W,W,F,W,F,F,F,W,F,F,F,W,F,F,W,W,W,W,W,W,W,W,W,W,W],
+  [W,F,F,F,W,F,F,F,W,F,F,F,F,F,F,W,W,W,W,W,W,W,W,W,W],
+  [W,F,W,F,F,F,W,F,F,F,F,W,F,F,F,F,W,W,W,W,W,W,W,W,W],
+  [W,F,W,W,F,F,F,F,F,F,W,F,F,W,F,F,F,W,W,W,W,W,W,W,W],
+  [W,F,F,F,F,F,W,F,F,W,F,F,W,F,F,F,F,F,W,W,W,W,W,W,W],
+  [W,W,F,W,F,F,F,F,W,F,F,W,F,F,W,F,F,F,F,W,W,W,W,W,W],
+  [W,F,F,F,F,F,F,W,F,F,F,F,F,W,F,F,F,F,F,F,W,W,W,W,W],
+  [W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,F,W,F,F,F,F,W,W,W,W],
+  [W,W,W,F,F,W,F,F,W,F,F,F,F,W,F,F,F,F,W,F,F,F,W,W,W],
+  [W,W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,W,F,F,F,F,F,F,W,W],
+  [W,W,W,W,W,F,F,F,F,F,W,F,F,F,F,W,F,F,F,W,F,F,F,F,W],
+  [W,W,W,W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,W,F,F,F,Q,F,W],
   [W,W,W,W,W,W,W,F,F,F,F,F,W,F,F,F,W,F,F,F,W,F,F,F,W],
   [W,W,W,W,W,W,W,W,F,F,F,W,F,F,F,F,F,F,W,F,F,F,W,F,W],
   [W,W,W,W,W,W,W,W,W,F,F,F,F,F,W,F,F,W,F,F,F,W,F,F,W],
@@ -320,9 +320,9 @@ export const FLOORS = [
     palette: { wall: 0x1a2838, floor: 0x5a6878, path: 0x7898b8, water: 0xb0c8e0, decor: 0x4a5868 },
     challenge: { type: 'beacon', count: 3, label: 'SKY BEACON', verb: 'lit', allDoneMsg: 'All beacons lit! The storm parts — the boss awaits!' },
     objects: [
-      // Beacons: one per zone (calm, storm, sunset)
-      { type: 'beacon',    x: 4,  y: 5 },
-      { type: 'beacon',    x: 12, y: 16 },
+      // Beacons: one per zone (calm d<16, storm 16<=d<36, sunset d>=36)
+      { type: 'beacon',    x: 5,  y: 5 },
+      { type: 'beacon',    x: 11, y: 17 },
       { type: 'beacon',    x: 21, y: 27 },
       // Boss & exit in calm zone (top-left)
       { type: 'boss',      x: 5,  y: 3, enemyId: 'skywhale' },
@@ -332,14 +332,14 @@ export const FLOORS = [
       { type: 'chest',     x: 7,  y: 8, loot: { gold: 25 } },
       { type: 'chest',     x: 19, y: 21, loot: { gold: 25 } },
       // Gold pickups
-      { type: 'gold',      x: 3,  y: 9 },
+      { type: 'gold',      x: 3,  y: 8 },
       { type: 'gold',      x: 17, y: 18 },
       // Potions
       { type: 'potion',    x: 10, y: 10 },
-      // Encounters spread across all zones
-      { type: 'encounter', x: 2,  y: 6 },
+      // Encounters spread across all zones (calm, storm, sunset)
+      { type: 'encounter', x: 3,  y: 6 },
       { type: 'encounter', x: 7,  y: 7 },
-      { type: 'encounter', x: 9,  y: 12 },
+      { type: 'encounter', x: 9,  y: 11 },
       { type: 'encounter', x: 14, y: 15 },
       { type: 'encounter', x: 11, y: 19 },
       { type: 'encounter', x: 16, y: 17 },

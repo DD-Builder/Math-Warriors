@@ -365,54 +365,128 @@ export class BattleScene extends Phaser.Scene {
       }
     } else if (this.floor === 3) {
       if (v === 0) {
-        // Cloud platforms: floating rectangular platforms
-        for (let i = 0; i < 5; i++) {
-          const px = 80 + rng() * (GAME_WIDTH - 160);
-          const py = gndY - 40 - rng() * 80;
-          g.fillStyle(0x7898b8, 0.4);
-          g.fillRoundedRect(px - 30, py, 60 + rng() * 30, 10, 5);
-          g.fillStyle(0x98b8d8, 0.3);
-          g.fillRoundedRect(px - 24, py + 2, 48 + rng() * 20, 6, 3);
-        }
-      } else if (v === 1) {
-        // Stormy sky: dark clouds, rain streaks, distant lightning
+        // Calm Sky: Bright sky blue, large fluffy white clouds, rainbow arc, floating golden platforms, tiny birds
+        // Large fluffy white clouds
         for (let i = 0; i < 6; i++) {
           const cx = rng() * GAME_WIDTH;
-          const cy = gndY - 80 - rng() * 100;
-          g.fillStyle(0x485868, 0.4);
-          g.fillCircle(cx, cy, 20 + rng() * 15);
-          g.fillCircle(cx + 15, cy - 5, 14 + rng() * 10);
+          const cy = gndY - 60 - rng() * 100;
+          g.fillStyle(0xffffff, 0.35);
+          g.fillCircle(cx, cy, 18 + rng() * 16);
+          g.fillCircle(cx + 14, cy - 4, 14 + rng() * 10);
+          g.fillCircle(cx - 12, cy + 2, 12 + rng() * 8);
+          g.fillStyle(0xe8f0ff, 0.25);
+          g.fillCircle(cx + 6, cy + 6, 10 + rng() * 6);
         }
-        for (let i = 0; i < 10; i++) {
-          const rx = rng() * GAME_WIDTH;
-          const ry = gndY - rng() * 150;
-          g.lineStyle(1, 0xa0b8d0, 0.2);
+        // Rainbow arc across top
+        const rainbowColors = [0xff4040, 0xff8020, 0xf0e020, 0x40d040, 0x4080f0, 0x8040e0];
+        for (let ri = 0; ri < rainbowColors.length; ri++) {
+          g.lineStyle(2, rainbowColors[ri], 0.2);
           g.beginPath();
-          g.moveTo(rx, ry);
-          g.lineTo(rx - 3, ry + 18);
+          const arcR = 120 + ri * 6;
+          for (let a = 0; a <= 20; a++) {
+            const angle = Math.PI * 0.15 + (a / 20) * Math.PI * 0.7;
+            const ax = GAME_WIDTH * 0.5 + Math.cos(angle) * arcR;
+            const ay = gndY - 40 - Math.sin(angle) * arcR * 0.5;
+            if (a === 0) g.moveTo(ax, ay); else g.lineTo(ax, ay);
+          }
           g.strokePath();
         }
-        g.lineStyle(2, 0xf0e860, 0.25);
-        const lx = 60 + rng() * (GAME_WIDTH - 120);
-        g.beginPath();
-        g.moveTo(lx, gndY - 160);
-        g.lineTo(lx + 6, gndY - 130);
-        g.lineTo(lx - 4, gndY - 100);
-        g.strokePath();
+        // Floating golden platforms
+        for (let i = 0; i < 5; i++) {
+          const px = 60 + rng() * (GAME_WIDTH - 120);
+          const py = gndY - 30 - rng() * 60;
+          g.fillStyle(0xc8b060, 0.4);
+          g.fillRoundedRect(px - 25, py, 50 + rng() * 20, 8, 4);
+          g.fillStyle(0xd8c878, 0.3);
+          g.fillRoundedRect(px - 20, py + 2, 40 + rng() * 16, 4, 2);
+        }
+        // Tiny birds (v-shaped)
+        for (let i = 0; i < 5; i++) {
+          const bx = rng() * GAME_WIDTH;
+          const by = gndY - 100 - rng() * 60;
+          g.lineStyle(1, 0x405060, 0.4);
+          g.beginPath(); g.moveTo(bx - 4, by + 2); g.lineTo(bx, by); g.lineTo(bx + 4, by + 2); g.strokePath();
+        }
+      } else if (v === 1) {
+        // Storm: Dark purple-grey sky, heavy rain, lightning bolts, churning clouds, wind streaks
+        // Churning dark clouds at top
+        for (let i = 0; i < 8; i++) {
+          const cx = rng() * GAME_WIDTH;
+          const cy = gndY - 120 - rng() * 60;
+          g.fillStyle(0x282040, 0.5);
+          g.fillCircle(cx, cy, 22 + rng() * 18);
+          g.fillCircle(cx + 18, cy - 6, 16 + rng() * 12);
+          g.fillStyle(0x1a1830, 0.4);
+          g.fillCircle(cx - 10, cy + 4, 14 + rng() * 8);
+        }
+        // Heavy rain streaks (20 diagonal lines)
+        for (let i = 0; i < 20; i++) {
+          const rx = rng() * GAME_WIDTH;
+          const ry = gndY - rng() * 180;
+          g.lineStyle(1, 0x8090b0, 0.25);
+          g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx - 5, ry + 22); g.strokePath();
+        }
+        // 2-3 jagged lightning bolts (bright yellow)
+        const boltCount = 2 + (rng() > 0.5 ? 1 : 0);
+        for (let b = 0; b < boltCount; b++) {
+          const lx = 40 + rng() * (GAME_WIDTH - 80);
+          g.lineStyle(2.5, 0xf8e840, 0.6);
+          g.beginPath();
+          let ly = gndY - 170;
+          g.moveTo(lx, ly);
+          for (let seg = 0; seg < 4; seg++) {
+            ly += 30 + rng() * 20;
+            const lxOff = (rng() - 0.5) * 20;
+            g.lineTo(lx + lxOff, ly);
+          }
+          g.strokePath();
+          // Glow around bolt
+          g.lineStyle(6, 0xf8e840, 0.1);
+          g.beginPath(); g.moveTo(lx, gndY - 170); g.lineTo(lx + (rng() - 0.5) * 10, gndY - 60); g.strokePath();
+        }
+        // Wind streaks (horizontal lines)
+        for (let i = 0; i < 6; i++) {
+          const wx = rng() * GAME_WIDTH;
+          const wy = gndY - 30 - rng() * 120;
+          g.lineStyle(1, 0x607090, 0.2);
+          g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + 30 + rng() * 40, wy - 2); g.strokePath();
+        }
       } else {
-        // Sunset cloudscape: warm-tinted clouds, sun glow, haze
+        // Sunset: Orange-to-pink gradient bands, large warm sun, silhouetted clouds, golden light rays
+        // Gradient bands (4 horizontal color bands)
+        const bandColors = [0xf08040, 0xe06868, 0xd050a0, 0x8040c0];
+        const bandH = bgH / 4;
+        for (let i = 0; i < 4; i++) {
+          g.fillStyle(bandColors[i], 0.12);
+          g.fillRect(0, i * bandH, GAME_WIDTH, bandH);
+        }
+        // Large warm sun circle (bottom-right)
+        const sunX = GAME_WIDTH * 0.78, sunY = gndY - 60;
+        g.fillStyle(0xf0c040, 0.25);
+        g.fillCircle(sunX, sunY, 40);
+        g.fillStyle(0xf8d860, 0.15);
+        g.fillCircle(sunX, sunY, 55);
+        g.fillStyle(0xffe880, 0.08);
+        g.fillCircle(sunX, sunY, 75);
+        // Golden light rays from sun
+        for (let i = 0; i < 6; i++) {
+          const angle = -Math.PI * 0.8 + (i / 5) * Math.PI * 0.6;
+          const rayLen = 80 + rng() * 40;
+          g.lineStyle(3, 0xf0c040, 0.1);
+          g.beginPath();
+          g.moveTo(sunX, sunY);
+          g.lineTo(sunX + Math.cos(angle) * rayLen, sunY + Math.sin(angle) * rayLen);
+          g.strokePath();
+        }
+        // Silhouetted cloud shapes in dark purple
         for (let i = 0; i < 5; i++) {
           const cx = rng() * GAME_WIDTH;
-          const cy = gndY - 60 - rng() * 80;
-          g.fillStyle(0xd09060, 0.3);
-          g.fillCircle(cx, cy, 18 + rng() * 14);
-          g.fillStyle(0xe0a878, 0.2);
-          g.fillCircle(cx + 12, cy - 4, 12 + rng() * 8);
+          const cy = gndY - 80 - rng() * 80;
+          g.fillStyle(0x402060, 0.35);
+          g.fillCircle(cx, cy, 16 + rng() * 12);
+          g.fillCircle(cx + 12, cy - 3, 12 + rng() * 8);
+          g.fillCircle(cx - 8, cy + 2, 10 + rng() * 6);
         }
-        g.fillStyle(0xf0c040, 0.15);
-        g.fillCircle(GAME_WIDTH * 0.8, gndY - 130, 30);
-        g.fillStyle(0xf0d060, 0.08);
-        g.fillCircle(GAME_WIDTH * 0.8, gndY - 130, 55);
       }
     } else if (this.floor === 4) {
       if (v === 0) {

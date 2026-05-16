@@ -44,12 +44,23 @@ var FLOOR_PALS = {
     water0: '#2890b0', water1: '#38a8c8',
     accentL: '#f088a0',
   },
-  3: { // Cloud
+  3: { // Cloud — three zones: calm sky, storm, sunset heights
+    // Calm Sky sub-palette (top-left, d<16)
+    calm_wall: '#b8d0e8', calm_wallD: '#8aa8c8', calm_floor: '#90a8c0', calm_floorL: '#a0b8d0',
+    calm_path: '#c8b070', calm_pathL: '#d8c080',
+    // Storm sub-palette (middle, 16<=d<36)
+    storm_wall: '#2a2840', storm_wallD: '#1a1830', storm_floor: '#3a3850', storm_floorL: '#4a4860',
+    storm_path: '#484860', storm_pathL: '#585870',
+    // Sunset Heights sub-palette (bottom-right, d>=36)
+    sunset_wall: '#d09060', sunset_wallD: '#a07048', sunset_floor: '#c8a070', sunset_floorL: '#d8b080',
+    sunset_path: '#d0a050', sunset_pathL: '#e0b060',
+    // Shared
+    water0: '#c8d8e8', water1: '#d8e8f8', waterHL: '#f0f8ff',
+    accent: '#f8d830', accentL: '#ffe848', wisp: '#e0e8f0',
+    // Legacy compatibility
     wall0: '#1a2030', wall1: '#283040', wall2: '#384050', wall3: '#485868',
     floor0: '#607080', floorL: '#788898',
     path0: '#8898a8', pathS: '#a0b0c0', pathL: '#b8c8d8',
-    water0: '#c8d8e8', water1: '#d8e8f8', waterHL: '#f0f8ff',
-    accent: '#f8d830', accentL: '#ffe848', wisp: '#e0e8f0',
   },
   4: { // Ember
     wall0: '#1a0808', wall1: '#280e08', wall2: '#381408', wall3: '#481c0c',
@@ -356,30 +367,131 @@ function LV_drawWater_tidepool(sx, sy, ts, tx, ty, t) {
   }
 }
 
-// ─── FLOOR 3: CLOUD TILES ──────────────────────────────────────
+// ─── FLOOR 3: CLOUD TILES (zone-aware) ─────────────────────────
+
+function LV_getZone3(tx, ty) {
+  var d = tx + ty;
+  return d < 16 ? 0 : d < 36 ? 1 : 2;
+}
 
 function LV_drawWall_cloud(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[3], r = mkRng(tx * 31 + ty * 97 + 301);
-  LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.12 + r() * 0.1), 4 + Math.floor(r() * 2), r2, 0.4); });
-  LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.28 + r() * 0.08), 3 + Math.floor(r() * 2), r2, 0.35); });
-  if (r() < 0.18) { var wr = mkRng(tx * 23 + ty * 41); LV_cut(P.wisp, 0, function () { _G.arc(sx + ts * (0.3 + wr() * 0.4), sy + ts * (0.15 + wr() * 0.2), ts * 0.06, 0, Math.PI * 2); }); }
+  var zone = LV_getZone3(tx, ty);
+  if (zone === 0) {
+    // Calm Sky: White/light blue fluffy cloud bumps, bright
+    LV_cut(P.calm_wall, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut(P.calm_wallD, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.12 + r() * 0.1), 4 + Math.floor(r() * 2), r2, 0.4); });
+    LV_cut('#d0e0f0', 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.28 + r() * 0.08), 3 + Math.floor(r() * 2), r2, 0.35); });
+    // Bright wisp accent
+    if (r() < 0.25) { var wr = mkRng(tx * 23 + ty * 41); LV_cut('#f0f8ff', 0, function () { _G.arc(sx + ts * (0.3 + wr() * 0.4), sy + ts * (0.15 + wr() * 0.2), ts * 0.06, 0, Math.PI * 2); }); }
+  } else if (zone === 1) {
+    // Storm: Dark grey/purple churning cloud walls, jagged bumps
+    LV_cut(P.storm_wall, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut(P.storm_wallD, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.1 + r() * 0.12), 5 + Math.floor(r() * 3), r2, 0.7); });
+    LV_cut('#3a3058', 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.25 + r() * 0.1), 4 + Math.floor(r() * 2), r2, 0.6); });
+    // Occasional lightning flash accent
+    if (r() < 0.12) {
+      _G.save(); _G.strokeStyle = '#f8e040'; _G.lineWidth = 1.5; _G.globalAlpha = 0.4;
+      var lr = mkRng(tx * 37 + ty * 53);
+      _G.beginPath(); _G.moveTo(sx + ts * (0.3 + lr() * 0.4), sy + ts * 0.05);
+      _G.lineTo(sx + ts * (0.35 + lr() * 0.3), sy + ts * 0.45);
+      _G.lineTo(sx + ts * (0.4 + lr() * 0.2), sy + ts * 0.9); _G.stroke(); _G.restore();
+    }
+  } else {
+    // Sunset: Warm orange/pink cloud formations, smooth bumps
+    LV_cut(P.sunset_wall, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut(P.sunset_wallD, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.08), 3 + Math.floor(r() * 2), r2, 0.3); });
+    LV_cut('#e0a878', 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.06), 3 + Math.floor(r() * 2), r2, 0.25); });
+    // Warm glow accent
+    if (r() < 0.2) { var wr = mkRng(tx * 23 + ty * 41); LV_cut('#f0c080', 0, function () { _G.arc(sx + ts * (0.3 + wr() * 0.4), sy + ts * (0.2 + wr() * 0.2), ts * 0.07, 0, Math.PI * 2); }); }
+  }
 }
 function LV_drawFloor_cloud(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[3], r = mkRng(tx * 19 + ty * 53 + 302);
-  LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.arc(sx + ts * (0.3 + pr() * 0.4), sy + ts * (0.3 + pr() * 0.4), ts * (0.12 + pr() * 0.08), 0, Math.PI * 2); }); }
+  var zone = LV_getZone3(tx, ty);
+  if (zone === 0) {
+    // Calm: Light blue-grey stone platforms
+    LV_cut(P.calm_floor, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.calm_floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+  } else if (zone === 1) {
+    // Storm: Dark grey stone with occasional lightning crack accents
+    LV_cut(P.storm_floor, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.storm_floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+    // Lightning crack accents (thin yellow lines)
+    if (r() < 0.15) {
+      _G.save(); _G.strokeStyle = '#f0d830'; _G.lineWidth = 0.8; _G.globalAlpha = 0.35;
+      var cr = mkRng(tx * 43 + ty * 29);
+      _G.beginPath(); _G.moveTo(sx + ts * (0.2 + cr() * 0.3), sy + ts * (0.2 + cr() * 0.2));
+      _G.lineTo(sx + ts * (0.4 + cr() * 0.2), sy + ts * (0.5 + cr() * 0.2));
+      _G.lineTo(sx + ts * (0.5 + cr() * 0.3), sy + ts * (0.7 + cr() * 0.2)); _G.stroke(); _G.restore();
+    }
+  } else {
+    // Sunset: Warm amber/gold stone
+    LV_cut(P.sunset_floor, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.sunset_floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+  }
 }
 function LV_drawPath_cloud(sx, sy, ts, tx, ty) {
-  var P = FLOOR_PALS[3];
-  LV_cut(P.path0, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.pathS : P.pathL, 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
+  var P = FLOOR_PALS[3], r = mkRng(tx * 41 + ty * 83 + 303);
+  var zone = LV_getZone3(tx, ty);
+  if (zone === 0) {
+    // Calm: Golden sky-bridge planks
+    LV_cut(P.calm_path, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    for (var pi = 0; pi < 4; pi++) {
+      var py = sy + ts * 0.05 + pi * ts * 0.24;
+      LV_cut(P.calm_pathL, 2, function () { _G.rect(sx + ts * 0.04, py, ts * 0.92, ts * 0.18); });
+      LV_cut('#e0d090', 1, function () { _G.rect(sx + ts * 0.08, py + ts * 0.02, ts * 0.84, ts * 0.06); });
+    }
+  } else if (zone === 1) {
+    // Storm: Cracked dark grey stone bridge
+    LV_cut(P.storm_path, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.storm_pathL : '#505068', 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
+    // Crack line
+    if (r() < 0.3) {
+      _G.save(); _G.strokeStyle = '#282838'; _G.lineWidth = 1; _G.globalAlpha = 0.5;
+      var cr2 = mkRng(tx * 53 + ty * 37);
+      _G.beginPath(); _G.moveTo(sx + ts * cr2() * 0.5, sy + ts * 0.1);
+      _G.lineTo(sx + ts * (0.3 + cr2() * 0.4), sy + ts * 0.9); _G.stroke(); _G.restore();
+    }
+  } else {
+    // Sunset: Glowing warm sunset bridge (amber with glow)
+    LV_cut(P.sunset_path, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    for (var pi2 = 0; pi2 < 4; pi2++) {
+      var py2 = sy + ts * 0.05 + pi2 * ts * 0.24;
+      LV_cut(P.sunset_pathL, 2, function () { _G.rect(sx + ts * 0.04, py2, ts * 0.92, ts * 0.18); });
+      LV_cut('#e8c070', 1, function () { _G.rect(sx + ts * 0.08, py2 + ts * 0.02, ts * 0.84, ts * 0.06); });
+    }
+    // Warm glow overlay
+    _G.save(); _G.globalAlpha = 0.08; _G.fillStyle = '#f0c040';
+    _G.beginPath(); _G.arc(sx + ts * 0.5, sy + ts * 0.5, ts * 0.35, 0, Math.PI * 2); _G.fill(); _G.restore();
+  }
 }
 function LV_drawWater_cloud(sx, sy, ts, tx, ty, t) {
   var P = FLOOR_PALS[3];
-  LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.12, ts * 0.84, ts * 0.7); });
-  LV_cut(P.waterHL, 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.4 + Math.sin(t * 1.5 + tx) * ts * 0.06, ts * 0.18, 0, Math.PI * 2); });
+  var zone = LV_getZone3(tx, ty);
+  if (zone === 0) {
+    // Calm: Wispy white mist
+    LV_cut('#e0e8f0', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#f0f4fa', 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.12, ts * 0.84, ts * 0.7); });
+    LV_cut('#ffffff', 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.4 + Math.sin(t * 1.5 + tx) * ts * 0.06, ts * 0.15, 0, Math.PI * 2); });
+    LV_cut('#f8fcff', 0, function () { _G.arc(sx + ts * 0.3, sy + ts * 0.6 + Math.sin(t * 1.2 + ty) * ts * 0.04, ts * 0.1, 0, Math.PI * 2); });
+  } else if (zone === 1) {
+    // Storm: Dark void (nearly black with distant stars)
+    LV_cut('#0a0818', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#101028', 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.08, ts * 0.9, ts * 0.84); });
+    // Distant stars
+    var sr = mkRng(tx * 43 + ty * 67 + 303);
+    for (var i = 0; i < 3; i++) {
+      var stx = sx + ts * (0.1 + sr() * 0.8), sty = sy + ts * (0.1 + sr() * 0.8);
+      LV_cut('#a0a8c0', 0, function () { _G.arc(stx, sty, ts * 0.02, 0, Math.PI * 2); });
+    }
+  } else {
+    // Sunset: Orange/pink sunset haze
+    LV_cut('#c87040', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#d88858', 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.1, ts * 0.84, ts * 0.75); });
+    LV_cut('#e8a070', 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.45 + Math.sin(t * 1.3 + tx) * ts * 0.05, ts * 0.16, 0, Math.PI * 2); });
+    LV_cut('#f0b888', 0, function () { _G.arc(sx + ts * 0.35, sy + ts * 0.6 + Math.sin(t * 1.6 + ty) * ts * 0.03, ts * 0.1, 0, Math.PI * 2); });
+  }
 }
 
 // ─── FLOOR 4: EMBER TILES ──────────────────────────────────────
