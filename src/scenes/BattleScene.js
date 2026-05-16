@@ -571,10 +571,10 @@ export class BattleScene extends Phaser.Scene {
     const count = this.enemies.length;
 
     // Dynamic scaling: fewer monsters = bigger, more = smaller with proper spacing
-    const monsterScaleByCount = count >= 3 ? 1.4 : count >= 2 ? 1.8 : 2.8;
+    const monsterScaleByCount = count >= 3 ? 0.7 : count >= 2 ? 0.9 : 1.4;
 
     // Calculate Y offsets from actual sprite size (max 20% overlap)
-    const spriteH = 320 * monsterScaleByCount;
+    const spriteH = 640 * monsterScaleByCount;
     const visibleH = spriteH * 0.8;
     const yOffsets = [];
     if (count === 1) {
@@ -589,16 +589,16 @@ export class BattleScene extends Phaser.Scene {
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const monsterScale = enemy.isBoss ? 3.5 : monsterScaleByCount;
+      const monsterScale = enemy.isBoss ? 1.75 : monsterScaleByCount;
       const x = centerX;
       // Position monster so its bottom edge sits on the ground line
-      const spriteHalfPx = (320 / 2) * monsterScale;
+      const spriteHalfPx = (640 / 2) * monsterScale;
       const y = groundY - spriteHalfPx * 0.6 + yOffsets[ei];
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
 
-      const spriteHalfH = (320 / 2) * monsterScale * 0.6;
+      const spriteHalfH = (640 / 2) * monsterScale * 0.6;
       const nameY = y - spriteHalfH - 50;
       const hpY = y - spriteHalfH - 28;
       const hpTextY = y - spriteHalfH - 8;

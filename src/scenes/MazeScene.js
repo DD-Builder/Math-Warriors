@@ -10,7 +10,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, setFloorTheme } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markVisible, setFloorTheme } from '../ui/levelEngine.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
@@ -860,7 +860,7 @@ export class MazeScene extends Phaser.Scene {
         const egs2 = getGameState();
         if (egs2) egs2.hasKey = true;
         // Make exit visible
-        for (const o2 of this.objects) { if (o2.type === 'exit') o2.visible = true; }
+        for (const o2 of this.objects) { if (o2.type === 'exit') o2.visible = true; markVisible(o2.id); }
         this.showFloatText(obj.x, obj.y, 'GOLDEN KEY OBTAINED!', '#f0d040');
         this.showKeyAnimation();
         this.updateHud();

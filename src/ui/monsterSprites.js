@@ -16,7 +16,7 @@ const ART_LOOKUP = {};
 });
 
 const CANVAS_CACHE = {};
-const MONSTER_SIZE = 320;
+const MONSTER_SIZE = 640;
 
 function getMonsterCanvas(id) {
   if (CANVAS_CACHE[id]) return CANVAS_CACHE[id];

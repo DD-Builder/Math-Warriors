@@ -868,6 +868,12 @@ export function markDead(id) {
   }
 }
 
+export function markVisible(id) {
+  for (var oi = 0; oi < _objs.length; oi++) {
+    if (_objs[oi].id === id) { _objs[oi].visible = true; return; }
+  }
+}
+
 // ─── ADDITIONAL EXPORTS (for backward compatibility / palette access) ──
 
 export function setFloorTheme(floorId) {
