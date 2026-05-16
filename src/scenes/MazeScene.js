@@ -163,7 +163,7 @@ export class MazeScene extends Phaser.Scene {
       let engineType = o.type;
       if (o.type === 'golden') engineType = 'chestG';
       else if (o.type === 'encounter') engineType = 'monster';
-      else if (o.type === challengeType || o.type === 'fairy' || o.type === 'valve' || o.type === 'beacon' || o.type === 'vent' || o.type === 'fragment') engineType = 'chest';
+      else if (o.type === challengeType || o.type === 'fairy' || o.type === 'valve' || o.type === 'beacon' || o.type === 'vent' || o.type === 'fragment') engineType = 'fairy';
       return {
         type: engineType,
         tx: o.x, ty: o.y,
@@ -825,6 +825,7 @@ export class MazeScene extends Phaser.Scene {
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/chest');
+        this.showFairyFlyAway();
         const ch = this.floor.challenge || { count: 3, label: 'ITEM', verb: 'found', allDoneMsg: 'Challenge complete!' };
         const remaining = ch.count - this.challengeProgress;
         if (remaining > 0) {
@@ -835,7 +836,11 @@ export class MazeScene extends Phaser.Scene {
           }
         } else {
           this.showFloatText(obj.x, obj.y, ch.allDoneMsg, '#f0d040');
-          this.revealGoldenChest();
+          // Sync challenge progress with level engine so golden chest unlocks
+          const egs = getGameState();
+          if (egs) egs.fairies = this.challengeProgress;
+          // Create fly-away fairy animation
+          this.showFairyFlyAway();
         }
         this.updateHud();
         break;
@@ -907,16 +912,23 @@ export class MazeScene extends Phaser.Scene {
     }
   }
 
-  revealGoldenChest() {
-    for (let i = 0; i < this.objects.length; i++) {
-      if (this.objects[i].type === 'golden' && !this.objects[i].consumed) {
-        const sprite = this.objectSprites[i];
-        if (sprite) {
-          // Make all children in the container visible
-          sprite.each(child => { if (child.setVisible) child.setVisible(true); });
-        }
-      }
+  showFairyFlyAway() {
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2 - 100;
+    const fairy = this.add.graphics();
+    fairy.fillStyle(0x88aaff, 0.9);
+    fairy.fillCircle(0, 0, 12);
+    fairy.fillStyle(0xffffff, 0.6);
+    fairy.fillCircle(-2, -2, 6);
+    fairy.setPosition(cx, cy);
+    fairy.setScrollFactor(0);
+    // Sparkle particles around fairy
+    for (let i = 0; i < 6; i++) {
+      const sp = this.add.circle(cx + (Math.random() - 0.5) * 40, cy + (Math.random() - 0.5) * 40, 3, 0xffe880, 0.8);
+      sp.setScrollFactor(0);
+      this.tweens.add({ targets: sp, alpha: 0, scale: 0, x: 80, y: 60, duration: 1200, delay: i * 100, onComplete: () => sp.destroy() });
     }
+    // Fly to top-right corner
+    this.tweens.add({ targets: fairy, x: GAME_WIDTH - 80, y: 80, scale: 0.5, alpha: 0, duration: 1500, ease: 'Cubic.out', onComplete: () => fairy.destroy() });
   }
 
   startBattle(isBoss, enemyId) {

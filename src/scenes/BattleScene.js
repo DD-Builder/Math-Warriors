@@ -515,7 +515,8 @@ export class BattleScene extends Phaser.Scene {
     groundGfx.fillStyle(0x4a8828, 0.4);
     groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
 
-    const heroScale = 0.85;
+    const enemyCount = this.enemies.length;
+    const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
     const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
     const leftAnchor = GAME_WIDTH * 0.08 + spacing / 2;
 
@@ -569,17 +570,26 @@ export class BattleScene extends Phaser.Scene {
     const centerX = GAME_WIDTH * 0.76;
     const count = this.enemies.length;
 
-    // Layout offsets: spread enemies vertically
-    const yOffsets = count === 1 ? [0]
-      : count === 2 ? [-80, 80]
-      : [-110, 0, 110];
+    // Dynamic scaling: fewer monsters = bigger, more = smaller with proper spacing
+    const monsterScaleByCount = count >= 3 ? 1.4 : count >= 2 ? 1.8 : 2.8;
+
+    // Calculate Y offsets from actual sprite size (max 20% overlap)
+    const spriteH = 320 * monsterScaleByCount;
+    const visibleH = spriteH * 0.8;
+    const yOffsets = [];
+    if (count === 1) {
+      yOffsets.push(0);
+    } else {
+      const totalH = spriteH + (count - 1) * visibleH;
+      const startOff = -totalH / 2 + spriteH / 2;
+      for (let i = 0; i < count; i++) yOffsets.push(startOff + i * visibleH);
+    }
 
     this.enemySprites = [];
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const baseScale = enemy.isBoss ? 3.5 : (count >= 3 ? 2.2 : 2.8);
-      const monsterScale = baseScale;
+      const monsterScale = enemy.isBoss ? 3.5 : monsterScaleByCount;
       const x = centerX;
       // Position monster so its bottom edge sits on the ground line
       const spriteHalfPx = (320 / 2) * monsterScale;

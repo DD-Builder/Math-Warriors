@@ -345,6 +345,44 @@ function LV_drawChest(sx, sy, ts, o) {
   LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.055, y - ts * 0.055, ts * 0.11, ts * 0.09); });
 }
 
+function LV_drawFairyCage(sx, sy, ts, o, t) {
+  var x = sx + ts * 0.5, y = sy + ts * 0.5;
+  var bob = Math.sin(t * 2.5) * ts * 0.02;
+  // Base plate
+  LV_cut('#8a7040', 3, function () { _G.rect(x - ts * 0.22, y + ts * 0.2, ts * 0.44, ts * 0.06); });
+  // Cage bars (4 vertical lines + dome)
+  _G.save(); _G.strokeStyle = o.open ? '#6a5030' : '#c0a050'; _G.lineWidth = 1.5; _G.globalAlpha = 0.9;
+  for (var b = -1.5; b <= 1.5; b++) {
+    var bx = x + b * ts * 0.1;
+    _G.beginPath(); _G.moveTo(bx, y + ts * 0.2); _G.lineTo(bx, y - ts * 0.12 + bob); _G.stroke();
+  }
+  // Dome arc
+  _G.beginPath(); _G.arc(x, y - ts * 0.12 + bob, ts * 0.18, Math.PI, 0); _G.stroke();
+  // Ring at top
+  LV_cut('#c0a050', 1, function () { _G.arc(x, y - ts * 0.3 + bob, ts * 0.04, 0, Math.PI * 2); });
+  _G.restore();
+  if (!o.open) {
+    // Fairy inside — glowing circle bobbing
+    var fy = y + Math.sin(t * 3.5) * ts * 0.06;
+    _G.save(); _G.globalAlpha = 0.7 + Math.sin(t * 4) * 0.2;
+    _G.fillStyle = '#88bbff'; _G.beginPath(); _G.arc(x, fy, ts * 0.08, 0, Math.PI * 2); _G.fill();
+    _G.fillStyle = '#ffffff'; _G.beginPath(); _G.arc(x - ts * 0.02, fy - ts * 0.02, ts * 0.04, 0, Math.PI * 2); _G.fill();
+    // Sparkles
+    for (var s = 0; s < 3; s++) {
+      var sa = (s / 3) * Math.PI * 2 + t * 2;
+      var sdx = Math.cos(sa) * ts * 0.14, sdy = Math.sin(sa) * ts * 0.1;
+      _G.fillStyle = '#ffe880'; _G.globalAlpha = 0.5 + Math.sin(t * 5 + s) * 0.3;
+      _G.beginPath(); _G.arc(x + sdx, fy + sdy, ts * 0.025, 0, Math.PI * 2); _G.fill();
+    }
+    _G.restore();
+  } else {
+    // Door open — bent bar
+    _G.save(); _G.strokeStyle = '#8a7040'; _G.lineWidth = 1.2; _G.globalAlpha = 0.6;
+    _G.beginPath(); _G.moveTo(x + ts * 0.15, y + ts * 0.2); _G.lineTo(x + ts * 0.25, y); _G.stroke();
+    _G.restore();
+  }
+}
+
 function LV_drawGoldChest(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.6;
   var locked = (_gs.fairies < 3), bob = locked ? 0 : Math.sin(t * 2.2) * ts * 0.03;
@@ -481,6 +519,7 @@ function LV_draw(t) {
     var osx = camX + o.tx * ts, osy = camY + o.ty * ts;
     if (osx + ts < 0 || osx > _W || osy + ts < 0 || osy > _H) continue;
     if (o.type === 'chestG') LV_drawGoldChest(osx, osy, ts, o, t);
+    else if (o.type === 'fairy') LV_drawFairyCage(osx, osy, ts, o, t);
     else if (o.type === 'chest') LV_drawChest(osx, osy, ts, o);
     else if (o.type === 'potion') LV_drawPotion(osx, osy, ts, t);
     else if (o.type === 'gold') LV_drawGold(osx, osy, ts, o);
