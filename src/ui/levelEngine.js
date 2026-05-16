@@ -384,14 +384,42 @@ function LV_drawFairyCage(sx, sy, ts, o, t) {
 }
 
 function LV_drawGoldChest(sx, sy, ts, o, t) {
-  var x = sx + ts * 0.5, y = sy + ts * 0.6;
-  var locked = (_gs.fairies < 3), bob = locked ? 0 : Math.sin(t * 2.2) * ts * 0.03;
-  var bodyCol = locked ? '#2a1206' : '#5c3010';
-  LV_cut(bodyCol, 7, function () { _G.moveTo(x - ts * 0.34, y + ts * 0.2); _G.lineTo(x + ts * 0.34, y + ts * 0.2); _G.lineTo(x + ts * 0.36, y - ts * 0.02); _G.lineTo(x + ts * 0.32, y - ts * 0.12); _G.lineTo(x - ts * 0.32, y - ts * 0.12); _G.lineTo(x - ts * 0.36, y - ts * 0.02); });
-  LV_cut(locked ? '#200e04' : '#3c1a06', 6, function () { _G.moveTo(x - ts * 0.34, y - ts * 0.1 + bob); _G.lineTo(x + ts * 0.34, y - ts * 0.1 + bob); _G.lineTo(x + ts * 0.32, y - ts * 0.28 + bob); _G.bezierCurveTo(x + ts * 0.28, y - ts * 0.38 + bob, x - ts * 0.28, y - ts * 0.38 + bob, x - ts * 0.32, y - ts * 0.28 + bob); });
-  LV_cut(locked ? '#6a4010' : LV_PAL.goldL, 3, function () { _G.rect(x - ts * 0.35, y - ts * 0.02, ts * 0.7, ts * 0.045); });
-  LV_cut(locked ? '#8a3010' : '#c8a020', 4, function () { _G.rect(x - ts * 0.075, y - ts * 0.06, ts * 0.15, ts * 0.12); });
-  if (!locked && !o.open) { _G.save(); _G.globalAlpha = 0.6 + Math.sin(t * 4) * 0.2; LV_cut(LV_PAL.goldL, 1, function () { _G.arc(x, y - ts * 0.15 + bob, ts * 0.12, 0, Math.PI * 2); }); _G.restore(); }
+  var x = sx + ts * 0.5, y = sy + ts * 0.55;
+  var locked = !_gs.hasKey && (_gs.fairies < 3 || !o.bossBeaten);
+  var opened = _gs.hasKey;
+  var bob = (locked || opened) ? 0 : Math.sin(t * 2.2) * ts * 0.03;
+  // Shadow
+  LV_cut('rgba(14,6,2,0.3)', 0, function () { LV_ellipse(x, y + ts * 0.22, ts * 0.3, ts * 0.07, 0); });
+  // Body — bright gold when unlocked
+  var bodyCol = locked ? '#3a1a08' : '#e8a830';
+  LV_cut(bodyCol, 7, function () { _G.moveTo(x - ts * 0.36, y + ts * 0.2); _G.lineTo(x + ts * 0.36, y + ts * 0.2); _G.lineTo(x + ts * 0.38, y - ts * 0.02); _G.lineTo(x + ts * 0.34, y - ts * 0.12); _G.lineTo(x - ts * 0.34, y - ts * 0.12); _G.lineTo(x - ts * 0.38, y - ts * 0.02); });
+  // Lid
+  if (opened) {
+    // Lid tilted open behind
+    LV_cut('#c08018', 5, function () { _G.moveTo(x - ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.26, y - ts * 0.34); _G.bezierCurveTo(x + ts * 0.2, y - ts * 0.42, x - ts * 0.2, y - ts * 0.42, x - ts * 0.26, y - ts * 0.34); });
+    // Sparkles rising from open chest
+    for (var sp = 0; sp < 4; sp++) {
+      var spY = y - ts * 0.15 - Math.abs(Math.sin(t * 3 + sp * 1.5)) * ts * 0.3;
+      var spX = x + (sp - 1.5) * ts * 0.12;
+      _G.save(); _G.globalAlpha = 0.5 + Math.sin(t * 4 + sp) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(spX, spY, ts * 0.03, 0, Math.PI * 2); _G.fill(); _G.restore();
+    }
+  } else {
+    // Lid closed
+    var lidCol = locked ? '#2a1206' : '#c08018';
+    LV_cut(lidCol, 6, function () { _G.moveTo(x - ts * 0.36, y - ts * 0.1 + bob); _G.lineTo(x + ts * 0.36, y - ts * 0.1 + bob); _G.lineTo(x + ts * 0.34, y - ts * 0.3 + bob); _G.bezierCurveTo(x + ts * 0.3, y - ts * 0.4 + bob, x - ts * 0.3, y - ts * 0.4 + bob, x - ts * 0.34, y - ts * 0.3 + bob); });
+  }
+  // Gold band
+  LV_cut(locked ? '#5a3010' : '#f0c040', 3, function () { _G.rect(x - ts * 0.37, y - ts * 0.02, ts * 0.74, ts * 0.05); });
+  // Lock/clasp
+  LV_cut(locked ? '#6a3810' : '#f8d848', 4, function () { _G.rect(x - ts * 0.08, y - ts * 0.07, ts * 0.16, ts * 0.13); });
+  // Corner gems (only when unlocked)
+  if (!locked) {
+    LV_cut('#e04040', 1, function () { _G.arc(x - ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
+    LV_cut('#4080e0', 1, function () { _G.arc(x + ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
+    LV_cut('#40c040', 1, function () { _G.arc(x - ts * 0.28, y - ts * 0.04, ts * 0.03, 0, Math.PI * 2); });
+  }
+  // Glow aura when unlocked but not opened
+  if (!locked && !opened) { _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3.5) * 0.2; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(x, y - ts * 0.1 + bob, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
 }
 
 function LV_drawPotion(sx, sy, ts, t) {
@@ -428,13 +456,43 @@ function LV_drawBoss(sx, sy, ts, o, t) {
 }
 
 function LV_drawExit(sx, sy, ts, t) {
-  var x = sx + ts * 0.5, y = sy + ts * 0.5, pulse = Math.sin(t * 2.5) * 0.08 + 1;
-  _G.save(); _G.globalAlpha = 0.5 + Math.sin(t * 2) * 0.2;
-  var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.55 * pulse);
-  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.3, LV_PAL.goldL); gr.addColorStop(1, 'rgba(192,120,24,0)');
-  _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.55 * pulse, 0, Math.PI * 2); _G.fill(); _G.globalAlpha = 1;
-  LV_cut(LV_PAL.gold, 5, function () { _G.arc(x, y, ts * 0.42 * pulse, 0, Math.PI * 2); _G.arc(x, y, ts * 0.28 * pulse, 0, Math.PI * 2, true); });
-  _G.restore();
+  var x = sx + ts * 0.5, y = sy + ts * 0.5;
+  var dw = ts * 0.6, dh = ts * 0.85;
+  var dx = x - dw / 2, dy = y - dh / 2 - ts * 0.05;
+  // Golden glow behind door
+  _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
+  var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
+  gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
+  _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
+  // Door frame — gold rectangle with arched top
+  LV_cut('#c08018', 6, function () {
+    _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
+    _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
+    _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
+    _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
+    _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
+    _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
+  });
+  // Light from doorway
+  var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
+  _G.save(); _G.globalAlpha = pulse;
+  var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
+  lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
+  _G.fillStyle = lg;
+  _G.beginPath();
+  _G.moveTo(dx + ts * 0.12, dy + dh);
+  _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
+  _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
+  _G.lineTo(dx + dw - ts * 0.12, dy + dh);
+  _G.fill(); _G.restore();
+  // Keyhole or handle
+  LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+  // Sparkle particles orbiting
+  for (var p = 0; p < 4; p++) {
+    var pa = (p / 4) * Math.PI * 2 + t * 1.5;
+    var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
+    _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
+  }
 }
 
 // ─── PARTY DRAWING (1:1 from reference) ─────────────────────────

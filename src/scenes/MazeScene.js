@@ -76,6 +76,7 @@ export class MazeScene extends Phaser.Scene {
       this.objects = mazeState.objects;
       this.fog = mazeState.fog;
       this.bossDefeated = mazeState.bossDefeated;
+      this.hasKey = mazeState.hasKey || false;
       this.challengeProgress = mazeState.fairiesFreed || 0;
     } else {
       // Fresh entry: reset state
@@ -83,6 +84,7 @@ export class MazeScene extends Phaser.Scene {
       this.playerY = this.floor.startY;
       this.fog = this.buildInitialFog();
       this.bossDefeated = false;
+      this.hasKey = false;
       this.challengeProgress = 0;
 
       // Hand-placed objects (chests, potions, boss, exit) keep their
@@ -171,7 +173,7 @@ export class MazeScene extends Phaser.Scene {
         alive: !o.consumed,
         open: !!o.consumed,
         hidden: o.type === 'encounter',
-        visible: o.type === 'exit' ? this.bossDefeated : true,
+        visible: o.type === 'exit' ? this.hasKey : true,
         kind: 'sprout',
         respawnAt: 0,
         loot: (o.type === challengeType || o.type === 'fairy') ? 'fairy' : undefined,
@@ -846,19 +848,21 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'golden': {
-        const ch2 = this.floor.challenge || { count: 3 };
-        if (this.challengeProgress < ch2.count) {
-          this.showFloatText(obj.x, obj.y, `COMPLETE THE CHALLENGE FIRST`, '#e088c0');
+        if (!this.bossDefeated) {
+          this.showFloatText(obj.x, obj.y, 'DEFEAT THE BOSS FIRST!', '#e088c0');
           return;
         }
-        const gold = 50 + this.floorId * 25;
-        this.save.gold += gold;
-        writeSave(this.save);
         obj.consumed = true;
-        this.objectSprites[index]?.destroy();
-        this.objectSprites[index] = null;
+        markDead(obj.id);
         audio.play('world/chest');
-        this.showFloatText(obj.x, obj.y, `GOLDEN CHEST! +${gold} GOLD`, COLORS_CSS.goldL);
+        this.hasKey = true;
+        // Sync with level engine
+        const egs2 = getGameState();
+        if (egs2) egs2.hasKey = true;
+        // Make exit visible
+        for (const o2 of this.objects) { if (o2.type === 'exit') o2.visible = true; }
+        this.showFloatText(obj.x, obj.y, 'GOLDEN KEY OBTAINED!', '#f0d040');
+        this.showKeyAnimation();
         this.updateHud();
         break;
       }
@@ -892,8 +896,8 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'exit': {
-        if (!this.bossDefeated) {
-          this.showFloatText(obj.x, obj.y, 'BEAT THE BOSS FIRST', COLORS_CSS.scarletL);
+        if (!this.hasKey) {
+          this.showFloatText(obj.x, obj.y, 'FIND THE GOLDEN KEY FIRST', '#f0d040');
           return;
         }
         audio.play('world/floor-complete');
@@ -931,6 +935,21 @@ export class MazeScene extends Phaser.Scene {
     this.tweens.add({ targets: fairy, x: GAME_WIDTH - 80, y: 80, scale: 0.5, alpha: 0, duration: 1500, ease: 'Cubic.out', onComplete: () => fairy.destroy() });
   }
 
+  showKeyAnimation() {
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2 - 80;
+    const key = this.add.graphics();
+    key.fillStyle(0xf0c040, 1);
+    key.fillCircle(0, -8, 10);
+    key.fillRect(-3, -2, 6, 20);
+    key.fillRect(-8, 14, 16, 4);
+    key.fillRect(-8, 8, 4, 4);
+    key.setPosition(cx, cy);
+    key.setScrollFactor(0);
+    this.tweens.add({ targets: key, y: 60, scale: 0.6, duration: 1200, ease: 'Back.out', onComplete: () => {
+      this.tweens.add({ targets: key, alpha: 0, duration: 500, onComplete: () => key.destroy() });
+    }});
+  }
+
   startBattle(isBoss, enemyId) {
     this.saveMazeState();
 
@@ -966,6 +985,7 @@ export class MazeScene extends Phaser.Scene {
       fog: gs.fog || this.fog,
       bossDefeated: gs.hasKey || this.bossDefeated,
       fairiesFreed: this.challengeProgress,
+      hasKey: this.hasKey || false,
     };
     this.registry.set(`mazeState_${this.floorId}`, state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
