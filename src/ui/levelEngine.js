@@ -821,7 +821,7 @@ function LV_draw(t) {
   }
   // Objects
   for (var oi = 0; oi < _objs.length; oi++) {
-    var o = _objs[oi]; if (_gs.dead[o.id]) continue;
+    var o = _objs[oi]; if (_gs.dead[o.id] || !o.alive) continue;
     if (o.type === 'exit' && !o.visible) continue;
     if (!_fog[o.ty] || !_fog[o.ty][o.tx]) continue;
     var osx = camX + o.tx * ts, osy = camY + o.ty * ts;
