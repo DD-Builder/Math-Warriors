@@ -643,7 +643,7 @@ export class BattleScene extends Phaser.Scene {
       // Position monster so its bottom edge sits on the ground line
       const spriteHalfPx = (640 / 2) * monsterScale;
       const calculatedY = groundY - spriteHalfPx * 0.6 + yOffsets[ei];
-      const y = Math.min(calculatedY, groundY - spriteHalfPx * 0.4);
+      const y = calculatedY;
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
@@ -1855,6 +1855,7 @@ export class BattleScene extends Phaser.Scene {
       if (mazeState) {
         mazeState.bossDefeated = true;
         this.registry.set(mazeKey, mazeState);
+        try { localStorage.setItem(`mw_maze_${this.floor}`, JSON.stringify(mazeState)); } catch (e) { /* ignore */ }
       }
     }
 

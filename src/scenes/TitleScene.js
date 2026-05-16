@@ -80,6 +80,14 @@ export class TitleScene extends Phaser.Scene {
   }
 
   onNewGame() {
+    // Clear all maze states so new game starts fresh
+    for (let f = 1; f <= 5; f++) {
+      this.registry.remove(`mazeState_${f}`);
+      try { localStorage.removeItem(`mw_maze_${f}`); } catch (e) { /* ignore */ }
+    }
+    this.registry.remove('battleReturnScene');
+    this.registry.remove('battleReturnData');
+    this.registry.remove('battleVariant');
     transitionTo(this, SCENES.GRADE_SELECT, undefined, 300);
   }
 
