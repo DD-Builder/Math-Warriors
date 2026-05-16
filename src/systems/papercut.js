@@ -42,6 +42,87 @@ function generateHillPoints(startX, endX, baseY, peakHeight, peakCount, rng, wob
 }
 
 /**
+ * Generate wave-shaped points for Tidepool (Floor 2).
+ * Smooth sine curves instead of mountain peaks.
+ */
+function generateWavePoints(startX, endX, baseY, waveHeight, waveCycles, rng, wobble = 3) {
+  const pts = [];
+  const totalSteps = waveCycles * 12;
+  for (let i = 0; i <= totalSteps; i++) {
+    const t = i / totalSteps;
+    const x = startX + t * (endX - startX);
+    const y = baseY
+      - Math.sin(t * Math.PI * 2 * waveCycles) * waveHeight * (0.5 + rng() * 0.3)
+      - Math.sin(t * Math.PI * 2 * waveCycles * 1.7 + 0.8) * waveHeight * 0.25
+      + (rng() - 0.5) * wobble;
+    pts.push({ x, y });
+  }
+  return pts;
+}
+
+/**
+ * Generate puffy cloud platform points for Cloud (Floor 3).
+ * Overlapping circles approximated as a bumpy top edge.
+ */
+function generateCloudPlatformPoints(startX, endX, baseY, height, bumpCount, rng) {
+  const pts = [];
+  const totalSteps = bumpCount * 6;
+  for (let i = 0; i <= totalSteps; i++) {
+    const t = i / totalSteps;
+    const x = startX + t * (endX - startX);
+    // Cloud bumps: overlapping rounded humps
+    const bump = Math.abs(Math.sin(t * Math.PI * bumpCount));
+    const y = baseY - bump * height * (0.6 + rng() * 0.4)
+      - Math.abs(Math.sin(t * Math.PI * bumpCount * 2.1 + 1.2)) * height * 0.2
+      + (rng() - 0.5) * 2;
+    pts.push({ x, y });
+  }
+  return pts;
+}
+
+/**
+ * Generate jagged volcanic peak points for Ember (Floor 4).
+ * Sharper, more angular peaks.
+ */
+function generateVolcanicPeakPoints(startX, endX, baseY, peakHeight, peakCount, rng, wobble = 2) {
+  const pts = [];
+  const totalSteps = peakCount * 6;
+  for (let i = 0; i <= totalSteps; i++) {
+    const t = i / totalSteps;
+    const x = startX + t * (endX - startX);
+    // Triangle wave for jagged peaks
+    const phase = (t * peakCount) % 1;
+    const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;
+    const y = baseY
+      - tri * peakHeight * (0.7 + rng() * 0.5)
+      - Math.max(0, Math.sin(t * Math.PI * peakCount * 3 + 0.5)) * peakHeight * 0.15
+      + (rng() - 0.5) * wobble;
+    pts.push({ x, y });
+  }
+  return pts;
+}
+
+/**
+ * Generate geometric crystal formation points for Arcane (Floor 5).
+ * Pointed angular shapes.
+ */
+function generateCrystalPoints(startX, endX, baseY, height, crystalCount, rng) {
+  const pts = [];
+  const segW = (endX - startX) / crystalCount;
+  for (let c = 0; c < crystalCount; c++) {
+    const cx = startX + (c + 0.5) * segW;
+    const w = segW * (0.3 + rng() * 0.3);
+    const h = height * (0.5 + rng() * 0.6);
+    pts.push({ x: cx - w, y: baseY });
+    pts.push({ x: cx - w * 0.3, y: baseY - h * 0.6 });
+    pts.push({ x: cx + (rng() - 0.5) * w * 0.2, y: baseY - h });
+    pts.push({ x: cx + w * 0.3, y: baseY - h * 0.6 });
+    pts.push({ x: cx + w, y: baseY });
+  }
+  return pts;
+}
+
+/**
  * Generate small tree silhouettes as triangle clusters.
  */
 function generateTreePoints(baseX, baseY, height, rng) {
@@ -270,18 +351,82 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
     drawCloud(gfx, cloudX, cloudY, 60 + rng() * 60, 15 + rng() * 10, pal.cloud, rng);
   }
 
-  // Hill layers (back to front)
+  // Hill layers (back to front) — floor-specific shapes
   const shadowOx = 3;
   const shadowOy = 6;
   for (let li = 0; li < pal.layers.length; li++) {
     const layer = pal.layers[li];
     const layerBaseY = height * (0.45 + li * 0.12);
-    const pts = generateHillPoints(
-      -20, width + 20, layerBaseY,
-      height * layer.peakH, layer.peaks,
-      rng, 3 + li * 2
-    );
+    let pts;
+    if (floorId === 2) {
+      // Tidepool: wave shapes
+      pts = generateWavePoints(
+        -20, width + 20, layerBaseY,
+        height * layer.peakH, layer.peaks,
+        rng, 2 + li
+      );
+    } else if (floorId === 3) {
+      // Cloud: puffy cloud platforms
+      pts = generateCloudPlatformPoints(
+        -20, width + 20, layerBaseY,
+        height * layer.peakH, layer.peaks + 1,
+        rng
+      );
+    } else if (floorId === 4) {
+      // Ember: jagged volcanic peaks
+      pts = generateVolcanicPeakPoints(
+        -20, width + 20, layerBaseY,
+        height * layer.peakH, layer.peaks,
+        rng, 2 + li
+      );
+    } else if (floorId === 5) {
+      // Arcane: geometric crystal formations
+      pts = generateCrystalPoints(
+        -20, width + 20, layerBaseY,
+        height * layer.peakH, layer.peaks + 2,
+        rng
+      );
+    } else {
+      // Garden (default): smooth hills
+      pts = generateHillPoints(
+        -20, width + 20, layerBaseY,
+        height * layer.peakH, layer.peaks,
+        rng, 3 + li * 2
+      );
+    }
     drawPaperLayer(gfx, pts, layer.color, layer.shadow, shadowOx, shadowOy, true, height);
+
+    // Floor-specific layer effects
+    if (floorId === 4 && li === pal.layers.length - 1) {
+      // Ember: orange/red glow at base of foreground layer
+      gfx.fillStyle(0xff6820, 0.12);
+      gfx.fillRect(0, layerBaseY, width, height - layerBaseY);
+    }
+    if (floorId === 5) {
+      // Arcane: purple glow at crystal tips
+      for (let ci = 0; ci < pts.length; ci++) {
+        if (ci > 0 && pts[ci].y < pts[ci - 1].y && (ci >= pts.length - 1 || pts[ci].y < pts[ci + 1].y)) {
+          gfx.fillStyle(0xd098f8, 0.15 + rng() * 0.1);
+          gfx.fillCircle(pts[ci].x, pts[ci].y, 8 + rng() * 6);
+        }
+      }
+    }
+  }
+
+  // Floor-specific foreground details
+  if (floorId === 2) {
+    // Tidepool: coral/reef shapes at ground level
+    for (let ci = 0; ci < 8; ci++) {
+      const cx = width * (0.05 + rng() * 0.9);
+      const cy = height * (0.75 + rng() * 0.06);
+      const cr = 4 + rng() * 8;
+      const coralColors = [0xf07060, 0xf0a848, 0xe06888, 0xf08870];
+      gfx.fillStyle(coralColors[Math.floor(rng() * coralColors.length)], 0.6 + rng() * 0.3);
+      gfx.fillCircle(cx, cy, cr);
+      if (rng() > 0.5) {
+        gfx.fillCircle(cx + rng() * 6 - 3, cy - cr * 0.8, cr * 0.6);
+      }
+    }
   }
 
   // Ground plane (foreground paper)

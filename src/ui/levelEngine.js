@@ -383,6 +383,136 @@ function LV_drawFairyCage(sx, sy, ts, o, t) {
   }
 }
 
+function LV_drawValve(sx, sy, ts, o, t) {
+  var x = sx + ts * 0.5, y = sy + ts * 0.5;
+  var radius = ts * 0.28;
+  var rot = o.open ? 0.4 : t * 0.8;
+  var col = o.open ? '#8a5828' : '#b07838';
+  var colD = o.open ? '#6a4018' : '#906028';
+  // Circle outline (wheel rim)
+  _G.save();
+  _G.strokeStyle = col; _G.lineWidth = ts * 0.05;
+  _G.beginPath(); _G.arc(x, y, radius, 0, Math.PI * 2); _G.stroke();
+  // 4 spokes
+  _G.strokeStyle = colD; _G.lineWidth = ts * 0.035;
+  for (var s = 0; s < 4; s++) {
+    var a = rot + (s / 4) * Math.PI * 2;
+    _G.beginPath();
+    _G.moveTo(x + Math.cos(a) * radius * 0.15, y + Math.sin(a) * radius * 0.15);
+    _G.lineTo(x + Math.cos(a) * radius, y + Math.sin(a) * radius);
+    _G.stroke();
+  }
+  // Center hub
+  LV_cut(col, 2, function () { _G.arc(x, y, ts * 0.07, 0, Math.PI * 2); });
+  _G.restore();
+}
+
+function LV_drawBeacon(sx, sy, ts, o, t) {
+  var x = sx + ts * 0.5, y = sy + ts * 0.8;
+  // Stone pillar
+  var pw = ts * 0.18, ph = ts * 0.55;
+  LV_cut('#606060', 4, function () { _G.rect(x - pw, y - ph, pw * 2, ph); });
+  LV_cut('#787878', 2, function () { _G.rect(x - pw + 2, y - ph + 2, pw * 2 - 4, ph - 4); });
+  // Bowl/brazier at top
+  LV_cut('#505050', 3, function () {
+    _G.moveTo(x - ts * 0.16, y - ph + ts * 0.02);
+    _G.lineTo(x + ts * 0.16, y - ph + ts * 0.02);
+    _G.lineTo(x + ts * 0.12, y - ph - ts * 0.06);
+    _G.lineTo(x - ts * 0.12, y - ph - ts * 0.06);
+  });
+  if (o.open) {
+    // Flame
+    var fy = y - ph - ts * 0.1;
+    var flicker = Math.sin(t * 5) * ts * 0.03;
+    _G.save();
+    _G.globalAlpha = 0.6 + Math.sin(t * 4) * 0.2;
+    _G.fillStyle = '#f0a020';
+    _G.beginPath(); _G.arc(x + flicker, fy - ts * 0.06, ts * 0.09, 0, Math.PI * 2); _G.fill();
+    _G.fillStyle = '#f0d040';
+    _G.beginPath(); _G.arc(x - flicker * 0.5, fy - ts * 0.1, ts * 0.06, 0, Math.PI * 2); _G.fill();
+    // Glow
+    _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
+    _G.fillStyle = '#f0c040';
+    _G.beginPath(); _G.arc(x, fy - ts * 0.06, ts * 0.22, 0, Math.PI * 2); _G.fill();
+    _G.restore();
+  }
+}
+
+function LV_drawVent(sx, sy, ts, o, t) {
+  var x = sx + ts * 0.5, y = sy + ts * 0.7;
+  // Rocky base (irregular)
+  LV_cut('#3a3030', 4, function () {
+    _G.moveTo(x - ts * 0.3, y + ts * 0.1);
+    _G.lineTo(x - ts * 0.22, y - ts * 0.14);
+    _G.lineTo(x - ts * 0.08, y - ts * 0.18);
+    _G.lineTo(x + ts * 0.08, y - ts * 0.2);
+    _G.lineTo(x + ts * 0.24, y - ts * 0.12);
+    _G.lineTo(x + ts * 0.32, y + ts * 0.1);
+  });
+  LV_cut(o.open ? '#2a2020' : '#4a3828', 2, function () {
+    _G.moveTo(x - ts * 0.18, y + ts * 0.06);
+    _G.lineTo(x - ts * 0.12, y - ts * 0.08);
+    _G.lineTo(x + ts * 0.1, y - ts * 0.1);
+    _G.lineTo(x + ts * 0.2, y + ts * 0.06);
+  });
+  if (!o.open) {
+    // Rising steam particles
+    _G.save();
+    for (var s = 0; s < 5; s++) {
+      var phase = t * 2 + s * 1.3;
+      var rise = (phase % 3) / 3;
+      var px = x + Math.sin(phase * 1.7) * ts * 0.1;
+      var py = y - ts * 0.15 - rise * ts * 0.4;
+      _G.globalAlpha = (1 - rise) * 0.4;
+      _G.fillStyle = '#a0a0a0';
+      _G.beginPath(); _G.arc(px, py, ts * (0.04 + rise * 0.03), 0, Math.PI * 2); _G.fill();
+    }
+    _G.restore();
+  }
+}
+
+function LV_drawFragment(sx, sy, ts, o, t) {
+  var x = sx + ts * 0.5, y = sy + ts * 0.5;
+  if (o.open) {
+    // Empty pedestal
+    LV_cut('#484050', 3, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
+    return;
+  }
+  var bob = Math.sin(t * 2.2) * ts * 0.04;
+  var fy = y + bob;
+  // Glow
+  _G.save();
+  _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
+  _G.fillStyle = '#8040d0';
+  _G.beginPath(); _G.arc(x, fy, ts * 0.24, 0, Math.PI * 2); _G.fill();
+  _G.restore();
+  // Diamond shape
+  var sz = ts * 0.16;
+  LV_cut('#a060e0', 3, function () {
+    _G.moveTo(x, fy - sz);
+    _G.lineTo(x + sz, fy);
+    _G.lineTo(x, fy + sz);
+    _G.lineTo(x - sz, fy);
+  });
+  LV_cut('#c080ff', 1, function () {
+    _G.moveTo(x, fy - sz * 0.6);
+    _G.lineTo(x + sz * 0.6, fy);
+    _G.lineTo(x, fy + sz * 0.6);
+    _G.lineTo(x - sz * 0.6, fy);
+  });
+  // Sparkles
+  _G.save();
+  for (var s = 0; s < 3; s++) {
+    var sa = (s / 3) * Math.PI * 2 + t * 1.8;
+    var sdx = Math.cos(sa) * ts * 0.2, sdy = Math.sin(sa) * ts * 0.15;
+    _G.fillStyle = '#d0a0ff'; _G.globalAlpha = 0.4 + Math.sin(t * 4 + s) * 0.3;
+    _G.beginPath(); _G.arc(x + sdx, fy + sdy, ts * 0.025, 0, Math.PI * 2); _G.fill();
+  }
+  _G.restore();
+  // Pedestal
+  LV_cut('#484050', 2, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
+}
+
 function LV_drawGoldChest(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.55;
   var locked = !_gs.hasKey && (_gs.fairies < 3 || !o.bossBeaten);
@@ -538,7 +668,7 @@ function LV_drawMinimap() {
     var o2 = _objs[oi2]; if (_gs.dead[o2.id]) continue;
     if (!_fog[o2.ty] || !_fog[o2.ty][o2.tx]) continue;
     if (o2.type === 'exit' && !o2.visible) continue;
-    var dc = o2.type === 'monster' ? (o2.hidden ? null : '#ff4040') : o2.type === 'boss' ? '#ff2020' : o2.type.indexOf('chest') >= 0 ? '#e8a030' : o2.type === 'exit' ? '#40ff40' : '#c07818';
+    var dc = o2.type === 'monster' ? (o2.hidden ? null : '#ff4040') : o2.type === 'boss' ? '#ff2020' : o2.type.indexOf('chest') >= 0 ? '#e8a030' : o2.type === 'exit' ? '#40ff40' : o2.type === 'valve' ? '#b07838' : o2.type === 'beacon' ? '#f0c040' : o2.type === 'vent' ? '#a08060' : o2.type === 'fragment' ? '#a060e0' : '#c07818';
     if (!dc) continue;
     mg.fillStyle = dc; mg.beginPath(); mg.arc((o2.tx + 0.5) * cs, (o2.ty + 0.5) * cs, cs * 0.8, 0, Math.PI * 2); mg.fill();
   }
@@ -578,6 +708,10 @@ function LV_draw(t) {
     if (osx + ts < 0 || osx > _W || osy + ts < 0 || osy > _H) continue;
     if (o.type === 'chestG') LV_drawGoldChest(osx, osy, ts, o, t);
     else if (o.type === 'fairy') LV_drawFairyCage(osx, osy, ts, o, t);
+    else if (o.type === 'valve') LV_drawValve(osx, osy, ts, o, t);
+    else if (o.type === 'beacon') LV_drawBeacon(osx, osy, ts, o, t);
+    else if (o.type === 'vent') LV_drawVent(osx, osy, ts, o, t);
+    else if (o.type === 'fragment') LV_drawFragment(osx, osy, ts, o, t);
     else if (o.type === 'chest') LV_drawChest(osx, osy, ts, o);
     else if (o.type === 'potion') LV_drawPotion(osx, osy, ts, t);
     else if (o.type === 'gold') LV_drawGold(osx, osy, ts, o);

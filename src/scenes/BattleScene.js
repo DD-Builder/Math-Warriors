@@ -593,7 +593,8 @@ export class BattleScene extends Phaser.Scene {
       const x = centerX;
       // Position monster so its bottom edge sits on the ground line
       const spriteHalfPx = (640 / 2) * monsterScale;
-      const y = groundY - spriteHalfPx * 0.6 + yOffsets[ei];
+      const calculatedY = groundY - spriteHalfPx * 0.6 + yOffsets[ei];
+      const y = Math.min(calculatedY, groundY - spriteHalfPx * 0.4);
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });

@@ -165,7 +165,11 @@ export class MazeScene extends Phaser.Scene {
       let engineType = o.type;
       if (o.type === 'golden') engineType = 'chestG';
       else if (o.type === 'encounter') engineType = 'monster';
-      else if (o.type === challengeType || o.type === 'fairy' || o.type === 'valve' || o.type === 'beacon' || o.type === 'vent' || o.type === 'fragment') engineType = 'fairy';
+      else if (o.type === 'fairy') engineType = 'fairy';
+      else if (o.type === 'valve') engineType = 'valve';
+      else if (o.type === 'beacon') engineType = 'beacon';
+      else if (o.type === 'vent') engineType = 'vent';
+      else if (o.type === 'fragment') engineType = 'fragment';
       return {
         type: engineType,
         tx: o.x, ty: o.y,
