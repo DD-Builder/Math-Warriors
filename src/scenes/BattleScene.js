@@ -565,7 +565,7 @@ export class BattleScene extends Phaser.Scene {
     groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
 
     const enemyCount = this.enemies.length;
-    const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
+    const heroScale = enemyCount >= 3 ? 0.64 : enemyCount >= 2 ? 0.72 : 0.85;
     const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
     const leftAnchor = GAME_WIDTH * 0.08 + spacing / 2;
 
@@ -620,7 +620,7 @@ export class BattleScene extends Phaser.Scene {
     const count = this.enemies.length;
 
     // Dynamic scaling: fewer monsters = bigger, more = smaller with proper spacing
-    const monsterScaleByCount = count >= 3 ? 0.38 : count >= 2 ? 0.51 : 0.77;
+    const monsterScaleByCount = count >= 3 ? 0.37 : count >= 2 ? 0.43 : 0.89;
 
     // Calculate Y offsets from actual sprite size (max 20% overlap)
     const spriteH = 640 * monsterScaleByCount;
@@ -638,7 +638,7 @@ export class BattleScene extends Phaser.Scene {
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const monsterScale = enemy.isBoss ? 1.02 : monsterScaleByCount;
+      const monsterScale = enemy.isBoss ? 1.27 : monsterScaleByCount;
       const x = centerX;
       // Position monster so its bottom edge sits on the ground line
       const spriteHalfPx = (640 / 2) * monsterScale;
@@ -649,9 +649,9 @@ export class BattleScene extends Phaser.Scene {
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
 
       const spriteHalfH = (640 / 2) * monsterScale * 0.6;
-      const nameY = y - spriteHalfH - 50;
-      const hpY = y - spriteHalfH - 28;
-      const hpTextY = y - spriteHalfH - 8;
+      const nameY = y - spriteHalfH - 20;
+      const hpY = y - spriteHalfH - 4;
+      const hpTextY = y - spriteHalfH + 12;
 
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
