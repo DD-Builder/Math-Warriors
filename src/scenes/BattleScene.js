@@ -257,60 +257,109 @@ export class BattleScene extends Phaser.Scene {
       }
     } else if (this.floor === 2) {
       if (v === 0) {
-        // Sandy beach: sand ground, palm tree silhouettes, shells
-        g.fillStyle(0xd8c080, 0.3);
-        g.fillRect(0, gndY - 4, GAME_WIDTH, 10);
+        // Marsh: dark murky green sky gradient, cattail silhouettes, lily pads, misty fog, fireflies
+        // Cattail silhouettes (tall thin rects with oval tops)
+        for (let i = 0; i < 7; i++) {
+          const cx = 40 + rng() * (GAME_WIDTH - 80);
+          const ch = 30 + rng() * 20;
+          g.fillStyle(0x2a4018, 0.7);
+          g.fillRect(cx - 1, gndY - ch, 3, ch);
+          g.fillStyle(0x3a5028, 0.8);
+          g.fillCircle(cx, gndY - ch - 4, 4);
+          g.fillCircle(cx, gndY - ch - 8, 3);
+        }
+        // Lily pads (green ovals on dark ground)
+        for (let i = 0; i < 6; i++) {
+          const lx = rng() * GAME_WIDTH;
+          g.fillStyle(0x40882a, 0.4);
+          g.fillCircle(lx, gndY + rng() * 4, 7 + rng() * 5);
+          g.fillStyle(0x50a838, 0.3);
+          g.fillCircle(lx + 2, gndY + rng() * 3, 4 + rng() * 3);
+        }
+        // Misty fog overlay (semi-transparent white rects at bottom)
+        for (let i = 0; i < 4; i++) {
+          const fx = rng() * GAME_WIDTH;
+          g.fillStyle(0xc0d0c0, 0.08);
+          g.fillRect(fx - 40, gndY - 10 - rng() * 15, 80 + rng() * 60, 12);
+        }
+        // Fireflies (small yellow dots)
+        for (let i = 0; i < 8; i++) {
+          const ffx = rng() * GAME_WIDTH;
+          const ffy = gndY - 20 - rng() * 100;
+          g.fillStyle(0xf0e060, 0.5 + rng() * 0.3);
+          g.fillCircle(ffx, ffy, 1.5 + rng());
+        }
+      } else if (v === 1) {
+        // Beach: bright sky blue, sand dunes, palm tree silhouettes, scattered shells, wave line
+        // Sand dunes (smooth tan hills)
+        for (let i = 0; i < 4; i++) {
+          const dx = rng() * GAME_WIDTH;
+          const dw = 60 + rng() * 80;
+          g.fillStyle(0xd8c090, 0.35);
+          g.fillCircle(dx, gndY + 5, dw / 2);
+        }
+        // Palm tree silhouettes (brown trunk + green fan top)
         for (let i = 0; i < 3; i++) {
           const px = 80 + rng() * (GAME_WIDTH - 160);
           g.fillStyle(0x6a4818, 0.6);
           g.fillRect(px - 3, gndY - 50, 6, 52);
           g.fillStyle(0x308828, 0.5);
-          g.fillTriangle(px, gndY - 55, px - 30, gndY - 35, px + 30, gndY - 35);
-          g.fillTriangle(px, gndY - 50, px - 25, gndY - 30, px + 25, gndY - 30);
+          g.fillTriangle(px, gndY - 58, px - 28, gndY - 38, px + 28, gndY - 38);
+          g.fillTriangle(px + 5, gndY - 52, px - 20, gndY - 32, px + 30, gndY - 35);
         }
-        for (let i = 0; i < 8; i++) {
+        // Scattered shells (small tan/white circles)
+        for (let i = 0; i < 10; i++) {
           const sx = rng() * GAME_WIDTH;
-          g.fillStyle(0xf0e0c0, 0.5);
+          const sc = rng() > 0.5 ? 0xf0e0c0 : 0xe8d8b0;
+          g.fillStyle(sc, 0.5);
           g.fillCircle(sx, gndY - rng() * 6, 2 + rng() * 2);
         }
-      } else if (v === 1) {
-        // Murky marsh: green-brown ground, cattails, lily pads
-        g.fillStyle(0x506030, 0.25);
-        g.fillRect(0, gndY - 4, GAME_WIDTH, 10);
-        for (let i = 0; i < 6; i++) {
-          const cx = 40 + rng() * (GAME_WIDTH - 80);
-          g.fillStyle(0x405020, 0.6);
-          g.fillRect(cx, gndY - 30 - rng() * 15, 2, 32);
-          g.fillStyle(0x604020, 0.7);
-          g.fillCircle(cx + 1, gndY - 34 - rng() * 15, 3);
+        // Gentle wave line at shore
+        g.lineStyle(2, 0x80c8e0, 0.3);
+        g.beginPath();
+        for (let wx = 0; wx < GAME_WIDTH; wx += 20) {
+          const wy = gndY - 2 + Math.sin(wx * 0.05) * 3;
+          if (wx === 0) g.moveTo(wx, wy); else g.lineTo(wx, wy);
         }
-        for (let i = 0; i < 5; i++) {
-          const lx = rng() * GAME_WIDTH;
-          g.fillStyle(0x40882a, 0.35);
-          g.fillCircle(lx, gndY + rng() * 4, 6 + rng() * 4);
-        }
+        g.strokePath();
       } else {
-        // Rocky shoreline: grey rocks, crashing wave arcs, seaweed
-        for (let i = 0; i < 7; i++) {
-          const rx = rng() * GAME_WIDTH;
-          const rs = 6 + rng() * 10;
-          g.fillStyle(0x808890, 0.5);
-          g.fillCircle(rx, gndY - rng() * 8, rs);
-          g.fillStyle(0x909aa0, 0.3);
-          g.fillCircle(rx + 3, gndY - 2 - rng() * 6, rs * 0.7);
-        }
-        for (let i = 0; i < 4; i++) {
-          const wx = rng() * GAME_WIDTH;
-          g.lineStyle(2, 0x80c0e0, 0.35);
-          g.beginPath();
-          g.arc(wx, gndY, 12 + rng() * 10, -Math.PI, 0, false);
-          g.strokePath();
-        }
+        // Water: deep ocean blue bg, coral formations, bubbles rising, underwater light rays, seaweed
+        // Coral formations (orange/pink irregular shapes)
         for (let i = 0; i < 5; i++) {
+          const cx = 40 + rng() * (GAME_WIDTH - 80);
+          const cc = rng() > 0.5 ? 0xe87060 : 0xe06888;
+          g.fillStyle(cc, 0.45);
+          g.fillCircle(cx, gndY - rng() * 12, 8 + rng() * 8);
+          g.fillCircle(cx + (rng() - 0.5) * 12, gndY - 8 - rng() * 10, 5 + rng() * 5);
+          g.fillCircle(cx + (rng() - 0.5) * 8, gndY - 14 - rng() * 8, 3 + rng() * 4);
+        }
+        // Bubbles rising (white circles with alpha)
+        for (let i = 0; i < 10; i++) {
+          const bx = rng() * GAME_WIDTH;
+          const by = gndY - 20 - rng() * 120;
+          g.fillStyle(0xffffff, 0.15 + rng() * 0.15);
+          g.fillCircle(bx, by, 2 + rng() * 3);
+        }
+        // Underwater light rays (angled semi-transparent white bars)
+        for (let i = 0; i < 3; i++) {
+          const rx = 60 + rng() * (GAME_WIDTH - 120);
+          const ry = gndY - 140;
+          g.fillStyle(0xffffff, 0.06);
+          const pts = [
+            { x: rx - 8, y: ry },
+            { x: rx + 8, y: ry },
+            { x: rx + 30, y: gndY + 10 },
+            { x: rx + 10, y: gndY + 10 }
+          ];
+          g.fillTriangle(pts[0].x, pts[0].y, pts[1].x, pts[1].y, pts[2].x, pts[2].y);
+          g.fillTriangle(pts[0].x, pts[0].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y);
+        }
+        // Seaweed (green wavy lines from bottom)
+        for (let i = 0; i < 6; i++) {
           const sx = 50 + rng() * (GAME_WIDTH - 100);
-          g.fillStyle(0x186838, 0.5);
-          for (let s = 0; s < 3; s++) {
-            g.fillCircle(sx + (rng() - 0.5) * 6, gndY - s * 10 - 4, 3 + rng() * 2);
+          g.fillStyle(0x208848, 0.45);
+          for (let s = 0; s < 4; s++) {
+            g.fillCircle(sx + (rng() - 0.5) * 8, gndY - s * 9 - 4, 3 + rng() * 2);
           }
         }
       }

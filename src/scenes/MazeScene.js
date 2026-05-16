@@ -959,7 +959,9 @@ export class MazeScene extends Phaser.Scene {
 
     this.registry.set('battleReturnScene', SCENES.MAZE);
     this.registry.set('battleReturnData', { floor: this.floorId });
-    this.registry.set('battleVariant', Math.floor(Math.random() * 3));
+    const d = this.playerX + this.playerY;
+    const variant = this.floorId === 2 ? (d < 14 ? 0 : d < 28 ? 1 : 2) : Math.floor(Math.random() * 3);
+    this.registry.set('battleVariant', variant);
 
     const battleData = {
       party: this.party,
