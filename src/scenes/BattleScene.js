@@ -639,7 +639,7 @@ export class BattleScene extends Phaser.Scene {
     groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
 
     const enemyCount = this.enemies.length;
-    const heroScale = enemyCount >= 3 ? 0.64 : enemyCount >= 2 ? 0.72 : 0.85;
+    const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
     const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
     const leftAnchor = GAME_WIDTH * 0.08 + spacing / 2;
 
@@ -694,38 +694,35 @@ export class BattleScene extends Phaser.Scene {
     const count = this.enemies.length;
 
     // Dynamic scaling: fewer monsters = bigger, more = smaller with proper spacing
-    const monsterScaleByCount = count >= 3 ? 0.37 : count >= 2 ? 0.43 : 0.89;
+    // Target display heights: single ~490px (0.77), 2 ~326px (0.51), 3 ~277px (0.43)
+    const monsterScaleByCount = count >= 3 ? 0.43 : count >= 2 ? 0.51 : 0.77;
 
-    // Calculate Y offsets from actual sprite size (max 20% overlap)
-    const spriteH = 640 * monsterScaleByCount;
-    const visibleH = spriteH * 0.8;
+    // Calculate Y offsets from actual display height (max 20% overlap)
+    const displayH = 640 * monsterScaleByCount;
+    const gap = displayH * 0.8;
     const yOffsets = [];
-    if (count === 1) {
-      yOffsets.push(0);
-    } else {
-      const totalH = spriteH + (count - 1) * visibleH;
-      const startOff = -totalH / 2 + spriteH / 2;
-      for (let i = 0; i < count; i++) yOffsets.push(startOff + i * visibleH);
-    }
+    if (count === 1) yOffsets.push(0);
+    else { for (let i = 0; i < count; i++) yOffsets.push((i - (count - 1) / 2) * gap); }
 
     this.enemySprites = [];
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const monsterScale = enemy.isBoss ? 1.27 : monsterScaleByCount;
+      const monsterScale = enemy.isBoss ? 1.02 : monsterScaleByCount;
       const x = centerX;
-      // Position monster so its bottom edge sits on the ground line
-      const spriteHalfPx = (640 / 2) * monsterScale;
-      const calculatedY = groundY - spriteHalfPx * 0.6 + yOffsets[ei];
-      const y = calculatedY;
+      // Position monster so its FEET sit on the ground line
+      // Monster art is centered in 640x640 canvas; use 0.45 offset for bottom
+      const monsterDisplayH = 640 * monsterScale;
+      const y = groundY - monsterDisplayH * 0.45 + yOffsets[ei];
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
 
-      const spriteHalfH = (640 / 2) * monsterScale * 0.6;
-      const nameY = y - spriteHalfH - 20;
-      const hpY = y - spriteHalfH - 4;
-      const hpTextY = y - spriteHalfH + 12;
+      // Name/HP bars directly above the sprite head
+      const spriteHalfH = (640 * monsterScale) * 0.35;
+      const nameY = y - spriteHalfH - 10;
+      const hpY = y - spriteHalfH + 6;
+      const hpTextY = y - spriteHalfH + 20;
 
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',

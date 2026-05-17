@@ -46,13 +46,13 @@ var FLOOR_PALS = {
   },
   3: { // Cloud — three zones: calm sky, storm, sunset heights
     // Calm Sky sub-palette (top-left, d<16)
-    calm_wall: '#b8d0e8', calm_wallD: '#8aa8c8', calm_floor: '#90a8c0', calm_floorL: '#a0b8d0',
+    calm_wall: '#c0d8f0', calm_wallD: '#8aa8c8', calm_floor: '#a0b8d8', calm_floorL: '#a0b8d0',
     calm_path: '#c8b070', calm_pathL: '#d8c080',
     // Storm sub-palette (middle, 16<=d<36)
-    storm_wall: '#2a2840', storm_wallD: '#1a1830', storm_floor: '#3a3850', storm_floorL: '#4a4860',
+    storm_wall: '#3a3858', storm_wallD: '#1a1830', storm_floor: '#3a3850', storm_floorL: '#4a4860',
     storm_path: '#484860', storm_pathL: '#585870',
     // Sunset Heights sub-palette (bottom-right, d>=36)
-    sunset_wall: '#d09060', sunset_wallD: '#a07048', sunset_floor: '#c8a070', sunset_floorL: '#d8b080',
+    sunset_wall: '#d8a070', sunset_wallD: '#a07048', sunset_floor: '#c8a070', sunset_floorL: '#d8b080',
     sunset_path: '#d0a050', sunset_pathL: '#e0b060',
     // Shared
     water0: '#c8d8e8', water1: '#d8e8f8', waterHL: '#f0f8ff',
@@ -375,35 +375,30 @@ function LV_getZone3(tx, ty) {
 }
 
 function LV_drawWall_cloud(sx, sy, ts, tx, ty) {
-  var P = FLOOR_PALS[3], r = mkRng(tx * 31 + ty * 97 + 301);
   var zone = LV_getZone3(tx, ty);
-  if (zone === 0) {
-    // Calm Sky: White/light blue fluffy cloud bumps, bright
-    LV_cut(P.calm_wall, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(P.calm_wallD, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.12 + r() * 0.1), 4 + Math.floor(r() * 2), r2, 0.4); });
-    LV_cut('#d0e0f0', 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.28 + r() * 0.08), 3 + Math.floor(r() * 2), r2, 0.35); });
-    // Bright wisp accent
-    if (r() < 0.25) { var wr = mkRng(tx * 23 + ty * 41); LV_cut('#f0f8ff', 0, function () { _G.arc(sx + ts * (0.3 + wr() * 0.4), sy + ts * (0.15 + wr() * 0.2), ts * 0.06, 0, Math.PI * 2); }); }
-  } else if (zone === 1) {
-    // Storm: Dark grey/purple churning cloud walls, jagged bumps
-    LV_cut(P.storm_wall, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(P.storm_wallD, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.1 + r() * 0.12), 5 + Math.floor(r() * 3), r2, 0.7); });
-    LV_cut('#3a3058', 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.25 + r() * 0.1), 4 + Math.floor(r() * 2), r2, 0.6); });
-    // Occasional lightning flash accent
-    if (r() < 0.12) {
-      _G.save(); _G.strokeStyle = '#f8e040'; _G.lineWidth = 1.5; _G.globalAlpha = 0.4;
-      var lr = mkRng(tx * 37 + ty * 53);
-      _G.beginPath(); _G.moveTo(sx + ts * (0.3 + lr() * 0.4), sy + ts * 0.05);
-      _G.lineTo(sx + ts * (0.35 + lr() * 0.3), sy + ts * 0.45);
-      _G.lineTo(sx + ts * (0.4 + lr() * 0.2), sy + ts * 0.9); _G.stroke(); _G.restore();
-    }
-  } else {
-    // Sunset: Warm orange/pink cloud formations, smooth bumps
-    LV_cut(P.sunset_wall, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(P.sunset_wallD, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.08), 3 + Math.floor(r() * 2), r2, 0.3); });
-    LV_cut('#e0a878', 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.06), 3 + Math.floor(r() * 2), r2, 0.25); });
-    // Warm glow accent
-    if (r() < 0.2) { var wr = mkRng(tx * 23 + ty * 41); LV_cut('#f0c080', 0, function () { _G.arc(sx + ts * (0.3 + wr() * 0.4), sy + ts * (0.2 + wr() * 0.2), ts * 0.07, 0, Math.PI * 2); }); }
+  var r = mkRng(tx * 31 + ty * 97 + 301);
+
+  // Base colors per zone
+  var baseCol = zone === 0 ? '#c0d8f0' : zone === 1 ? '#3a3858' : '#d8a070';
+  var lightCol = zone === 0 ? '#d8e8f8' : zone === 1 ? '#4a4870' : '#e8b888';
+  var highlightCol = zone === 0 ? '#e8f0ff' : zone === 1 ? '#5a5888' : '#f0c8a0';
+
+  // Base fill
+  LV_cut(baseCol, 6, function() { _G.rect(sx, sy, ts + 1, ts + 1); });
+
+  // Fluffy cloud bumps (overlapping circles, NOT spikes)
+  var bumps = 3 + Math.floor(r() * 2);
+  for (var b = 0; b < bumps; b++) {
+    var bx = sx + ((b + 0.5) / bumps) * ts;
+    var by = sy + ts * (0.25 + r() * 0.2);
+    var br = ts * (0.22 + r() * 0.1);
+    LV_cut(lightCol, 3, function() { _G.arc(bx, by, br, 0, Math.PI * 2); });
+  }
+  // Top highlight bumps
+  for (var b2 = 0; b2 < bumps - 1; b2++) {
+    var bx2 = sx + ((b2 + 1) / bumps) * ts;
+    var by2 = sy + ts * (0.18 + r() * 0.12);
+    LV_cut(highlightCol, 1, function() { _G.arc(bx2, by2, ts * (0.14 + r() * 0.06), 0, Math.PI * 2); });
   }
 }
 function LV_drawFloor_cloud(sx, sy, ts, tx, ty) {
