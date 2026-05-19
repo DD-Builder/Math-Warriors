@@ -697,23 +697,30 @@ export class BattleScene extends Phaser.Scene {
     // Target display heights: single ~490px (0.77), 2 ~326px (0.51), 3 ~277px (0.43)
     const monsterScaleByCount = count >= 3 ? 0.43 : count >= 2 ? 0.51 : 0.77;
 
-    // Calculate Y offsets from actual display height (max 20% overlap)
+    // Calculate offsets: diagonal for 2, triangle for 3
     const displayH = 640 * monsterScaleByCount;
-    const gap = displayH * 0.8;
-    const yOffsets = [];
-    if (count === 1) yOffsets.push(0);
-    else { for (let i = 0; i < count; i++) yOffsets.push((i - (count - 1) / 2) * gap); }
+    const positions = []; // [{dx, dy}]
+    if (count === 1) {
+      positions.push({ dx: 0, dy: 0 });
+    } else if (count === 2) {
+      // Diagonal: top-left and bottom-right within monster area
+      positions.push({ dx: -80, dy: -displayH * 0.35 });
+      positions.push({ dx: 80, dy: displayH * 0.35 });
+    } else {
+      // Triangle: top-center, bottom-left, bottom-right
+      positions.push({ dx: 0, dy: -displayH * 0.4 });
+      positions.push({ dx: -90, dy: displayH * 0.3 });
+      positions.push({ dx: 90, dy: displayH * 0.3 });
+    }
 
     this.enemySprites = [];
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
       const monsterScale = enemy.isBoss ? 1.02 : monsterScaleByCount;
-      const x = centerX;
-      // Position monster so its FEET sit on the ground line
-      // Monster art is centered in 640x640 canvas; use 0.45 offset for bottom
+      const x = centerX + positions[ei].dx;
       const monsterDisplayH = 640 * monsterScale;
-      const y = groundY - monsterDisplayH * 0.45 + yOffsets[ei];
+      const y = groundY - monsterDisplayH * 0.45 + positions[ei].dy;
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
