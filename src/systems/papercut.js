@@ -429,19 +429,80 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
     }
   }
 
-  // Ground plane (foreground paper)
+  // Ground plane — floor-specific
   const groundY = height * 0.82;
-  gfx.fillStyle(0x000000, 0.3);
-  gfx.fillRect(0, groundY + shadowOy, width, height - groundY);
-  gfx.fillStyle(pal.ground, 1);
-  // Wobbly top edge for the ground
-  const groundPts = generateHillPoints(-20, width + 20, groundY, height * 0.02, 8, rng, 2);
-  drawPaperLayer(gfx, groundPts, pal.ground, undefined, 0, 0, true, height);
 
-  // Trees on the foreground hills (left and right sides, framing the center)
+  if (floorId === 2) {
+    // TIDEPOOL: water/beach ground instead of grass
+    gfx.fillStyle(0x1878a0, 0.6);
+    gfx.fillRect(0, groundY, width, height - groundY);
+    // Sand strip at shore
+    gfx.fillStyle(0xd0b880, 0.8);
+    gfx.fillRect(0, groundY - 4, width, 12);
+    // Wave foam line
+    gfx.fillStyle(0xe0f0f8, 0.5);
+    for (let wi = 0; wi < 20; wi++) { gfx.fillCircle(rng() * width, groundY + 2, 3 + rng() * 4); }
+    // Seaweed / palm trees on edges
+    for (let i = 0; i < 4; i++) {
+      const side = i < 2 ? -1 : 1;
+      const tx = side < 0 ? width * (0.03 + rng() * 0.15) : width * (0.82 + rng() * 0.15);
+      // Palm trunk
+      gfx.fillStyle(0x6a4820, 1);
+      gfx.fillRect(tx - 3, groundY - 60 - rng() * 20, 6, 65);
+      // Palm fronds (green circles at top)
+      gfx.fillStyle(0x48a838, 0.8);
+      for (let f = 0; f < 5; f++) { gfx.fillCircle(tx + (rng() - 0.5) * 30, groundY - 60 - rng() * 30, 10 + rng() * 8); }
+    }
+  } else if (floorId === 3) {
+    // CLOUD: no solid ground, just a floating cloud platform
+    gfx.fillStyle(0x90b8d8, 0.4);
+    gfx.fillRect(0, groundY, width, height - groundY);
+    // Cloud platform where characters stand
+    for (let ci = 0; ci < 12; ci++) {
+      const cx = width * (0.05 + ci / 12 * 0.9);
+      gfx.fillStyle(0xd8e8f0, 0.7);
+      gfx.fillCircle(cx, groundY + 2, 30 + rng() * 15);
+    }
+    gfx.fillStyle(0xe8f0f8, 0.5);
+    gfx.fillRect(0, groundY + 4, width, 6);
+  } else if (floorId === 4) {
+    // EMBER: volcanic rock ground with lava glow
+    gfx.fillStyle(0x2a1808, 1);
+    gfx.fillRect(0, groundY, width, height - groundY);
+    const groundPts4 = generateVolcanicPeakPoints(-20, width + 20, groundY, height * 0.02, 12, rng, 1);
+    drawPaperLayer(gfx, groundPts4, 0x3a2010, undefined, 0, 0, true, height);
+    // Lava glow from below
+    gfx.fillStyle(0xff4010, 0.08);
+    gfx.fillRect(0, groundY + 8, width, height - groundY);
+    // Lava pools on edges
+    for (let i = 0; i < 3; i++) {
+      const lx = i < 1 ? width * rng() * 0.2 : width * (0.8 + rng() * 0.18);
+      gfx.fillStyle(0xe04010, 0.4); gfx.fillCircle(lx, groundY + 6, 8 + rng() * 6);
+      gfx.fillStyle(0xf08020, 0.3); gfx.fillCircle(lx, groundY + 4, 5 + rng() * 4);
+    }
+  } else if (floorId === 5) {
+    // ARCANE: mystical stone floor with rune glow
+    gfx.fillStyle(0x181028, 1);
+    gfx.fillRect(0, groundY, width, height - groundY);
+    const groundPts5 = generateCrystalPoints(-20, width + 20, groundY, height * 0.015, 10, rng);
+    drawPaperLayer(gfx, groundPts5, 0x281840, undefined, 0, 0, true, height);
+    // Glowing rune circles on edges
+    for (let ri = 0; ri < 4; ri++) {
+      const rx = ri < 2 ? width * (0.05 + rng() * 0.15) : width * (0.80 + rng() * 0.15);
+      gfx.fillStyle(0x8040c0, 0.15); gfx.fillCircle(rx, groundY - 5, 12 + rng() * 8);
+    }
+  } else {
+    // GARDEN: standard grass ground + trees
+    gfx.fillStyle(0x000000, 0.3);
+    gfx.fillRect(0, groundY + shadowOy, width, height - groundY);
+    const groundPts = generateHillPoints(-20, width + 20, groundY, height * 0.02, 8, rng, 2);
+    drawPaperLayer(gfx, groundPts, pal.ground, undefined, 0, 0, true, height);
+  }
+
+  // Trees (garden/menu only)
+  if (!floorId || floorId === 1 || floorId === 'menu') {
   const treeCount = 4 + Math.floor(rng() * 4);
   for (let i = 0; i < treeCount; i++) {
-    // Place trees on the edges, leaving center open for characters
     const side = i < treeCount / 2 ? -1 : 1;
     const tx = side < 0
       ? width * (0.02 + rng() * 0.18)
@@ -450,7 +511,6 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
     const ty = groundY - rng() * 10;
     const treePts = generateTreePoints(tx, ty, treeH, rng);
 
-    // Shadow
     drawPaperLayer(gfx, treePts.map(p => ({ x: p.x + 2, y: p.y + 4 })),
       0x000000, undefined, 0, 0, false, 0);
     gfx.globalAlpha = 0.3;
@@ -458,6 +518,7 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
     // Tree body
     drawPaperLayer(gfx, treePts, pal.trees, undefined, 0, 0, false, 0);
   }
+  } // end garden-only trees
 
   // Accent dots (flowers, embers, sparkles — depends on floor)
   for (let i = 0; i < 12; i++) {
