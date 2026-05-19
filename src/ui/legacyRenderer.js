@@ -252,7 +252,8 @@ export function createMonsterCanvas(size, bgColor, drawFn, t) {
   R.clear(bgColor || null);
   // Translate to center so draw functions work at origin
   var G = cv.getContext('2d');
-  G.save(); G.translate(size / 2, size / 2);
+  var drawScale = size / 160;
+  G.save(); G.translate(size / 2, size / 2); G.scale(drawScale, drawScale);
   try { drawFn(R, t || 0); } catch (e) { /* ignore */ }
   G.restore();
   return cv;
