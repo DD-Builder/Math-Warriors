@@ -1,5 +1,5 @@
 /**
- * Enemy roster — 25 enemies, 5 per floor
+ * Enemy roster — 45 enemies, 5 per floor (9 floors)
  *
  * Data-only module. Scenes read this to pick an appropriate enemy
  * for the current encounter.
@@ -80,35 +80,83 @@ export const FLOOR_4 = [
 ];
 
 // ------------------------------------------------------------------
-// FLOOR 5 — THE MENDING ROOM (All Operations)
+// FLOOR 5 — FROZEN PEAK (Fractions)
 // ------------------------------------------------------------------
 
 export const FLOOR_5 = [
-  mk('runebound',   'Runebound',     5, 32, 18, 10, 'op_shift',    0x281848),
-  mk('hexweave',    'Hexweave',      5, 28, 20, 7,  'geo_lock',    0x381060),
-  mk('grimoire',    'Grimoire',      5, 30, 19, 8,  'flip_page',   0x201040),
-  mk('familiar',    'Familiar',      5, 24, 22, 6,  'phase_lock',  0x501878),
-  mk('theorem',     'The Theorem',   5, 54, 24, 12, 'the_unknown', 0x100828),
+  mk('frostbite',    'Frostbite',      5, 28, 16, 8,  'chill_snap',   0x60a8d8),
+  mk('icicle',       'Icicle Imp',     5, 22, 18, 6,  'freeze_ray',   0x80c8e8),
+  mk('snowdrift',    'Snowdrift',      5, 30, 15, 10, 'blizzard',     0xa0d0f0),
+  mk('glacial',      'Glacial Golem',  5, 34, 17, 12, 'ice_armor',    0x4890b8),
+  mk('absolutezero', 'Absolute Zero',  5, 48, 22, 14, 'deep_freeze',  0x2868a0),
+];
+
+// ------------------------------------------------------------------
+// FLOOR 6 — CRYSTAL CAVERNS (Geometry)
+// ------------------------------------------------------------------
+
+export const FLOOR_6 = [
+  mk('shard',      'Crystal Shard',   6, 30, 18, 8,  'refract',       0xc080f0),
+  mk('geode',      'Geode',           6, 26, 20, 6,  'crystal_burst', 0xa060d0),
+  mk('prismling',  'Prismling',       6, 24, 22, 5,  'light_split',   0xd0a0ff),
+  mk('facet',      'Facet Guardian',   6, 36, 19, 14, 'mirror_shield', 0x8040c0),
+  mk('theprism',   'The Prism',       6, 52, 24, 16, 'shape_shift',   0x6020a0),
+];
+
+// ------------------------------------------------------------------
+// FLOOR 7 — MARKET SQUARE (Money)
+// ------------------------------------------------------------------
+
+export const FLOOR_7 = [
+  mk('pickpocket',    'Pickpocket',        7, 28, 19, 7,  'steal_gold',  0xc0a060),
+  mk('taxcollector',  'Tax Collector',     7, 32, 17, 10, 'levy',        0xa08040),
+  mk('merchant',      'Rogue Merchant',    7, 26, 21, 6,  'price_hike',  0xd0b070),
+  mk('banker',        'Corrupt Banker',    7, 34, 18, 12, 'interest',    0x806020),
+  mk('counterfeiter', 'The Counterfeiter', 7, 56, 25, 16, 'fake_coins',  0x604010),
+];
+
+// ------------------------------------------------------------------
+// FLOOR 8 — INFINITY LIBRARY (Word Problems)
+// ------------------------------------------------------------------
+
+export const FLOOR_8 = [
+  mk('bookworm_e', 'Bookworm',       8, 30, 20, 8,  'page_turn',  0x604830),
+  mk('inkblot',    'Inkblot',        8, 26, 22, 6,  'smudge',     0x1a1018),
+  mk('riddler',    'The Riddler',    8, 28, 24, 7,  'riddle_me',  0x483828),
+  mk('archivist',  'Dark Archivist', 8, 36, 21, 14, 'silence',    0x302018),
+  mk('theparadox', 'The Paradox',    8, 60, 26, 18, 'reversal',   0x201010),
+];
+
+// ------------------------------------------------------------------
+// FLOOR 9 — THE MENDING ROOM (Boss Gauntlet — All Operations)
+// ------------------------------------------------------------------
+
+export const FLOOR_9 = [
+  mk('runebound',   'Runebound',     9, 32, 18, 10, 'op_shift',    0x281848),
+  mk('hexweave',    'Hexweave',      9, 28, 20, 7,  'geo_lock',    0x381060),
+  mk('grimoire',    'Grimoire',      9, 30, 19, 8,  'flip_page',   0x201040),
+  mk('familiar',    'Familiar',      9, 24, 22, 6,  'phase_lock',  0x501878),
+  mk('theorem',     'The Theorem',   9, 54, 24, 12, 'the_unknown', 0x100828),
 ];
 
 // ------------------------------------------------------------------
 // FLAT ARRAY + LOOKUP
 // ------------------------------------------------------------------
 
-export const ALL_ENEMIES = [...FLOOR_1, ...FLOOR_2, ...FLOOR_3, ...FLOOR_4, ...FLOOR_5];
+export const ALL_ENEMIES = [...FLOOR_1, ...FLOOR_2, ...FLOOR_3, ...FLOOR_4, ...FLOOR_5, ...FLOOR_6, ...FLOOR_7, ...FLOOR_8, ...FLOOR_9];
 
 /** Look up an enemy by id. */
 export function getEnemyById(id) {
   return ALL_ENEMIES.find((e) => e.id === id) ?? null;
 }
 
-/** Get all enemies assigned to a given floor (1-5). */
+/** Get all enemies assigned to a given floor (1-9). */
 export function getEnemiesForFloor(floor) {
   return ALL_ENEMIES.filter((e) => e.floor === floor);
 }
 
 /** Pick a random NON-BOSS enemy for the given floor. */
-const BOSS_IDS = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'theorem'];
+const BOSS_IDS = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'absolutezero', 'theprism', 'counterfeiter', 'theparadox', 'theorem'];
 export function pickEnemyForFloor(floor, rng = Math.random) {
   const pool = getEnemiesForFloor(floor).filter(e => !BOSS_IDS.includes(e.id));
   if (pool.length === 0) return null;
@@ -193,7 +241,7 @@ function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 // Detect which enemy in each floor is the "boss" by hand-authored HP
 // outlier. Used only to exclude the boss from the mob median.
 function isLegacyBoss(e) {
-  return ['briarking', 'pressure', 'skywhale', 'pyroclast', 'theorem'].includes(e.id);
+  return BOSS_IDS.includes(e.id);
 }
 
 /** Map floor → primary operator. Used to choose math questions. */
@@ -202,8 +250,8 @@ export const FLOOR_OPERATORS = {
   2: '-',
   3: '*',
   4: '/',
-  5: 'mixed',
-  6: 'frac',
+  5: 'frac',
+  6: 'geo',
   7: 'money',
   8: 'word',
   9: 'mixed',  // Final floor uses everything
