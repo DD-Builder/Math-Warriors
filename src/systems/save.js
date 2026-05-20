@@ -42,6 +42,7 @@ export function makeDefaultSave() {
       sfxVolume: 1.0,
       reducedMotion: false,
     },
+    problemHistory: [],
     stats: {
       totalBattles: 0,
       totalCorrect: 0,
@@ -112,6 +113,11 @@ function normalize(save) {
   // Deep-normalize nested objects
   out.settings = { ...def.settings, ...(save.settings || {}) };
   out.stats    = { ...def.stats,    ...(save.stats    || {}) };
+
+  // Ensure problemHistory is an array
+  if (!Array.isArray(out.problemHistory)) {
+    out.problemHistory = [];
+  }
 
   // Floors array: ensure all 5 floors exist
   const floors = Array.isArray(save.floors) ? save.floors : [];

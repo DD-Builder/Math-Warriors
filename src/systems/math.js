@@ -21,6 +21,86 @@
  */
 
 // ------------------------------------------------------------------
+// SPACED REPETITION STATE (Phase 2.1)
+// ------------------------------------------------------------------
+// Module-level problem history for spaced repetition. Max 100 entries.
+// Each entry: { op, a, b, answer, correct: null, timestamp }
+
+let _problemHistory = [];
+const MAX_HISTORY = 100;
+
+// Rolling accuracy state (Phase 2.2) — tracks last 20 answers
+let _rollingResults = [];       // array of booleans (true = correct)
+const ROLLING_WINDOW = 20;
+let _rollingAccuracy = -1;      // -1 means "not enough data yet"
+
+// Adaptive range adjustment factor from rolling accuracy
+let _adaptiveRangeFactor = 0;   // -0.2 to +0.15
+
+/**
+ * Record whether the most recent problem was answered correctly.
+ * Updates both problem history and rolling accuracy.
+ */
+export function recordAnswer(correct) {
+  const last = _problemHistory[_problemHistory.length - 1];
+  if (last && last.correct === null) {
+    last.correct = !!correct;
+  }
+
+  // Update rolling accuracy
+  _rollingResults.push(!!correct);
+  if (_rollingResults.length > ROLLING_WINDOW) {
+    _rollingResults.shift();
+  }
+  if (_rollingResults.length >= 5) {
+    const sum = _rollingResults.reduce((s, v) => s + (v ? 1 : 0), 0);
+    _rollingAccuracy = sum / _rollingResults.length;
+
+    // Adaptive difficulty (Phase 2.2)
+    if (_rollingAccuracy > 0.85) {
+      _adaptiveRangeFactor = 0.15;      // increase range by 15%
+    } else if (_rollingAccuracy < 0.55) {
+      _adaptiveRangeFactor = -0.20;     // decrease range by 20%
+    } else {
+      _adaptiveRangeFactor = 0;         // sweet spot — maintain
+    }
+  }
+}
+
+/**
+ * Returns problems answered wrong in the last 30 history entries.
+ * Used for spaced repetition: re-present weak problems.
+ */
+export function getWeakProblems() {
+  const recent = _problemHistory.slice(-30);
+  return recent.filter(p => p.correct === false);
+}
+
+/**
+ * FOR TESTS ONLY: reset all module-level state.
+ */
+export function __resetState() {
+  _problemHistory = [];
+  _rollingResults = [];
+  _rollingAccuracy = -1;
+  _adaptiveRangeFactor = 0;
+}
+
+/**
+ * FOR TESTS ONLY: get the current problem history.
+ */
+export function __getProblemHistory() {
+  return _problemHistory;
+}
+
+/**
+ * FOR TESTS ONLY: get the current rolling accuracy.
+ */
+export function __getRollingAccuracy() {
+  return _rollingAccuracy;
+}
+
+// ------------------------------------------------------------------
 // DIFFICULTY TABLES
 // ------------------------------------------------------------------
 // Each grade defines:
@@ -230,19 +310,42 @@ export function generateQuestion(opts = {}) {
   const grade = clampGrade(opts.grade ?? 3);
   const baseTable = GRADE_TABLE[grade];
   const streak = opts.streak ?? 0;
+  const floor = opts.floor ?? 0;
 
-  // Adaptive difficulty: shift the operand range within this grade based
-  // on the streak. A 3-in-a-row correct streak nudges the range up by
-  // ~25%; a 2+ wrong streak pulls it down toward the floor. Still clamped
-  // to the grade's overall bounds — a K student never sees grade-5 math.
+  // --- Phase 2.1: Spaced Repetition ---
+  // 20% of the time, re-present a weak problem instead of generating fresh
+  const weakProblems = getWeakProblems();
+  if (weakProblems.length > 0 && Math.random() < 0.2) {
+    const weak = weakProblems[Math.floor(Math.random() * weakProblems.length)];
+    const answer = weak.answer;
+    const distractors = generateDistractors(answer);
+    const choices = shuffle([answer, ...distractors]);
+    const correctIndex = choices.indexOf(answer);
+    const q = { a: weak.a, b: weak.b, op: weak.op, answer, choices, correctIndex };
+
+    // Record in history
+    _problemHistory.push({ op: q.op, a: q.a, b: q.b, answer: q.answer, correct: null, timestamp: Date.now() });
+    if (_problemHistory.length > MAX_HISTORY) _problemHistory.shift();
+
+    return q;
+  }
+
+  // --- Phase 2.2: Adaptive Difficulty via rolling accuracy ---
+  // Combine streak-based and accuracy-based adjustments
   const adjFactor = Math.max(-0.5, Math.min(0.5, streak * 0.08));
   const range = baseTable.maxOperand - baseTable.minOperand;
-  const adjMax = Math.max(baseTable.minOperand + 1, Math.round(baseTable.maxOperand - range * Math.max(0, -adjFactor)));
+
+  // Apply rolling accuracy adjustment on top of streak adjustment
+  const accuracyShift = _adaptiveRangeFactor * range;
+
+  const adjMax = Math.max(baseTable.minOperand + 1, Math.round(
+    baseTable.maxOperand - range * Math.max(0, -adjFactor) + accuracyShift
+  ));
   const adjMin = Math.min(adjMax - 1, Math.round(baseTable.minOperand + range * Math.max(0, adjFactor) * 0.5));
   const table = {
     ops: baseTable.ops,
     minOperand: Math.max(baseTable.minOperand, adjMin),
-    maxOperand: Math.min(baseTable.maxOperand, adjMax),
+    maxOperand: Math.min(baseTable.maxOperand, Math.max(baseTable.minOperand + 1, adjMax)),
   };
 
   const op = resolveOperator(opts.operator, table);
@@ -257,11 +360,31 @@ export function generateQuestion(opts = {}) {
     throw new Error(`math.generateQuestion: invalid answer ${answer} from ${a} ${op} ${b}`);
   }
 
-  const distractors = generateDistractors(answer);
-  const choices = shuffle([answer, ...distractors]);
-  const correctIndex = choices.indexOf(answer);
+  // --- Phase 2.3: Missing operand format for Floor 5+ ---
+  let format = 'standard';
+  let displayAnswer = answer; // The value the student must provide
+  if (floor >= 5 && Math.random() < 0.3) {
+    // "? [op] b = answer" — student solves for a (the missing operand)
+    format = 'missing';
+    displayAnswer = a; // the correct answer is 'a', the missing operand
+  }
 
-  return { a, b, op, answer, choices, correctIndex };
+  const finalAnswer = format === 'missing' ? displayAnswer : answer;
+  const distractors = generateDistractors(finalAnswer);
+  const choices = shuffle([finalAnswer, ...distractors]);
+  const correctIndex = choices.indexOf(finalAnswer);
+
+  const q = { a, b, op, answer: finalAnswer, choices, correctIndex, format };
+  // Store original answer for reference (the full computation result)
+  if (format === 'missing') {
+    q.fullAnswer = answer;
+  }
+
+  // Record in history
+  _problemHistory.push({ op: q.op, a, b, answer: q.answer, correct: null, timestamp: Date.now() });
+  if (_problemHistory.length > MAX_HISTORY) _problemHistory.shift();
+
+  return q;
 }
 
 /** Clamp any input to a known grade level. */

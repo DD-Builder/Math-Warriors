@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { generateQuestion } from '../systems/math.js';
+import { generateQuestion, recordAnswer } from '../systems/math.js';
 import {
   getZone,
   advanceMomentum,
@@ -1004,6 +1004,7 @@ export class BattleScene extends Phaser.Scene {
       operator: this.operator,
       grade: this.grade,
       streak: this.streak,
+      floor: this.floor,
     });
 
     this.renderStackedEquation(this.currentQuestion);
