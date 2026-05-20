@@ -77,9 +77,10 @@ function assertValidQuestion(q, context = '') {
     assert.equal(q.a % q.b, 0, `${context}: division ${q.a} / ${q.b} is not clean`);
   }
 
-  // Subtraction must not go negative
+  // Subtraction must not go negative and must produce answer >= 3
   if (q.op === '-') {
     assert.ok(q.a >= q.b, `${context}: subtraction ${q.a} - ${q.b} would be negative`);
+    assert.ok(q.answer >= 3, `${context}: subtraction answer ${q.answer} is less than 3 (${q.a} - ${q.b})`);
   }
 }
 
@@ -171,6 +172,17 @@ describe('generateQuestion — contract invariants', () => {
         assert.ok(!Number.isNaN(v), `NaN in question ${JSON.stringify(q)}`);
         assert.ok(Number.isFinite(v), `Infinity in question ${JSON.stringify(q)}`);
       }
+    }
+  });
+});
+
+describe('subtraction answer floor', () => {
+  test('subtraction answers are always >= 3 across 5k runs', () => {
+    for (let i = 0; i < 5000; i++) {
+      const grade = Math.floor(Math.random() * 6);
+      const q = generateQuestion({ grade, operator: '-' });
+      assertValidQuestion(q, `sub floor iter ${i}`);
+      assert.ok(q.answer >= 3, `subtraction answer ${q.answer} < 3 at grade ${grade}: ${q.a} - ${q.b}`);
     }
   });
 });

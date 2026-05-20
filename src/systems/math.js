@@ -92,9 +92,18 @@ function genAdd(table) {
 }
 
 function genSub(table) {
-  // Ensure a >= b so answer is non-negative.
-  const a = randInt(table.minOperand, table.maxOperand);
-  const b = randInt(table.minOperand, a);
+  // Ensure a >= b so answer is non-negative, and answer >= 3 so
+  // subtraction problems always produce meaningful damage values.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const a = randInt(table.minOperand, table.maxOperand);
+    const b = randInt(table.minOperand, a);
+    const answer = a - b;
+    if (answer >= 3) return { a, b, answer };
+  }
+  // Fallback: force a valid answer >= 3
+  const extra = randInt(0, 5);
+  const b = randInt(table.minOperand, table.maxOperand);
+  const a = b + 3 + extra;
   return { a, b, answer: a - b };
 }
 

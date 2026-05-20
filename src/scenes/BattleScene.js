@@ -1265,11 +1265,19 @@ export class BattleScene extends Phaser.Scene {
         activeHero: this.party[this.currentTurn.heroIndex],
       });
 
-      // DAMAGE = answer × momentum × class bonus.
-      const baseDamage = this.currentQuestion.answer;
+      // POWER STRIKE formula: BASE_POWER + answer*0.8 + hero.atk*0.3 + streakBonus
+      const answer = this.currentQuestion.answer;
       const zone = getZone(this.momentum);
-      const hero = this.party[this.currentTurn.heroIndex];
+      const heroIdx = this.currentTurn.heroIndex;
+      const hero = this.party[heroIdx];
       const cls = hero.class || 'knight';
+
+      const streakBonus = this.streak >= 8 ? 6 : this.streak >= 5 ? 4 : this.streak >= 3 ? 2 : 0;
+      const BASE_POWER = 5;
+      const rawDmg = BASE_POWER + (answer * 0.8) + ((hero.atk || 10) * 0.3) + streakBonus;
+
+      // Apply enemy DEF reduction
+      const defReduction = (targetEnemy.def || 0) * 0.2;
 
       // Class-specific damage modifiers
       let classMult = 1;
@@ -1292,11 +1300,16 @@ export class BattleScene extends Phaser.Scene {
         classMult = 1.0 / hitCount * 1.2; // split damage but 20% total bonus
       }
 
-      const totalDmg = Math.max(1, Math.round(baseDamage * zone.heroMult * classMult));
-      const modified = hitCount > 1 ? Math.max(1, Math.round(totalDmg / hitCount)) * hitCount : totalDmg;
+      // Show ON FIRE! toast at streak 8
+      if (this.streak === 8) {
+        this.showToast('ON FIRE!', COLORS_CSS.goldL);
+      }
+
+      const totalDmg = Math.max(3, Math.round((rawDmg - defReduction) * zone.heroMult * classMult));
+      const modified = hitCount > 1 ? Math.max(3, Math.round(totalDmg / hitCount)) * hitCount : totalDmg;
       const newHp = Math.max(0, targetEnemy.hp - modified);
       const result = {
-        baseDamage,
+        baseDamage: rawDmg,
         modifiedDamage: modified,
         newHp,
         killed: newHp === 0 && targetEnemy.hp > 0,
