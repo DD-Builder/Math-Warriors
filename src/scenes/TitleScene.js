@@ -77,6 +77,12 @@ export class TitleScene extends Phaser.Scene {
       w: 160, h: 54, color: 0x6090c0, fontSize: 16,
       onClick: () => transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.TITLE }, 200),
     });
+
+    // Tutorial button — optional, top-left
+    PaperButton(this, area.left + 75, area.top + 35, 'TUTORIAL', {
+      w: 160, h: 54, color: 0xc09030, fontSize: 16,
+      onClick: () => transitionTo(this, SCENES.TUTORIAL, undefined, 200),
+    });
   }
 
   onNewGame() {
@@ -90,11 +96,7 @@ export class TitleScene extends Phaser.Scene {
     this.registry.remove('battleVariant');
 
     // If the player hasn't completed the tutorial, run it first
-    if (!this.save.stats.tutorialComplete) {
-      transitionTo(this, SCENES.TUTORIAL, undefined, 300);
-    } else {
-      transitionTo(this, SCENES.GRADE_SELECT, undefined, 300);
-    }
+    transitionTo(this, SCENES.GRADE_SELECT, undefined, 300);
   }
 
   onContinue() {
