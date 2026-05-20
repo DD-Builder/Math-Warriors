@@ -13,8 +13,17 @@
  *     isolated so tests can stub them
  */
 
-const STORAGE_KEY = 'mathwarriors.save';
+const LEGACY_KEY = 'mathwarriors.save';
+const SLOT_PREFIX = 'mathwarriors.save.';
 const CURRENT_VERSION = 2;
+
+/** Build the storage key for a given slot number (default 1). */
+function slotKey(slot = 1) {
+  return `${SLOT_PREFIX}${slot}`;
+}
+
+// Public alias so tests/consumers can reference the active key
+const STORAGE_KEY = slotKey(1);
 
 // ------------------------------------------------------------------
 // DEFAULT SAVE SHAPE
@@ -193,10 +202,26 @@ export function __setStorage(storage) {
 /**
  * Load the save from storage. If no save exists or the save is
  * corrupted, returns a fresh default save (but does NOT write it).
+ *
+ * @param {number} slot  Save slot number (default 1)
  */
-export function loadSave() {
+export function loadSave(slot = 1) {
   try {
-    const raw = getStorage().getItem(STORAGE_KEY);
+    const key = slotKey(slot);
+    let raw = getStorage().getItem(key);
+
+    // Backward-compatible migration: if the slot key doesn't exist but
+    // the legacy key does, migrate once.
+    if (!raw && slot === 1) {
+      const legacy = getStorage().getItem(LEGACY_KEY);
+      if (legacy) {
+        // Copy legacy save into slot 1 and remove the old key
+        getStorage().setItem(key, legacy);
+        getStorage().removeItem(LEGACY_KEY);
+        raw = legacy;
+      }
+    }
+
     if (!raw) return makeDefaultSave();
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return makeDefaultSave();
@@ -211,12 +236,15 @@ export function loadSave() {
 /**
  * Write the save to storage. Returns true on success, false on failure
  * (e.g., quota exceeded, private browsing blocking writes).
+ *
+ * @param {object} save  The save object to persist
+ * @param {number} slot  Save slot number (default 1)
  */
-export function writeSave(save) {
+export function writeSave(save, slot = 1) {
   try {
     const normalized = normalize(save);
     normalized.stats.lastPlayedAt = Date.now();
-    getStorage().setItem(STORAGE_KEY, JSON.stringify(normalized));
+    getStorage().setItem(slotKey(slot), JSON.stringify(normalized));
     return true;
   } catch (err) {
     console.warn('[save] Failed to write save:', err);
@@ -225,9 +253,9 @@ export function writeSave(save) {
 }
 
 /** Wipe the save. Used for "new game" and for tests. */
-export function clearSave() {
+export function clearSave(slot = 1) {
   try {
-    getStorage().removeItem(STORAGE_KEY);
+    getStorage().removeItem(slotKey(slot));
     return true;
   } catch (err) {
     console.warn('[save] Failed to clear save:', err);
@@ -259,4 +287,4 @@ export function markFloorComplete(save, floorId) {
   return save;
 }
 
-export { CURRENT_VERSION, STORAGE_KEY };
+export { CURRENT_VERSION, STORAGE_KEY, LEGACY_KEY, SLOT_PREFIX };

@@ -16,6 +16,8 @@ import {
   __setStorage,
   CURRENT_VERSION,
   STORAGE_KEY,
+  LEGACY_KEY,
+  SLOT_PREFIX,
 } from './save.js';
 
 // Simple in-memory storage mock
@@ -245,5 +247,61 @@ describe('markFloorComplete', () => {
     const save = makeDefaultSave();
     markFloorComplete(save, 99);
     assert.equal(save.floors[0].complete, false);
+  });
+});
+
+// ------------------------------------------------------------------
+// SAVE SLOTS
+// ------------------------------------------------------------------
+
+describe('save slots', () => {
+  test('loadSave and writeSave use slot key', () => {
+    const save = makeDefaultSave();
+    save.gold = 77;
+    writeSave(save, 1);
+    const raw = storage.getItem(`${SLOT_PREFIX}1`);
+    assert.ok(raw);
+    assert.equal(JSON.parse(raw).gold, 77);
+  });
+
+  test('different slots are independent', () => {
+    const s1 = makeDefaultSave();
+    s1.gold = 10;
+    writeSave(s1, 1);
+    const s2 = makeDefaultSave();
+    s2.gold = 20;
+    writeSave(s2, 2);
+    assert.equal(loadSave(1).gold, 10);
+    assert.equal(loadSave(2).gold, 20);
+  });
+
+  test('clearSave only clears the specified slot', () => {
+    writeSave(makeDefaultSave(), 1);
+    writeSave(makeDefaultSave(), 2);
+    clearSave(1);
+    assert.equal(storage.getItem(`${SLOT_PREFIX}1`), null);
+    assert.ok(storage.getItem(`${SLOT_PREFIX}2`));
+  });
+
+  test('legacy migration: old key migrates to slot 1', () => {
+    const legacy = makeDefaultSave();
+    legacy.gold = 999;
+    storage.setItem(LEGACY_KEY, JSON.stringify(legacy));
+    const loaded = loadSave(1);
+    assert.equal(loaded.gold, 999);
+    // Legacy key should be removed after migration
+    assert.equal(storage.getItem(LEGACY_KEY), null);
+    // Slot 1 key should now exist
+    assert.ok(storage.getItem(`${SLOT_PREFIX}1`));
+  });
+
+  test('legacy migration does not trigger for slot 2', () => {
+    const legacy = makeDefaultSave();
+    legacy.gold = 999;
+    storage.setItem(LEGACY_KEY, JSON.stringify(legacy));
+    const loaded = loadSave(2);
+    assert.equal(loaded.gold, 0); // default, not migrated
+    // Legacy key still exists
+    assert.ok(storage.getItem(LEGACY_KEY));
   });
 });
