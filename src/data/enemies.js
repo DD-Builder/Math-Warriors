@@ -203,4 +203,8 @@ export const FLOOR_OPERATORS = {
   3: '*',
   4: '/',
   5: 'mixed',
+  6: 'frac',
+  7: 'money',
+  8: 'word',
+  9: 'mixed',  // Final floor uses everything
 };

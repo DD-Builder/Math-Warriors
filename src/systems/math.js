@@ -215,6 +215,327 @@ const OPERATOR_GENERATORS = {
 };
 
 // ------------------------------------------------------------------
+// NEW PROBLEM TYPE GENERATORS (Fractions, Geometry, Money, Word)
+// ------------------------------------------------------------------
+// These return a full question object (not just { a, b, answer })
+// because they need custom formats, text, and string-based choices.
+
+const FRAC_DENOMS = [2, 3, 4, 6, 8];
+
+/** Greatest common divisor (Euclidean). */
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+/** Simplify a fraction and return "num/den" or a whole number string. */
+function simplifyFrac(num, den) {
+  if (num === 0) return '0';
+  const g = gcd(Math.abs(num), Math.abs(den));
+  const sn = num / g;
+  const sd = den / g;
+  if (sd === 1) return String(sn);
+  return `${sn}/${sd}`;
+}
+
+/** Generate fraction distractor strings distinct from the answer. */
+function fractionDistractors(ansStr) {
+  const pool = [];
+  for (const d of FRAC_DENOMS) {
+    for (let n = 1; n < d; n++) {
+      const s = simplifyFrac(n, d);
+      if (s !== ansStr && !pool.includes(s)) pool.push(s);
+    }
+  }
+  // Also add some whole numbers
+  for (let w = 1; w <= 3; w++) {
+    const s = String(w);
+    if (s !== ansStr && !pool.includes(s)) pool.push(s);
+  }
+  shuffle(pool);
+  return pool.slice(0, 3);
+}
+
+/**
+ * Generate a fraction problem. Returns a full question object.
+ * answer is a numeric value; choices are fraction strings.
+ */
+function genFraction(grade) {
+  const g = clampGrade(grade);
+
+  if (g <= 1) {
+    // Compare fractions: "Which is bigger: 1/2 or 1/4?"
+    const pairs = [
+      { a: '1/2', b: '1/4', ans: '1/2' },
+      { a: '1/3', b: '1/6', ans: '1/3' },
+      { a: '1/2', b: '1/3', ans: '1/2' },
+      { a: '1/4', b: '1/8', ans: '1/4' },
+      { a: '3/4', b: '1/2', ans: '3/4' },
+      { a: '2/3', b: '1/3', ans: '2/3' },
+    ];
+    const pick = pairs[randInt(0, pairs.length - 1)];
+    const ansStr = pick.ans;
+    const distractors = fractionDistractors(ansStr);
+    // Ensure pick.a and pick.b that aren't the answer appear as distractors
+    const other = pick.a === ansStr ? pick.b : pick.a;
+    if (!distractors.includes(other)) {
+      distractors[0] = other;
+    }
+    const choices = shuffle([ansStr, ...distractors.slice(0, 3)]);
+    const correctIndex = choices.indexOf(ansStr);
+    return {
+      a: 0, b: 0, op: 'frac', answer: ansStr,
+      choices, correctIndex,
+      format: 'fraction',
+      text: `Which is bigger: ${pick.a} or ${pick.b}?`,
+    };
+  }
+
+  if (g <= 3) {
+    // Add fractions with same denominator
+    const den = FRAC_DENOMS[randInt(0, FRAC_DENOMS.length - 1)];
+    const maxNum = den - 1;
+    const n1 = randInt(1, Math.max(1, maxNum - 1));
+    const n2 = randInt(1, Math.max(1, den - n1 - 1) || 1);
+    // Ensure sum is a proper fraction or whole number
+    const sumNum = n1 + n2;
+    const ansStr = simplifyFrac(sumNum, den);
+    const distractors = fractionDistractors(ansStr);
+    const choices = shuffle([ansStr, ...distractors.slice(0, 3)]);
+    const correctIndex = choices.indexOf(ansStr);
+    return {
+      a: 0, b: 0, op: 'frac', answer: ansStr,
+      choices, correctIndex,
+      format: 'fraction',
+      text: `${simplifyFrac(n1, den)} + ${simplifyFrac(n2, den)} = ?`,
+    };
+  }
+
+  // Grade 4-5: Add fractions with different denominators
+  const d1 = FRAC_DENOMS[randInt(0, FRAC_DENOMS.length - 1)];
+  let d2;
+  do { d2 = FRAC_DENOMS[randInt(0, FRAC_DENOMS.length - 1)]; } while (d2 === d1);
+  const n1 = randInt(1, d1 - 1);
+  const n2 = randInt(1, d2 - 1);
+  // Common denominator
+  const lcd = (d1 * d2) / gcd(d1, d2);
+  const sumNum = n1 * (lcd / d1) + n2 * (lcd / d2);
+  const ansStr = simplifyFrac(sumNum, lcd);
+  const distractors = fractionDistractors(ansStr);
+  const choices = shuffle([ansStr, ...distractors.slice(0, 3)]);
+  const correctIndex = choices.indexOf(ansStr);
+  return {
+    a: 0, b: 0, op: 'frac', answer: ansStr,
+    choices, correctIndex,
+    format: 'fraction',
+    text: `${simplifyFrac(n1, d1)} + ${simplifyFrac(n2, d2)} = ?`,
+  };
+}
+
+/**
+ * Generate a geometry problem. Returns a full question object.
+ */
+function genGeometry(grade) {
+  const g = clampGrade(grade);
+
+  const shapeQuestions = [
+    { text: 'How many sides does a triangle have?', answer: 3 },
+    { text: 'How many sides does a square have?', answer: 4 },
+    { text: 'How many sides does a pentagon have?', answer: 5 },
+    { text: 'How many sides does a hexagon have?', answer: 6 },
+    { text: 'How many sides does an octagon have?', answer: 8 },
+  ];
+
+  if (g <= 2) {
+    // Shape identification only
+    const pick = shapeQuestions[randInt(0, shapeQuestions.length - 1)];
+    const distractors = generateDistractors(pick.answer);
+    const choices = shuffle([pick.answer, ...distractors]);
+    const correctIndex = choices.indexOf(pick.answer);
+    return {
+      a: pick.answer, b: 0, op: 'geo', answer: pick.answer,
+      choices, correctIndex,
+      format: 'geometry',
+      text: pick.text,
+    };
+  }
+
+  // Grade 3-5: area and perimeter calculations
+  const problemType = randInt(0, 2);
+  if (problemType === 0) {
+    // Area of rectangle
+    const w = randInt(2, 10);
+    const h = randInt(2, 10);
+    const answer = w * h;
+    const distractors = generateDistractors(answer);
+    const choices = shuffle([answer, ...distractors]);
+    const correctIndex = choices.indexOf(answer);
+    return {
+      a: answer, b: 0, op: 'geo', answer,
+      choices, correctIndex,
+      format: 'geometry',
+      text: `Area of rectangle: ${w} × ${h} = ?`,
+    };
+  } else if (problemType === 1) {
+    // Perimeter of square
+    const side = randInt(2, 12);
+    const answer = side * 4;
+    const distractors = generateDistractors(answer);
+    const choices = shuffle([answer, ...distractors]);
+    const correctIndex = choices.indexOf(answer);
+    return {
+      a: answer, b: 0, op: 'geo', answer,
+      choices, correctIndex,
+      format: 'geometry',
+      text: `Perimeter of square with side ${side} = ?`,
+    };
+  } else {
+    // Perimeter of rectangle
+    const w = randInt(2, 10);
+    const h = randInt(2, 10);
+    const answer = 2 * (w + h);
+    const distractors = generateDistractors(answer);
+    const choices = shuffle([answer, ...distractors]);
+    const correctIndex = choices.indexOf(answer);
+    return {
+      a: answer, b: 0, op: 'geo', answer,
+      choices, correctIndex,
+      format: 'geometry',
+      text: `Perimeter of rectangle: ${w} and ${h} = ?`,
+    };
+  }
+}
+
+/**
+ * Generate a money math problem. Returns a full question object.
+ * All answers are in whole cents.
+ */
+function genMoney(grade) {
+  const g = clampGrade(grade);
+
+  if (g <= 1) {
+    // Count coins
+    const cents = randInt(2, 10);
+    const coinTypes = [
+      { name: 'pennies', value: 1 },
+      { name: 'nickels', value: 5 },
+    ];
+    const coin = coinTypes[randInt(0, coinTypes.length - 1)];
+    const totalCents = cents * coin.value;
+    const answer = cents;
+    const text = `How many ${coin.name} in ${totalCents} cents?`;
+    const distractors = generateDistractors(answer);
+    const choices = shuffle([answer, ...distractors]);
+    const correctIndex = choices.indexOf(answer);
+    return {
+      a: answer, b: 0, op: 'money', answer,
+      choices, correctIndex,
+      format: 'money',
+      text,
+    };
+  }
+
+  if (g <= 3) {
+    // Make change
+    const prices = [25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90];
+    const price = prices[randInt(0, prices.length - 1)];
+    const paid = 100;
+    const answer = paid - price;
+    const text = `You pay $1.00 for a $0.${String(price).padStart(2, '0')} item. Change = ? cents`;
+    const distractors = generateDistractors(answer);
+    const choices = shuffle([answer, ...distractors]);
+    const correctIndex = choices.indexOf(answer);
+    return {
+      a: answer, b: 0, op: 'money', answer,
+      choices, correctIndex,
+      format: 'money',
+      text,
+    };
+  }
+
+  // Grade 4-5: Multi-item purchase
+  const count = randInt(2, 5);
+  const itemPrices = [10, 15, 20, 25, 30, 35, 40, 50];
+  const unitPrice = itemPrices[randInt(0, itemPrices.length - 1)];
+  const answer = count * unitPrice;
+  const text = `${count} items at $0.${String(unitPrice).padStart(2, '0')} each = ? cents`;
+  const distractors = generateDistractors(answer);
+  const choices = shuffle([answer, ...distractors]);
+  const correctIndex = choices.indexOf(answer);
+  return {
+    a: answer, b: 0, op: 'money', answer,
+    choices, correctIndex,
+    format: 'money',
+    text,
+  };
+}
+
+/**
+ * Generate a word problem using basic operations. Returns a full question object.
+ */
+function genWord(grade) {
+  const g = clampGrade(grade);
+  const table = GRADE_TABLE[g];
+
+  const templates = [
+    {
+      // Addition
+      make: () => {
+        const a = randInt(table.minOperand, table.maxOperand);
+        const b = randInt(table.minOperand, table.maxOperand);
+        return { a, b, answer: a + b, op: '+',
+          text: `Found ${a} coins, then ${b} more. Total?` };
+      },
+    },
+    {
+      // Subtraction
+      make: () => {
+        const a = randInt(Math.max(5, table.minOperand), table.maxOperand);
+        const b = randInt(table.minOperand, Math.max(1, a - 3));
+        return { a, b, answer: a - b, op: '-',
+          text: `A hero has ${a} potions. Uses ${b}. How many left?` };
+      },
+    },
+    {
+      // Multiplication (only if grade supports it)
+      make: () => {
+        const cap = Math.min(table.maxOperand, 12);
+        const a = randInt(Math.max(2, table.minOperand), cap);
+        const b = randInt(Math.max(2, table.minOperand), cap);
+        return { a, b, answer: a * b, op: '*',
+          text: `${a} chests with ${b} gold each. Total gold?` };
+      },
+      minGrade: 2,
+    },
+    {
+      // Division (only if grade supports it)
+      make: () => {
+        const cap = Math.min(table.maxOperand, 12);
+        const quotient = randInt(Math.max(1, table.minOperand), cap);
+        const divisor = randInt(2, cap);
+        const total = quotient * divisor;
+        return { a: divisor, b: quotient, answer: quotient, op: '/',
+          text: `${divisor} heroes share ${total} gold equally. Each gets?` };
+      },
+      minGrade: 3,
+    },
+  ];
+
+  // Filter to templates available at this grade
+  const available = templates.filter(t => !t.minGrade || g >= t.minGrade);
+  const pick = available[randInt(0, available.length - 1)];
+  const prob = pick.make();
+
+  const answer = prob.answer;
+  const distractors = generateDistractors(answer);
+  const choices = shuffle([answer, ...distractors]);
+  const correctIndex = choices.indexOf(answer);
+  return {
+    a: prob.a, b: prob.b, op: prob.op, answer,
+    choices, correctIndex,
+    format: 'word',
+    text: prob.text,
+  };
+}
+
+// ------------------------------------------------------------------
 // DISTRACTOR GENERATION
 // ------------------------------------------------------------------
 // We need exactly 3 wrong answers that are:
@@ -311,6 +632,35 @@ export function generateQuestion(opts = {}) {
   const baseTable = GRADE_TABLE[grade];
   const streak = opts.streak ?? 0;
   const floor = opts.floor ?? 0;
+  const requestedOp = opts.operator;
+
+  // --- Dispatch to special problem type generators ---
+  // These operators produce complete question objects with custom formats.
+  const SPECIAL_GENERATORS = { frac: genFraction, geo: genGeometry, money: genMoney, word: genWord };
+
+  if (requestedOp && SPECIAL_GENERATORS[requestedOp]) {
+    const q = SPECIAL_GENERATORS[requestedOp](grade);
+    // Record in history (use numeric answer for history, or 0 for string answers)
+    const histAnswer = typeof q.answer === 'number' ? q.answer : 0;
+    _problemHistory.push({ op: q.op, a: q.a, b: q.b, answer: histAnswer, correct: null, timestamp: Date.now() });
+    if (_problemHistory.length > MAX_HISTORY) _problemHistory.shift();
+    return q;
+  }
+
+  // For 'mixed' on floor 9+, randomly pick from ALL operators including specials
+  if (requestedOp === 'mixed' && floor >= 9) {
+    const allOps = [...baseTable.ops, 'frac', 'money', 'word'];
+    const pick = allOps[randInt(0, allOps.length - 1)];
+    if (SPECIAL_GENERATORS[pick]) {
+      const q = SPECIAL_GENERATORS[pick](grade);
+      const histAnswer = typeof q.answer === 'number' ? q.answer : 0;
+      _problemHistory.push({ op: q.op, a: q.a, b: q.b, answer: histAnswer, correct: null, timestamp: Date.now() });
+      if (_problemHistory.length > MAX_HISTORY) _problemHistory.shift();
+      return q;
+    }
+    // Fall through to standard generation with the picked arithmetic op
+    opts = { ...opts, operator: pick };
+  }
 
   // --- Phase 2.1: Spaced Repetition ---
   // 20% of the time, re-present a weak problem instead of generating fresh
@@ -406,8 +756,10 @@ export function opSymbol(op) {
 
 /**
  * Convenience: format a question as a display string like "3 + 4 = ?"
+ * For special formats (fraction, geometry, money, word), use the text field.
  */
 export function formatQuestion(q) {
+  if (q.text) return q.text;
   return `${q.a} ${opSymbol(q.op)} ${q.b} = ?`;
 }
 
@@ -447,6 +799,18 @@ export function expectedAnswer(operator, grade) {
       const cap = Math.min(midHi, 12);
       const lo = Math.max(1, midLo);
       return Math.max(1, Math.round((lo + cap) / 2));
+    }
+    case 'frac':
+      return 3;    // small fraction answers
+    case 'geo':
+      return 10;   // sides/area/perimeter
+    case 'money':
+      return 25;   // cents
+    case 'word': {
+      // same as the underlying operation — average of basic ops
+      const wOps = table.ops;
+      const wTotal = wOps.reduce((s, o) => s + expectedAnswer(o, g), 0);
+      return Math.max(1, Math.round(wTotal / wOps.length));
     }
     case 'mixed':
     default: {
