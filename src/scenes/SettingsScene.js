@@ -49,9 +49,9 @@ export class SettingsScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Layout: rows from top of panel, evenly spaced
-    const contentTop = area.top + 140;
-    const contentBottom = area.bottom - 120;
-    const rowCount = 4;
+    const contentTop = area.top + 130;
+    const contentBottom = area.bottom - 100;
+    const rowCount = 6;
     const rowH = (contentBottom - contentTop) / rowCount;
 
     // Row 1: Music
@@ -68,9 +68,21 @@ export class SettingsScene extends Phaser.Scene {
       writeSave(this.save);
     });
 
-    // Row 3: Grade
+    // Row 3: Colorblind Mode
+    const cbY = contentTop + rowH * 2.5;
+    this.buildToggleRow(area.cx, cbY, 'COLORBLIND', this.save.settings.colorblindMode, (val) => {
+      this.save.settings.colorblindMode = val;
+      writeSave(this.save);
+      this.scene.restart();
+    });
+
+    // Row 4: Session Timer
+    const stY = contentTop + rowH * 3.5;
+    this.buildSessionTimerRow(area.cx, stY);
+
+    // Row 5: Grade
     const gradeNames = ['K', '1st', '2nd', '3rd', '4th', '5th'];
-    const gradeY = contentTop + rowH * 2.5;
+    const gradeY = contentTop + rowH * 4.5;
     this.add.text(area.cx - 320, gradeY, 'GRADE', {
       ...TEXT.heading(),
       fontSize: '32px',
@@ -89,8 +101,8 @@ export class SettingsScene extends Phaser.Scene {
       onClick: () => transitionTo(this, SCENES.GRADE_SELECT, undefined, 200),
     });
 
-    // Row 4: Stats + Reset
-    const statsY = contentTop + rowH * 3.5;
+    // Row 6: Stats + Reset
+    const statsY = contentTop + rowH * 5.5;
     const s = this.save.stats;
     const accuracy = s.totalCorrect + s.totalWrong > 0
       ? Math.round((s.totalCorrect / (s.totalCorrect + s.totalWrong)) * 100)
@@ -148,6 +160,67 @@ export class SettingsScene extends Phaser.Scene {
         textColor: isActive ? '#fff8e0' : '#3a2410',
         onClick: () => {
           onChange(lvl.value);
+          this.scene.restart();
+        },
+      });
+    });
+  }
+
+  buildToggleRow(cx, y, label, current, onChange) {
+    this.add.text(cx - 320, y, label, {
+      ...TEXT.heading(),
+      fontSize: '32px',
+      color: '#3a2410',
+      stroke: '#fff8e0',
+      strokeThickness: 3,
+      letterSpacing: 2,
+    }).setOrigin(0, 0.5);
+
+    const options = [
+      { label: 'OFF', value: false },
+      { label: 'ON',  value: true },
+    ];
+
+    options.forEach((opt, i) => {
+      const btnX = cx - 40 + i * 115;
+      const isActive = current === opt.value;
+      PaperButton(this, btnX, y, opt.label, {
+        w: 100, h: 46, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,
+        textColor: isActive ? '#fff8e0' : '#3a2410',
+        onClick: () => {
+          onChange(opt.value);
+        },
+      });
+    });
+  }
+
+  buildSessionTimerRow(cx, y) {
+    this.add.text(cx - 320, y, 'SESSION TIMER', {
+      ...TEXT.heading(),
+      fontSize: '28px',
+      color: '#3a2410',
+      stroke: '#fff8e0',
+      strokeThickness: 3,
+      letterSpacing: 2,
+    }).setOrigin(0, 0.5);
+
+    const options = [
+      { label: 'OFF',    value: 0 },
+      { label: '15 MIN', value: 15 },
+      { label: '30 MIN', value: 30 },
+      { label: '60 MIN', value: 60 },
+    ];
+    const current = this.save.settings.sessionTimer || 0;
+
+    options.forEach((opt, i) => {
+      const btnX = cx - 40 + i * 115;
+      const isActive = current === opt.value;
+      PaperButton(this, btnX, y, opt.label, {
+        w: 100, h: 46, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 13,
+        textColor: isActive ? '#fff8e0' : '#3a2410',
+        onClick: () => {
+          this.save.settings.sessionTimer = opt.value;
+          writeSave(this.save);
           this.scene.restart();
         },
       });

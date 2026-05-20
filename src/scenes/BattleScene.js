@@ -928,9 +928,10 @@ export class BattleScene extends Phaser.Scene {
       });
     }
 
-    // Colorblind mode: draw shape icons on answer buttons
+    // Colorblind mode: draw shape icons on answer buttons + momentum bar patterns
     if (this.save.settings.colorblindMode) {
       this.drawColorblindShapes();
+      this.drawColorblindMomentumPatterns(barX, topY, barW);
     }
 
     // ABILITY button — appears below answer buttons during hero turns
@@ -1271,6 +1272,34 @@ export class BattleScene extends Phaser.Scene {
         g.closePath();
         g.strokePath();
       }
+    }
+  }
+
+  // --- Colorblind momentum bar pattern overlays ---
+  drawColorblindMomentumPatterns(barX, topY, barW) {
+    const barH = 16;
+    const g = this.add.graphics();
+    g.setDepth(10);
+
+    // ZONE section (0.33 - 0.66): tiny dots
+    const zoneStart = barX + barW * 0.33;
+    const zoneEnd = barX + barW * 0.66;
+    for (let dx = zoneStart + 4; dx < zoneEnd; dx += 8) {
+      for (let dy = topY - barH / 2 + 3; dy < topY + barH / 2; dy += 6) {
+        g.fillStyle(0xffffff, 0.45);
+        g.fillCircle(dx, dy, 1.5);
+      }
+    }
+
+    // HEAT section (0.66 - 1.0): diagonal lines
+    const heatStart = barX + barW * 0.66;
+    const heatEnd = barX + barW;
+    g.lineStyle(1, 0xffffff, 0.4);
+    for (let dx = heatStart; dx < heatEnd + barH; dx += 6) {
+      g.beginPath();
+      g.moveTo(Math.max(dx, heatStart), topY - barH / 2);
+      g.lineTo(Math.max(dx - barH, heatStart), topY + barH / 2);
+      g.strokePath();
     }
   }
 
