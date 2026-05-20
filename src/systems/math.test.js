@@ -18,6 +18,7 @@ import {
   formatQuestion,
   opSymbol,
   GRADE_TABLE,
+  expectedAnswer,
   recordAnswer,
   getWeakProblems,
   __resetState,
@@ -473,5 +474,301 @@ describe('Phase 2.3 \u2014 missing operand format', () => {
       const q = generateQuestion({ grade: 5, operator: '+', floor: 5 });
       assertValidQuestion(q, `floor 5 iter ${i}`);
     }
+  });
+});
+
+// ------------------------------------------------------------------
+// NEW PROBLEM TYPES: Fractions, Geometry, Money, Word Problems
+// ------------------------------------------------------------------
+
+/** Validate a special-format question (fraction/geometry/money/word). */
+function assertValidSpecialQuestion(q, context = '') {
+  assert.ok(q, `${context}: result is falsy`);
+  assert.ok(Array.isArray(q.choices), `${context}: choices is not an array`);
+  assert.equal(q.choices.length, 4, `${context}: choices length is not 4`);
+  const uniqueChoices = new Set(q.choices.map(String));
+  assert.equal(uniqueChoices.size, 4, `${context}: choices not unique: ${q.choices.join(',')}`);
+  assert.equal(typeof q.correctIndex, 'number', `${context}: correctIndex is not a number`);
+  assert.ok(q.correctIndex >= 0 && q.correctIndex < 4, `${context}: correctIndex out of range`);
+  assert.equal(q.choices[q.correctIndex], q.answer, `${context}: choices[correctIndex] !== answer`);
+}
+
+describe('Fraction problems (operator: frac)', () => {
+  test('produces valid fraction questions for every grade', () => {
+    __resetState();
+    for (let grade = 0; grade <= 5; grade++) {
+      for (let i = 0; i < 200; i++) {
+        const q = generateQuestion({ grade, operator: 'frac' });
+        assertValidSpecialQuestion(q, `frac grade ${grade} iter ${i}`);
+        assert.equal(q.format, 'fraction', `${q.format} should be fraction`);
+        assert.equal(typeof q.text, 'string', 'fraction question should have text');
+        assert.ok(q.text.length > 0, 'fraction question text should not be empty');
+      }
+    }
+  });
+
+  test('fraction answers are valid fraction strings', () => {
+    __resetState();
+    for (let i = 0; i < 500; i++) {
+      const grade = Math.floor(Math.random() * 6);
+      const q = generateQuestion({ grade, operator: 'frac' });
+      const ans = q.answer;
+      assert.equal(typeof ans, 'string', `fraction answer should be string, got ${typeof ans}`);
+      // Answer should match pattern: "N" (whole number) or "N/M" (fraction)
+      assert.ok(/^\d+$/.test(ans) || /^\d+\/\d+$/.test(ans),
+        `fraction answer "${ans}" does not match expected format`);
+    }
+  });
+
+  test('fraction choices are all fraction strings', () => {
+    __resetState();
+    for (let i = 0; i < 200; i++) {
+      const q = generateQuestion({ grade: 3, operator: 'frac' });
+      for (const c of q.choices) {
+        assert.equal(typeof c, 'string', `fraction choice should be string, got ${typeof c}: ${c}`);
+        assert.ok(/^\d+$/.test(c) || /^\d+\/\d+$/.test(c),
+          `fraction choice "${c}" does not match expected format`);
+      }
+    }
+  });
+
+  test('grade 0-1 produces comparison questions', () => {
+    __resetState();
+    let sawCompare = false;
+    for (let i = 0; i < 100; i++) {
+      const q = generateQuestion({ grade: 0, operator: 'frac' });
+      if (q.text.includes('Which is bigger')) sawCompare = true;
+    }
+    assert.ok(sawCompare, 'grade 0 should produce fraction comparison questions');
+  });
+
+  test('grade 2-3 produces addition with same denominator', () => {
+    __resetState();
+    let sawAdd = false;
+    for (let i = 0; i < 100; i++) {
+      const q = generateQuestion({ grade: 2, operator: 'frac' });
+      if (q.text.includes('+')) sawAdd = true;
+    }
+    assert.ok(sawAdd, 'grade 2 should produce fraction addition questions');
+  });
+
+  test('grade 4-5 produces addition with different denominators', () => {
+    __resetState();
+    let sawDiffDenom = false;
+    for (let i = 0; i < 200; i++) {
+      const q = generateQuestion({ grade: 5, operator: 'frac' });
+      if (q.text.includes('+')) sawDiffDenom = true;
+    }
+    assert.ok(sawDiffDenom, 'grade 5 should produce fraction addition questions');
+  });
+});
+
+describe('Geometry problems (operator: geo)', () => {
+  test('produces valid geometry questions for every grade', () => {
+    __resetState();
+    for (let grade = 0; grade <= 5; grade++) {
+      for (let i = 0; i < 200; i++) {
+        const q = generateQuestion({ grade, operator: 'geo' });
+        assertValidSpecialQuestion(q, `geo grade ${grade} iter ${i}`);
+        assert.equal(q.format, 'geometry', `format should be geometry`);
+        assert.equal(typeof q.text, 'string', 'geometry question should have text');
+        assert.ok(q.text.length > 0, 'geometry question text should not be empty');
+      }
+    }
+  });
+
+  test('geometry answers are positive integers', () => {
+    __resetState();
+    for (let i = 0; i < 500; i++) {
+      const grade = Math.floor(Math.random() * 6);
+      const q = generateQuestion({ grade, operator: 'geo' });
+      assert.equal(typeof q.answer, 'number', `geometry answer should be number`);
+      assert.ok(Number.isInteger(q.answer), `geometry answer should be integer: ${q.answer}`);
+      assert.ok(q.answer > 0, `geometry answer should be positive: ${q.answer}`);
+    }
+  });
+
+  test('grade 0-2 produces shape identification questions', () => {
+    __resetState();
+    let sawShapes = false;
+    for (let i = 0; i < 100; i++) {
+      const q = generateQuestion({ grade: 0, operator: 'geo' });
+      if (q.text.includes('sides')) sawShapes = true;
+    }
+    assert.ok(sawShapes, 'grade 0 should produce shape identification questions');
+  });
+
+  test('shape answers are correct (3-8 sides)', () => {
+    __resetState();
+    const shapeAnswers = { triangle: 3, square: 4, pentagon: 5, hexagon: 6, octagon: 8 };
+    for (let i = 0; i < 500; i++) {
+      const q = generateQuestion({ grade: 1, operator: 'geo' });
+      for (const [shape, sides] of Object.entries(shapeAnswers)) {
+        if (q.text.includes(shape)) {
+          assert.equal(q.answer, sides, `${shape} should have ${sides} sides, got ${q.answer}`);
+        }
+      }
+    }
+  });
+
+  test('grade 3-5 produces area and perimeter questions', () => {
+    __resetState();
+    let sawArea = false;
+    let sawPerimeter = false;
+    for (let i = 0; i < 500; i++) {
+      const q = generateQuestion({ grade: 4, operator: 'geo' });
+      if (q.text.includes('Area')) sawArea = true;
+      if (q.text.includes('Perimeter')) sawPerimeter = true;
+    }
+    assert.ok(sawArea, 'grade 4 should produce area questions');
+    assert.ok(sawPerimeter, 'grade 4 should produce perimeter questions');
+  });
+});
+
+describe('Money problems (operator: money)', () => {
+  test('produces valid money questions for every grade', () => {
+    __resetState();
+    for (let grade = 0; grade <= 5; grade++) {
+      for (let i = 0; i < 200; i++) {
+        const q = generateQuestion({ grade, operator: 'money' });
+        assertValidSpecialQuestion(q, `money grade ${grade} iter ${i}`);
+        assert.equal(q.format, 'money', `format should be money`);
+        assert.equal(typeof q.text, 'string', 'money question should have text');
+        assert.ok(q.text.length > 0, 'money question text should not be empty');
+      }
+    }
+  });
+
+  test('money answers are positive whole numbers (cents)', () => {
+    __resetState();
+    for (let i = 0; i < 500; i++) {
+      const grade = Math.floor(Math.random() * 6);
+      const q = generateQuestion({ grade, operator: 'money' });
+      assert.equal(typeof q.answer, 'number', `money answer should be number`);
+      assert.ok(Number.isInteger(q.answer), `money answer should be whole number: ${q.answer}`);
+      assert.ok(q.answer > 0, `money answer should be positive: ${q.answer}`);
+    }
+  });
+
+  test('grade 0-1 produces coin counting questions', () => {
+    __resetState();
+    let sawCoins = false;
+    for (let i = 0; i < 100; i++) {
+      const q = generateQuestion({ grade: 0, operator: 'money' });
+      if (q.text.includes('pennies') || q.text.includes('nickels')) sawCoins = true;
+    }
+    assert.ok(sawCoins, 'grade 0 should produce coin counting questions');
+  });
+
+  test('grade 2-3 produces change-making questions', () => {
+    __resetState();
+    let sawChange = false;
+    for (let i = 0; i < 100; i++) {
+      const q = generateQuestion({ grade: 2, operator: 'money' });
+      if (q.text.includes('Change')) sawChange = true;
+    }
+    assert.ok(sawChange, 'grade 2 should produce change-making questions');
+  });
+
+  test('grade 4-5 produces multi-item purchase questions', () => {
+    __resetState();
+    let sawMulti = false;
+    for (let i = 0; i < 100; i++) {
+      const q = generateQuestion({ grade: 5, operator: 'money' });
+      if (q.text.includes('items at')) sawMulti = true;
+    }
+    assert.ok(sawMulti, 'grade 5 should produce multi-item purchase questions');
+  });
+});
+
+describe('Word problems (operator: word)', () => {
+  test('produces valid word problems for every grade', () => {
+    __resetState();
+    for (let grade = 0; grade <= 5; grade++) {
+      for (let i = 0; i < 200; i++) {
+        const q = generateQuestion({ grade, operator: 'word' });
+        assertValidSpecialQuestion(q, `word grade ${grade} iter ${i}`);
+        assert.equal(q.format, 'word', `format should be word`);
+        assert.equal(typeof q.text, 'string', 'word problem should have text');
+        assert.ok(q.text.length > 0, 'word problem text should not be empty');
+      }
+    }
+  });
+
+  test('word problem answers are non-negative integers', () => {
+    __resetState();
+    for (let i = 0; i < 500; i++) {
+      const grade = Math.floor(Math.random() * 6);
+      const q = generateQuestion({ grade, operator: 'word' });
+      assert.equal(typeof q.answer, 'number', `word answer should be number`);
+      assert.ok(Number.isInteger(q.answer), `word answer should be integer: ${q.answer}`);
+      assert.ok(q.answer >= 0, `word answer should be non-negative: ${q.answer}`);
+    }
+  });
+
+  test('word problems use contextual text', () => {
+    __resetState();
+    const keywords = ['coins', 'potions', 'chests', 'heroes', 'gold'];
+    let hitCount = 0;
+    for (let i = 0; i < 200; i++) {
+      const q = generateQuestion({ grade: 4, operator: 'word' });
+      if (keywords.some(kw => q.text.includes(kw))) hitCount++;
+    }
+    assert.ok(hitCount > 100, `word problems should use contextual text, only ${hitCount}/200 had keywords`);
+  });
+
+  test('word problems use basic operations from grade', () => {
+    __resetState();
+    const ops = new Set();
+    for (let i = 0; i < 500; i++) {
+      const q = generateQuestion({ grade: 5, operator: 'word' });
+      ops.add(q.op);
+    }
+    // Grade 5 has +, -, *, / so word problems should use all of them
+    assert.ok(ops.has('+'), 'word problems should include addition');
+    assert.ok(ops.has('-'), 'word problems should include subtraction');
+    assert.ok(ops.has('*'), 'word problems should include multiplication');
+    assert.ok(ops.has('/'), 'word problems should include division');
+  });
+
+  test('grade 0-1 word problems only use + and -', () => {
+    __resetState();
+    for (let i = 0; i < 500; i++) {
+      const q = generateQuestion({ grade: 0, operator: 'word' });
+      assert.ok(['+', '-'].includes(q.op), `grade 0 word problem used op ${q.op}`);
+    }
+  });
+});
+
+describe('expectedAnswer for new problem types', () => {
+  test('frac expectedAnswer returns 3', () => {
+    assert.equal(expectedAnswer('frac', 3), 3);
+  });
+
+  test('geo expectedAnswer returns 10', () => {
+    assert.equal(expectedAnswer('geo', 3), 10);
+  });
+
+  test('money expectedAnswer returns 25', () => {
+    assert.equal(expectedAnswer('money', 3), 25);
+  });
+
+  test('word expectedAnswer returns a positive number', () => {
+    const val = expectedAnswer('word', 3);
+    assert.ok(val > 0, `word expectedAnswer should be positive, got ${val}`);
+  });
+});
+
+describe('Floor 9 mixed mode includes special types', () => {
+  test('floor 9 mixed can produce special problem types', () => {
+    __resetState();
+    const formats = new Set();
+    for (let i = 0; i < 2000; i++) {
+      const q = generateQuestion({ grade: 5, operator: 'mixed', floor: 9 });
+      if (q.format) formats.add(q.format);
+    }
+    // Should include at least some special formats
+    const hasSpecial = formats.has('fraction') || formats.has('money') || formats.has('word');
+    assert.ok(hasSpecial, `floor 9 mixed should produce special types, only got: ${[...formats].join(',')}`);
   });
 });

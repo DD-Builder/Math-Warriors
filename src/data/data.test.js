@@ -192,10 +192,17 @@ describe('enemies data integrity', () => {
     assert.equal(second.hp, second.maxHp, 'second spawn should be fresh');
   });
 
-  test('FLOOR_OPERATORS has an entry for every floor 1-5', () => {
-    for (let i = 1; i <= 5; i++) {
+  test('FLOOR_OPERATORS has an entry for every floor 1-9', () => {
+    for (let i = 1; i <= 9; i++) {
       assert.ok(FLOOR_OPERATORS[i], `floor ${i} has no operator mapping`);
     }
+  });
+
+  test('FLOOR_OPERATORS maps new floors to correct operators', () => {
+    assert.equal(FLOOR_OPERATORS[6], 'frac', 'floor 6 should be fractions');
+    assert.equal(FLOOR_OPERATORS[7], 'money', 'floor 7 should be money');
+    assert.equal(FLOOR_OPERATORS[8], 'word', 'floor 8 should be word problems');
+    assert.equal(FLOOR_OPERATORS[9], 'mixed', 'floor 9 should be mixed');
   });
 
   test('enemy difficulty scales roughly with floor', () => {
