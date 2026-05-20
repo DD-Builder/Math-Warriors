@@ -26,6 +26,8 @@ import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { makeRng } from '../systems/rng.js';
 import { computeLevel, levelBonuses } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
+import { checkAchievements } from '../systems/achievements.js';
+import { DIALOGUE } from '../data/dialogue.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -153,6 +155,11 @@ export class BattleScene extends Phaser.Scene {
     // counts rather than the end-of-battle streak.
     this.battleCorrect = 0;
     this.battleWrong = 0;
+
+    // Track whether the boss half-HP dialogue has been shown
+    this.bossHalfHpShown = false;
+    // Track whether any hero took damage this battle (for perfectBattle achievement)
+    this.battleDamageTaken = false;
   }
 
   create() {
@@ -1271,6 +1278,7 @@ export class BattleScene extends Phaser.Scene {
         }
 
         applyDamageResult(target, result);
+        if (result.modifiedDamage > 0) this.battleDamageTaken = true;
         this.hitFlash();
         this.flashHero(target, result);
         this.updateHeroHp(target);
@@ -1379,6 +1387,16 @@ export class BattleScene extends Phaser.Scene {
         cls,
       };
       applyDamageResult(targetEnemy, result);
+
+      // Boss half-HP reaction toast
+      if (this.isBoss && !this.bossHalfHpShown && targetEnemy.hp > 0 && targetEnemy.hp <= targetEnemy.maxHp / 2) {
+        this.bossHalfHpShown = true;
+        const halfKey = `floor${this.floor}_boss_half`;
+        const halfDialogue = DIALOGUE[halfKey];
+        if (halfDialogue && halfDialogue.length > 0) {
+          this.showToast(halfDialogue[0].text, COLORS_CSS.goldL);
+        }
+      }
 
       // Check for kill IMMEDIATELY — don't wait for animations
       if (targetEnemy.hp <= 0) {
@@ -1716,6 +1734,7 @@ export class BattleScene extends Phaser.Scene {
         const counterEnemy = this.enemies[this.currentTarget] || this.enemy;
         const result = computeEnemyDamage(counterEnemy, target, { momentum: this.momentum });
         applyDamageResult(target, result);
+        if (result.modifiedDamage > 0) this.battleDamageTaken = true;
         this.hitFlash();
         this.flashHero(target, result);
         this.updateHeroHp(target);
@@ -2114,6 +2133,15 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
+    // Update achievement-relevant stats
+    save.stats.totalGold = (save.stats.totalGold || 0) + goldEarned;
+    if (this.streak > (save.stats.bestStreak || 0)) {
+      save.stats.bestStreak = this.streak;
+    }
+    if (!this.battleDamageTaken) {
+      save.stats.perfectBattle = true;
+    }
+
     // Mark floor complete on boss defeat. If we came directly from the
     // world map (no maze wrapper), any win counts so the progression
     // still advances on the fast path.
@@ -2128,6 +2156,9 @@ export class BattleScene extends Phaser.Scene {
         try { localStorage.setItem(`mw_maze_${this.floor}`, JSON.stringify(mazeState)); } catch (e) { /* ignore */ }
       }
     }
+
+    // Check achievements and queue toasts for newly unlocked ones
+    const newAchievements = checkAchievements(save);
 
     writeSave(save);
 
@@ -2167,6 +2198,17 @@ export class BattleScene extends Phaser.Scene {
       this.endOverlay.rewardsText.setText(rewardText);
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
+
+      // Show achievement toasts staggered after victory overlay
+      if (newAchievements.length > 0) {
+        newAchievements.forEach((ach, i) => {
+          this.time.delayedCall(800 + i * 1200, () => {
+            if (this.scene.isActive()) {
+              this.showToast(`Achievement: ${ach.name}!`, COLORS_CSS.goldL);
+            }
+          });
+        });
+      }
     });
   }
 

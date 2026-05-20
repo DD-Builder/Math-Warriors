@@ -13,8 +13,8 @@ export const DIALOGUE = {
     { speaker: 'Elder Fairy', text: 'Three fairies are trapped in enchanted chests throughout this garden. Free them all to unlock the golden treasure — then face the Briar King!' },
   ],
   floor1_boss: [
-    { speaker: 'Briar King', text: 'You think you can just ADD things up and win? Numbers mean nothing in MY garden!' },
-    { speaker: 'Narrator', text: 'The Briar King blocks your path. Answer quickly!' },
+    { speaker: 'Briar King', text: 'Foolish heroes! I AM addition — I grow stronger with every number!' },
+    { speaker: 'Narrator', text: 'The Briar King towers before you. Show him the power of your math!' },
   ],
   floor1_victory: [
     { speaker: 'Elder Fairy', text: 'The Addition Fragment is restored! The garden blooms again!' },
@@ -27,7 +27,8 @@ export const DIALOGUE = {
     { speaker: 'Water Fairy', text: 'Three ancient drain valves are hidden in the depths. Find and activate all three to lower the water and reach the boss lair!' },
   ],
   floor2_boss: [
-    { speaker: 'The Pressure', text: 'I will subtract EVERYTHING from you. Your strength. Your hope. Your answers.' },
+    { speaker: 'The Pressure', text: 'I will subtract your courage... your hope... your very ANSWERS!' },
+    { speaker: 'Narrator', text: 'The deep rumbles. The Pressure awaits in the darkness below.' },
   ],
   floor2_victory: [
     { speaker: 'Water Fairy', text: 'The Subtraction Fragment returns! The tides flow true again.' },
@@ -40,7 +41,8 @@ export const DIALOGUE = {
     { speaker: 'Sky Fairy', text: 'Three sky beacons must be lit to part the clouds and reveal the Skywhale\'s lair. Find them scattered across the floating islands!' },
   ],
   floor3_boss: [
-    { speaker: 'Skywhale', text: 'I contain MULTITUDES! For every one of you, there are a thousand of me!' },
+    { speaker: 'Skywhale', text: 'Ha ha ha! I multiply! For every one of me, a THOUSAND appear!' },
+    { speaker: 'Narrator', text: 'The massive Skywhale fills the sky. Can you out-multiply it?' },
   ],
   floor3_victory: [
     { speaker: 'Sky Fairy', text: 'The Multiplication Fragment is safe! The skies clear at last.' },
@@ -53,7 +55,8 @@ export const DIALOGUE = {
     { speaker: 'Fire Fairy', text: 'Three volcanic vents must be sealed before you can reach Pyroclast. Find them deep in the tunnels and shut them down!' },
   ],
   floor4_boss: [
-    { speaker: 'Pyroclast', text: 'I will DIVIDE you into ashes! Nothing survives the core!' },
+    { speaker: 'Pyroclast', text: 'I divide EVERYTHING into ash! Your team, your numbers, your hopes!' },
+    { speaker: 'Narrator', text: 'Pyroclast erupts with fury. Divide and conquer!' },
   ],
   floor4_victory: [
     { speaker: 'Fire Fairy', text: 'The Division Fragment is whole again! The caves grow still.' },
@@ -67,14 +70,31 @@ export const DIALOGUE = {
     { speaker: 'All Fairies', text: 'You must use EVERYTHING you\'ve learned. We believe in you!' },
   ],
   floor5_boss: [
-    { speaker: 'The Theorem', text: 'I am the final equation. The unknown variable. Can you solve what you don\'t understand?' },
-    { speaker: 'Narrator', text: 'The Theorem shifts between all four operations. Stay sharp!' },
+    { speaker: 'The Theorem', text: 'I am the final equation. The unknown variable. Can you solve... ME?' },
+    { speaker: 'Narrator', text: 'The Theorem shifts between all operations. Use everything you have learned!' },
   ],
   floor5_victory: [
     { speaker: 'All Fairies', text: 'The Great Equation is WHOLE again!' },
     { speaker: 'Elder Fairy', text: 'You did it, heroes! Math holds the world together, and you proved it.' },
     { speaker: 'Elder Fairy', text: 'The Number Eaters are defeated. Peace returns to every realm.' },
     { speaker: 'Narrator', text: 'Thank you for playing Math Warriors!' },
+  ],
+
+  // ── BOSS HALF-HP REACTIONS ──
+  floor1_boss_half: [
+    { speaker: 'Briar King', text: 'Impossible! My roots are weakening!' },
+  ],
+  floor2_boss_half: [
+    { speaker: 'The Pressure', text: 'The cracks are showing... NO!' },
+  ],
+  floor3_boss_half: [
+    { speaker: 'Skywhale', text: 'I\'m... shrinking?!' },
+  ],
+  floor4_boss_half: [
+    { speaker: 'Pyroclast', text: 'My core... it\'s cooling!' },
+  ],
+  floor5_boss_half: [
+    { speaker: 'The Theorem', text: 'You... you actually understand!' },
   ],
 
   // ── CHALLENGE PROGRESS ──
