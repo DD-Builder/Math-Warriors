@@ -15,6 +15,7 @@ import { spawnHero, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
+import { markDailyChallengeComplete, getDailyChallenge } from '../systems/dailyChallenge.js';
 import { invokeAbility } from '../systems/abilities.js';
 import { getAbilitiesForClass } from '../systems/heroAbilities.js';
 import { getEquipmentById } from '../systems/equipment.js';
@@ -927,6 +928,11 @@ export class BattleScene extends Phaser.Scene {
       });
     }
 
+    // Colorblind mode: draw shape icons on answer buttons
+    if (this.save.settings.colorblindMode) {
+      this.drawColorblindShapes();
+    }
+
     // ABILITY button — appears below answer buttons during hero turns
     const abilityBtnY = ansY + ansH / 2 + 10;
     this.abilityBtn = PaperButton(this, area.cx, abilityBtnY, 'ABILITY', {
@@ -1229,6 +1235,43 @@ export class BattleScene extends Phaser.Scene {
       seed: btn.seed,
     });
     btn.label.setAlpha(alpha);
+  }
+
+  // --- Colorblind accessibility shapes on answer buttons ---
+  drawColorblindShapes() {
+    const { w, h, y, startX, gap } = this.answerBtnLayout;
+    // Shapes: circle (blue), square (red), triangle (green), diamond (purple)
+    for (let i = 0; i < 4; i++) {
+      const x = startX + i * (w + gap);
+      const shapeX = x + w / 2 - 18;
+      const shapeY = y - h / 2 + 18;
+      const g = this.add.graphics();
+      g.lineStyle(2.5, 0xffffff, 0.85);
+      if (i === 0) {
+        // Circle
+        g.strokeCircle(shapeX, shapeY, 8);
+      } else if (i === 1) {
+        // Square
+        g.strokeRect(shapeX - 8, shapeY - 8, 16, 16);
+      } else if (i === 2) {
+        // Triangle
+        g.beginPath();
+        g.moveTo(shapeX, shapeY - 9);
+        g.lineTo(shapeX - 9, shapeY + 7);
+        g.lineTo(shapeX + 9, shapeY + 7);
+        g.closePath();
+        g.strokePath();
+      } else if (i === 3) {
+        // Diamond
+        g.beginPath();
+        g.moveTo(shapeX, shapeY - 10);
+        g.lineTo(shapeX + 8, shapeY);
+        g.lineTo(shapeX, shapeY + 10);
+        g.lineTo(shapeX - 8, shapeY);
+        g.closePath();
+        g.strokePath();
+      }
+    }
   }
 
   // --- Stacked equation helpers ---
@@ -2304,6 +2347,23 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
+    // Daily challenge rewards
+    let dailyGold = 0;
+    let dailyStreak = 0;
+    const isDailyActive = this.registry.get('dailyChallengeActive');
+    if (isDailyActive) {
+      this.registry.remove('dailyChallengeActive');
+      const challenge = getDailyChallenge();
+      dailyStreak = markDailyChallengeComplete(save);
+      dailyGold = challenge.reward.gold;
+      // 7-day streak bonus
+      if (dailyStreak >= 7 && dailyStreak % 7 === 0) {
+        dailyGold += challenge.streakBonus.gold;
+      }
+      save.gold += dailyGold;
+      save.stats.totalGold = (save.stats.totalGold || 0) + dailyGold;
+    }
+
     // Check achievements and queue toasts for newly unlocked ones
     const newAchievements = checkAchievements(save);
 
@@ -2346,6 +2406,12 @@ export class BattleScene extends Phaser.Scene {
       rewardText += `\n+${goldEarned} GOLD  •  +${xpEarned} XP`;
       if (leveledUp.length > 0) {
         rewardText += `\nLEVELED UP: ${leveledUp.join(' & ')}`;
+      }
+      if (dailyGold > 0) {
+        rewardText += `\nDAILY CHALLENGE: +${dailyGold} GOLD`;
+        if (dailyStreak > 1) {
+          rewardText += `  (${dailyStreak}-day streak!)`;
+        }
       }
       this.endOverlay.rewardsText.setText(rewardText);
       this.endOverlay.setVisible(true);

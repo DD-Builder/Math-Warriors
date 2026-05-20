@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { loadSave } from '../systems/save.js';
-import { spawnHero, getHeroById } from '../data/heroes.js';
+import { loadSave, writeSave } from '../systems/save.js';
+import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
+import { getDailyChallenge, isDailyChallengeCompleted, markDailyChallengeComplete } from '../systems/dailyChallenge.js';
 
 /**
  * WorldMapScene
@@ -141,6 +142,18 @@ export class WorldMapScene extends Phaser.Scene {
       onClick: () => {
         audio.play('ui/click');
         transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
+      },
+    });
+
+    // Daily Challenge — bottom-left
+    const dailyCompleted = isDailyChallengeCompleted(this.save);
+    const dailyColor = dailyCompleted ? 0x8a8070 : 0xd07818;
+    PaperButton(this, area.left + 140, area.bottom - 40, 'DAILY CHALLENGE', {
+      w: 260, h: 54, color: dailyColor, fontSize: 18,
+      textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        this.onDailyChallenge();
       },
     });
   }
@@ -366,6 +379,54 @@ export class WorldMapScene extends Phaser.Scene {
     kh.fillStyle(0xe8a030, 1);
     kh.fillCircle(cx, bodyY - size * 0.05, size * 0.14);
     kh.fillRect(cx - size * 0.05, bodyY - size * 0.05, size * 0.1, size * 0.3);
+  }
+
+  onDailyChallenge() {
+    if (isDailyChallengeCompleted(this.save)) {
+      this.showFlash('Come back tomorrow!');
+      return;
+    }
+
+    const challenge = getDailyChallenge();
+    const classLists = { knight: KNIGHTS, wizard: WIZARDS, bunny: BUNNIES };
+    const classList = classLists[challenge.heroClass];
+    const heroIdx = challenge.heroIndex % classList.length;
+
+    // Build a party of 3 from the daily class
+    const party = [];
+    for (let i = 0; i < 3; i++) {
+      const idx = (heroIdx + i) % classList.length;
+      party.push(spawnHero(classList[idx].id));
+    }
+
+    // Set return data so BattleScene returns here and we can award daily rewards
+    this.registry.set('battleReturnScene', SCENES.WORLD_MAP);
+    this.registry.set('battleReturnData', null);
+    this.registry.set('dailyChallengeActive', true);
+
+    audio.play('ui/confirm');
+    transitionTo(this, SCENES.BATTLE, {
+      floor: challenge.floor,
+      grade: this.save.grade,
+      party,
+    }, 300);
+  }
+
+  showFlash(message) {
+    const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 180, message, {
+      ...TEXT.body(),
+      fontSize: '20px',
+      color: '#d07818',
+      backgroundColor: '#fff8e0',
+      padding: { x: 16, y: 8 },
+    }).setOrigin(0.5);
+    this.tweens.add({
+      targets: t,
+      alpha: 0,
+      delay: 2000,
+      duration: 500,
+      onComplete: () => t.destroy(),
+    });
   }
 
   enterFloor(floorId) {

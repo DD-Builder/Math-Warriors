@@ -55,6 +55,8 @@ export function makeDefaultSave() {
       musicVolume: 0.8,
       sfxVolume: 1.0,
       reducedMotion: false,
+      colorblindMode: false,
+      sessionTimer: 0,
     },
     problemHistory: [],
     stats: {
@@ -69,6 +71,9 @@ export function makeDefaultSave() {
       firstPlayedAt: Date.now(),
       lastPlayedAt: Date.now(),
       tutorialComplete: false,
+      lastDailyChallenge: 0,
+      lastDailyDate: 0,
+      dailyStreak: 0,
     },
   };
 }
