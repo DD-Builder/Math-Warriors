@@ -33,6 +33,7 @@ export const SOUNDS = {
   // Battle feedback
   'battle/correct':   { file: null, volume: 0.9, category: 'sfx' },
   'battle/wrong':     { file: null, volume: 0.8, category: 'sfx' },
+  'battle/hit':       { file: null, volume: 0.9, category: 'sfx' },
   'battle/hit-hero':  { file: null, volume: 0.9, category: 'sfx' },
   'battle/hit-enemy': { file: null, volume: 0.9, category: 'sfx' },
   'battle/heal':      { file: null, volume: 0.8, category: 'sfx' },
@@ -67,7 +68,7 @@ export const SOUNDS = {
 // via `scene.game.registry.get('audio')` or via the convenience
 // `audio` export that's lazy-initialized.
 
-import { SYNTH_SFX, unlockAudio } from './synthAudio.js';
+import { SYNTH_SFX, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic } from './synthAudio.js';
 
 class AudioManager {
   constructor() {
@@ -143,35 +144,49 @@ class AudioManager {
   /**
    * Start looping music. If `key` is the same as the current track, do
    * nothing. Otherwise fade out the current track and start the new one.
+   * Falls back to synth ambient drone when no audio file is loaded.
    */
   playMusic(key, opts = {}) {
     if (this.muted) return;
     if (this.currentMusic === key) return;
 
     const entry = SOUNDS[key];
-    if (!entry || !entry.file) {
-      // Still mark it as "current" so we don't restart it once the file lands
+
+    // Try Phaser audio first if a file is loaded
+    if (entry?.file && this.game?.sound) {
+      // Stop any synth music that might be playing
+      stopSynthMusic();
+
+      if (this._currentMusicObj) {
+        try { this._currentMusicObj.stop(); } catch { /* ignore */ }
+        this._currentMusicObj = null;
+      }
+
+      try {
+        const volume = (opts.volume ?? entry.volume) * this.musicVolume;
+        this._currentMusicObj = this.game.sound.add(key, { loop: true, volume });
+        this._currentMusicObj.play();
+        this.currentMusic = key;
+        return;
+      } catch (err) {
+        console.warn(`[audio] Failed to play music ${key}:`, err);
+      }
+    }
+
+    // Fall back to synth ambient drone
+    if (this.musicVolume > 0 && hasSynthMusic(key)) {
+      if (this._currentMusicObj) {
+        try { this._currentMusicObj.stop(); } catch { /* ignore */ }
+        this._currentMusicObj = null;
+      }
+      unlockAudio();
+      playSynthMusic(key);
       this.currentMusic = key;
       return;
     }
-    if (!this.game || !this.game.sound) return;
 
-    // Fade out current
-    if (this._currentMusicObj) {
-      try {
-        this._currentMusicObj.stop();
-      } catch { /* ignore */ }
-      this._currentMusicObj = null;
-    }
-
-    try {
-      const volume = (opts.volume ?? entry.volume) * this.musicVolume;
-      this._currentMusicObj = this.game.sound.add(key, { loop: true, volume });
-      this._currentMusicObj.play();
-      this.currentMusic = key;
-    } catch (err) {
-      console.warn(`[audio] Failed to play music ${key}:`, err);
-    }
+    // No audio available — just mark as current to avoid repeated attempts
+    this.currentMusic = key;
   }
 
   stopMusic() {
@@ -179,6 +194,7 @@ class AudioManager {
       try { this._currentMusicObj.stop(); } catch { /* ignore */ }
       this._currentMusicObj = null;
     }
+    stopSynthMusic();
     this.currentMusic = null;
   }
 

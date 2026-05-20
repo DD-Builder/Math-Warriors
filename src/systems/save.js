@@ -49,6 +49,7 @@ export function makeDefaultSave() {
       playTimeSec: 0,
       firstPlayedAt: Date.now(),
       lastPlayedAt: Date.now(),
+      tutorialComplete: false,
     },
   };
 }
