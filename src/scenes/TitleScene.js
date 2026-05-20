@@ -88,7 +88,13 @@ export class TitleScene extends Phaser.Scene {
     this.registry.remove('battleReturnScene');
     this.registry.remove('battleReturnData');
     this.registry.remove('battleVariant');
-    transitionTo(this, SCENES.GRADE_SELECT, undefined, 300);
+
+    // If the player hasn't completed the tutorial, run it first
+    if (!this.save.stats.tutorialComplete) {
+      transitionTo(this, SCENES.TUTORIAL, undefined, 300);
+    } else {
+      transitionTo(this, SCENES.GRADE_SELECT, undefined, 300);
+    }
   }
 
   onContinue() {

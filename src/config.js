@@ -41,6 +41,7 @@ export const COLORS_CSS = Object.fromEntries(
 export const SCENES = {
   BOOT: 'BootScene',
   TITLE: 'TitleScene',
+  TUTORIAL: 'TutorialScene',
   GRADE_SELECT: 'GradeSelectScene',
   PARTY_SELECT: 'PartySelectScene',
   WORLD_MAP: 'WorldMapScene',
