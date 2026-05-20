@@ -30,6 +30,11 @@ export function makeDefaultSave() {
     gold: 0,
     potions: 2,
     inventory: [],
+    equipment: {
+      hero0: { weapon: null, armor: null, accessory: null },
+      hero1: { weapon: null, armor: null, accessory: null },
+      hero2: { weapon: null, armor: null, accessory: null },
+    },
     floors: [
       { id: 1, unlocked: true,  complete: false, bestStreak: 0 },
       { id: 2, unlocked: false, complete: false, bestStreak: 0 },
@@ -117,6 +122,20 @@ function normalize(save) {
   // Ensure problemHistory is an array
   if (!Array.isArray(out.problemHistory)) {
     out.problemHistory = [];
+  }
+
+  // Ensure equipment object is well-formed
+  const defEquip = def.equipment;
+  if (!out.equipment || typeof out.equipment !== 'object') {
+    out.equipment = { ...defEquip };
+  } else {
+    for (const key of ['hero0', 'hero1', 'hero2']) {
+      if (!out.equipment[key] || typeof out.equipment[key] !== 'object') {
+        out.equipment[key] = { ...defEquip[key] };
+      } else {
+        out.equipment[key] = { ...defEquip[key], ...out.equipment[key] };
+      }
+    }
   }
 
   // Floors array: ensure all 5 floors exist

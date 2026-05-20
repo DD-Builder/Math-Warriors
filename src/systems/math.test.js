@@ -18,6 +18,11 @@ import {
   formatQuestion,
   opSymbol,
   GRADE_TABLE,
+  recordAnswer,
+  getWeakProblems,
+  __resetState,
+  __getProblemHistory,
+  __getRollingAccuracy,
 } from './math.js';
 
 const ITERATIONS = 10_000;
@@ -70,7 +75,15 @@ function assertValidQuestion(q, context = '') {
   else if (q.op === '-') expected = q.a - q.b;
   else if (q.op === '*') expected = q.a * q.b;
   else if (q.op === '/') expected = q.a / q.b;
-  assert.equal(q.answer, expected, `${context}: ${q.a} ${q.op} ${q.b} = ${expected}, got answer=${q.answer}`);
+
+  if (q.format === 'missing') {
+    // For missing operand format, answer is 'a' (the missing operand),
+    // and fullAnswer holds the actual computation result (a OP b)
+    assert.equal(q.answer, q.a, `${context}: missing format answer should be a=${q.a}, got ${q.answer}`);
+    assert.equal(q.fullAnswer, expected, `${context}: missing format fullAnswer should be ${expected}, got ${q.fullAnswer}`);
+  } else {
+    assert.equal(q.answer, expected, `${context}: ${q.a} ${q.op} ${q.b} = ${expected}, got answer=${q.answer}`);
+  }
 
   // Division must be clean (no fractions)
   if (q.op === '/') {
@@ -80,7 +93,9 @@ function assertValidQuestion(q, context = '') {
   // Subtraction must not go negative and must produce answer >= 3
   if (q.op === '-') {
     assert.ok(q.a >= q.b, `${context}: subtraction ${q.a} - ${q.b} would be negative`);
-    assert.ok(q.answer >= 3, `${context}: subtraction answer ${q.answer} is less than 3 (${q.a} - ${q.b})`);
+    // For missing format, the computation answer is fullAnswer, not answer
+    const subAnswer = q.format === 'missing' ? q.fullAnswer : q.answer;
+    assert.ok(subAnswer >= 3, `${context}: subtraction answer ${subAnswer} is less than 3 (${q.a} - ${q.b})`);
   }
 }
 
@@ -276,5 +291,187 @@ describe('formatQuestion / opSymbol', () => {
       formatQuestion({ a: 12, b: 3, op: '/', answer: 4, choices: [], correctIndex: 0 }),
       '12 \u00f7 3 = ?'
     );
+  });
+});
+
+// ------------------------------------------------------------------
+// PHASE 2: SPACED REPETITION, ADAPTIVE DIFFICULTY, PROBLEM VARIETY
+// ------------------------------------------------------------------
+
+describe('Phase 2.1 \u2014 spaced repetition', () => {
+  test('problemHistory is populated after generating questions', () => {
+    __resetState();
+    generateQuestion({ grade: 3 });
+    generateQuestion({ grade: 3 });
+    generateQuestion({ grade: 3 });
+    const history = __getProblemHistory();
+    assert.equal(history.length, 3);
+    for (const entry of history) {
+      assert.equal(typeof entry.op, 'string');
+      assert.equal(typeof entry.a, 'number');
+      assert.equal(typeof entry.b, 'number');
+      assert.equal(typeof entry.answer, 'number');
+      assert.equal(entry.correct, null);
+      assert.equal(typeof entry.timestamp, 'number');
+    }
+  });
+
+  test('recordAnswer marks the most recent entry', () => {
+    __resetState();
+    generateQuestion({ grade: 3 });
+    recordAnswer(true);
+    const history = __getProblemHistory();
+    assert.equal(history[0].correct, true);
+
+    generateQuestion({ grade: 3 });
+    recordAnswer(false);
+    assert.equal(history[1].correct, false);
+  });
+
+  test('getWeakProblems returns wrong answers from last 30', () => {
+    __resetState();
+    // Generate 5 questions, all wrong
+    for (let i = 0; i < 5; i++) {
+      generateQuestion({ grade: 3 });
+      recordAnswer(false);
+    }
+    const weak = getWeakProblems();
+    assert.equal(weak.length, 5);
+
+    // Generate 3 correct questions
+    for (let i = 0; i < 3; i++) {
+      generateQuestion({ grade: 3 });
+      recordAnswer(true);
+    }
+    const weak2 = getWeakProblems();
+    assert.equal(weak2.length, 5); // still 5 wrong from the first batch
+  });
+
+  test('problem history caps at 100 entries', () => {
+    __resetState();
+    for (let i = 0; i < 120; i++) {
+      generateQuestion({ grade: 3 });
+    }
+    const history = __getProblemHistory();
+    assert.ok(history.length <= 100, `history length ${history.length} exceeds 100`);
+  });
+
+  test('spaced repetition can re-present weak problems (statistical)', () => {
+    __resetState();
+    // Seed weak problems
+    for (let i = 0; i < 10; i++) {
+      generateQuestion({ grade: 3, operator: '+' });
+      recordAnswer(false);
+    }
+    // Generate many questions \u2014 at least some should be from weak pool
+    // (20% chance each time, with 10 weak problems)
+    let reusedCount = 0;
+    const weakProblems = getWeakProblems();
+    const weakKeys = new Set(weakProblems.map(p => `${p.a}:${p.op}:${p.b}`));
+    for (let i = 0; i < 500; i++) {
+      const q = generateQuestion({ grade: 3, operator: '+' });
+      if (weakKeys.has(`${q.a}:${q.op}:${q.b}`)) reusedCount++;
+    }
+    // With 20% chance and 500 tries, we expect ~100 reused, but set low bar
+    assert.ok(reusedCount > 5, `Expected some weak problem reuse, got only ${reusedCount} in 500 runs`);
+  });
+});
+
+describe('Phase 2.2 \u2014 adaptive difficulty via rolling accuracy', () => {
+  test('rolling accuracy tracks after enough answers', () => {
+    __resetState();
+    for (let i = 0; i < 10; i++) {
+      generateQuestion({ grade: 3 });
+      recordAnswer(true);
+    }
+    const accuracy = __getRollingAccuracy();
+    assert.ok(accuracy >= 0 && accuracy <= 1, `accuracy ${accuracy} out of range`);
+    assert.equal(accuracy, 1.0); // all correct
+  });
+
+  test('rolling accuracy window is 20', () => {
+    __resetState();
+    // 10 correct then 10 wrong = 50% accuracy
+    for (let i = 0; i < 10; i++) {
+      generateQuestion({ grade: 3 });
+      recordAnswer(true);
+    }
+    for (let i = 0; i < 10; i++) {
+      generateQuestion({ grade: 3 });
+      recordAnswer(false);
+    }
+    const accuracy = __getRollingAccuracy();
+    assert.ok(Math.abs(accuracy - 0.5) < 0.01, `expected ~0.5, got ${accuracy}`);
+  });
+
+  test('high accuracy does not break question generation', () => {
+    __resetState();
+    for (let i = 0; i < 20; i++) {
+      generateQuestion({ grade: 3, operator: '+' });
+      recordAnswer(true);
+    }
+    // Now generate more \u2014 should work fine with boosted range
+    for (let i = 0; i < 200; i++) {
+      const q = generateQuestion({ grade: 3, operator: '+' });
+      assertValidQuestion(q, `high accuracy iter ${i}`);
+    }
+  });
+
+  test('low accuracy does not break question generation', () => {
+    __resetState();
+    for (let i = 0; i < 20; i++) {
+      generateQuestion({ grade: 3, operator: '+' });
+      recordAnswer(false);
+    }
+    for (let i = 0; i < 200; i++) {
+      const q = generateQuestion({ grade: 3, operator: '+' });
+      assertValidQuestion(q, `low accuracy iter ${i}`);
+    }
+  });
+});
+
+describe('Phase 2.3 \u2014 missing operand format', () => {
+  test('floor >= 5 sometimes generates missing format', () => {
+    __resetState();
+    let sawMissing = false;
+    let sawStandard = false;
+    for (let i = 0; i < 500; i++) {
+      const q = generateQuestion({ grade: 5, operator: '+', floor: 5 });
+      assertValidQuestion(q, `missing format iter ${i}`);
+      if (q.format === 'missing') sawMissing = true;
+      if (q.format === 'standard') sawStandard = true;
+    }
+    assert.ok(sawMissing, 'never produced missing format in 500 runs at floor 5');
+    assert.ok(sawStandard, 'never produced standard format in 500 runs at floor 5');
+  });
+
+  test('floor < 5 never generates missing format', () => {
+    __resetState();
+    for (let i = 0; i < 500; i++) {
+      const q = generateQuestion({ grade: 3, operator: '+', floor: 3 });
+      assert.notEqual(q.format, 'missing', `floor 3 produced missing format at iter ${i}`);
+    }
+  });
+
+  test('missing format has correct answer = a (the missing operand)', () => {
+    __resetState();
+    for (let i = 0; i < 1000; i++) {
+      const q = generateQuestion({ grade: 5, operator: '+', floor: 5 });
+      if (q.format === 'missing') {
+        assert.equal(q.answer, q.a, `missing format answer should be a=${q.a}, got ${q.answer}`);
+        assert.equal(typeof q.fullAnswer, 'number', 'missing format should have fullAnswer');
+        assert.equal(q.choices[q.correctIndex], q.a, 'correctIndex should point to a');
+        return; // found and verified one
+      }
+    }
+    assert.fail('could not find a missing format question in 1000 tries');
+  });
+
+  test('missing format questions are always valid', () => {
+    __resetState();
+    for (let i = 0; i < 2000; i++) {
+      const q = generateQuestion({ grade: 5, operator: '+', floor: 5 });
+      assertValidQuestion(q, `floor 5 iter ${i}`);
+    }
   });
 });

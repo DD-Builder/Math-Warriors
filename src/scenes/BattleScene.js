@@ -16,6 +16,8 @@ import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '.
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
 import { invokeAbility } from '../systems/abilities.js';
+import { getAbilitiesForClass } from '../systems/heroAbilities.js';
+import { getEquipmentById } from '../systems/equipment.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
@@ -116,6 +118,36 @@ export class BattleScene extends Phaser.Scene {
 
     // Load the save once per battle and mutate in place.
     this.save = loadSave();
+
+    // Apply equipment bonuses from save to each hero
+    for (let i = 0; i < this.party.length && i < 3; i++) {
+      const heroEquip = this.save.equipment?.[`hero${i}`];
+      if (heroEquip) {
+        if (heroEquip.weapon) {
+          const wpn = getEquipmentById(heroEquip.weapon);
+          if (wpn && wpn.atk) this.party[i].atk += wpn.atk;
+        }
+        if (heroEquip.armor) {
+          const arm = getEquipmentById(heroEquip.armor);
+          if (arm && arm.def) this.party[i].def += arm.def;
+        }
+        if (heroEquip.accessory) {
+          const acc = getEquipmentById(heroEquip.accessory);
+          if (acc && acc.hp) {
+            this.party[i].maxHp += acc.hp;
+            this.party[i].hp += acc.hp;
+          }
+        }
+      }
+    }
+
+    // Hero ability cooldowns and state (Phase 3.1)
+    this.abilityCooldowns = [{ cd: 0 }, { cd: 0 }, { cd: 0 }];
+    this.shieldBashActive = false;
+    this.rallyTurns = 0;
+    this.manaSurgeActive = false;
+    this.dodgeActive = false;
+    this.furyCharges = 0;
 
     // Per-battle stat accumulators so we report true correct/wrong
     // counts rather than the end-of-battle streak.
@@ -888,6 +920,17 @@ export class BattleScene extends Phaser.Scene {
       });
     }
 
+    // ABILITY button — appears below answer buttons during hero turns
+    const abilityBtnY = ansY + ansH / 2 + 10;
+    this.abilityBtn = PaperButton(this, area.cx, abilityBtnY, 'ABILITY', {
+      w: 220, h: 42, color: 0x9050c8, fontSize: 16,
+      onClick: () => this.useAbility(),
+    });
+    this.abilityBtn.bg.setVisible(false);
+    this.abilityBtn.shadow.setVisible(false);
+    this.abilityBtn.label.setVisible(false);
+    if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(false);
+
     // Toast (floats above the UI panel)
     this.toast = this.add.text(area.cx, area.top + 90, '', {
       ...TEXT.heading(),
@@ -983,6 +1026,10 @@ export class BattleScene extends Phaser.Scene {
     this.turnIdx = result.index;
     this.currentTurn = result.turn;
 
+    // Tick ability cooldowns and rally turns on each turn advance
+    this.tickAbilityCooldowns();
+    if (this.rallyTurns > 0) this.rallyTurns--;
+
     this.updateHeroIndicators();
 
     if (this.currentTurn.who === 'hero') this.startHeroTurn();
@@ -994,6 +1041,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'question';
     this.locked = false;
     this.refreshPotionButton();
+    this.refreshAbilityButton();
 
     if (shouldShowTutorial('FIRST_BATTLE')) {
       markTutorialShown('FIRST_BATTLE');
@@ -1130,12 +1178,21 @@ export class BattleScene extends Phaser.Scene {
   renderStackedEquation(q) {
     if (!q || !this.eqLines) return;
     const opSym = q.op === '*' ? '\u00d7' : q.op === '/' ? '\u00f7' : q.op;
-    // Top operand right-justified
-    this.eqLines.a.setText(`  ${q.a}`);
-    // Operator + second operand
-    this.eqLines.opB.setText(`${opSym} ${q.b}`);
-    this.eqLines.bar.setText('\u2500'.repeat(Math.max(3, String(Math.max(q.a, q.b)).length + 2)));
-    this.eqLines.ans.setText('?');
+
+    if (q.format === 'missing') {
+      // Phase 2.3: Missing operand format \u2014 "? [op] b = fullAnswer"
+      // Student solves for 'a', the missing operand
+      this.eqLines.a.setText(`  ?`);
+      this.eqLines.opB.setText(`${opSym} ${q.b}`);
+      this.eqLines.bar.setText('\u2500'.repeat(Math.max(3, String(Math.max(q.fullAnswer, q.b)).length + 2)));
+      this.eqLines.ans.setText(String(q.fullAnswer));
+    } else {
+      // Standard format: "a [op] b = ?"
+      this.eqLines.a.setText(`  ${q.a}`);
+      this.eqLines.opB.setText(`${opSym} ${q.b}`);
+      this.eqLines.bar.setText('\u2500'.repeat(Math.max(3, String(Math.max(q.a, q.b)).length + 2)));
+      this.eqLines.ans.setText('?');
+    }
   }
 
   clearEquationDisplay() {
@@ -1154,6 +1211,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'enemy';
     this.locked = true;
     this.refreshPotionButton();
+    this.hideAbilityButton();
 
     for (let i = 0; i < 4; i++) {
       this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 0.3);
@@ -1237,6 +1295,9 @@ export class BattleScene extends Phaser.Scene {
 
     const correct = index === this.currentQuestion.correctIndex;
     const btn = this.answerButtons[index];
+
+    // Phase 2.1: Record answer for spaced repetition & adaptive difficulty
+    recordAnswer(correct);
 
     if (correct) {
       this.recolorAnswerButton(index, 0x40c040, 1);
@@ -1717,6 +1778,123 @@ export class BattleScene extends Phaser.Scene {
     // Using a potion costs your turn — skip straight to the enemy's
     this.locked = true;
     this.time.delayedCall(600, () => this.nextTurn());
+  }
+
+  // ================================================================
+  // HERO ABILITIES (Phase 3.1)
+  // ================================================================
+
+  refreshAbilityButton() {
+    if (!this.abilityBtn) return;
+    const heroIdx = this.currentTurn?.heroIndex ?? 0;
+    const hero = this.party[heroIdx];
+    if (!hero || hero.hp <= 0) {
+      this.hideAbilityButton();
+      return;
+    }
+    const cls = hero.class || 'knight';
+    const abilities = getAbilitiesForClass(cls);
+    const cd = this.abilityCooldowns[heroIdx]?.cd ?? 0;
+    const canUse = this.phase === 'question' && !this.locked && cd <= 0 && abilities.length > 0;
+    // Pick the first ability for the button label
+    const ability = abilities[0];
+    const label = ability ? ability.name : 'ABILITY';
+    const show = canUse;
+    this.abilityBtn.bg.setVisible(show);
+    this.abilityBtn.shadow.setVisible(show);
+    this.abilityBtn.label.setVisible(show);
+    if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(show);
+    this.abilityBtn.label.setText(show ? label : 'ABILITY');
+  }
+
+  hideAbilityButton() {
+    if (!this.abilityBtn) return;
+    this.abilityBtn.bg.setVisible(false);
+    this.abilityBtn.shadow.setVisible(false);
+    this.abilityBtn.label.setVisible(false);
+    if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(false);
+  }
+
+  useAbility() {
+    if (this.phase !== 'question' || this.locked) return;
+    const heroIdx = this.currentTurn?.heroIndex ?? 0;
+    const hero = this.party[heroIdx];
+    if (!hero || hero.hp <= 0) return;
+    const cd = this.abilityCooldowns[heroIdx]?.cd ?? 0;
+    if (cd > 0) {
+      this.showToast('Ability on cooldown!', COLORS_CSS.scarletL);
+      return;
+    }
+    const cls = hero.class || 'knight';
+    const abilities = getAbilitiesForClass(cls);
+    if (abilities.length === 0) return;
+    const ability = abilities[0];
+
+    this.locked = true;
+    this.abilityCooldowns[heroIdx].cd = ability.cooldown;
+    audio.play('ui/confirm');
+
+    switch (ability.id) {
+      case 'shield_bash':
+        this.shieldBashActive = true;
+        this.showToast(`${hero.name}: Shield Bash!`, '#5a7ab8');
+        break;
+      case 'rally':
+        this.rallyTurns = 3;
+        this.showToast(`${hero.name}: Rally! +2 ATK for 3 turns`, '#f0d040');
+        break;
+      case 'arcane_heal': {
+        const living = this.party.filter(h => h && h.hp > 0);
+        const weakest = living.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+        if (weakest) {
+          const before = weakest.hp;
+          weakest.hp = Math.min(weakest.maxHp, weakest.hp + 20);
+          const healed = weakest.hp - before;
+          this.showToast(`${hero.name} heals ${weakest.name} +${healed} HP!`, '#60ff60');
+          const idx = this.party.indexOf(weakest);
+          if (idx >= 0 && this.heroSprites[idx]) {
+            this.floatDamageNumber(this.heroSprites[idx].x, this.heroSprites[idx].y - 80, healed, '#40ff60');
+          }
+          this.updateAllHeroHp();
+        }
+        break;
+      }
+      case 'mana_surge':
+        this.manaSurgeActive = true;
+        this.showToast(`${hero.name}: Mana Surge! Next answer deals 2x!`, '#c090f0');
+        // Does not consume turn — re-enable answering
+        this.locked = false;
+        this.hideAbilityButton();
+        this.time.delayedCall(100, () => this.refreshAbilityButton());
+        return; // don't advance turn
+      case 'dodge_roll':
+        this.dodgeActive = true;
+        this.showToast(`${hero.name}: Dodge Roll! 60% dodge chance`, '#e86898');
+        break;
+      case 'fury_combo':
+        this.furyCharges = 2;
+        this.showToast(`${hero.name}: Fury Combo! Next 2 hits at 1.5x`, '#e86898');
+        // Does not consume turn — re-enable answering
+        this.locked = false;
+        this.hideAbilityButton();
+        this.time.delayedCall(100, () => this.refreshAbilityButton());
+        return; // don't advance turn
+      default:
+        break;
+    }
+
+    this.hideAbilityButton();
+    // Ability consumes the turn (except Mana Surge and Fury Combo handled above)
+    this.time.delayedCall(600, () => this.nextTurn());
+  }
+
+  /** Decrement all hero ability cooldowns — called once per full turn cycle */
+  tickAbilityCooldowns() {
+    for (let i = 0; i < this.abilityCooldowns.length; i++) {
+      if (this.abilityCooldowns[i].cd > 0) {
+        this.abilityCooldowns[i].cd--;
+      }
+    }
   }
 
   // ================================================================
