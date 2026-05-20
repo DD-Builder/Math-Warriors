@@ -322,18 +322,18 @@ export const FLOORS = [
     objects: [
       // Beacons: one per zone (calm d<16, storm 16<=d<36, sunset d>=36)
       { type: 'beacon',    x: 5,  y: 5 },
-      { type: 'beacon',    x: 11, y: 17 },
-      { type: 'beacon',    x: 21, y: 27 },
+      { type: 'beacon',    x: 10, y: 16 },
+      { type: 'beacon',    x: 20, y: 26 },
       // Boss & exit in calm zone (top-left)
       { type: 'boss',      x: 5,  y: 3, enemyId: 'skywhale' },
       { type: 'golden',    x: 1,  y: 1 },
       { type: 'exit',      x: 7,  y: 1 },
       // Chests across zones
       { type: 'chest',     x: 7,  y: 8, loot: { gold: 25 } },
-      { type: 'chest',     x: 19, y: 21, loot: { gold: 25 } },
+      { type: 'chest',     x: 18, y: 20, loot: { gold: 25 } },
       // Gold pickups
       { type: 'gold',      x: 3,  y: 8 },
-      { type: 'gold',      x: 17, y: 18 },
+      { type: 'gold',      x: 16, y: 17 },
       // Potions
       { type: 'potion',    x: 10, y: 10 },
       // Encounters spread across all zones (calm, storm, sunset)
@@ -345,7 +345,7 @@ export const FLOORS = [
       { type: 'encounter', x: 16, y: 17 },
       { type: 'encounter', x: 20, y: 24 },
       { type: 'encounter', x: 3,  y: 29 },
-      { type: 'encounter', x: 22, y: 29 },
+      { type: 'encounter', x: 21, y: 28 },
     ],
   },
   {

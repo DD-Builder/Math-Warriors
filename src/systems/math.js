@@ -34,15 +34,15 @@ export const GRADE_TABLE = {
   // Kindergarten — counting feel, single digit, add/subtract only
   0: { ops: ['+', '-'],            minOperand: 0,  maxOperand: 5   },
   // 1st — simple facts to 10
-  1: { ops: ['+', '-'],            minOperand: 1,  maxOperand: 10  },
+  1: { ops: ['+', '-'],            minOperand: 1,  maxOperand: 8  },
   // 2nd — intro multiplication, numbers to 20
-  2: { ops: ['+', '-', '*'],       minOperand: 1,  maxOperand: 20  },
+  2: { ops: ['+', '-', '*'],       minOperand: 1,  maxOperand: 15  },
   // 3rd — times tables to 10×10, division starts
-  3: { ops: ['+', '-', '*', '/'],  minOperand: 1,  maxOperand: 50  },
+  3: { ops: ['+', '-', '*', '/'],  minOperand: 1,  maxOperand: 40  },
   // 4th — multi-digit
-  4: { ops: ['+', '-', '*', '/'],  minOperand: 2,  maxOperand: 100 },
+  4: { ops: ['+', '-', '*', '/'],  minOperand: 2,  maxOperand: 80 },
   // 5th — full times tables, long division
-  5: { ops: ['+', '-', '*', '/'],  minOperand: 2,  maxOperand: 144 },
+  5: { ops: ['+', '-', '*', '/'],  minOperand: 2,  maxOperand: 120 },
 };
 
 // ------------------------------------------------------------------
