@@ -997,6 +997,36 @@ export class MazeScene extends Phaser.Scene {
     };
     this.registry.set(`mazeState_${this.floorId}`, state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
+
+    // Brief "Saved!" feedback at the top of the screen
+    this.showSavedFeedback();
+  }
+
+  showSavedFeedback() {
+    const savedText = this.add.text(GAME_WIDTH / 2, 40, 'Saved!', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '20px',
+      color: '#f0d060',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setAlpha(0).setScrollFactor(0);
+
+    // Fade in
+    this.tweens.add({
+      targets: savedText,
+      alpha: 1,
+      duration: 150,
+      onComplete: () => {
+        // Hold visible for 0.5s, then fade out over 0.3s
+        this.tweens.add({
+          targets: savedText,
+          alpha: 0,
+          duration: 300,
+          delay: 500,
+          onComplete: () => savedText.destroy(),
+        });
+      },
+    });
   }
 
   // ================================================================

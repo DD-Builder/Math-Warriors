@@ -938,6 +938,72 @@ export class BattleScene extends Phaser.Scene {
     this.abilityBtn.label.setVisible(false);
     if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(false);
 
+    // Pause/gear button — top-left near QUEST label
+    PaperButton(this, area.left + 60, area.top + 22, '⚙', {
+      w: 54, h: 46, color: 0xfff8e8, fontSize: 22,
+      textColor: '#3a2410',
+      onClick: () => this.showPauseOverlay(),
+    });
+
+    // Pause overlay — all elements at absolute positions, collected into
+    // an array so we can show/hide them together. Depth is set high so
+    // they render above everything else.
+    const pcx = GAME_WIDTH / 2;
+    const pcy = GAME_HEIGHT / 2;
+    this._pauseElements = [];
+
+    const pauseBg = this.add.rectangle(pcx, pcy, GAME_WIDTH, GAME_HEIGHT, COLORS.ink, 0.85)
+      .setDepth(100).setInteractive().setVisible(false);
+    this._pauseElements.push(pauseBg);
+
+    const pausePanel = PaperPanel(this, pcx, pcy, 400, 360, {
+      color: 0xfff4e0, alpha: 0.95, radius: 24,
+    });
+    if (pausePanel.bg) { pausePanel.bg.setDepth(101).setVisible(false); this._pauseElements.push(pausePanel.bg); }
+    if (pausePanel.shadow) { pausePanel.shadow.setDepth(100).setVisible(false); this._pauseElements.push(pausePanel.shadow); }
+
+    const pauseTitle = this.add.text(pcx, pcy - 130, 'PAUSED', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '42px',
+      color: '#3a2410',
+      stroke: '#f0d060',
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(102).setVisible(false);
+    this._pauseElements.push(pauseTitle);
+
+    const resumeBtn = PaperButton(this, pcx, pcy - 50, 'RESUME', {
+      w: 300, h: 64, color: 0x4aa848, fontSize: 22,
+      onClick: () => this.hidePauseOverlay(),
+    });
+    [resumeBtn.bg, resumeBtn.shadow, resumeBtn.label, resumeBtn.zone].forEach(el => {
+      if (el) { el.setDepth(102).setVisible(false); this._pauseElements.push(el); }
+    });
+
+    const potionCount = this.save.potions || 0;
+    const potionBtn = PaperButton(this, pcx, pcy + 30, `USE POTION (${potionCount})`, {
+      w: 300, h: 64, color: 0x6828a0, fontSize: 22,
+      onClick: () => {
+        this.hidePauseOverlay();
+        this.usePotion();
+      },
+    });
+    this._pausePotionLabel = potionBtn.label;
+    this._pausePotionBtn = potionBtn;
+    [potionBtn.bg, potionBtn.shadow, potionBtn.label, potionBtn.zone].forEach(el => {
+      if (el) { el.setDepth(102).setVisible(false); this._pauseElements.push(el); }
+    });
+
+    const retreatBtn = PaperButton(this, pcx, pcy + 110, 'RETREAT', {
+      w: 300, h: 64, color: 0xc83030, fontSize: 22,
+      onClick: () => {
+        this.hidePauseOverlay();
+        this.retreatFromBattle();
+      },
+    });
+    [retreatBtn.bg, retreatBtn.shadow, retreatBtn.label, retreatBtn.zone].forEach(el => {
+      if (el) { el.setDepth(102).setVisible(false); this._pauseElements.push(el); }
+    });
+
     // Toast (floats above the UI panel)
     this.toast = this.add.text(area.cx, area.top + 90, '', {
       ...TEXT.heading(),
@@ -1315,7 +1381,11 @@ export class BattleScene extends Phaser.Scene {
       this.battleCorrect++;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
       this.updateMomentumBar();
-      if (this.streak >= 3) {
+
+      // CRITICAL HIT! toast when momentum is in HEAT zone (>0.66)
+      if (this.momentum > 0.66) {
+        this.showToast('CRITICAL HIT!', COLORS_CSS.goldL);
+      } else if (this.streak >= 3) {
         this.showToast(`${this.streak}x STREAK!`, COLORS_CSS.goldL);
       } else {
         this.showToast('CORRECT!', COLORS_CSS.greenL);
@@ -1790,6 +1860,7 @@ export class BattleScene extends Phaser.Scene {
       this.heroSprites[this.party.indexOf(activeHero)].y - 80,
       actualHealed,
       '#40ff60',
+      '+',
     );
     this.updateHeroHp(activeHero);
     this.refreshPotionButton();
@@ -1872,7 +1943,7 @@ export class BattleScene extends Phaser.Scene {
           this.showToast(`${hero.name} heals ${weakest.name} +${healed} HP!`, '#60ff60');
           const idx = this.party.indexOf(weakest);
           if (idx >= 0 && this.heroSprites[idx]) {
-            this.floatDamageNumber(this.heroSprites[idx].x, this.heroSprites[idx].y - 80, healed, '#40ff60');
+            this.floatDamageNumber(this.heroSprites[idx].x, this.heroSprites[idx].y - 80, healed, '#40ff60', '+');
           }
           this.updateAllHeroHp();
         }
@@ -1965,7 +2036,10 @@ export class BattleScene extends Phaser.Scene {
     // White flash + shake
     this.tweens.add({ targets: s.body, alpha: 0.2, duration: 50, yoyo: true, repeat: 2 });
     this.tweens.add({ targets: s.body, x: s.x + 8, duration: 40, yoyo: true, repeat: 3 });
-    this.floatDamageNumber(s.x, s.y - 100, result.modifiedDamage, '#60ff60');
+    // Gold floating damage number for hero damage dealt to enemy
+    this.floatDamageNumber(s.x, s.y - 100, result.modifiedDamage, '#f0c040', '+');
+    // Flash enemy HP bar red before updating
+    this.flashHpBar(s.hpBarFill, 0xff0000);
   }
 
   flashHero(hero, result) {
@@ -1979,37 +2053,51 @@ export class BattleScene extends Phaser.Scene {
       yoyo: true,
       repeat: 1,
     });
-    this.floatDamageNumber(s.x, s.y - 80, result.modifiedDamage, '#ff6060');
+    // Red floating damage number for enemy damage dealt to hero
+    this.floatDamageNumber(s.x, s.y - 80, result.modifiedDamage, '#ff6060', '-');
     this.burstParticles(s.x, s.y - 30, 0xc03030);
+    // Flash hero HP bar red before updating
+    this.flashHpBar(s.hpBarFill, 0xff0000);
+  }
+
+  /**
+   * Flash an HP bar fill red for 100ms before the actual value is set.
+   * Gives a brief visual pulse so the player sees damage registration.
+   */
+  flashHpBar(barFill, flashColor) {
+    if (!barFill) return;
+    const origColor = barFill.fillColor;
+    barFill.setFillStyle(flashColor);
+    this.time.delayedCall(100, () => {
+      if (barFill && barFill.scene) {
+        barFill.setFillStyle(origColor);
+      }
+    });
   }
 
   /**
    * Arcing damage number: pops up with a slight horizontal drift,
    * scales up then fades. More satisfying than a straight float.
+   *
+   * @param {string} prefix  '+' for hero damage (gold), '-' for enemy damage (red)
    */
-  floatDamageNumber(x, y, amount, color) {
-    const t = this.add.text(x, y, `-${amount}`, {
+  floatDamageNumber(x, y, amount, color, prefix = '-') {
+    const t = this.add.text(x, y, `${prefix}${amount}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '36px',
+      fontSize: '28px',
+      fontStyle: 'bold',
       color,
       stroke: '#000000',
       strokeThickness: 4,
     }).setOrigin(0.5).setScale(0.5);
 
-    const driftX = (Math.random() - 0.5) * 60;
     this.tweens.add({
       targets: t,
-      y: y - 120,
-      x: x + driftX,
-      scale: 1.2,
-      duration: 250,
-      ease: 'Back.out',
-    });
-    this.tweens.add({
-      targets: t,
+      y: y - 60,
       alpha: 0,
-      duration: 400,
-      delay: 500,
+      scale: 1.2,
+      duration: 800,
+      ease: 'Cubic.out',
       onComplete: () => t.destroy(),
     });
   }
@@ -2082,6 +2170,65 @@ export class BattleScene extends Phaser.Scene {
       duration: 400,
       delay: 800,
     });
+  }
+
+  // ================================================================
+  // PAUSE OVERLAY
+  // ================================================================
+
+  showPauseOverlay() {
+    if (this.phase === 'end') return;
+    this._pauseElements.forEach(el => el.setVisible(true));
+    this.locked = true;
+    // Update potion count display
+    if (this._pausePotionLabel) {
+      const count = this.save.potions || 0;
+      this._pausePotionLabel.setText(`USE POTION (${count})`);
+    }
+    // Dim potion button if no potions
+    if (this._pausePotionBtn) {
+      const count = this.save.potions || 0;
+      const alpha = count > 0 ? 1 : 0.4;
+      if (this._pausePotionBtn.bg) this._pausePotionBtn.bg.setAlpha(alpha);
+      if (this._pausePotionBtn.shadow) this._pausePotionBtn.shadow.setAlpha(alpha * 0.7);
+      if (this._pausePotionBtn.label) this._pausePotionBtn.label.setAlpha(alpha);
+    }
+  }
+
+  hidePauseOverlay() {
+    this._pauseElements.forEach(el => el.setVisible(false));
+    if (this.phase === 'question') {
+      this.locked = false;
+    }
+  }
+
+  retreatFromBattle() {
+    // Save maze state before retreating
+    const mazeKey = `mazeState_${this.floor}`;
+    const mazeState = this.registry.get(mazeKey);
+    if (mazeState) {
+      try { localStorage.setItem(`mw_maze_${this.floor}`, JSON.stringify(mazeState)); } catch (e) { /* ignore */ }
+    }
+
+    this.phase = 'end';
+    this.locked = true;
+    this.clearBossTimer();
+    audio.stopMusic();
+
+    // Full heal on retreat (failure is not punishment)
+    const save = this.save;
+    for (let i = 0; i < this.party.length && i < 3; i++) {
+      if (!save.party[i]) save.party[i] = {};
+      save.party[i].id = this.party[i].id;
+      save.party[i].name = this.party[i].name;
+      save.party[i].hp = this.party[i].maxHp;
+      save.party[i].maxHp = this.party[i].maxHp;
+    }
+    writeSave(save);
+
+    this.registry.remove('battleReturnScene');
+    this.registry.remove('battleReturnData');
+    transitionTo(this, SCENES.WORLD_MAP);
   }
 
   // ================================================================
@@ -2191,17 +2338,58 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(500, () => {
       this.endOverlay.titleText.setText('VICTORY!');
       this.endOverlay.subText.setText(`${defeatedNames} defeated!`);
-      let rewardText = `+${goldEarned} GOLD  •  +${xpEarned} XP  •  ${accuracy}%`;
+
+      // Enhanced victory stats
+      const bestStreak = save.stats.bestStreak || this.streak;
+      let rewardText = `Accuracy: ${accuracy}%`;
+      rewardText += `\nBest Streak: ${bestStreak}`;
+      rewardText += `\n+${goldEarned} GOLD  •  +${xpEarned} XP`;
       if (leveledUp.length > 0) {
-        rewardText += `\n⭐ ${leveledUp.join(' & ')} LEVELED UP!`;
+        rewardText += `\nLEVELED UP: ${leveledUp.join(' & ')}`;
       }
       this.endOverlay.rewardsText.setText(rewardText);
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
 
-      // Show achievement toasts staggered after victory overlay
+      // XP filling bar animation below rewards text
+      const barW = 280, barH = 16;
+      const barBg = this.add.rectangle(0, 90, barW, barH, 0x3a2410, 0.7).setOrigin(0.5);
+      const barFill = this.add.rectangle(-barW / 2, 90, 0, barH - 4, 0xf0c040).setOrigin(0, 0.5);
+      const xpLabel = this.add.text(0, 110, `+${xpEarned} XP`, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '16px',
+        color: COLORS_CSS.goldL,
+      }).setOrigin(0.5);
+      this.endOverlay.add([barBg, barFill, xpLabel]);
+      // Animate XP bar filling
+      this.tweens.add({
+        targets: barFill,
+        width: barW - 4,
+        duration: 800,
+        ease: 'Cubic.out',
+        delay: 200,
+      });
+
+      // Show newly unlocked achievements with gold badge icons
       if (newAchievements.length > 0) {
         newAchievements.forEach((ach, i) => {
+          const ay = 140 + i * 36;
+          const badge = this.add.circle(-120, ay, 10, 0xf0c040);
+          const star = this.add.text(-120, ay, '*', {
+            fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+            fontSize: '14px',
+            color: '#3a2410',
+          }).setOrigin(0.5);
+          const achText = this.add.text(-100, ay, ach.name, {
+            fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+            fontSize: '18px',
+            color: COLORS_CSS.goldL,
+            stroke: '#000000',
+            strokeThickness: 2,
+          }).setOrigin(0, 0.5);
+          this.endOverlay.add([badge, star, achText]);
+
+          // Stagger toast for each achievement
           this.time.delayedCall(800 + i * 1200, () => {
             if (this.scene.isActive()) {
               this.showToast(`Achievement: ${ach.name}!`, COLORS_CSS.goldL);
