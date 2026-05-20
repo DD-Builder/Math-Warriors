@@ -166,7 +166,7 @@ export function computeEnemyHp(def, grade, isBoss) {
   const avg = Math.max(1, expectedAnswer(op, grade));
 
   // Base target in "problems to defeat"
-  const problemsTarget = isBoss ? 12 : 4;
+  const problemsTarget = isBoss ? 15 : 4;
 
   // Relative difficulty within floor: use the original maxHp as a
   // weight against the floor's median original maxHp. Gives variety
@@ -178,7 +178,7 @@ export function computeEnemyHp(def, grade, isBoss) {
   const hp = Math.round(avg * problemsTarget * weight);
   // Floor at a minimum that still takes at least a couple problems even
   // when the expected answer is tiny (K-grade subtraction avg ~2).
-  const minMob = isBoss ? 40 : 12;
+  const minMob = isBoss ? Math.max(60, 30 + grade * 15) : 12;
   return Math.max(minMob, hp);
 }
 

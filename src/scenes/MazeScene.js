@@ -203,6 +203,26 @@ export class MazeScene extends Phaser.Scene {
       });
     }
 
+    // After boss is defeated and player returns, consume the boss object
+    if (this.bossDefeated) {
+      this.objects.forEach(o => {
+        if (o.type === 'boss' && !o.consumed) {
+          o.consumed = true;
+          markDead(o.id);
+        }
+      });
+    }
+
+    // After boss is defeated, clear all remaining encounters (Bug 5)
+    if (this.bossDefeated) {
+      this.objects.forEach(o => {
+        if (o.type === 'encounter' && !o.consumed) {
+          o.consumed = true;
+          markDead(o.id);
+        }
+      });
+    }
+
     // Draw first frame and add as Phaser texture
     drawLevel(0);
     const cv = getCanvas();
@@ -893,8 +913,9 @@ export class MazeScene extends Phaser.Scene {
           this.showFloatText(obj.x, obj.y, 'COMPLETE THE CHALLENGE FIRST!', '#e088c0');
           return;
         }
-        obj.consumed = true;
-        markDead(obj.id);
+        // Do NOT consume the boss before the battle — if the player loses,
+        // the boss must still be present for a retry. The boss object is
+        // consumed after victory when bossDefeated is set to true.
         audio.play('world/encounter');
         this.startBattle(true, obj.enemyId);
         break;

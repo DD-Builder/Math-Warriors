@@ -760,7 +760,7 @@ export class BattleScene extends Phaser.Scene {
       const monsterScale = enemy.isBoss ? 1.02 : monsterScaleByCount;
       const x = centerX + positions[ei].dx;
       const monsterDisplayH = 640 * monsterScale;
-      const y = groundY - monsterDisplayH * 0.45 + positions[ei].dy;
+      const y = groundY - monsterDisplayH * 0.50 + positions[ei].dy;
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
@@ -1020,8 +1020,8 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0);
 
     // End overlay (hidden by default)
-    this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false);
-    const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, COLORS.ink, 0.88);
+    this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
+    const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, COLORS.ink, 0.92);
     const endTitle = this.add.text(0, -160, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '72px',
@@ -2315,6 +2315,19 @@ export class BattleScene extends Phaser.Scene {
     this.clearBossTimer();
     this.time.removeAllEvents();
 
+    // Hide equation panel, answer buttons, and ability buttons
+    if (this.eqLines) {
+      Object.values(this.eqLines).forEach(el => { if (el) el.setVisible(false); });
+    }
+    for (let i = 0; i < this.answerButtons.length; i++) {
+      const btn = this.answerButtons[i];
+      if (btn.bg) btn.bg.setVisible(false);
+      if (btn.shadow) btn.shadow.setVisible(false);
+      if (btn.label) btn.label.setVisible(false);
+      if (btn.zone) btn.zone.setVisible(false);
+    }
+    this.hideAbilityButton();
+
     audio.stopMusic();
     audio.play('battle/victory');
 
@@ -2468,7 +2481,7 @@ export class BattleScene extends Phaser.Scene {
       // Show newly unlocked achievements with gold badge icons
       if (newAchievements.length > 0) {
         newAchievements.forEach((ach, i) => {
-          const ay = 140 + i * 36;
+          const ay = 200 + i * 36;
           const badge = this.add.circle(-120, ay, 10, 0xf0c040);
           const star = this.add.text(-120, ay, '*', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -2501,6 +2514,20 @@ export class BattleScene extends Phaser.Scene {
     this.locked = true;
     this.clearBossTimer();
     this.time.removeAllEvents();
+
+    // Hide equation panel, answer buttons, and ability buttons
+    if (this.eqLines) {
+      Object.values(this.eqLines).forEach(el => { if (el) el.setVisible(false); });
+    }
+    for (let i = 0; i < this.answerButtons.length; i++) {
+      const btn = this.answerButtons[i];
+      if (btn.bg) btn.bg.setVisible(false);
+      if (btn.shadow) btn.shadow.setVisible(false);
+      if (btn.label) btn.label.setVisible(false);
+      if (btn.zone) btn.zone.setVisible(false);
+    }
+    this.hideAbilityButton();
+
     audio.stopMusic();
     audio.play('battle/defeat');
 
