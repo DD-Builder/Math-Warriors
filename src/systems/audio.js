@@ -39,6 +39,7 @@ export const SOUNDS = {
   'battle/heal':      { file: null, volume: 0.8, category: 'sfx' },
   'battle/victory':   { file: null, volume: 1.0, category: 'sfx' },
   'battle/defeat':    { file: null, volume: 0.9, category: 'sfx' },
+  'battle/level-up':  { file: null, volume: 1.0, category: 'sfx' },
   'battle/critical':  { file: null, volume: 1.0, category: 'sfx' },
 
   // World interactions
@@ -68,7 +69,7 @@ export const SOUNDS = {
 // via `scene.game.registry.get('audio')` or via the convenience
 // `audio` export that's lazy-initialized.
 
-import { SYNTH_SFX, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic } from './synthAudio.js';
+import { SYNTH_SFX, playSynth, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic } from './synthAudio.js';
 
 class AudioManager {
   constructor() {
@@ -136,8 +137,8 @@ class AudioManager {
 
     // Fall back to procedural synthesized SFX
     if (entry.category !== 'music' && this.sfxVolume > 0) {
-      const synth = SYNTH_SFX[key];
-      if (synth) { unlockAudio(); synth(); }
+      unlockAudio();
+      playSynth(key);
     }
   }
 

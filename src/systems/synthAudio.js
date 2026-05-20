@@ -7,167 +7,157 @@
  * Also provides simple ambient drone music via playMusic/stopMusic.
  */
 
-let ctx = null;
-
-function getCtx() {
-  if (ctx) return ctx;
-  try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
-  return ctx;
-}
-
 // ------------------------------------------------------------------
 // CORE HELPERS
 // ------------------------------------------------------------------
 
-/**
- * Play a tone via an oscillator with envelope and optional frequency sweep.
- * @param {number} freq    - Start frequency (Hz)
- * @param {number} dur     - Duration (seconds)
- * @param {string} type    - Oscillator type: 'sine', 'square', 'sawtooth', 'triangle'
- * @param {number} vol     - Peak volume (0-1)
- * @param {number} [endFreq] - End frequency for a linear sweep
- */
-function playTone(freq, dur, type, vol, endFreq) {
-  const c = getCtx(); if (!c) return;
-  const osc = c.createOscillator();
-  const gain = c.createGain();
-  osc.type = type || 'sine';
-  osc.frequency.setValueAtTime(freq, c.currentTime);
-  if (endFreq != null) {
-    osc.frequency.linearRampToValueAtTime(endFreq, c.currentTime + dur);
-  }
-  gain.gain.setValueAtTime(vol || 0.3, c.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
-  osc.connect(gain);
-  gain.connect(c.destination);
-  osc.start(c.currentTime);
-  osc.stop(c.currentTime + dur + 0.01);
+let _ctx = null;
+function getCtx() {
+  if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
+  return _ctx;
 }
 
-/**
- * Play a white noise burst for impact/hit sounds.
- * @param {number} dur - Duration (seconds)
- * @param {number} vol - Peak volume (0-1)
- */
+export function unlockAudio() {
+  const ctx = getCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+}
+
+function playTone(freq, dur, type, vol, endFreq) {
+  const ctx = getCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  if (endFreq) osc.frequency.linearRampToValueAtTime(endFreq, ctx.currentTime + dur);
+  gain.gain.setValueAtTime(vol || 0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur);
+}
+
 function playNoise(dur, vol) {
-  const c = getCtx(); if (!c) return;
-  const len = Math.max(1, Math.round(c.sampleRate * dur));
-  const buf = c.createBuffer(1, len, c.sampleRate);
+  const ctx = getCtx();
+  const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
-  const src = c.createBufferSource();
+  const src = ctx.createBufferSource();
   src.buffer = buf;
-  const gain = c.createGain();
-  gain.gain.setValueAtTime(vol || 0.15, c.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
-  src.connect(gain);
-  gain.connect(c.destination);
-  src.start(c.currentTime);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(vol || 0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  src.connect(gain); gain.connect(ctx.destination);
+  src.start();
 }
 
 // ------------------------------------------------------------------
 // SFX REGISTRY
 // ------------------------------------------------------------------
 
-export const SYNTH_SFX = {
+const SYNTH_SOUNDS = {
   // UI
-  'ui/click':     () => playTone(800, 0.05, 'sine', 0.3),
-  'ui/confirm':   () => playTone(600, 0.1, 'sine', 0.4, 900),
-  'ui/back':      () => playTone(400, 0.08, 'sine', 0.3, 300),
+  'ui/click': () => playTone(800, 0.05, 'sine', 0.3),
+  'ui/confirm': () => { playTone(600, 0.1, 'sine', 0.35); setTimeout(() => playTone(900, 0.1, 'sine', 0.35), 80); },
+  'ui/back': () => playTone(400, 0.08, 'sine', 0.25, 300),
 
   // Battle feedback
-  'battle/correct': () => {
-    playTone(523, 0.12, 'sine', 0.4);
-    setTimeout(() => playTone(659, 0.12, 'sine', 0.4), 80);
-  },
-  'battle/wrong':     () => playTone(200, 0.15, 'square', 0.2),
-  'battle/hit':       () => playNoise(0.08, 0.5),
-  'battle/hit-enemy': () => playNoise(0.08, 0.5),
-  'battle/hit-hero':  () => playNoise(0.1, 0.3),
-  'battle/heal':      () => playTone(800, 0.15, 'sine', 0.3, 1200),
-  'battle/victory':   () => {
-    [523, 659, 784, 1047].forEach((f, i) =>
-      setTimeout(() => playTone(f, 0.2, 'sine', 0.4), i * 120));
-  },
-  'battle/defeat':    () => {
-    [400, 350, 300, 250].forEach((f, i) =>
-      setTimeout(() => playTone(f, 0.25, 'triangle', 0.3), i * 150));
-  },
+  'battle/correct': () => { playTone(523, 0.12, 'sine', 0.35); setTimeout(() => playTone(659, 0.12, 'sine', 0.35), 80); setTimeout(() => playTone(784, 0.1, 'sine', 0.3), 160); },
+  'battle/wrong': () => playTone(200, 0.2, 'square', 0.15),
+  'battle/hit': () => { playNoise(0.06, 0.4); playTone(300, 0.08, 'sine', 0.2, 100); },
+  'battle/hit_hero': () => { playNoise(0.08, 0.3); playTone(250, 0.1, 'sine', 0.15, 150); },
+  'battle/hit-hero': () => { playNoise(0.08, 0.3); playTone(250, 0.1, 'sine', 0.15, 150); },
+  'battle/hit-enemy': () => { playNoise(0.06, 0.4); playTone(300, 0.08, 'sine', 0.2, 100); },
+  'battle/heal': () => { playTone(800, 0.15, 'sine', 0.25, 1200); setTimeout(() => playTone(1000, 0.12, 'sine', 0.2, 1400), 100); },
+  'battle/victory': () => { [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f, 0.25, 'sine', 0.35), i*120)); },
+  'battle/defeat': () => { [400,350,300,250].forEach((f,i) => setTimeout(() => playTone(f, 0.3, 'triangle', 0.25), i*150)); },
+  'battle/level_up': () => { [523,659,784,1047,1319].forEach((f,i) => setTimeout(() => playTone(f, 0.15, 'sine', 0.3), i*80)); },
+  'battle/level-up': () => { [523,659,784,1047,1319].forEach((f,i) => setTimeout(() => playTone(f, 0.15, 'sine', 0.3), i*80)); },
 
   // World interactions
-  'world/chest':      () => {
-    playNoise(0.05, 0.2);
-    setTimeout(() => playTone(600, 0.1, 'sine', 0.3, 800), 60);
-  },
-  'world/gold':       () => playTone(1200, 0.06, 'sine', 0.3),
-  'world/encounter':  () => playTone(200, 0.2, 'sawtooth', 0.3, 100),
-  'world/floor-complete': () => {
-    [523, 659, 784, 1047, 1319].forEach((f, i) =>
-      setTimeout(() => playTone(f, 0.3, 'sine', 0.4), i * 100));
-  },
+  'world/chest': () => { playNoise(0.04, 0.2); setTimeout(() => { playTone(600, 0.1, 'sine', 0.3); setTimeout(() => playTone(800, 0.1, 'sine', 0.3), 80); }, 50); },
+  'world/gold': () => playTone(1200, 0.06, 'sine', 0.25),
+  'world/encounter': () => { playTone(200, 0.25, 'sawtooth', 0.2, 100); playNoise(0.1, 0.15); },
+  'world/floor-complete': () => { [523,659,784,1047,1319].forEach((f,i) => setTimeout(() => playTone(f, 0.3, 'sine', 0.35), i*100)); },
 
-  // Legacy: fairy (keep for backward compat)
+  // Legacy
   'world/fairy': () => {
     [880, 1100, 1320, 1100, 880].forEach((f, i) =>
       setTimeout(() => playTone(f, 0.1, 'sine', 0.15), i * 60));
   },
 };
 
+/** Backward-compatible alias used by audio.js */
+export const SYNTH_SFX = SYNTH_SOUNDS;
+
+export function playSynth(key) {
+  try { const fn = SYNTH_SOUNDS[key]; if (fn) fn(); } catch (e) { /* ignore audio errors */ }
+}
+
 // ------------------------------------------------------------------
-// BACKGROUND MUSIC (ambient drone)
+// BACKGROUND MUSIC (ambient drones)
 // ------------------------------------------------------------------
 
 const MUSIC_DEFS = {
+  // Garden / menu — gentle 220Hz + 330Hz sine at 0.03
   'music/title': {
-    frequencies: [220, 330],
-    type: 'sine',
-    volume: 0.05,
+    layers: [
+      { freq: 220, type: 'sine', volume: 0.03 },
+      { freq: 330, type: 'sine', volume: 0.03 },
+    ],
   },
   'music/map': {
-    frequencies: [220, 330],
-    type: 'sine',
-    volume: 0.05,
+    layers: [
+      { freq: 220, type: 'sine', volume: 0.03 },
+      { freq: 330, type: 'sine', volume: 0.03 },
+    ],
   },
+  // Floor 1 — Garden
+  'music/floor-1': {
+    layers: [
+      { freq: 220, type: 'sine', volume: 0.03 },
+      { freq: 330, type: 'sine', volume: 0.03 },
+    ],
+  },
+  // Battle — 165Hz triangle at 0.04 with slow tremolo
   'music/battle': {
-    frequencies: [330],
-    type: 'sine',
-    volume: 0.08,
-    pulseRate: 3, // subtle LFO
+    layers: [
+      { freq: 165, type: 'triangle', volume: 0.04 },
+    ],
+    tremolo: 2,
   },
   'music/boss': {
-    frequencies: [220, 277],
-    type: 'sawtooth',
-    volume: 0.06,
-    pulseRate: 4,
+    layers: [
+      { freq: 165, type: 'triangle', volume: 0.04 },
+    ],
+    tremolo: 3,
   },
-  'music/floor-1': {
-    frequencies: [220, 330],
-    type: 'sine',
-    volume: 0.04,
-  },
+  // Floor 2 — Tidepool: 180Hz sine at 0.03
   'music/floor-2': {
-    frequencies: [247, 370],
-    type: 'sine',
-    volume: 0.04,
+    layers: [
+      { freq: 180, type: 'sine', volume: 0.03 },
+    ],
   },
+  // Floor 3 — Cloud: 260Hz sine at 0.02
   'music/floor-3': {
-    frequencies: [262, 392],
-    type: 'triangle',
-    volume: 0.04,
+    layers: [
+      { freq: 260, type: 'sine', volume: 0.02 },
+    ],
   },
+  // Floor 4 — Ember: 110Hz sawtooth at 0.03
   'music/floor-4': {
-    frequencies: [196, 294],
-    type: 'sawtooth',
-    volume: 0.04,
+    layers: [
+      { freq: 110, type: 'sawtooth', volume: 0.03 },
+    ],
   },
+  // Floor 5 — Arcane: 200Hz + 300Hz sine at 0.02
   'music/floor-5': {
-    frequencies: [233, 349],
-    type: 'triangle',
-    volume: 0.04,
+    layers: [
+      { freq: 200, type: 'sine', volume: 0.02 },
+      { freq: 300, type: 'sine', volume: 0.02 },
+    ],
   },
 };
 
-let _musicNodes = null; // { oscillators: OscillatorNode[], gains: GainNode[], lfo?: OscillatorNode }
+let _musicNodes = null;
 let _currentMusicKey = null;
 
 /**
@@ -184,39 +174,38 @@ export function playSynthMusic(key) {
     return;
   }
 
-  const c = getCtx();
-  if (!c) return;
+  const ctx = getCtx();
+  if (!ctx) return;
 
   const oscillators = [];
   const gains = [];
   let lfo = null;
 
-  for (const freq of def.frequencies) {
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = def.type || 'sine';
-    osc.frequency.setValueAtTime(freq, c.currentTime);
-    gain.gain.setValueAtTime(def.volume || 0.05, c.currentTime);
+  for (const layer of def.layers) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = layer.type || 'sine';
+    osc.frequency.setValueAtTime(layer.freq, ctx.currentTime);
+    gain.gain.setValueAtTime(layer.volume || 0.03, ctx.currentTime);
     osc.connect(gain);
-    gain.connect(c.destination);
-    osc.start(c.currentTime);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
     oscillators.push(osc);
     gains.push(gain);
   }
 
-  // Optional LFO for pulse effect
-  if (def.pulseRate && gains.length > 0) {
-    lfo = c.createOscillator();
-    const lfoGain = c.createGain();
+  // Optional tremolo (slow LFO modulation)
+  if (def.tremolo && gains.length > 0) {
+    lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
     lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(def.pulseRate, c.currentTime);
-    lfoGain.gain.setValueAtTime(def.volume * 0.3, c.currentTime);
+    lfo.frequency.setValueAtTime(def.tremolo, ctx.currentTime);
+    lfoGain.gain.setValueAtTime(def.layers[0].volume * 0.3, ctx.currentTime);
     lfo.connect(lfoGain);
-    // Connect LFO to each gain's gain parameter
     for (const g of gains) {
       lfoGain.connect(g.gain);
     }
-    lfo.start(c.currentTime);
+    lfo.start(ctx.currentTime);
   }
 
   _musicNodes = { oscillators, gains, lfo };
@@ -229,8 +218,8 @@ export function playSynthMusic(key) {
 export function stopSynthMusic() {
   if (!_musicNodes) return;
   const { oscillators, gains, lfo } = _musicNodes;
-  const c = getCtx();
-  const now = c ? c.currentTime : 0;
+  const ctx = getCtx();
+  const now = ctx ? ctx.currentTime : 0;
 
   // Fade out gracefully
   for (const g of gains) {
@@ -259,16 +248,4 @@ export function stopSynthMusic() {
  */
 export function hasSynthMusic(key) {
   return key in MUSIC_DEFS;
-}
-
-// ------------------------------------------------------------------
-// iOS UNLOCK
-// ------------------------------------------------------------------
-
-/**
- * Unlock the AudioContext on first user gesture (required by iOS Safari).
- */
-export function unlockAudio() {
-  const c = getCtx();
-  if (c && c.state === 'suspended') c.resume();
 }
