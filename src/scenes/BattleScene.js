@@ -11,7 +11,7 @@ import {
   isPartyDefeated,
   pickRandomLivingHero,
 } from '../systems/combat.js';
-import { spawnHero, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
+import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor } from '../systems/save.js';
@@ -115,6 +115,8 @@ export class BattleScene extends Phaser.Scene {
 
     this.momentum = 0.5;
     this.streak = 0;
+    this.heroStreaks = new Array(this.party.length).fill(0);
+    this.superReady = new Array(this.party.length).fill(false);
     this.turnSeq = buildTurnSequence(this.party.length);
     this.turnIdx = -1;
     this.phase = 'intro';
@@ -944,16 +946,24 @@ export class BattleScene extends Phaser.Scene {
       this.drawColorblindMomentumPatterns(barX, topY, barW);
     }
 
-    // ABILITY button — appears below answer buttons during hero turns
     const abilityBtnY = ansY + ansH / 2 + 10;
     this.abilityBtn = PaperButton(this, area.cx, abilityBtnY, 'ABILITY', {
       w: 220, h: 42, color: 0x9050c8, fontSize: 16,
       onClick: () => this.useAbility(),
     });
-    this.abilityBtn.bg.setVisible(false);
-    this.abilityBtn.shadow.setVisible(false);
-    this.abilityBtn.label.setVisible(false);
-    if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(false);
+    this.setSuperVisible(this.abilityBtn, false);
+
+    this.superBtn = PaperButton(this, area.cx - 160, abilityBtnY, 'SUPER!', {
+      w: 200, h: 46, color: 0xe8a030, fontSize: 18,
+      onClick: () => this.executeSuperMove(),
+    });
+    this.setSuperVisible(this.superBtn, false);
+
+    this.teamBtn = PaperButton(this, area.cx + 160, abilityBtnY, 'TEAM ATTACK!', {
+      w: 240, h: 46, color: 0xe04040, fontSize: 16,
+      onClick: () => this.executeTeamAttack(),
+    });
+    this.setSuperVisible(this.teamBtn, false);
 
     // Pause/gear button — top-left near QUEST label
     PaperButton(this, area.left + 60, area.top + 22, '⚙', {
@@ -1132,6 +1142,7 @@ export class BattleScene extends Phaser.Scene {
     this.locked = false;
     this.refreshPotionButton();
     this.refreshAbilityButton();
+    this.updateSuperButton();
 
     if (shouldShowTutorial('FIRST_BATTLE')) {
       markTutorialShown('FIRST_BATTLE');
@@ -1465,8 +1476,18 @@ export class BattleScene extends Phaser.Scene {
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
       this.updateMomentumBar();
 
-      // CRITICAL HIT! toast when momentum is in HEAT zone (>0.66)
-      if (this.momentum > 0.66) {
+      const heroIdx = this.currentTurn.heroIndex;
+      this.heroStreaks[heroIdx] = (this.heroStreaks[heroIdx] || 0) + 1;
+      if (this.heroStreaks[heroIdx] >= 3 && !this.superReady[heroIdx]) {
+        this.superReady[heroIdx] = true;
+        const hero = this.party[heroIdx];
+        this.showToast(`${hero.name}: SUPER READY!`, '#f0c040');
+        this.updateSuperButton();
+      }
+
+      if (this.momentum >= 1.0) {
+        this.showToast('TEAM ATTACK READY!', '#f0d040');
+      } else if (this.momentum > 0.66) {
         this.showToast('CRITICAL HIT!', COLORS_CSS.goldL);
       } else if (this.streak >= 3) {
         this.showToast(`${this.streak}x STREAK!`, COLORS_CSS.goldL);
@@ -1488,10 +1509,8 @@ export class BattleScene extends Phaser.Scene {
         activeHero: this.party[this.currentTurn.heroIndex],
       });
 
-      // POWER STRIKE formula: BASE_POWER + answer*0.8 + hero.atk*0.3 + streakBonus
       const answer = this.currentQuestion.answer;
       const zone = getZone(this.momentum);
-      const heroIdx = this.currentTurn.heroIndex;
       const hero = this.party[heroIdx];
       const cls = hero.class || 'knight';
 
@@ -1861,6 +1880,10 @@ export class BattleScene extends Phaser.Scene {
       audio.play('battle/wrong');
 
       this.streak = 0;
+      const heroIdx = this.currentTurn.heroIndex;
+      this.heroStreaks[heroIdx] = 0;
+      this.superReady[heroIdx] = false;
+      this.updateSuperButton();
       this.battleWrong++;
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar();
@@ -2578,5 +2601,100 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay.rewardsText.setText(`You got ${this.battleCorrect} correct this battle!`);
     this.endOverlay.setVisible(true);
     this.endOverlay.setAlpha(1);
+  }
+
+  setSuperVisible(btn, show) {
+    if (!btn) return;
+    btn.bg.setVisible(show);
+    btn.shadow.setVisible(show);
+    btn.label.setVisible(show);
+    if (btn.zone) btn.zone.setVisible(show);
+  }
+
+  updateSuperButton() {
+    if (!this.currentTurn || this.currentTurn.who !== 'hero') {
+      this.setSuperVisible(this.superBtn, false);
+      this.setSuperVisible(this.teamBtn, false);
+      return;
+    }
+    const heroIdx = this.currentTurn.heroIndex;
+    const hasSuperReady = this.superReady[heroIdx];
+    this.setSuperVisible(this.superBtn, hasSuperReady);
+    if (hasSuperReady) {
+      const hero = this.party[heroIdx];
+      const level = hero.level || 1;
+      const supers = getAvailableSupers(hero.id, level);
+      const best = supers.length > 0 ? supers[supers.length - 1] : null;
+      this.superBtn.label.setText(best ? best.name : 'SUPER!');
+    }
+    this.setSuperVisible(this.teamBtn, this.momentum >= 1.0);
+  }
+
+  executeSuperMove() {
+    if (this.phase !== 'question') return;
+    const heroIdx = this.currentTurn.heroIndex;
+    if (!this.superReady[heroIdx]) return;
+
+    const hero = this.party[heroIdx];
+    const level = hero.level || 1;
+    const supers = getAvailableSupers(hero.id, level);
+    const move = supers.length > 0 ? supers[supers.length - 1] : null;
+    const mult = move ? move.multiplier : 2;
+
+    this.superReady[heroIdx] = false;
+    this.heroStreaks[heroIdx] = 0;
+    this.setSuperVisible(this.superBtn, false);
+
+    const targetIdx = this.currentTarget;
+    const targetEnemy = this.enemies[targetIdx] || this.enemy;
+    const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
+    const baseDmg = 5 + ((hero.atk || 10) * 0.5);
+    const dmg = Math.round(baseDmg * mult);
+
+    this.showToast(`${move ? move.name : 'SUPER'}! ${dmg} DMG!`, '#f0c040');
+    audio.play('battle/correct');
+
+    this.cameras.main.shake(150, 0.01);
+
+    targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+    this.updateEnemyHpBar(targetIdx);
+
+    if (targetEnemy.hp <= 0) {
+      this.time.delayedCall(300, () => this.handleEnemyDefeat(targetIdx));
+    } else {
+      this.time.delayedCall(400, () => this.nextTurn());
+    }
+  }
+
+  executeTeamAttack() {
+    if (this.phase !== 'question') return;
+    if (this.momentum < 1.0) return;
+
+    this.setSuperVisible(this.teamBtn, false);
+    this.momentum = 0.5;
+    this.updateMomentumBar();
+
+    const targetIdx = this.currentTarget;
+    const targetEnemy = this.enemies[targetIdx] || this.enemy;
+    let totalDmg = 0;
+    for (const hero of this.party) {
+      if (!hero || hero.hp <= 0) continue;
+      const baseDmg = 5 + ((hero.atk || 10) * 0.5);
+      totalDmg += Math.round(baseDmg * 3);
+    }
+
+    this.showToast(`TEAM ATTACK! ${totalDmg} DMG!`, '#e04040');
+    audio.play('battle/correct');
+
+    this.cameras.main.shake(300, 0.02);
+
+    targetEnemy.hp = Math.max(0, targetEnemy.hp - totalDmg);
+    this.updateEnemyHpBar(targetIdx);
+
+    if (targetEnemy.hp <= 0) {
+      this.time.delayedCall(400, () => this.handleEnemyDefeat(targetIdx));
+    } else {
+      this.time.delayedCall(500, () => this.nextTurn());
+    }
   }
 }
