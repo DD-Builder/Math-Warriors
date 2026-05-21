@@ -13,6 +13,8 @@ import {
   clearSave,
   updateSave,
   markFloorComplete,
+  unlockHeroesForFloor,
+  isHeroUnlocked,
   __setStorage,
   CURRENT_VERSION,
   STORAGE_KEY,
@@ -302,5 +304,108 @@ describe('save slots', () => {
     assert.equal(loaded.gold, 0); // default, not migrated
     // Legacy key still exists
     assert.ok(storage.getItem(LEGACY_KEY));
+  });
+});
+
+describe('hero unlock system', () => {
+  let storage;
+  beforeEach(() => {
+    storage = makeMockStorage();
+    __setStorage(storage);
+  });
+
+  test('default save has exactly 3 starter heroes', () => {
+    const save = makeDefaultSave();
+    assert.equal(save.unlockedHeroes.length, 3);
+    assert.ok(save.unlockedHeroes.includes('knight-shadow'));
+    assert.ok(save.unlockedHeroes.includes('wizard-stargazer'));
+    assert.ok(save.unlockedHeroes.includes('bunny-pepper'));
+  });
+
+  test('isHeroUnlocked returns true for starters, false for locked', () => {
+    const save = makeDefaultSave();
+    assert.ok(isHeroUnlocked(save, 'knight-shadow'));
+    assert.ok(isHeroUnlocked(save, 'wizard-stargazer'));
+    assert.ok(isHeroUnlocked(save, 'bunny-pepper'));
+    assert.ok(!isHeroUnlocked(save, 'knight-crusader'));
+    assert.ok(!isHeroUnlocked(save, 'wizard-toadstool'));
+  });
+
+  test('unlockHeroesForFloor(1) unlocks Crusader + Toadstool', () => {
+    const save = makeDefaultSave();
+    const unlocked = unlockHeroesForFloor(save, 1);
+    assert.equal(unlocked.length, 2);
+    assert.ok(unlocked.some(h => h.id === 'knight-crusader'));
+    assert.ok(unlocked.some(h => h.id === 'wizard-toadstool'));
+    assert.ok(isHeroUnlocked(save, 'knight-crusader'));
+    assert.ok(isHeroUnlocked(save, 'wizard-toadstool'));
+  });
+
+  test('unlockHeroesForFloor does not duplicate', () => {
+    const save = makeDefaultSave();
+    unlockHeroesForFloor(save, 1);
+    const before = save.unlockedHeroes.length;
+    unlockHeroesForFloor(save, 1);
+    assert.equal(save.unlockedHeroes.length, before);
+  });
+
+  test('full unlock progression yields 15 heroes', () => {
+    const save = makeDefaultSave();
+    for (let f = 1; f <= 9; f++) {
+      unlockHeroesForFloor(save, f);
+    }
+    assert.equal(save.unlockedHeroes.length, 15);
+  });
+
+  test('save version is 3', () => {
+    assert.equal(CURRENT_VERSION, 3);
+  });
+
+  test('v2 save migrates to v3 with unlockedHeroes', () => {
+    const v2 = {
+      version: 2,
+      grade: 3,
+      party: [],
+      gold: 100,
+      potions: 5,
+      inventory: [],
+      floors: [
+        { id: 1, unlocked: true, complete: true, bestStreak: 5 },
+        { id: 2, unlocked: true, complete: true, bestStreak: 3 },
+        { id: 3, unlocked: true, complete: false, bestStreak: 0 },
+        { id: 4, unlocked: false, complete: false, bestStreak: 0 },
+        { id: 5, unlocked: false, complete: false, bestStreak: 0 },
+        { id: 6, unlocked: false, complete: false, bestStreak: 0 },
+        { id: 7, unlocked: false, complete: false, bestStreak: 0 },
+        { id: 8, unlocked: false, complete: false, bestStreak: 0 },
+        { id: 9, unlocked: false, complete: false, bestStreak: 0 },
+      ],
+      settings: {},
+      stats: {},
+    };
+    storage.setItem(STORAGE_KEY, JSON.stringify(v2));
+    const loaded = loadSave();
+    assert.equal(loaded.version, 3);
+    assert.ok(Array.isArray(loaded.unlockedHeroes));
+    // Starters + floor 1 unlocks + floor 2 unlocks
+    assert.ok(loaded.unlockedHeroes.includes('knight-shadow'));
+    assert.ok(loaded.unlockedHeroes.includes('knight-crusader'));
+    assert.ok(loaded.unlockedHeroes.includes('wizard-toadstool'));
+    assert.ok(loaded.unlockedHeroes.includes('bunny-nova'));
+    assert.ok(loaded.unlockedHeroes.includes('wizard-spellblade'));
+    assert.equal(loaded.gold, 100);
+  });
+
+  test('markFloorComplete + unlockHeroesForFloor persists via writeSave', () => {
+    const save = makeDefaultSave();
+    writeSave(save);
+    const loaded = loadSave();
+    markFloorComplete(loaded, 1);
+    unlockHeroesForFloor(loaded, 1);
+    writeSave(loaded);
+    const reloaded = loadSave();
+    assert.ok(reloaded.floors[0].complete);
+    assert.ok(reloaded.floors[1].unlocked);
+    assert.ok(isHeroUnlocked(reloaded, 'knight-crusader'));
   });
 });
