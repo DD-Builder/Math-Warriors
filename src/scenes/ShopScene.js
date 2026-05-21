@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { loadSave, writeSave } from '../systems/save.js';
+import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { getHeroById } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
@@ -21,7 +21,8 @@ export class ShopScene extends Phaser.Scene {
   }
 
   init() {
-    this.save = loadSave();
+    this.slot = getActiveSlot(this);
+    this.save = loadSave(this.slot);
   }
 
   create() {
@@ -118,7 +119,7 @@ export class ShopScene extends Phaser.Scene {
         break;
     }
 
-    writeSave(this.save);
+    writeSave(this.save, this.slot);
     audio.play('ui/confirm');
     this.updateGoldLabel();
     this.refreshBuyButtons();

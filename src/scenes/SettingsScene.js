@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { loadSave, writeSave, clearSave } from '../systems/save.js';
+import { loadSave, writeSave, clearSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
@@ -18,7 +18,8 @@ export class SettingsScene extends Phaser.Scene {
   init(data) {
     this.returnScene = data?.returnScene ?? SCENES.TITLE;
     this.returnData = data?.returnData ?? null;
-    this.save = loadSave();
+    this.slot = getActiveSlot(this);
+    this.save = loadSave(this.slot);
     this.confirmingReset = false;
   }
 
@@ -58,21 +59,21 @@ export class SettingsScene extends Phaser.Scene {
     this.buildVolumeRow(area.cx, contentTop + rowH * 0.5, 'MUSIC', this.save.settings.musicVolume, (v) => {
       this.save.settings.musicVolume = v;
       audio.setMusicVolume(v);
-      writeSave(this.save);
+      writeSave(this.save, this.slot);
     });
 
     // Row 2: SFX
     this.buildVolumeRow(area.cx, contentTop + rowH * 1.5, 'SOUND FX', this.save.settings.sfxVolume, (v) => {
       this.save.settings.sfxVolume = v;
       audio.setSfxVolume(v);
-      writeSave(this.save);
+      writeSave(this.save, this.slot);
     });
 
     // Row 3: Colorblind Mode
     const cbY = contentTop + rowH * 2.5;
     this.buildToggleRow(area.cx, cbY, 'COLORBLIND', this.save.settings.colorblindMode, (val) => {
       this.save.settings.colorblindMode = val;
-      writeSave(this.save);
+      writeSave(this.save, this.slot);
       this.scene.restart();
     });
 
@@ -223,7 +224,7 @@ export class SettingsScene extends Phaser.Scene {
         textColor: isActive ? '#fff8e0' : '#3a2410',
         onClick: () => {
           this.save.settings.sessionTimer = opt.value;
-          writeSave(this.save);
+          writeSave(this.save, this.slot);
           this.scene.restart();
         },
       });
@@ -236,7 +237,7 @@ export class SettingsScene extends Phaser.Scene {
     const next = Math.max(0, Math.min(5, current + delta));
     if (next === current) return;
     this.save.grade = next;
-    writeSave(this.save);
+    writeSave(this.save, this.slot);
     this.gradeLabel.setText(gradeNames[next]);
     audio.play('ui/click');
   }
@@ -250,7 +251,7 @@ export class SettingsScene extends Phaser.Scene {
       });
       return;
     }
-    clearSave();
+    clearSave(this.slot);
     transitionTo(this, SCENES.TITLE);
   }
 

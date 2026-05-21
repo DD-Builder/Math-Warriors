@@ -14,7 +14,7 @@ import {
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
-import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor } from '../systems/save.js';
+import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor, getActiveSlot } from '../systems/save.js';
 import { markDailyChallengeComplete, getDailyChallenge } from '../systems/dailyChallenge.js';
 import { invokeAbility } from '../systems/abilities.js';
 import { getAbilitiesForClass } from '../systems/heroAbilities.js';
@@ -126,8 +126,8 @@ export class BattleScene extends Phaser.Scene {
     // Battle background variant (0-2) for visual variety on same floor
     this.battleVariant = this.registry.get('battleVariant') ?? 0;
 
-    // Load the save once per battle and mutate in place.
-    this.save = loadSave();
+    this.slot = getActiveSlot(this);
+    this.save = loadSave(this.slot);
 
     // Apply equipment bonuses from save to each hero
     for (let i = 0; i < this.party.length && i < 3; i++) {
@@ -1957,7 +1957,7 @@ export class BattleScene extends Phaser.Scene {
     const actualHealed = activeHero.hp - before;
 
     this.save.potions -= 1;
-    writeSave(this.save);
+    writeSave(this.save, this.slot);
 
     audio.play('battle/heal');
     this.showToast(`+${actualHealed} HP`, COLORS_CSS.greenL);
@@ -2330,7 +2330,7 @@ export class BattleScene extends Phaser.Scene {
       save.party[i].hp = this.party[i].maxHp;
       save.party[i].maxHp = this.party[i].maxHp;
     }
-    writeSave(save);
+    writeSave(save, this.slot);
 
     this.registry.remove('battleReturnScene');
     this.registry.remove('battleReturnData');
@@ -2449,7 +2449,7 @@ export class BattleScene extends Phaser.Scene {
     // Check achievements and queue toasts for newly unlocked ones
     const newAchievements = checkAchievements(save);
 
-    writeSave(save);
+    writeSave(save, this.slot);
 
     // Enemy fade-out + gold coin burst (all enemy sprites)
     const spritesToFade = this.enemySprites || [this.enemySprite];
@@ -2584,7 +2584,7 @@ export class BattleScene extends Phaser.Scene {
       save.party[i].hp = this.party[i].maxHp;
       save.party[i].maxHp = this.party[i].maxHp;
     }
-    writeSave(save);
+    writeSave(save, this.slot);
 
     // Encouraging messages — rotate through them
     const msgs = [

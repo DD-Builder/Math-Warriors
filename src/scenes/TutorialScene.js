@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { audio } from '../systems/audio.js';
-import { loadSave, writeSave } from '../systems/save.js';
+import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperButton, PaperPanel, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
@@ -307,9 +307,10 @@ export class TutorialScene extends Phaser.Scene {
     this.showDialogue("You're ready! Choose your grade and build your party!");
 
     // Mark tutorial complete and transition
-    const save = loadSave();
+    const slot = getActiveSlot(this);
+    const save = loadSave(slot);
     save.stats.tutorialComplete = true;
-    writeSave(save);
+    writeSave(save, slot);
 
     this.input.once('pointerdown', () => {
       audio.play('ui/confirm');

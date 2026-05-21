@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { loadSave, writeSave } from '../systems/save.js';
+import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
@@ -34,7 +34,8 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   init() {
-    this.save = loadSave();
+    this.slot = getActiveSlot(this);
+    this.save = loadSave(this.slot);
   }
 
   create() {

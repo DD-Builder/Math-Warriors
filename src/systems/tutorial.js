@@ -25,20 +25,20 @@ const TIPS = {
   FIRST_FAIRY:  'A fairy chest! Free all 3 fairies to unlock the golden treasure.',
 };
 
-export function shouldShowTutorial(key) {
-  const save = loadSave();
+export function shouldShowTutorial(key, slot = 1) {
+  const save = loadSave(slot);
   const flags = save.stats.tutorialFlags || 0;
   const flag = FLAGS[key];
   if (!flag) return false;
   return (flags & flag) === 0;
 }
 
-export function markTutorialShown(key) {
-  const save = loadSave();
+export function markTutorialShown(key, slot = 1) {
+  const save = loadSave(slot);
   const flag = FLAGS[key];
   if (!flag) return;
   save.stats.tutorialFlags = (save.stats.tutorialFlags || 0) | flag;
-  writeSave(save);
+  writeSave(save, slot);
 }
 
 export function getTutorialText(key) {

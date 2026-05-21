@@ -1,9 +1,8 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE } from '../data/floors.js';
-import { loadSave, writeSave } from '../systems/save.js';
+import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { spawnHero, getHeroById, ALL_HEROES } from '../data/heroes.js';
-import { isHeroUnlocked } from '../systems/save.js';
 import { spawnEnemy, pickEnemyForFloor } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
@@ -54,7 +53,8 @@ export class MazeScene extends Phaser.Scene {
   init(data) {
     this.floorId = data?.floor ?? 1;
     this.floor = getFloor(this.floorId);
-    this.save = loadSave();
+    this.slot = getActiveSlot(this);
+    this.save = loadSave(this.slot);
 
     // Hydrate party from save
     this.party = (this.save.party || [])
@@ -825,7 +825,7 @@ export class MazeScene extends Phaser.Scene {
     spawned.hp = spawned.maxHp;
     this.party[slotIdx] = spawned;
     this.save.party[slotIdx] = { id: spawned.id, name: spawned.name, hp: spawned.hp, maxHp: spawned.maxHp };
-    writeSave(this.save);
+    writeSave(this.save, this.slot);
 
     overlayObjects.forEach(o => o.destroy());
     this._swapOverlay = false;
@@ -977,7 +977,7 @@ export class MazeScene extends Phaser.Scene {
       case 'chest': {
         const gold = obj.loot?.gold ?? 10;
         this.save.gold += gold;
-        writeSave(this.save);
+        writeSave(this.save, this.slot);
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/chest');
@@ -991,7 +991,7 @@ export class MazeScene extends Phaser.Scene {
       }
       case 'potion': {
         this.save.potions += 1;
-        writeSave(this.save);
+        writeSave(this.save, this.slot);
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/gold');
@@ -1085,7 +1085,7 @@ export class MazeScene extends Phaser.Scene {
       }
       case 'gold': {
         this.save.gold += 8;
-        writeSave(this.save);
+        writeSave(this.save, this.slot);
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/gold');

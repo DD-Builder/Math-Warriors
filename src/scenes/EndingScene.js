@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { loadSave } from '../systems/save.js';
+import { loadSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
@@ -16,7 +16,7 @@ export class EndingScene extends Phaser.Scene {
     audio.playMusic('music/title');
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const save = loadSave();
+    const save = loadSave(getActiveSlot(this));
 
     drawPapercutBackground(this, 9, GAME_WIDTH, GAME_HEIGHT, 9999);
 

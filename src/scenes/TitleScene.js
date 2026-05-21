@@ -19,7 +19,6 @@ export class TitleScene extends Phaser.Scene {
     audio.playMusic('music/title');
 
     this.save = loadSave();
-    this.hasProgress = this.save.party && this.save.party.length >= 3;
 
     // Bright cheerful landscape — sky + hills + sun glow
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
@@ -47,23 +46,13 @@ export class TitleScene extends Phaser.Scene {
       letterSpacing: 2,
     }).setOrigin(0.5);
 
-    // === BUTTONS — locked into safe area bottom ===
-    if (this.hasProgress) {
-      // NEW GAME on top, CONTINUE below — per request
-      PaperButton(this, area.cx, area.bottom - 150, 'NEW GAME', {
-        w: 420, h: 80, color: 0x58c848, fontSize: 30,
-        onClick: () => this.onNewGame(),
-      });
-      PaperButton(this, area.cx, area.bottom - 50, 'CONTINUE', {
-        w: 420, h: 80, color: 0xf0a030, fontSize: 30,
-        onClick: () => this.onContinue(),
-      });
-    } else {
-      PaperButton(this, area.cx, area.bottom - 50, 'START ADVENTURE', {
-        w: 480, h: 90, color: 0xf05050, fontSize: 32,
-        onClick: () => this.onNewGame(),
-      });
-    }
+    PaperButton(this, area.cx, area.bottom - 50, 'PLAY', {
+      w: 480, h: 90, color: 0xf05050, fontSize: 34,
+      onClick: () => {
+        audio.play('ui/confirm');
+        transitionTo(this, SCENES.SAVE_SELECT, undefined, 300);
+      },
+    });
 
     // Version tag bottom-right (inside safe area)
     this.add.text(area.right, area.bottom + 40, `v${VERSION}`, {
@@ -85,21 +74,4 @@ export class TitleScene extends Phaser.Scene {
     });
   }
 
-  onNewGame() {
-    // Clear all maze states so new game starts fresh
-    for (let f = 1; f <= 9; f++) {
-      this.registry.remove(`mazeState_${f}`);
-      try { localStorage.removeItem(`mw_maze_${f}`); } catch (e) { /* ignore */ }
-    }
-    this.registry.remove('battleReturnScene');
-    this.registry.remove('battleReturnData');
-    this.registry.remove('battleVariant');
-
-    // If the player hasn't completed the tutorial, run it first
-    transitionTo(this, SCENES.GRADE_SELECT, undefined, 300);
-  }
-
-  onContinue() {
-    transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
-  }
 }

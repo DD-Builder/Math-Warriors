@@ -8,7 +8,7 @@ import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { audio } from '../systems/audio.js';
 import { getHeroById } from '../data/heroes.js';
 import { getEnemyById } from '../data/enemies.js';
-import { loadSave } from '../systems/save.js';
+import { loadSave, getActiveSlot } from '../systems/save.js';
 
 /**
  * CutsceneScene — 3-panel graphic-novel dialogue.
@@ -38,7 +38,7 @@ export class CutsceneScene extends Phaser.Scene {
     this.charIdx = 0;
     this.fullText = '';
     this.timer = null;
-    this.save = loadSave();
+    this.save = loadSave(getActiveSlot(this));
   }
 
   buildPanels(lines) {

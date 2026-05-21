@@ -1,23 +1,17 @@
 /**
- * Save system
+ * Save system — 3-slot save with metadata previews.
  *
  * Wraps localStorage for game progress persistence. Versioned schema
  * so we can migrate old saves forward as the data model evolves.
- *
- * Design decisions:
- *   - One save per device (no slots yet)
- *   - Schema version baked into every save
- *   - Migrations run automatically on load
- *   - Graceful handling of missing/corrupted localStorage
- *   - Pure functions where possible; side effects (read/write)
- *     isolated so tests can stub them
  */
 
 import { ALL_HEROES } from '../data/heroes.js';
 
 const LEGACY_KEY = 'mathwarriors.save';
 const SLOT_PREFIX = 'mathwarriors.save.';
+const META_KEY = 'mathwarriors.slots';
 const CURRENT_VERSION = 3;
+const MAX_SLOTS = 3;
 
 const STARTER_HEROES = ['knight-shadow', 'wizard-stargazer', 'bunny-pepper'];
 
@@ -38,8 +32,9 @@ const STORAGE_KEY = slotKey(1);
 export function makeDefaultSave() {
   return {
     version: CURRENT_VERSION,
+    slotName: null,
     grade: 3,
-    party: [],          // populated at party-select time
+    party: [],
     gold: 0,
     potions: 2,
     inventory: [],
@@ -279,6 +274,7 @@ export function writeSave(save, slot = 1) {
     const normalized = normalize(save);
     normalized.stats.lastPlayedAt = Date.now();
     getStorage().setItem(slotKey(slot), JSON.stringify(normalized));
+    updateSlotMeta(slot, normalized);
     return true;
   } catch (err) {
     console.warn('[save] Failed to write save:', err);
@@ -286,10 +282,10 @@ export function writeSave(save, slot = 1) {
   }
 }
 
-/** Wipe the save. Used for "new game" and for tests. */
 export function clearSave(slot = 1) {
   try {
     getStorage().removeItem(slotKey(slot));
+    clearSlotMeta(slot);
     return true;
   } catch (err) {
     console.warn('[save] Failed to clear save:', err);
@@ -305,10 +301,10 @@ export function clearSave(slot = 1) {
  *     save.stats.totalCorrect++;
  *   });
  */
-export function updateSave(mutator) {
-  const save = loadSave();
+export function updateSave(mutator, slot = 1) {
+  const save = loadSave(slot);
   mutator(save);
-  return writeSave(save);
+  return writeSave(save, slot);
 }
 
 /** Mark a floor complete and unlock the next one. */
@@ -341,4 +337,74 @@ export function isHeroUnlocked(save, heroId) {
   return Array.isArray(save.unlockedHeroes) && save.unlockedHeroes.includes(heroId);
 }
 
-export { CURRENT_VERSION, STORAGE_KEY, LEGACY_KEY, SLOT_PREFIX };
+// ------------------------------------------------------------------
+// SLOT METADATA
+// ------------------------------------------------------------------
+
+function emptyMeta(slot) {
+  return { slot, name: null, grade: null, partyNames: [], floorsComplete: 0, gold: 0, lastPlayed: 0 };
+}
+
+function loadAllMeta() {
+  try {
+    const raw = getStorage().getItem(META_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length === MAX_SLOTS) return arr;
+    }
+  } catch (e) { /* ignore */ }
+  return [emptyMeta(1), emptyMeta(2), emptyMeta(3)];
+}
+
+function saveAllMeta(meta) {
+  try { getStorage().setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* ignore */ }
+}
+
+function updateSlotMeta(slot, save) {
+  const meta = loadAllMeta();
+  const floorsComplete = (save.floors || []).filter(f => f && f.complete).length;
+  const partyNames = (save.party || []).map(h => h?.name || '').filter(Boolean);
+  meta[slot - 1] = {
+    slot,
+    name: save.slotName || null,
+    grade: save.grade ?? null,
+    partyNames,
+    floorsComplete,
+    gold: save.gold || 0,
+    lastPlayed: save.stats?.lastPlayedAt || Date.now(),
+  };
+  saveAllMeta(meta);
+}
+
+function clearSlotMeta(slot) {
+  const meta = loadAllMeta();
+  meta[slot - 1] = emptyMeta(slot);
+  saveAllMeta(meta);
+}
+
+export function listSlots() {
+  const meta = loadAllMeta();
+  for (let i = 0; i < MAX_SLOTS; i++) {
+    const key = slotKey(i + 1);
+    const hasData = !!getStorage().getItem(key);
+    if (hasData && !meta[i].lastPlayed) {
+      const save = loadSave(i + 1);
+      updateSlotMeta(i + 1, save);
+      meta[i] = loadAllMeta()[i];
+    }
+    meta[i].exists = hasData;
+  }
+  return meta;
+}
+
+export function renameSlot(slot, name) {
+  const save = loadSave(slot);
+  save.slotName = name;
+  writeSave(save, slot);
+}
+
+export function getActiveSlot(scene) {
+  return scene?.registry?.get('activeSlot') || 1;
+}
+
+export { CURRENT_VERSION, STORAGE_KEY, LEGACY_KEY, SLOT_PREFIX, MAX_SLOTS };

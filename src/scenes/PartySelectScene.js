@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
-import { loadSave, writeSave, makeDefaultSave, isHeroUnlocked } from '../systems/save.js';
+import { loadSave, writeSave, makeDefaultSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
@@ -24,7 +24,8 @@ export class PartySelectScene extends Phaser.Scene {
     this.activeClass = 'knight';
     this.classes = { knight: KNIGHTS, wizard: WIZARDS, bunny: BUNNIES };
     this.classLabels = { knight: 'KNIGHTS', wizard: 'WIZARDS', bunny: 'BATTLE BUNNIES' };
-    this.save = loadSave();
+    this.slot = getActiveSlot(this);
+    this.save = loadSave(this.slot);
   }
 
   create() {
@@ -377,7 +378,7 @@ export class PartySelectScene extends Phaser.Scene {
     audio.play('ui/confirm');
     const party = this.selections.map((s) => spawnHero(this.classes[s.class][s.index].id));
 
-    const save = loadSave();
+    const save = loadSave(this.slot);
     const fresh = makeDefaultSave();
     save.grade = this.grade;
     save.party = party.map((h) => ({ id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp }));
@@ -385,7 +386,8 @@ export class PartySelectScene extends Phaser.Scene {
     save.gold = 0;
     save.potions = 2;
     save.unlockedHeroes = [...fresh.unlockedHeroes];
-    writeSave(save);
+    save.slotName = this.registry.get('newSlotName') || null;
+    writeSave(save, this.slot);
 
     const isFirstGame = save.floors.every(f => !f.complete);
     if (isFirstGame && DIALOGUE.game_intro) {

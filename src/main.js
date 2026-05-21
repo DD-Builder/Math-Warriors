@@ -12,6 +12,7 @@ import { SettingsScene } from './scenes/SettingsScene.js';
 import { TutorialScene } from './scenes/TutorialScene.js';
 import { CutsceneScene } from './scenes/CutsceneScene.js';
 import { EndingScene } from './scenes/EndingScene.js';
+import { SaveSlotScene } from './scenes/SaveSlotScene.js';
 import { audio } from './systems/audio.js';
 import { loadSave } from './systems/save.js';
 
@@ -39,7 +40,7 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [BootScene, TitleScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene],
+  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene],
 };
 
 const game = new Phaser.Game(config);
@@ -79,7 +80,8 @@ audio.init(game);
 // to the title screen on dismiss.
 const _sessionStart = Date.now();
 setInterval(() => {
-  const save = loadSave();
+  const activeSlot = game.registry?.get('activeSlot') || 1;
+  const save = loadSave(activeSlot);
   const limitMin = save.settings.sessionTimer || 0;
   if (limitMin <= 0) return;
 

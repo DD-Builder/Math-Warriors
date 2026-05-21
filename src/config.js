@@ -48,6 +48,7 @@ export const SCENES = {
   ENDING: 'EndingScene',
   SHOP: 'ShopScene',
   SETTINGS: 'SettingsScene',
+  SAVE_SELECT: 'SaveSlotScene',
 };
 
 // Safe margin from screen edges (pixels). All UI MUST stay inside this.
