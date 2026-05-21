@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
-import { loadSave, writeSave, makeDefaultSave } from '../systems/save.js';
+import { loadSave, writeSave, makeDefaultSave, isHeroUnlocked } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
@@ -23,6 +23,7 @@ export class PartySelectScene extends Phaser.Scene {
     this.activeClass = 'knight';
     this.classes = { knight: KNIGHTS, wizard: WIZARDS, bunny: BUNNIES };
     this.classLabels = { knight: 'KNIGHTS', wizard: 'WIZARDS', bunny: 'BATTLE BUNNIES' };
+    this.save = loadSave();
   }
 
   create() {
@@ -146,14 +147,48 @@ export class PartySelectScene extends Phaser.Scene {
   }
 
   createHeroCard(x, y, w, h, hero, heroIndex) {
-    const isSelected = this.isHeroSelected(this.activeClass, heroIndex);
+    const locked = !isHeroUnlocked(this.save, hero.id);
+    const isSelected = !locked && this.isHeroSelected(this.activeClass, heroIndex);
 
-    // Card paper — light joyful backgrounds per class
     const cardColors = { knight: 0x88b8e8, wizard: 0xa888d8, bunny: 0xf0a8b8 };
-    const cardColor = cardColors[this.activeClass] || 0xb8d0e8;
+    const cardColor = locked ? 0x8a8070 : (cardColors[this.activeClass] || 0xb8d0e8);
     const card = PaperCard(this, x, y, w, h, cardColor, { selected: isSelected });
 
-    // Hero portrait — large and prominent
+    if (locked) {
+      const silhouette = this.add.graphics();
+      silhouette.fillStyle(0x3a3030, 0.7);
+      silhouette.fillRoundedRect(x - 40, y - h * 0.25, 80, 100, 10);
+      silhouette.fillCircle(x, y - h * 0.32, 25);
+
+      const lockGfx = this.add.graphics();
+      const lockSize = 22;
+      const lockY = y - 5;
+      lockGfx.lineStyle(lockSize * 0.2, 0x6a6050, 1);
+      lockGfx.beginPath();
+      lockGfx.arc(x, lockY - lockSize * 0.35, lockSize * 0.4, Math.PI, 0, false);
+      lockGfx.strokePath();
+      lockGfx.fillStyle(0x3a2410, 1);
+      lockGfx.fillRoundedRect(x - lockSize * 0.6, lockY, lockSize * 1.2, lockSize * 0.9, 4);
+      lockGfx.fillStyle(0xe8a030, 1);
+      lockGfx.fillCircle(x, lockY + lockSize * 0.35, lockSize * 0.12);
+
+      const floorHint = hero.unlockedAtFloor || 1;
+      const hint = this.add.text(x, y + h * 0.28, `Beat Floor ${floorHint}`, {
+        ...TEXT.small(),
+        fontSize: '14px',
+        color: '#8a7a60',
+      }).setOrigin(0.5);
+
+      const name = this.add.text(x, y + h * 0.40, '???', {
+        ...TEXT.heading(),
+        fontSize: '16px',
+        color: '#6a5a40',
+      }).setOrigin(0.5);
+
+      this.heroCardContainer.add([card.shadow, card.bg, silhouette, lockGfx, hint, name, card.zone]);
+      return;
+    }
+
     const portrait = drawHeroSprite(this, x, y - h * 0.08, hero, { scale: 0.85 });
 
     const name = this.add.text(x, y + h * 0.20, hero.name.toUpperCase(), {
@@ -178,9 +213,6 @@ export class PartySelectScene extends Phaser.Scene {
       color: '#4a3018',
     }).setOrigin(0.5);
 
-    // Selected badge — both the circle AND the checkmark must be added
-    // to the container, otherwise rebuildHeroGrid's removeAll() leaks
-    // the ✓ text every time the user toggles a selection.
     if (isSelected) {
       const badge = this.add.circle(x + w / 2 - 18, y - h / 2 + 18, 14, 0xf0c040);
       badge.setStrokeStyle(2, 0x1a0e04);
@@ -351,6 +383,7 @@ export class PartySelectScene extends Phaser.Scene {
     save.floors = fresh.floors;
     save.gold = 0;
     save.potions = 2;
+    save.unlockedHeroes = [...fresh.unlockedHeroes];
     writeSave(save);
 
     transitionTo(this, SCENES.WORLD_MAP, undefined, 300);

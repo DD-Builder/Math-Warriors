@@ -14,7 +14,7 @@ import {
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
-import { loadSave, writeSave, markFloorComplete } from '../systems/save.js';
+import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor } from '../systems/save.js';
 import { markDailyChallengeComplete, getDailyChallenge } from '../systems/dailyChallenge.js';
 import { invokeAbility } from '../systems/abilities.js';
 import { getAbilitiesForClass } from '../systems/heroAbilities.js';
@@ -2384,7 +2384,10 @@ export class BattleScene extends Phaser.Scene {
     // still advances on the fast path.
     if (this.isBoss || this.returnScene === SCENES.WORLD_MAP) {
       markFloorComplete(save, this.floor);
-      // Mark the boss as defeated in the maze state so the exit opens
+      const newHeroes = unlockHeroesForFloor(save, this.floor);
+      for (const h of newHeroes) {
+        this.time.delayedCall(600, () => this.showToast(`New hero: ${h.name}!`, '#f0c040'));
+      }
       const mazeKey = `mazeState_${this.floor}`;
       const mazeState = this.registry.get(mazeKey);
       if (mazeState) {
