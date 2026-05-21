@@ -294,7 +294,7 @@ export const FLOORS = [
     tileset: 'ocean',
     width: 22, height: 29, tiles: FLOOR_2_TILES, startX: 1, startY: 27,
     palette: { wall: 0x0e2040, floor: 0x1a3858, path: 0x3060a0, water: 0x1a4880, decor: 0x184068 },
-    challenge: { type: 'valve', count: 3, label: 'DRAIN VALVE', verb: 'activated', allDoneMsg: 'All valves open! The path to the boss is clear!' },
+    challenge: { type: 'valve', count: 3, label: 'DRAIN VALVE', verb: 'activated', allDoneMsg: 'All valves open!', phase2: { type: 'coralkey', count: 2, label: 'CORAL KEY', verb: 'found', allDoneMsg: 'Coral keys glow! The boss stirs!' } },
     objects: [
       // Valves: one per zone (marsh, beach, water)
       { type: 'valve',     x: 4,  y: 4 },
@@ -333,7 +333,7 @@ export const FLOORS = [
     tileset: 'sky',
     width: 25, height: 33, tiles: FLOOR_3_TILES, startX: 1, startY: 31,
     palette: { wall: 0x1a2838, floor: 0x5a6878, path: 0x7898b8, water: 0xb0c8e0, decor: 0x4a5868 },
-    challenge: { type: 'beacon', count: 3, label: 'SKY BEACON', verb: 'lit', allDoneMsg: 'All beacons lit! The storm parts — the boss awaits!' },
+    challenge: { type: 'beacon', count: 3, label: 'SKY BEACON', verb: 'lit', allDoneMsg: 'All beacons lit!', phase2: { type: 'windchime', count: 2, label: 'WIND CHIME', verb: 'rung', allDoneMsg: 'Wind chimes ring! The storm parts!' } },
     objects: [
       // Beacons: one per zone (calm d<16, storm 16<=d<36, sunset d>=36)
       { type: 'beacon',    x: 5,  y: 5 },
@@ -374,7 +374,7 @@ export const FLOORS = [
     tileset: 'lava',
     width: 29, height: 38, tiles: FLOOR_4_TILES, startX: 1, startY: 36,
     palette: { wall: 0x1a0808, floor: 0x4a2810, path: 0x8a2010, water: 0xa03008, decor: 0x3a1808 },
-    challenge: { type: 'vent', count: 3, label: 'LAVA VENT', verb: 'sealed', allDoneMsg: 'All vents sealed! The caves cool — face the boss!' },
+    challenge: { type: 'vent', count: 3, label: 'LAVA VENT', verb: 'sealed', allDoneMsg: 'All vents sealed!', phase2: { type: 'lavabridge', count: 2, label: 'LAVA BRIDGE', verb: 'built', allDoneMsg: 'Bridges hold! The boss awaits!' } },
     objects: [
       { type: 'vent',      x: 3,  y: 3 },
       { type: 'vent',      x: 25, y: 11 },
@@ -408,7 +408,7 @@ export const FLOORS = [
   {
     id: 5, name: 'Frozen Peak', tileset: 'ice',
     width: 25, height: 33, tiles: FLOOR_3_TILES, startX: 1, startY: 31,
-    challenge: { type: 'crystal', count: 3, label: 'FROZEN CRYSTAL', verb: 'found', allDoneMsg: 'All crystals found! The ice throne cracks!' },
+    challenge: { type: 'crystal', count: 3, label: 'FROZEN CRYSTAL', verb: 'found', allDoneMsg: 'All crystals found!', phase2: { type: 'thawcrystal', count: 2, label: 'THAW CRYSTAL', verb: 'melted', allDoneMsg: 'The ice throne cracks!' } },
     palette: { wall: 0x4080b0, floor: 0x90b8d8, path: 0xb0d0e8, water: 0x60a0c8, decor: 0x7098b8 },
     objects: [
       { type: 'crystal',   x: 5,  y: 5 },
@@ -439,7 +439,7 @@ export const FLOORS = [
   {
     id: 6, name: 'Crystal Caverns', tileset: 'crystal',
     width: 25, height: 33, tiles: FLOOR_6_TILES, startX: 1, startY: 31,
-    challenge: { type: 'geoshard', count: 3, label: 'GEO SHARD', verb: 'collected', allDoneMsg: 'All shards collected! The Prism awakens!' },
+    challenge: { type: 'geoshard', count: 3, label: 'GEO SHARD', verb: 'collected', allDoneMsg: 'All shards collected!', phase2: { type: 'prismshard', count: 2, label: 'PRISM SHARD', verb: 'aligned', allDoneMsg: 'Prisms align! The Prism awakens!' } },
     palette: { wall: 0x5030a0, floor: 0x7850c0, path: 0xa080e0, water: 0x6040b0, decor: 0x6840b0 },
     objects: [
       { type: 'geoshard',  x: 5,  y: 5 },
@@ -470,7 +470,7 @@ export const FLOORS = [
   {
     id: 7, name: 'Market Square', tileset: 'market',
     width: 25, height: 33, tiles: FLOOR_7_TILES, startX: 1, startY: 31,
-    challenge: { type: 'token', count: 3, label: 'GOLD TOKEN', verb: 'recovered', allDoneMsg: 'All tokens recovered! The Counterfeiter revealed!' },
+    challenge: { type: 'token', count: 3, label: 'GOLD TOKEN', verb: 'recovered', allDoneMsg: 'All tokens recovered!', phase2: { type: 'vaultseal', count: 2, label: 'VAULT SEAL', verb: 'cracked', allDoneMsg: 'Vault seals crack! The Counterfeiter revealed!' } },
     palette: { wall: 0x6a5020, floor: 0xa08040, path: 0xc8a858, water: 0x806830, decor: 0x887038 },
     objects: [
       { type: 'token',     x: 5,  y: 5 },
@@ -503,7 +503,7 @@ export const FLOORS = [
   {
     id: 8, name: 'Infinity Library', tileset: 'library',
     width: 25, height: 33, tiles: FLOOR_8_TILES, startX: 1, startY: 31,
-    challenge: { type: 'page', count: 3, label: 'LOST PAGE', verb: 'restored', allDoneMsg: 'All pages restored! The Paradox emerges!' },
+    challenge: { type: 'page', count: 3, label: 'LOST PAGE', verb: 'restored', allDoneMsg: 'All pages restored!', phase2: { type: 'chapterseal', count: 2, label: 'CHAPTER SEAL', verb: 'bound', allDoneMsg: 'Chapters sealed! The Paradox emerges!' } },
     palette: { wall: 0x2a1808, floor: 0x4a3018, path: 0x6a4828, water: 0x3a2010, decor: 0x3a2010 },
     objects: [
       { type: 'page',      x: 5,  y: 5 },
@@ -535,7 +535,7 @@ export const FLOORS = [
   {
     id: 9, name: 'The Mending Room', tileset: 'arcane',
     width: 33, height: 43, tiles: FLOOR_9_TILES, startX: 1, startY: 41,
-    challenge: { type: 'fragment', count: 3, label: 'EQUATION FRAGMENT', verb: 'placed', allDoneMsg: 'All fragments aligned! Face The Theorem!' },
+    challenge: { type: 'fragment', count: 3, label: 'EQUATION FRAGMENT', verb: 'placed', allDoneMsg: 'All fragments aligned!', phase2: { type: 'eqanchor', count: 2, label: 'EQUATION ANCHOR', verb: 'set', allDoneMsg: 'Anchors set! Face The Theorem!' } },
     palette: { wall: 0x140828, floor: 0x301850, path: 0x5830a0, water: 0x4018a0, decor: 0x281040 },
     objects: [
       { type: 'fragment',  x: 5,  y: 5 },

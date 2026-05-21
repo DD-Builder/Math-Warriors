@@ -2631,9 +2631,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   executeSuperMove() {
-    if (this.phase !== 'question') return;
+    if (this.phase !== 'question' || this.locked) return;
     const heroIdx = this.currentTurn.heroIndex;
     if (!this.superReady[heroIdx]) return;
+    this.locked = true;
 
     const hero = this.party[heroIdx];
     const level = hero.level || 1;
@@ -2644,6 +2645,7 @@ export class BattleScene extends Phaser.Scene {
     this.superReady[heroIdx] = false;
     this.heroStreaks[heroIdx] = 0;
     this.setSuperVisible(this.superBtn, false);
+    this.setSuperVisible(this.teamBtn, false);
 
     const targetIdx = this.currentTarget;
     const targetEnemy = this.enemies[targetIdx] || this.enemy;
@@ -2653,29 +2655,40 @@ export class BattleScene extends Phaser.Scene {
 
     this.showToast(`${move ? move.name : 'SUPER'}! ${dmg} DMG!`, '#f0c040');
     audio.play('battle/correct');
-
     this.cameras.main.shake(150, 0.01);
 
     targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
-    this.updateEnemyHpBar(targetIdx);
+    this.updateEnemyHp(targetIdx);
 
     if (targetEnemy.hp <= 0) {
-      this.time.delayedCall(300, () => this.handleEnemyDefeat(targetIdx));
+      this.burstParticles(targetSprite.x, targetSprite.y, 0xe8a030);
+      this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+      if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
+      if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
+      if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
+      if (this.allEnemiesDead()) {
+        this.time.delayedCall(400, () => this.showVictory());
+      } else {
+        this.time.delayedCall(400, () => this.nextTurn());
+      }
     } else {
       this.time.delayedCall(400, () => this.nextTurn());
     }
   }
 
   executeTeamAttack() {
-    if (this.phase !== 'question') return;
+    if (this.phase !== 'question' || this.locked) return;
     if (this.momentum < 1.0) return;
+    this.locked = true;
 
+    this.setSuperVisible(this.superBtn, false);
     this.setSuperVisible(this.teamBtn, false);
     this.momentum = 0.5;
     this.updateMomentumBar();
 
     const targetIdx = this.currentTarget;
     const targetEnemy = this.enemies[targetIdx] || this.enemy;
+    const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
     let totalDmg = 0;
     for (const hero of this.party) {
       if (!hero || hero.hp <= 0) continue;
@@ -2685,14 +2698,22 @@ export class BattleScene extends Phaser.Scene {
 
     this.showToast(`TEAM ATTACK! ${totalDmg} DMG!`, '#e04040');
     audio.play('battle/correct');
-
     this.cameras.main.shake(300, 0.02);
 
     targetEnemy.hp = Math.max(0, targetEnemy.hp - totalDmg);
-    this.updateEnemyHpBar(targetIdx);
+    this.updateEnemyHp(targetIdx);
 
     if (targetEnemy.hp <= 0) {
-      this.time.delayedCall(400, () => this.handleEnemyDefeat(targetIdx));
+      this.burstParticles(targetSprite.x, targetSprite.y, 0xe8a030);
+      this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+      if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
+      if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
+      if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
+      if (this.allEnemiesDead()) {
+        this.time.delayedCall(400, () => this.showVictory());
+      } else {
+        this.time.delayedCall(400, () => this.nextTurn());
+      }
     } else {
       this.time.delayedCall(500, () => this.nextTurn());
     }

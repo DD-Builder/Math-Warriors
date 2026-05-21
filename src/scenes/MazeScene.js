@@ -80,6 +80,8 @@ export class MazeScene extends Phaser.Scene {
       this.bossDefeated = mazeState.bossDefeated;
       this.hasKey = mazeState.hasKey || false;
       this.challengeProgress = mazeState.fairiesFreed || 0;
+      this.phase2Progress = mazeState.phase2Progress || 0;
+      this.phase2Active = mazeState.phase2Active || false;
     } else {
       // Fresh entry: reset state
       this.playerX = this.floor.startX;
@@ -88,6 +90,8 @@ export class MazeScene extends Phaser.Scene {
       this.bossDefeated = false;
       this.hasKey = false;
       this.challengeProgress = 0;
+      this.phase2Progress = 0;
+      this.phase2Active = false;
 
       // Hand-placed objects (chests, potions, boss, exit) keep their
       // designated positions. Encounter (monster) tiles get randomized
@@ -826,7 +830,40 @@ export class MazeScene extends Phaser.Scene {
     overlayObjects.forEach(o => o.destroy());
     this._swapOverlay = false;
 
-    this.showToast(`${newHero.name} joins the party!`, '#f0c040');
+    this.saveMazeState();
+    this.scene.restart({ floor: this.floorId });
+  }
+
+  spawnPhase2Items(phase2) {
+    const occupied = new Set();
+    occupied.add(`${this.playerX},${this.playerY}`);
+    this.objects.forEach(o => { if (!o.consumed) occupied.add(`${o.x},${o.y}`); });
+    const candidates = [];
+    for (let y = 0; y < this.floor.height; y++) {
+      for (let x = 0; x < this.floor.width; x++) {
+        if (this.floor.tiles[y][x] === 0) continue;
+        if (occupied.has(`${x},${y}`)) continue;
+        if (Math.abs(x - this.playerX) + Math.abs(y - this.playerY) < 3) continue;
+        candidates.push({ x, y });
+      }
+    }
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    const spawned = candidates.slice(0, phase2.count);
+    for (let i = 0; i < spawned.length; i++) {
+      const p = spawned[i];
+      const newObj = {
+        type: phase2.type,
+        x: p.x, y: p.y,
+        id: `phase2-${phase2.type}-${i}`,
+        consumed: false,
+      };
+      this.objects.push(newObj);
+    }
+    this.showFloatText(this.playerX, this.playerY - 1, `${phase2.label}s appeared!`, '#f0c040');
+    this.saveMazeState();
   }
 
   showToast(message, color) {
@@ -970,7 +1007,32 @@ export class MazeScene extends Phaser.Scene {
       case 'crystal':
       case 'geoshard':
       case 'token':
-      case 'page': {
+      case 'page':
+      case 'rune':
+      case 'coralkey':
+      case 'windchime':
+      case 'lavabridge':
+      case 'thawcrystal':
+      case 'prismshard':
+      case 'vaultseal':
+      case 'chapterseal':
+      case 'eqanchor': {
+        const isPhase2 = this.phase2Active && this.floor.challenge?.phase2?.type === obj.type;
+        if (isPhase2) {
+          this.phase2Progress++;
+          obj.consumed = true;
+          markDead(obj.id);
+          audio.play('world/chest');
+          const p2 = this.floor.challenge.phase2;
+          const p2remaining = p2.count - this.phase2Progress;
+          if (p2remaining > 0) {
+            this.showFloatText(obj.x, obj.y, `${p2.label} ${p2.verb}! ${p2remaining} left`, '#f0c040');
+          } else {
+            this.showFloatText(obj.x, obj.y, p2.allDoneMsg, '#f0d040');
+          }
+          this.updateHud();
+          break;
+        }
         this.challengeProgress++;
         obj.consumed = true;
         markDead(obj.id);
@@ -991,7 +1053,11 @@ export class MazeScene extends Phaser.Scene {
           const egs = getGameState();
           if (egs) egs.fairies = this.challengeProgress;
           this.showFairyFlyAway();
-          if (DIALOGUE.all_fairies_freed) {
+          if (ch.phase2 && !this.phase2Active) {
+            this.spawnPhase2Items(ch.phase2);
+            this.phase2Active = true;
+            this.dialogue.show(DIALOGUE.all_fairies_freed || []);
+          } else if (DIALOGUE.all_fairies_freed) {
             this.dialogue.show(DIALOGUE.all_fairies_freed);
           }
         }
@@ -1038,6 +1104,10 @@ export class MazeScene extends Phaser.Scene {
         const bch = this.floor.challenge || { count: 3 };
         if (this.challengeProgress < bch.count) {
           this.showFloatText(obj.x, obj.y, 'COMPLETE THE CHALLENGE FIRST!', '#e088c0');
+          return;
+        }
+        if (bch.phase2 && this.phase2Progress < bch.phase2.count) {
+          this.showFloatText(obj.x, obj.y, `FIND ALL ${bch.phase2.label}S FIRST!`, '#e088c0');
           return;
         }
         // Do NOT consume the boss before the battle — if the player loses,
@@ -1149,6 +1219,8 @@ export class MazeScene extends Phaser.Scene {
       bossDefeated: gs.hasKey || this.bossDefeated,
       fairiesFreed: this.challengeProgress,
       hasKey: this.hasKey || false,
+      phase2Progress: this.phase2Progress || 0,
+      phase2Active: this.phase2Active || false,
     };
     this.registry.set(mazeStateKey(this.floorId), state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
