@@ -176,7 +176,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.add.text(x, labelY - 10, info.name, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '14px',
-      color: locked ? '#6a4c28' : '#d07818',
+      color: locked ? '#3a2010' : '#d07818',
     }).setOrigin(0.5);
     this.add.text(x, labelY + 10, info.tagline, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -195,6 +195,7 @@ export class WorldMapScene extends Phaser.Scene {
         repeat: -1,
       });
       ring.on('pointerdown', () => {
+        if (this._scrolling) return;
         audio.play('ui/confirm');
         this.enterFloor(info.id);
       });
@@ -337,6 +338,7 @@ export class WorldMapScene extends Phaser.Scene {
       w: 180, h: 64, color: 0xffffff, fontSize: 22,
       textColor: '#b83820',
       onClick: () => {
+        if (this._scrolling) return;
         audio.play('ui/back');
         transitionTo(this, SCENES.TITLE);
       },
@@ -357,8 +359,8 @@ export class WorldMapScene extends Phaser.Scene {
     }).setOrigin(0, 0.5).setScrollFactor(0);
 
     if (this.save.party && this.save.party.length > 0) {
-      const stripW = 280;
-      const stripCx = area.right - stripW / 2;
+      const stripW = 220;
+      const stripCx = area.right - stripW / 2 - 80;
       const stripY = area.top + 45;
       const partyPanel = PaperPanel(this, stripCx, stripY, stripW, 70, {
         color: 0xffffff, alpha: 0.95, radius: 16,
@@ -368,7 +370,7 @@ export class WorldMapScene extends Phaser.Scene {
         ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
       }).setScrollFactor(0);
       for (let i = 0; i < 3; i++) {
-        const hx = stripCx - stripW / 2 + 60 + i * 80;
+        const hx = stripCx - stripW / 2 + 50 + i * 65;
         const slot = this.save.party[i];
         if (slot) {
           const def = getHeroById(slot.id);
@@ -384,15 +386,17 @@ export class WorldMapScene extends Phaser.Scene {
       w: 160, h: 56, color: 0xd07818, fontSize: 20,
       textColor: '#fff8e0',
       onClick: () => {
+        if (this._scrolling) return;
         audio.play('ui/click');
         transitionTo(this, SCENES.SHOP, undefined, 200);
       },
     });
     this.setScrollFactorDeep(shopBtn, 0);
 
-    const settingsBtn = PaperButton(this, area.right - 70, area.bottom - 36, '⚙', {
-      w: 120, h: 50, color: 0x4a6ca8, fontSize: 24,
+    const settingsBtn = PaperButton(this, area.right - 60, area.bottom - 36, '⚙', {
+      w: 100, h: 50, color: 0x4a6ca8, fontSize: 24,
       onClick: () => {
+        if (this._scrolling) return;
         audio.play('ui/click');
         transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
       },
@@ -404,6 +408,7 @@ export class WorldMapScene extends Phaser.Scene {
       w: 180, h: 50, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 18,
       textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
       onClick: () => {
+        if (this._scrolling) return;
         audio.play('ui/click');
         this.onDailyChallenge();
       },
@@ -423,7 +428,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.pageDots = [];
     for (let i = 0; i < TOTAL_SCREENS; i++) {
       const dx = GAME_WIDTH / 2 + (i - 1) * 30;
-      const dy = area.bottom - 80;
+      const dy = area.bottom - 100;
       const dot = this.add.circle(dx, dy, 8, 0xffffff, 0.4).setScrollFactor(0);
       dot.setStrokeStyle(2, 0x3a2410, 0.5);
       this.pageDots.push(dot);
@@ -445,9 +450,11 @@ export class WorldMapScene extends Phaser.Scene {
     let dragging = false;
     let startX = 0;
     let startScrollX = 0;
+    this._scrolling = false;
 
     this.input.on('pointerdown', (pointer) => {
       dragging = true;
+      this._scrolling = false;
       startX = pointer.x;
       startScrollX = this.cameras.main.scrollX;
     });
@@ -455,20 +462,25 @@ export class WorldMapScene extends Phaser.Scene {
     this.input.on('pointermove', (pointer) => {
       if (!dragging || !pointer.isDown) return;
       const dx = startX - pointer.x;
-      const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, this.maxScreen * SCREEN_W);
-      this.cameras.main.setScroll(newScroll, 0);
+      if (Math.abs(dx) > 30) this._scrolling = true;
+      if (this._scrolling) {
+        const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, this.maxScreen * SCREEN_W);
+        this.cameras.main.setScroll(newScroll, 0);
+      }
     });
 
     this.input.on('pointerup', (pointer) => {
       if (!dragging) return;
       dragging = false;
+      if (!this._scrolling) return;
       const dx = startX - pointer.x;
       let target = this.currentScreen;
-      if (Math.abs(dx) > SCREEN_W * 0.15) {
+      if (Math.abs(dx) > 50) {
         target += dx > 0 ? 1 : -1;
       }
       target = Phaser.Math.Clamp(target, 0, this.maxScreen);
       this.snapToScreen(target);
+      this.time.delayedCall(100, () => { this._scrolling = false; });
     });
   }
 

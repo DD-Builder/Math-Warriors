@@ -169,6 +169,11 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create() {
+    this.events.on('shutdown', () => {
+      this.tweens.killAll();
+      this.time.removeAllEvents();
+    });
+
     this.buildBackground();
     this.buildHeroSprites();
     this.buildEnemySprite();
@@ -828,7 +833,7 @@ export class BattleScene extends Phaser.Scene {
 
     // === BOTTOM UI: no enclosing box — equation + answers float over battle ===
     const ansH = 100;
-    const ansY = area.bottom - ansH / 2 - 8;
+    const ansY = area.bottom - ansH / 2 - 28;
     const eqY = ansY - ansH / 2 - 60;
 
     // === TOP: floor name + momentum bar (slim) ===

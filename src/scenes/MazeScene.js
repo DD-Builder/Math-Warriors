@@ -69,6 +69,7 @@ export class MazeScene extends Phaser.Scene {
     // Check if we're returning from a battle (state saved in registry)
     let mazeState = this.registry.get(`mazeState_${this.floorId}`);
     if (!mazeState) { try { const s = localStorage.getItem(`mw_maze_${this.floorId}`); if (s) mazeState = JSON.parse(s); } catch (e) { /* ignore */ } }
+    if (mazeState && (typeof mazeState.x !== 'number' || !Array.isArray(mazeState.objects))) mazeState = null;
     this.freshEntry = !mazeState;
     if (mazeState) {
       this.playerX = mazeState.x;
