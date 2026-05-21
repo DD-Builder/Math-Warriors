@@ -850,7 +850,11 @@ export class MazeScene extends Phaser.Scene {
       case 'valve':
       case 'beacon':
       case 'vent':
-      case 'fragment': {
+      case 'fragment':
+      case 'crystal':
+      case 'geoshard':
+      case 'token':
+      case 'page': {
         this.challengeProgress++;
         obj.consumed = true;
         markDead(obj.id);
