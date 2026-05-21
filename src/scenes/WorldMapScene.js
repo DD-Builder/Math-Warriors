@@ -192,7 +192,7 @@ export class WorldMapScene extends Phaser.Scene {
         yoyo: true,
         repeat: -1,
       });
-      ring.on('pointerdown', () => {
+      ring.on('pointerup', () => {
         if (this._scrolling) return;
         audio.play('ui/confirm');
         this.enterFloor(info.id);

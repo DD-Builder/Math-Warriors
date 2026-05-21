@@ -2332,7 +2332,23 @@ export class BattleScene extends Phaser.Scene {
 
     this.registry.remove('battleReturnScene');
     this.registry.remove('battleReturnData');
-    transitionTo(this, SCENES.WORLD_MAP);
+
+    const newHeroes = this.registry.get('newlyUnlockedHeroes');
+    if (newHeroes && newHeroes.length > 0) {
+      this.registry.remove('newlyUnlockedHeroes');
+      const lines = [];
+      for (const h of newHeroes) {
+        lines.push({ speaker: 'Elder Fairy', text: `The dark magic shatters! A new warrior emerges!`, wide: true });
+        lines.push({ speaker: h.name, text: `${h.trait}`, wide: true });
+        lines.push({ speaker: 'Elder Fairy', text: `${h.name} has joined your quest!`, wide: true });
+      }
+      transitionTo(this, SCENES.CUTSCENE, {
+        lines,
+        nextScene: SCENES.WORLD_MAP,
+      });
+    } else {
+      transitionTo(this, SCENES.WORLD_MAP);
+    }
   }
 
   // ================================================================
@@ -2419,11 +2435,8 @@ export class BattleScene extends Phaser.Scene {
       markFloorComplete(save, this.floor);
       const newHeroes = unlockHeroesForFloor(save, this.floor);
       if (newHeroes.length > 0) {
-        this.time.delayedCall(400, () => this.showToast('The magic freed a new ally!', '#f0c040'));
+        this.registry.set('newlyUnlockedHeroes', newHeroes);
       }
-      newHeroes.forEach((h, i) => {
-        this.time.delayedCall(900 + i * 600, () => this.showToast(`${h.name} joins your quest!`, '#f0c040'));
-      });
       const mazeKey = mazeStateKey(this.floor);
       const mazeState = this.registry.get(mazeKey);
       if (mazeState) {
