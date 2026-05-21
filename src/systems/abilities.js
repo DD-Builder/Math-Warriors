@@ -325,6 +325,283 @@ export const ABILITIES = {
       ctx.scene.showToast('The Theorem absorbs confusion! +1 ATK', '#7040d8');
     },
   },
+
+  // ── FLOOR 5: FROZEN PEAK (Fractions) ──
+
+  chill_snap: {
+    onHeroWrong(ctx) {
+      const hero = ctx.activeHero;
+      if (hero) { hero.atk = Math.max(1, hero.atk - 1); }
+      ctx.scene.showToast('Frostbite chills your attack! -1 ATK', '#80c8f0');
+    },
+  },
+  freeze_ray: {
+    onBattleStart(ctx) { ctx.enemy._frozenTurns = 0; },
+    onHeroWrong(ctx) {
+      ctx.enemy._frozenTurns = 2;
+      ctx.scene.showToast('Icicle Imp freezes you! Slowed 2 turns', '#90d8ff');
+    },
+    onHeroCorrect(ctx) {
+      if (ctx.enemy._frozenTurns > 0) {
+        ctx.enemy._frozenTurns--;
+        ctx.enemy.def += 1;
+        ctx.scene.showToast('Still frozen... enemy DEF +1', '#a0e0ff');
+      }
+    },
+  },
+  blizzard: {
+    onHeroWrong(ctx) {
+      ctx.party.filter(h => h.hp > 0).forEach(h => {
+        h.hp = Math.max(1, h.hp - 2);
+      });
+      ctx.scene.showToast('Snowdrift blizzard hits everyone! -2 HP', '#c0e8ff');
+    },
+  },
+  ice_armor: {
+    onBattleStart(ctx) { ctx.enemy._iceShield = 3; },
+    onHeroCorrect(ctx) {
+      if (ctx.enemy._iceShield > 0) {
+        ctx.enemy._iceShield--;
+        ctx.enemy.def += 2;
+        ctx.scene.showToast(`Ice armor cracks! ${ctx.enemy._iceShield} layers left`, '#60a8d0');
+      }
+    },
+    onHeroWrong(ctx) {
+      if (ctx.enemy._iceShield < 3) {
+        ctx.enemy._iceShield++;
+        ctx.scene.showToast('Ice armor reforms!', '#80c0e0');
+      }
+    },
+  },
+  deep_freeze: {
+    onBattleStart(ctx) {
+      ctx.enemy._freezeStacks = 0;
+      ctx.enemy._frozenHero = null;
+    },
+    onHeroWrong(ctx) {
+      ctx.enemy._freezeStacks++;
+      if (ctx.enemy._freezeStacks >= 3) {
+        ctx.enemy._freezeStacks = 0;
+        const hero = ctx.activeHero;
+        if (hero) {
+          ctx.enemy._frozenHero = hero;
+          hero.def = Math.max(0, hero.def - 3);
+          ctx.scene.showToast(`DEEP FREEZE! ${hero.name} loses 3 DEF!`, '#2060c0');
+        }
+      } else {
+        ctx.scene.showToast(`Freeze building... ${ctx.enemy._freezeStacks}/3`, '#60a0d8');
+      }
+    },
+    onHeroCorrect(ctx) {
+      if (ctx.enemy._freezeStacks > 0) {
+        ctx.enemy._freezeStacks = Math.max(0, ctx.enemy._freezeStacks - 1);
+      }
+      if (ctx.enemy._frozenHero) {
+        ctx.enemy._frozenHero.def += 1;
+        ctx.enemy._frozenHero = null;
+        ctx.scene.showToast('The ice thaws a little...', '#80d0ff');
+      }
+    },
+  },
+
+  // ── FLOOR 6: CRYSTAL CAVERNS (Geometry) ──
+
+  refract: {
+    onHeroCorrect(ctx) {
+      if (Math.random() < 0.25) {
+        ctx.enemy.hp = Math.min(ctx.enemy.maxHp, ctx.enemy.hp + Math.round(ctx.enemy.maxHp * 0.03));
+        ctx.scene.showToast('Crystal refracts the hit! Heals!', '#d0a0ff');
+        ctx.scene.updateEnemyHp();
+      }
+    },
+  },
+  crystal_burst: {
+    onHeroWrong(ctx) {
+      const hero = ctx.activeHero;
+      if (hero) { hero.hp = Math.max(1, hero.hp - 5); }
+      ctx.scene.showToast('Geode bursts! -5 HP!', '#c080f0');
+    },
+  },
+  light_split: {
+    onHeroCorrect(ctx) {
+      if (ctx.scene.streak >= 3 && Math.random() < 0.3) {
+        ctx.enemy.def += 2;
+        ctx.scene.showToast('Prismling splits the light! +2 DEF', '#e0c0ff');
+      }
+    },
+  },
+  mirror_shield: {
+    onBattleStart(ctx) { ctx.enemy._mirrorUp = true; },
+    onHeroCorrect(ctx) {
+      if (ctx.enemy._mirrorUp) {
+        ctx.enemy._mirrorUp = false;
+        const hero = ctx.activeHero;
+        if (hero) { hero.hp = Math.max(1, hero.hp - 3); }
+        ctx.scene.showToast('Mirror shield reflects! -3 HP to hero!', '#e0b0ff');
+      }
+    },
+    onHeroWrong(ctx) {
+      ctx.enemy._mirrorUp = true;
+      ctx.scene.showToast('Mirror shield reforms!', '#b080e0');
+    },
+  },
+  shape_shift: {
+    onBattleStart(ctx) { ctx.enemy._shiftCount = 0; ctx.enemy._baseAtk = ctx.enemy.atk; ctx.enemy._baseDef = ctx.enemy.def; },
+    onHeroCorrect(ctx) {
+      ctx.enemy._shiftCount++;
+      if (ctx.enemy._shiftCount % 3 === 0) {
+        const shift = Math.random() < 0.5;
+        if (shift) {
+          ctx.enemy.atk = ctx.enemy._baseAtk + Math.floor(ctx.enemy._shiftCount / 3) * 3;
+          ctx.enemy.def = Math.max(0, ctx.enemy._baseDef - 2);
+          ctx.scene.showToast('The Prism shifts to ATTACK form! +ATK, -DEF', '#ff80d0');
+        } else {
+          ctx.enemy.def = ctx.enemy._baseDef + Math.floor(ctx.enemy._shiftCount / 3) * 3;
+          ctx.enemy.atk = Math.max(1, ctx.enemy._baseAtk - 2);
+          ctx.scene.showToast('The Prism shifts to DEFENSE form! +DEF, -ATK', '#80d0ff');
+        }
+      }
+    },
+    onHeroWrong(ctx) {
+      ctx.enemy.atk += 1;
+      ctx.enemy.def += 1;
+      ctx.scene.showToast('The Prism absorbs chaos! +1 ATK/DEF', '#c060f0');
+    },
+  },
+
+  // ── FLOOR 7: MARKET SQUARE (Money) ──
+
+  steal_gold: {
+    onHeroWrong(ctx) {
+      const hero = ctx.activeHero;
+      if (hero) { hero.atk = Math.max(1, hero.atk - 1); }
+      ctx.scene.showToast('Pickpocket steals your focus! -1 ATK', '#d0a040');
+    },
+  },
+  levy: {
+    onBattleStart(ctx) { ctx.enemy._levyCount = 0; },
+    onHeroCorrect(ctx) {
+      ctx.enemy._levyCount++;
+      if (ctx.enemy._levyCount >= 3) {
+        ctx.enemy._levyCount = 0;
+        ctx.enemy.def += 2;
+        ctx.scene.showToast('Tax Collector levies a tax! +2 DEF', '#a08040');
+      }
+    },
+  },
+  price_hike: {
+    onHeroWrong(ctx) {
+      ctx.enemy.atk += 2;
+      ctx.scene.showToast('Rogue Merchant hikes the price! +2 ATK', '#e0c060');
+    },
+    onHeroCorrect(ctx) {
+      if (ctx.enemy.atk > 10) { ctx.enemy.atk -= 1; }
+    },
+  },
+  interest: {
+    onBattleStart(ctx) { ctx.enemy._interestTurns = 0; },
+    onHeroWrong(ctx) {
+      ctx.enemy._interestTurns++;
+      const bonus = Math.floor(ctx.enemy._interestTurns / 2);
+      if (bonus > 0) {
+        ctx.enemy.atk += bonus;
+        ctx.scene.showToast(`Interest compounds! +${bonus} ATK`, '#c09020');
+      }
+    },
+    onHeroCorrect(ctx) {
+      ctx.enemy._interestTurns = Math.max(0, ctx.enemy._interestTurns - 1);
+    },
+  },
+  fake_coins: {
+    onBattleStart(ctx) { ctx.enemy._fakeStacks = 0; },
+    onHeroWrong(ctx) {
+      ctx.enemy._fakeStacks++;
+      ctx.scene._consumeNextTurn = true;
+      ctx.scene.showToast(`Counterfeiter plants a fake! (${ctx.enemy._fakeStacks} fakes)`, '#806020');
+    },
+    onHeroCorrect(ctx) {
+      if (ctx.enemy._fakeStacks > 0) {
+        ctx.enemy._fakeStacks--;
+      }
+      if (ctx.enemy._fakeStacks >= 3) {
+        ctx.enemy.atk += 3;
+        ctx.enemy._fakeStacks = 0;
+        ctx.scene.showToast('Too many fakes! Counterfeiter surges! +3 ATK', '#e0a010');
+      }
+    },
+  },
+
+  // ── FLOOR 8: INFINITY LIBRARY (Word Problems) ──
+
+  page_turn: {
+    onHeroCorrect(ctx) {
+      if (Math.random() < 0.2) {
+        ctx.enemy.hp = Math.min(ctx.enemy.maxHp, ctx.enemy.hp + Math.round(ctx.enemy.maxHp * 0.03));
+        ctx.scene.showToast('Bookworm eats a page! Heals!', '#806040');
+        ctx.scene.updateEnemyHp();
+      }
+    },
+  },
+  smudge: {
+    onHeroWrong(ctx) {
+      ctx.scene._consumeNextTurn = true;
+      ctx.scene.showToast('Inkblot smudges an answer!', '#301828');
+    },
+  },
+  riddle_me: {
+    onBattleStart(ctx) { ctx.enemy._riddleCount = 0; },
+    onHeroWrong(ctx) {
+      ctx.enemy._riddleCount++;
+      if (ctx.enemy._riddleCount >= 2) {
+        ctx.enemy._riddleCount = 0;
+        ctx.enemy.atk += 3;
+        ctx.scene.showToast('Riddler stumps you! +3 ATK!', '#604030');
+      } else {
+        ctx.scene.showToast('Riddler chuckles... 1 more wrong and...', '#483020');
+      }
+    },
+    onHeroCorrect(ctx) {
+      ctx.enemy._riddleCount = 0;
+    },
+  },
+  silence: {
+    onHeroWrong(ctx) {
+      ctx.party.filter(h => h.hp > 0).forEach(h => {
+        h.atk = Math.max(1, h.atk - 1);
+      });
+      ctx.scene.showToast('Dark Archivist silences the party! -1 ATK each', '#402018');
+    },
+  },
+  reversal: {
+    onBattleStart(ctx) {
+      ctx.enemy._reversalMode = 'normal';
+      ctx.enemy._reversalTimer = 0;
+    },
+    onHeroCorrect(ctx) {
+      ctx.enemy._reversalTimer++;
+      if (ctx.enemy._reversalTimer >= 4) {
+        ctx.enemy._reversalTimer = 0;
+        if (ctx.enemy._reversalMode === 'normal') {
+          ctx.enemy._reversalMode = 'reversed';
+          const tmp = ctx.enemy.atk;
+          ctx.enemy.atk = ctx.enemy.def;
+          ctx.enemy.def = tmp;
+          ctx.scene.showToast('The Paradox REVERSES! ATK/DEF swapped!', '#f04040');
+        } else {
+          ctx.enemy._reversalMode = 'normal';
+          const tmp = ctx.enemy.atk;
+          ctx.enemy.atk = ctx.enemy.def;
+          ctx.enemy.def = tmp;
+          ctx.scene.showToast('The Paradox reverts to normal form!', '#4040f0');
+        }
+      }
+    },
+    onHeroWrong(ctx) {
+      ctx.enemy._reversalTimer += 2;
+      ctx.enemy.atk += 1;
+      ctx.scene.showToast('The Paradox feeds on confusion! +1 ATK', '#801010');
+    },
+  },
 };
 
 /**

@@ -69,14 +69,19 @@ export class BattleScene extends Phaser.Scene {
     this.isBoss = !!data?.isBoss;
 
     // --- Multi-monster encounter setup ---
-    const bossIds = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'theorem'];
+    const FLOOR_BOSS = {
+      1: 'briarking', 2: 'pressure', 3: 'skywhale', 4: 'pyroclast',
+      5: 'absolutezero', 6: 'theprism', 7: 'counterfeiter',
+      8: 'theparadox', 9: 'theorem',
+    };
+    const bossIds = Object.values(FLOOR_BOSS);
     const floorPool = getEnemiesForFloor(this.floor).filter(e => !bossIds.includes(e.id));
     const safePick = () => floorPool.length > 0 ? floorPool[Math.floor(Math.random() * floorPool.length)] : getEnemiesForFloor(1)[0];
 
     if (data?.enemy) {
       this.enemies = [{ ...data.enemy }];
     } else if (this.isBoss) {
-      const bossId = data?.enemyId || bossIds[this.floor - 1] || 'briarking';
+      const bossId = data?.enemyId || FLOOR_BOSS[this.floor] || 'briarking';
       const bossDef = getEnemyById(bossId) || safePick();
       this.enemies = [spawnEnemy(bossDef.id, { grade: this.grade, isBoss: true })];
     } else {
