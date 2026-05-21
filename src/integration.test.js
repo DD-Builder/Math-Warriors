@@ -13,9 +13,10 @@ import {
   ALL_ENEMIES, getEnemyById, getEnemiesForFloor, pickEnemyForFloor,
   spawnEnemy, computeEnemyHp, FLOOR_OPERATORS,
 } from './data/enemies.js';
+import { ALL_HEROES } from './data/heroes.js';
 import { ABILITIES, getAbility, invokeAbility } from './systems/abilities.js';
 import { DIALOGUE } from './data/dialogue.js';
-import { makeDefaultSave, markFloorComplete } from './systems/save.js';
+import { makeDefaultSave, markFloorComplete, unlockHeroesForFloor, isHeroUnlocked } from './systems/save.js';
 import { generateQuestion, expectedAnswer } from './systems/math.js';
 
 // ── CONSTANTS ──
@@ -508,6 +509,45 @@ describe('cross-system consistency', () => {
     for (const name of abilityNames) {
       const ab = ABILITIES[name];
       assert.ok(ab, `ability "${name}" not in ABILITIES registry`);
+    }
+  });
+
+  it('every hero has unlockedAtFloor field (0-7)', () => {
+    for (const hero of ALL_HEROES) {
+      assert.ok(typeof hero.unlockedAtFloor === 'number',
+        `${hero.id} missing unlockedAtFloor`);
+      assert.ok(hero.unlockedAtFloor >= 0 && hero.unlockedAtFloor <= 7,
+        `${hero.id} unlockedAtFloor=${hero.unlockedAtFloor} out of range`);
+    }
+  });
+
+  it('exactly 3 starter heroes (unlockedAtFloor === 0)', () => {
+    const starters = ALL_HEROES.filter(h => h.unlockedAtFloor === 0);
+    assert.equal(starters.length, 3, 'should have 3 starters');
+    const classes = starters.map(h => h.class).sort();
+    assert.deepEqual(classes, ['bunny', 'knight', 'wizard'], 'one starter per class');
+  });
+
+  it('all 15 heroes unlockable across floors 0-7', () => {
+    const unlocked = new Set();
+    for (let f = 0; f <= 7; f++) {
+      ALL_HEROES.filter(h => h.unlockedAtFloor === f).forEach(h => unlocked.add(h.id));
+    }
+    assert.equal(unlocked.size, 15, `only ${unlocked.size}/15 heroes unlockable`);
+  });
+
+  it('dialogue lines are graphic-novel short (max 50 chars for cutscene text)', () => {
+    const cutsceneKeys = [];
+    for (let f = 1; f <= TOTAL_FLOORS; f++) {
+      cutsceneKeys.push(`floor${f}_entry`, `floor${f}_boss`, `floor${f}_victory`);
+    }
+    for (const key of cutsceneKeys) {
+      const lines = DIALOGUE[key];
+      if (!lines) continue;
+      for (const line of lines) {
+        assert.ok(line.text.length <= 55,
+          `${key}: "${line.text}" is ${line.text.length} chars (max 55)`);
+      }
     }
   });
 });
