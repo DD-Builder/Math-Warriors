@@ -87,7 +87,7 @@ export class TitleScene extends Phaser.Scene {
 
   onNewGame() {
     // Clear all maze states so new game starts fresh
-    for (let f = 1; f <= 5; f++) {
+    for (let f = 1; f <= 9; f++) {
       this.registry.remove(`mazeState_${f}`);
       try { localStorage.removeItem(`mw_maze_${f}`); } catch (e) { /* ignore */ }
     }

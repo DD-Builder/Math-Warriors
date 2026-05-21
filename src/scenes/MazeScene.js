@@ -170,6 +170,10 @@ export class MazeScene extends Phaser.Scene {
       else if (o.type === 'beacon') engineType = 'beacon';
       else if (o.type === 'vent') engineType = 'vent';
       else if (o.type === 'fragment') engineType = 'fragment';
+      else if (o.type === 'crystal') engineType = 'crystal';
+      else if (o.type === 'geoshard') engineType = 'geoshard';
+      else if (o.type === 'token') engineType = 'token';
+      else if (o.type === 'page') engineType = 'page';
       return {
         type: engineType,
         tx: o.x, ty: o.y,

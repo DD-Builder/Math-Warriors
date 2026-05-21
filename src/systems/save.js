@@ -50,6 +50,10 @@ export function makeDefaultSave() {
       { id: 3, unlocked: false, complete: false, bestStreak: 0 },
       { id: 4, unlocked: false, complete: false, bestStreak: 0 },
       { id: 5, unlocked: false, complete: false, bestStreak: 0 },
+      { id: 6, unlocked: false, complete: false, bestStreak: 0 },
+      { id: 7, unlocked: false, complete: false, bestStreak: 0 },
+      { id: 8, unlocked: false, complete: false, bestStreak: 0 },
+      { id: 9, unlocked: false, complete: false, bestStreak: 0 },
     ],
     settings: {
       musicVolume: 0.8,
@@ -156,7 +160,7 @@ function normalize(save) {
     }
   }
 
-  // Floors array: ensure all 5 floors exist
+  // Floors array: ensure all 9 floors exist
   const floors = Array.isArray(save.floors) ? save.floors : [];
   out.floors = def.floors.map((defFloor) => {
     const existing = floors.find((f) => f && f.id === defFloor.id);

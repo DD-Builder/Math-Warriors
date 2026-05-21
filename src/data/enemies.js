@@ -250,9 +250,9 @@ export const FLOOR_OPERATORS = {
   2: '-',
   3: '*',
   4: '/',
-  5: 'frac',
-  6: 'geo',
-  7: 'money',
-  8: 'word',
-  9: 'mixed',  // Final floor uses everything
+  5: 'mixed',
+  6: 'frac',
+  7: 'geo',
+  8: 'money',
+  9: 'word',
 };

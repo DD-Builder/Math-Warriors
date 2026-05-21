@@ -55,17 +55,16 @@ describe('makeDefaultSave', () => {
     assert.equal(makeDefaultSave().version, CURRENT_VERSION);
   });
 
-  test('has exactly 5 floors', () => {
-    assert.equal(makeDefaultSave().floors.length, 5);
+  test('has exactly 9 floors', () => {
+    assert.equal(makeDefaultSave().floors.length, 9);
   });
 
   test('only floor 1 is unlocked initially', () => {
     const save = makeDefaultSave();
     assert.equal(save.floors[0].unlocked, true);
-    assert.equal(save.floors[1].unlocked, false);
-    assert.equal(save.floors[2].unlocked, false);
-    assert.equal(save.floors[3].unlocked, false);
-    assert.equal(save.floors[4].unlocked, false);
+    for (let i = 1; i < 9; i++) {
+      assert.equal(save.floors[i].unlocked, false, `floor ${i + 1} should be locked`);
+    }
   });
 
   test('starts with 2 potions', () => {
@@ -149,7 +148,7 @@ describe('writeSave', () => {
     const loaded = loadSave();
     assert.equal(loaded.gold, 50);
     assert.equal(loaded.potions, 2); // filled from defaults
-    assert.equal(loaded.floors.length, 5);
+    assert.equal(loaded.floors.length, 9);
   });
 });
 
@@ -191,10 +190,10 @@ describe('normalization', () => {
       floors: [{ id: 1, unlocked: true, complete: true, bestStreak: 50 }],
     }));
     const save = loadSave();
-    assert.equal(save.floors.length, 5);
+    assert.equal(save.floors.length, 9);
     assert.equal(save.floors[0].complete, true);
     assert.equal(save.floors[0].bestStreak, 50);
-    assert.equal(save.floors[4].complete, false);
+    assert.equal(save.floors[8].complete, false);
   });
 
   test('fills in missing settings keys', () => {
@@ -237,10 +236,10 @@ describe('markFloorComplete', () => {
     assert.equal(save.floors[1].unlocked, true);
   });
 
-  test('does not crash on floor 5 (no next floor)', () => {
+  test('does not crash on floor 9 (no next floor)', () => {
     const save = makeDefaultSave();
-    assert.doesNotThrow(() => markFloorComplete(save, 5));
-    assert.equal(save.floors[4].complete, true);
+    assert.doesNotThrow(() => markFloorComplete(save, 9));
+    assert.equal(save.floors[8].complete, true);
   });
 
   test('does nothing for unknown floor id', () => {

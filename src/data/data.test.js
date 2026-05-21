@@ -32,6 +32,10 @@ import {
   FLOOR_3,
   FLOOR_4,
   FLOOR_5,
+  FLOOR_6,
+  FLOOR_7,
+  FLOOR_8,
+  FLOOR_9,
   ALL_ENEMIES,
   getEnemyById,
   getEnemiesForFloor,
@@ -121,13 +125,17 @@ describe('heroes data integrity', () => {
 // ------------------------------------------------------------------
 
 describe('enemies data integrity', () => {
-  test('exactly 5 enemies per floor, 25 total', () => {
+  test('exactly 5 enemies per floor, 45 total', () => {
     assert.equal(FLOOR_1.length, 5);
     assert.equal(FLOOR_2.length, 5);
     assert.equal(FLOOR_3.length, 5);
     assert.equal(FLOOR_4.length, 5);
     assert.equal(FLOOR_5.length, 5);
-    assert.equal(ALL_ENEMIES.length, 25);
+    assert.equal(FLOOR_6.length, 5);
+    assert.equal(FLOOR_7.length, 5);
+    assert.equal(FLOOR_8.length, 5);
+    assert.equal(FLOOR_9.length, 5);
+    assert.equal(ALL_ENEMIES.length, 45);
   });
 
   test('every enemy has all required fields', () => {
@@ -166,6 +174,10 @@ describe('enemies data integrity', () => {
     for (const e of FLOOR_3) assert.equal(e.floor, 3);
     for (const e of FLOOR_4) assert.equal(e.floor, 4);
     for (const e of FLOOR_5) assert.equal(e.floor, 5);
+    for (const e of FLOOR_6) assert.equal(e.floor, 6);
+    for (const e of FLOOR_7) assert.equal(e.floor, 7);
+    for (const e of FLOOR_8) assert.equal(e.floor, 8);
+    for (const e of FLOOR_9) assert.equal(e.floor, 9);
   });
 
   test('getEnemiesForFloor returns the right pool', () => {
@@ -198,18 +210,26 @@ describe('enemies data integrity', () => {
     }
   });
 
-  test('FLOOR_OPERATORS maps new floors to correct operators', () => {
-    assert.equal(FLOOR_OPERATORS[6], 'frac', 'floor 6 should be fractions');
-    assert.equal(FLOOR_OPERATORS[7], 'money', 'floor 7 should be money');
-    assert.equal(FLOOR_OPERATORS[8], 'word', 'floor 8 should be word problems');
-    assert.equal(FLOOR_OPERATORS[9], 'mixed', 'floor 9 should be mixed');
+  test('FLOOR_OPERATORS maps all floors to correct operators', () => {
+    assert.equal(FLOOR_OPERATORS[1], '+');
+    assert.equal(FLOOR_OPERATORS[2], '-');
+    assert.equal(FLOOR_OPERATORS[3], '*');
+    assert.equal(FLOOR_OPERATORS[4], '/');
+    assert.equal(FLOOR_OPERATORS[5], 'mixed');
+    assert.equal(FLOOR_OPERATORS[6], 'frac');
+    assert.equal(FLOOR_OPERATORS[7], 'geo');
+    assert.equal(FLOOR_OPERATORS[8], 'money');
+    assert.equal(FLOOR_OPERATORS[9], 'word');
   });
 
   test('enemy difficulty scales roughly with floor', () => {
-    // Floor N enemies should generally be stronger than floor N-1
     const avg = (arr, key) => arr.reduce((s, e) => s + e[key], 0) / arr.length;
-    const floors = [FLOOR_1, FLOOR_2, FLOOR_3, FLOOR_4, FLOOR_5];
-    for (let i = 1; i < floors.length; i++) {
+    const floors = [FLOOR_1, FLOOR_2, FLOOR_3, FLOOR_4, FLOOR_5, FLOOR_6, FLOOR_7, FLOOR_8, FLOOR_9];
+    // Check general upward trend: last floor avg > first floor avg
+    assert.ok(avg(floors[floors.length - 1], 'maxHp') > avg(floors[0], 'maxHp'),
+      'final floor should be harder than first floor');
+    // Check the core 1-5 progression is strictly increasing
+    for (let i = 1; i < 5; i++) {
       const prev = avg(floors[i - 1], 'maxHp');
       const curr = avg(floors[i], 'maxHp');
       assert.ok(curr >= prev, `floor ${i + 1} avg HP ${curr} should be >= floor ${i} avg HP ${prev}`);

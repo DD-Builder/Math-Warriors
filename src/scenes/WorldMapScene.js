@@ -165,19 +165,27 @@ export class WorldMapScene extends Phaser.Scene {
   buildFloorNodes() {
     // Curving path from bottom-left to top-right
     const nodePositions = [
-      { x: GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.80 },  // Floor 1
-      { x: GAME_WIDTH * 0.38, y: GAME_HEIGHT * 0.60 },  // Floor 2
-      { x: GAME_WIDTH * 0.58, y: GAME_HEIGHT * 0.72 },  // Floor 3
-      { x: GAME_WIDTH * 0.78, y: GAME_HEIGHT * 0.50 },  // Floor 4
-      { x: GAME_WIDTH * 0.58, y: GAME_HEIGHT * 0.32 },  // Floor 5
+      { x: GAME_WIDTH * 0.15, y: GAME_HEIGHT * 0.82 },
+      { x: GAME_WIDTH * 0.38, y: GAME_HEIGHT * 0.78 },
+      { x: GAME_WIDTH * 0.60, y: GAME_HEIGHT * 0.82 },
+      { x: GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.70 },
+      { x: GAME_WIDTH * 0.65, y: GAME_HEIGHT * 0.56 },
+      { x: GAME_WIDTH * 0.40, y: GAME_HEIGHT * 0.50 },
+      { x: GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.42 },
+      { x: GAME_WIDTH * 0.40, y: GAME_HEIGHT * 0.30 },
+      { x: GAME_WIDTH * 0.65, y: GAME_HEIGHT * 0.22 },
     ];
 
     const floorInfo = [
-      { id: 1, name: 'THE GARDEN',      op: '+', color: 0x4a9830, tagline: 'Addition' },
-      { id: 2, name: 'TIDEPOOL RUINS',  op: '-', color: 0x2060b0, tagline: 'Subtraction' },
-      { id: 3, name: 'CLOUD MAZE',      op: '\u00d7', color: 0xb0d4f0, tagline: 'Multiplication' },
-      { id: 4, name: 'EMBER CAVES',     op: '\u00f7', color: 0xb03010, tagline: 'Division' },
-      { id: 5, name: 'MENDING ROOM',    op: '\u221e', color: 0x8830b8, tagline: 'All Ops' },
+      { id: 1, name: 'GARDEN',       op: '+',  color: 0x4a9830, tagline: 'Addition' },
+      { id: 2, name: 'TIDEPOOL',     op: '-',  color: 0x2060b0, tagline: 'Subtraction' },
+      { id: 3, name: 'CLOUD MAZE',   op: '\u00d7', color: 0x88b8e0, tagline: 'Multiply' },
+      { id: 4, name: 'EMBER CAVES',  op: '\u00f7', color: 0xb03010, tagline: 'Division' },
+      { id: 5, name: 'FROZEN PEAK',  op: '\u00bd', color: 0x4890c0, tagline: 'Fractions' },
+      { id: 6, name: 'CRYSTAL CAV.', op: '\u25b3', color: 0x8040c0, tagline: 'Geometry' },
+      { id: 7, name: 'MARKET SQ.',   op: '$',  color: 0xc0a040, tagline: 'Money' },
+      { id: 8, name: 'LIBRARY',      op: '?',  color: 0x604020, tagline: 'Words' },
+      { id: 9, name: 'MENDING ROOM', op: '\u221e', color: 0x8830b8, tagline: 'All Ops' },
     ];
 
     // Draw paths between nodes first (behind the nodes). Phaser.Graphics
@@ -253,37 +261,37 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   createFloorNode(x, y, info, locked, complete) {
-    const radius = 70;
+    const radius = 52;
 
     // Soft drop shadow
-    this.add.circle(x + 5, y + 8, radius, 0x000000, 0.3);
+    this.add.circle(x + 4, y + 6, radius, 0x000000, 0.3);
 
     // Paper-cut node: outer color ring + inner cream paper
     const nodeColor = locked ? 0x8a8070 : info.color;
     const ring = this.add.circle(x, y, radius, nodeColor);
-    ring.setStrokeStyle(5, locked ? 0x5a5040 : 0xfff8e0);
+    ring.setStrokeStyle(4, locked ? 0x5a5040 : 0xfff8e0);
 
     // Inner cream circle
-    this.add.circle(x, y, radius - 10, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1);
+    this.add.circle(x, y, radius - 8, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1);
 
     // Floor number badge — top-left little paper tag
     const numX = x - radius * 0.7;
     const numY = y - radius * 0.7;
-    this.add.circle(numX, numY, 18, locked ? 0x5a5040 : 0xd07818)
+    this.add.circle(numX, numY, 15, locked ? 0x5a5040 : 0xd07818)
       .setStrokeStyle(2, 0xfff8e0);
     this.add.text(numX, numY, `${info.id}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '18px',
+      fontSize: '15px',
       color: '#fff8e0',
     }).setOrigin(0.5);
 
     if (locked) {
-      this.drawPaperPadlock(x, y, 36);
+      this.drawPaperPadlock(x, y, 28);
     } else {
       // Operator symbol (big, centered)
       this.add.text(x, y, info.op, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '60px',
+        fontSize: '40px',
         color: `#${nodeColor.toString(16).padStart(6, '0')}`,
         stroke: '#1a0e04',
         strokeThickness: 3,
@@ -293,27 +301,27 @@ export class WorldMapScene extends Phaser.Scene {
     // Completion star
     if (complete) {
       this.add.text(x + radius * 0.7, y - radius * 0.7, '⭐', {
-        fontSize: '32px',
+        fontSize: '26px',
       }).setOrigin(0.5);
     }
 
     // Floor name label below — paper pill
-    const labelY = y + radius + 28;
-    const labelW = 220;
-    const labelH = 52;
+    const labelY = y + radius + 22;
+    const labelW = 180;
+    const labelH = 42;
     PaperPanel(this, x, labelY, labelW, labelH, {
       color: locked ? 0xc8b898 : 0xffffff,
       alpha: 0.95,
       radius: 12,
     });
-    this.add.text(x, labelY - 10, info.name, {
+    this.add.text(x, labelY - 8, info.name, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '14px',
+      fontSize: '12px',
       color: locked ? '#6a4c28' : '#d07818',
     }).setOrigin(0.5);
-    this.add.text(x, labelY + 12, info.tagline, {
+    this.add.text(x, labelY + 8, info.tagline, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '13px',
+      fontSize: '11px',
       color: locked ? '#8a7a60' : '#5a3820',
     }).setOrigin(0.5);
 
