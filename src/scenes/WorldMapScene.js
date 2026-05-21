@@ -10,18 +10,24 @@ import { drawHeroSprite } from '../ui/heroSprites.js';
 import { getDailyChallenge, isDailyChallengeCompleted, markDailyChallengeComplete } from '../systems/dailyChallenge.js';
 import { DIALOGUE } from '../data/dialogue.js';
 
-/**
- * WorldMapScene
- *
- * Five quest nodes on a curved path. Taps on an unlocked quest open
- * the maze. Locked quests show a papercut padlock.
- *
- * Design principles this honors (see docs/DESIGN-PRINCIPLES.md):
- *   - Visible progress — completed quests get a gold star.
- *   - The dopamine loop is the engine — HUD shows gold + progress.
- *   - Respect session length — one tap to resume.
- *   - Clarity before complexity — lock state is obvious at a glance.
- */
+const SCREEN_W = GAME_WIDTH;
+const TOTAL_SCREENS = 3;
+const TOTAL_W = SCREEN_W * TOTAL_SCREENS;
+
+const FLOOR_INFO = [
+  { id: 1, name: 'THE GARDEN',       tagline: 'Addition',       color: 0x4a9830 },
+  { id: 2, name: 'TIDEPOOL RUINS',   tagline: 'Subtraction',    color: 0x2060b0 },
+  { id: 3, name: 'CLOUD MAZE',       tagline: 'Multiplication', color: 0x88b8e0 },
+  { id: 4, name: 'EMBER CAVES',      tagline: 'Division',       color: 0xb03010 },
+  { id: 5, name: 'FROZEN PEAK',      tagline: 'Fractions',      color: 0x4890c0 },
+  { id: 6, name: 'CRYSTAL CAVERNS',  tagline: 'Geometry',       color: 0x8040c0 },
+  { id: 7, name: 'MARKET SQUARE',    tagline: 'Money',          color: 0xc0a040 },
+  { id: 8, name: 'INFINITY LIBRARY', tagline: 'Word Problems',  color: 0x604020 },
+  { id: 9, name: 'MENDING ROOM',     tagline: 'All Operations', color: 0x8830b8 },
+];
+
+const SCREEN_PALETTES = [1, 4, 9];
+
 export class WorldMapScene extends Phaser.Scene {
   constructor() {
     super({ key: SCENES.WORLD_MAP });
@@ -35,311 +41,159 @@ export class WorldMapScene extends Phaser.Scene {
     fadeInScene(this);
     audio.playMusic('music/map');
 
-    this.buildBackground();
-    this.buildHUD();
+    this.maxScreen = this.getMaxScreen();
+
+    this.cameras.main.setBounds(0, 0, TOTAL_W, GAME_HEIGHT);
+    this.cameras.main.setScroll(0, 0);
+
+    this.buildBackgrounds();
     this.buildFloorNodes();
+    this.buildPaths();
+    this.buildHUD();
+    this.buildPageDots();
+    this.setupScroll();
+
+    const startScreen = this.getStartScreen();
+    this.currentScreen = startScreen;
+    this.cameras.main.setScroll(startScreen * SCREEN_W, 0);
+    this.updatePageDots();
   }
 
-  // ================================================================
-  // BACKGROUND — subtle atmospheric layers
-  // ================================================================
-
-  buildBackground() {
-    // Full-screen papercut diorama using Floor 1's palette as the
-    // "overworld" look. The world map is set in the garden world.
-    drawPapercutBackground(this, 1, GAME_WIDTH, GAME_HEIGHT, 777);
-
-    // Title
-    this.add.text(GAME_WIDTH / 2, 100, 'WORLD MAP', {
-      ...TEXT.title(),
-      fontSize: '44px',
-      color: '#fff8e0',
-      stroke: '#3a2410',
-      strokeThickness: 6,
-    }).setOrigin(0.5);
-    this.add.text(GAME_WIDTH / 2, 150, 'Choose Your Adventure', {
-      ...TEXT.body(),
-      fontSize: '22px',
-      color: '#fff8e0',
-      stroke: '#3a2410',
-      strokeThickness: 3,
-      letterSpacing: 2,
-    }).setOrigin(0.5);
+  getMaxScreen() {
+    const floors = this.save.floors;
+    if (floors[5]?.complete) return 2;
+    if (floors[2]?.complete) return 1;
+    return 0;
   }
 
-  // ================================================================
-  // HUD — gold, party strip, back button
-  // ================================================================
-
-  buildHUD() {
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-
-    // HOME button — top-left, prominent cream paper pill.
-    PaperButton(this, area.left + 110, area.top + 50, '\u2190 HOME', {
-      w: 200, h: 72, color: 0xffffff, fontSize: 24,
-      textColor: '#b83820',
-      onClick: () => {
-        audio.play('ui/back');
-        transitionTo(this, SCENES.TITLE);
-      },
-    });
-
-    // Gold + potions — paper pill just right of the HOME button
-    const goldX = area.left + 240;
-    PaperPanel(this, goldX + 110, area.top + 50, 220, 60, {
-      color: 0xffffff, alpha: 0.95, radius: 18,
-    });
-    this.add.text(goldX + 15, area.top + 50, '💰', { fontSize: '26px' }).setOrigin(0, 0.5);
-    this.add.text(goldX + 52, area.top + 42, `${this.save.gold}`, {
-      ...TEXT.heading(), fontSize: '22px', color: '#d07818',
-    }).setOrigin(0, 0.5);
-    this.add.text(goldX + 115, area.top + 50, '🧪', { fontSize: '26px' }).setOrigin(0, 0.5);
-    this.add.text(goldX + 152, area.top + 42, `${this.save.potions}`, {
-      ...TEXT.heading(), fontSize: '22px', color: '#4aa848',
-    }).setOrigin(0, 0.5);
-
-    // Party strip — top-right with mini hero sprites
-    if (this.save.party && this.save.party.length > 0) {
-      const stripW = 320;
-      const stripCx = area.right - stripW / 2;
-      const stripY = area.top + 50;
-      PaperPanel(this, stripCx, stripY, stripW, 80, {
-        color: 0xffffff, alpha: 0.95, radius: 18,
-      });
-      this.add.text(stripCx - stripW / 2 + 14, stripY - 28, 'PARTY', {
-        ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
-      });
-      for (let i = 0; i < 3; i++) {
-        const x = stripCx - stripW / 2 + 70 + i * 90;
-        const slot = this.save.party[i];
-        if (slot) {
-          const def = getHeroById(slot.id);
-          if (def) {
-            drawHeroSprite(this, x, stripY - 6, def, { scale: 0.4 });
-            const pct = (slot.hp ?? slot.maxHp) / slot.maxHp;
-            const hpBg = this.add.graphics();
-            hpBg.fillStyle(0x3a2410, 0.5);
-            hpBg.fillRoundedRect(x - 24, stripY + 22, 48, 5, 2);
-            hpBg.fillStyle(0x4aa848, 1);
-            hpBg.fillRoundedRect(x - 24, stripY + 22, 48 * pct, 5, 2);
-          }
-        }
+  getStartScreen() {
+    const floors = this.save.floors;
+    for (let i = 8; i >= 0; i--) {
+      if (floors[i]?.unlocked) {
+        return Math.min(Math.floor(i / 3), this.maxScreen);
       }
     }
-
-    // Shop — bottom-center
-    PaperButton(this, area.cx, area.bottom - 40, 'SHOP', {
-      w: 180, h: 62, color: 0xd07818, fontSize: 22,
-      textColor: '#fff8e0',
-      onClick: () => {
-        audio.play('ui/click');
-        transitionTo(this, SCENES.SHOP, undefined, 200);
-      },
-    });
-
-    // Settings — bottom-right
-    PaperButton(this, area.right - 80, area.bottom - 40, '⚙', {
-      w: 140, h: 54, color: 0x4a6ca8, fontSize: 26,
-      onClick: () => {
-        audio.play('ui/click');
-        transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
-      },
-    });
-
-    // Daily Challenge — bottom-left
-    const dailyCompleted = isDailyChallengeCompleted(this.save);
-    const dailyColor = dailyCompleted ? 0x8a8070 : 0xd07818;
-    PaperButton(this, area.left + 140, area.bottom - 40, 'DAILY CHALLENGE', {
-      w: 260, h: 54, color: dailyColor, fontSize: 18,
-      textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
-      onClick: () => {
-        audio.play('ui/click');
-        this.onDailyChallenge();
-      },
-    });
+    return 0;
   }
 
-  // ================================================================
-  // FLOOR NODES
-  // ================================================================
+  buildBackgrounds() {
+    for (let s = 0; s < TOTAL_SCREENS; s++) {
+      const offsetX = s * SCREEN_W;
+      const before = this.children.list.length;
+      drawPapercutBackground(this, SCREEN_PALETTES[s], SCREEN_W, GAME_HEIGHT, 777 + s * 100);
+      const after = this.children.list.length;
+      for (let i = before; i < after; i++) {
+        const obj = this.children.list[i];
+        if (obj && obj.x !== undefined) obj.x += offsetX;
+      }
+
+      if (s > this.maxScreen) {
+        this.add.rectangle(
+          offsetX + SCREEN_W / 2, GAME_HEIGHT / 2,
+          SCREEN_W, GAME_HEIGHT, 0x000000, 0.6
+        );
+        this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2, '🔒', {
+          fontSize: '80px',
+        }).setOrigin(0.5);
+        this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2 + 60, `Beat Floor ${s * 3} to unlock`, {
+          ...TEXT.heading(),
+          fontSize: '24px',
+          color: '#f0e4cc',
+          stroke: '#1a0e04',
+          strokeThickness: 4,
+        }).setOrigin(0.5);
+      }
+    }
+  }
 
   buildFloorNodes() {
-    // Curving path from bottom-left to top-right
-    const nodePositions = [
-      { x: GAME_WIDTH * 0.15, y: GAME_HEIGHT * 0.82 },
-      { x: GAME_WIDTH * 0.38, y: GAME_HEIGHT * 0.78 },
-      { x: GAME_WIDTH * 0.60, y: GAME_HEIGHT * 0.82 },
-      { x: GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.70 },
-      { x: GAME_WIDTH * 0.65, y: GAME_HEIGHT * 0.56 },
-      { x: GAME_WIDTH * 0.40, y: GAME_HEIGHT * 0.50 },
-      { x: GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.42 },
-      { x: GAME_WIDTH * 0.40, y: GAME_HEIGHT * 0.30 },
-      { x: GAME_WIDTH * 0.65, y: GAME_HEIGHT * 0.22 },
+    const nodeLayout = [
+      { rx: 0.22, ry: 0.70 },
+      { rx: 0.50, ry: 0.42 },
+      { rx: 0.78, ry: 0.62 },
     ];
 
-    const floorInfo = [
-      { id: 1, name: 'GARDEN',       op: '+',  color: 0x4a9830, tagline: 'Addition' },
-      { id: 2, name: 'TIDEPOOL',     op: '-',  color: 0x2060b0, tagline: 'Subtraction' },
-      { id: 3, name: 'CLOUD MAZE',   op: '\u00d7', color: 0x88b8e0, tagline: 'Multiply' },
-      { id: 4, name: 'EMBER CAVES',  op: '\u00f7', color: 0xb03010, tagline: 'Division' },
-      { id: 5, name: 'FROZEN PEAK',  op: '\u00bd', color: 0x4890c0, tagline: 'Fractions' },
-      { id: 6, name: 'CRYSTAL CAV.', op: '\u25b3', color: 0x8040c0, tagline: 'Geometry' },
-      { id: 7, name: 'MARKET SQ.',   op: '$',  color: 0xc0a040, tagline: 'Money' },
-      { id: 8, name: 'LIBRARY',      op: '?',  color: 0x604020, tagline: 'Words' },
-      { id: 9, name: 'MENDING ROOM', op: '\u221e', color: 0x8830b8, tagline: 'All Ops' },
-    ];
+    this.nodePositions = [];
 
-    // Draw paths between nodes first (behind the nodes). Phaser.Graphics
-    // doesn't have quadraticCurveTo like Canvas 2D does, so we sample the
-    // bezier curve ourselves and stroke a polyline through the points.
-    const pathGfx = this.add.graphics();
-    const sampleBezier = (ax, ay, cx, cy, bx, by, steps) => {
-      const pts = [];
-      for (let s = 0; s <= steps; s++) {
-        const t = s / steps;
-        const u = 1 - t;
-        pts.push({
-          x: u * u * ax + 2 * u * t * cx + t * t * bx,
-          y: u * u * ay + 2 * u * t * cy + t * t * by,
-        });
-      }
-      return pts;
-    };
-    const strokePolyline = (gfx, pts) => {
-      if (pts.length < 2) return;
-      gfx.beginPath();
-      gfx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i < pts.length; i++) gfx.lineTo(pts[i].x, pts[i].y);
-      gfx.strokePath();
-    };
+    for (let i = 0; i < 9; i++) {
+      const screen = Math.floor(i / 3);
+      const slot = i % 3;
+      const layout = nodeLayout[slot];
+      const x = screen * SCREEN_W + SCREEN_W * layout.rx;
+      const y = GAME_HEIGHT * layout.ry;
+      this.nodePositions.push({ x, y });
 
-    for (let i = 0; i < nodePositions.length - 1; i++) {
-      const from = nodePositions[i];
-      const to = nodePositions[i + 1];
-      const fromSave = this.save.floors[i];
-      const active = fromSave?.complete;
-
-      const midX = (from.x + to.x) / 2;
-      const midY = (from.y + to.y) / 2 - 40;
-      const pts = sampleBezier(from.x, from.y, midX, midY, to.x, to.y, 32);
-
-      pathGfx.lineStyle(8, active ? COLORS.gold : 0x3a2810, 0.9);
-      strokePolyline(pathGfx, pts);
-
-      if (active) {
-        pathGfx.lineStyle(3, 0xffe080, 0.9);
-        strokePolyline(pathGfx, pts);
-        // Sparkle traveling along completed path
-        this.time.addEvent({
-          delay: 1500 + i * 400,
-          loop: true,
-          callback: () => {
-            const sparkle = this.add.circle(pts[0].x, pts[0].y, 3, 0xf0e040, 0.8);
-            let step = 0;
-            this.time.addEvent({
-              delay: 40, loop: true,
-              callback: () => {
-                step++;
-                if (step >= pts.length) { sparkle.destroy(); return; }
-                sparkle.setPosition(pts[step].x, pts[step].y);
-                sparkle.setAlpha(0.8 - (step / pts.length) * 0.6);
-              },
-            });
-          },
-        });
-      }
-    }
-
-    // Now the nodes themselves
-    nodePositions.forEach((pos, i) => {
-      const info = floorInfo[i];
+      const info = FLOOR_INFO[i];
       const saved = this.save.floors[i];
       const locked = !saved.unlocked;
       const complete = saved.complete;
 
-      this.createFloorNode(pos.x, pos.y, info, locked, complete);
-    });
+      this.createFloorNode(x, y, info, locked, complete);
+    }
   }
 
   createFloorNode(x, y, info, locked, complete) {
-    const radius = 52;
+    const radius = 56;
 
-    // Soft drop shadow
     this.add.circle(x + 4, y + 6, radius, 0x000000, 0.3);
 
-    // Paper-cut node: outer color ring + inner cream paper
     const nodeColor = locked ? 0x8a8070 : info.color;
     const ring = this.add.circle(x, y, radius, nodeColor);
     ring.setStrokeStyle(4, locked ? 0x5a5040 : 0xfff8e0);
 
-    // Inner cream circle
-    this.add.circle(x, y, radius - 8, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1);
+    const inner = this.add.circle(x, y, radius - 6, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1);
 
-    // Floor number badge — top-left little paper tag
     const numX = x - radius * 0.7;
     const numY = y - radius * 0.7;
-    this.add.circle(numX, numY, 15, locked ? 0x5a5040 : 0xd07818)
+    this.add.circle(numX, numY, 16, locked ? 0x5a5040 : 0xd07818)
       .setStrokeStyle(2, 0xfff8e0);
     this.add.text(numX, numY, `${info.id}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '15px',
+      fontSize: '16px',
       color: '#fff8e0',
     }).setOrigin(0.5);
 
     if (locked) {
-      this.drawPaperPadlock(x, y, 28);
+      this.drawPaperPadlock(x, y, 24);
     } else {
-      // Operator symbol (big, centered)
-      this.add.text(x, y, info.op, {
-        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '40px',
-        color: `#${nodeColor.toString(16).padStart(6, '0')}`,
-        stroke: '#1a0e04',
-        strokeThickness: 3,
-      }).setOrigin(0.5);
+      this.drawMiniDiorama(x, y, radius - 10, info.id);
     }
 
-    // Completion star
     if (complete) {
-      this.add.text(x + radius * 0.7, y - radius * 0.7, '⭐', {
-        fontSize: '26px',
+      this.add.text(x + radius * 0.65, y - radius * 0.65, '⭐', {
+        fontSize: '28px',
       }).setOrigin(0.5);
     }
 
-    // Floor name label below — paper pill
-    const labelY = y + radius + 22;
-    const labelW = 180;
-    const labelH = 42;
+    const labelY = y + radius + 24;
+    const labelW = 200;
+    const labelH = 50;
     PaperPanel(this, x, labelY, labelW, labelH, {
       color: locked ? 0xc8b898 : 0xffffff,
       alpha: 0.95,
       radius: 12,
     });
-    this.add.text(x, labelY - 8, info.name, {
+    this.add.text(x, labelY - 10, info.name, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '12px',
+      fontSize: '14px',
       color: locked ? '#6a4c28' : '#d07818',
     }).setOrigin(0.5);
-    this.add.text(x, labelY + 8, info.tagline, {
+    this.add.text(x, labelY + 10, info.tagline, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '11px',
+      fontSize: '12px',
       color: locked ? '#8a7a60' : '#5a3820',
     }).setOrigin(0.5);
 
-    // Interactivity
     if (!locked) {
       ring.setInteractive({ useHandCursor: true });
-
-      // Gentle pulse animation to draw the eye
       this.tweens.add({
         targets: ring,
-        scale: 1.05,
+        scale: 1.06,
         duration: 1200,
         ease: 'Sine.inOut',
         yoyo: true,
         repeat: -1,
       });
-
       ring.on('pointerdown', () => {
         audio.play('ui/confirm');
         this.enterFloor(info.id);
@@ -347,47 +201,286 @@ export class WorldMapScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Draw a simple papercut padlock glyph centered at (cx, cy):
-   * dark body, gold keyhole, steel shackle. Hand-drawn so it looks
-   * consistent across devices where emoji glyphs render differently.
-   */
-  drawPaperPadlock(cx, cy, size = 36) {
+  drawMiniDiorama(cx, cy, r, floorId) {
+    const gfx = this.add.graphics();
+    const palettes = {
+      1: { sky: 0x68b8e8, ground: 0x48a040, accent: 0xf06888, detail: 0x388828 },
+      2: { sky: 0x2878c0, ground: 0x2070a0, accent: 0xf0a848, detail: 0x186898 },
+      3: { sky: 0x88c8f8, ground: 0xb8e0f0, accent: 0xffd040, detail: 0xa0d0f0 },
+      4: { sky: 0x4a1818, ground: 0x6a2810, accent: 0xf0a020, detail: 0x882818 },
+      5: { sky: 0x88c8f0, ground: 0x90c8e0, accent: 0xd0f0ff, detail: 0x5898b8 },
+      6: { sky: 0x281850, ground: 0x4838a0, accent: 0xd0a0ff, detail: 0x5840b0 },
+      7: { sky: 0xd8a858, ground: 0x8a6828, accent: 0xf0c040, detail: 0xa07830 },
+      8: { sky: 0x3a2010, ground: 0x4a3018, accent: 0xc8a050, detail: 0x5a4020 },
+      9: { sky: 0x281848, ground: 0x382058, accent: 0xe0b0ff, detail: 0x482870 },
+    };
+    const p = palettes[floorId] || palettes[1];
+
+    gfx.fillStyle(p.sky, 1);
+    gfx.fillCircle(cx, cy, r);
+
+    const groundY = cy + r * 0.3;
+    gfx.fillStyle(p.ground, 1);
+    gfx.fillRect(cx - r, groundY, r * 2, r - r * 0.3 + r);
+
+    for (let i = 0; i < 3; i++) {
+      const peakX = cx - r * 0.6 + i * r * 0.6;
+      const peakY = groundY - r * (0.4 + Math.sin(i * 2.3) * 0.15);
+      gfx.fillStyle(p.detail, 0.8);
+      gfx.fillTriangle(peakX - r * 0.35, groundY, peakX, peakY, peakX + r * 0.35, groundY);
+    }
+
+    for (let i = 0; i < 4; i++) {
+      const dx = (i - 1.5) * r * 0.35;
+      const dy = r * (0.1 + Math.sin(i * 1.7) * 0.15);
+      gfx.fillStyle(p.accent, 0.7);
+      gfx.fillCircle(cx + dx, cy - dy, r * 0.08 + i * 0.5);
+    }
+
+    const mask = this.add.graphics();
+    mask.fillStyle(0xffffff);
+    mask.fillCircle(cx, cy, r);
+    const geomMask = new Phaser.Display.Masks.GeometryMask(this, mask);
+    gfx.setMask(geomMask);
+  }
+
+  drawPaperPadlock(cx, cy, size) {
     const bodyW = size * 1.3;
     const bodyH = size * 1.1;
     const bodyY = cy + size * 0.15;
 
-    // Shackle (the curved metal loop on top) — drawn as a fat ring
-    const shackleY = cy - size * 0.35;
-    const shackleR = size * 0.5;
     const shackle = this.add.graphics();
     shackle.lineStyle(size * 0.22, 0x6a6050, 1);
     shackle.beginPath();
-    shackle.arc(cx, shackleY, shackleR, Math.PI, 0, false);
+    shackle.arc(cx, cy - size * 0.35, size * 0.5, Math.PI, 0, false);
     shackle.strokePath();
-    // Highlight on the shackle for paper depth
     shackle.lineStyle(size * 0.08, 0xb0a890, 1);
     shackle.beginPath();
-    shackle.arc(cx - 1, shackleY - 1, shackleR - 1, Math.PI + 0.1, 2 * Math.PI - 0.3, false);
+    shackle.arc(cx - 1, cy - size * 0.35 - 1, size * 0.5 - 1, Math.PI + 0.1, 2 * Math.PI - 0.3, false);
     shackle.strokePath();
 
-    // Shadow under the body
     const shadow = this.add.graphics();
     shadow.fillStyle(0x000000, 0.35);
     shadow.fillRoundedRect(cx - bodyW / 2 + 3, bodyY - bodyH / 2 + 4, bodyW, bodyH, 6);
 
-    // Body — dark paper with a warm brass tint
     const body = this.add.graphics();
     body.fillStyle(0x3a2410, 1);
     body.fillRoundedRect(cx - bodyW / 2, bodyY - bodyH / 2, bodyW, bodyH, 6);
     body.lineStyle(2, 0x1a0e04, 0.9);
     body.strokeRoundedRect(cx - bodyW / 2, bodyY - bodyH / 2, bodyW, bodyH, 6);
 
-    // Keyhole — small warm circle + slit
     const kh = this.add.graphics();
     kh.fillStyle(0xe8a030, 1);
     kh.fillCircle(cx, bodyY - size * 0.05, size * 0.14);
     kh.fillRect(cx - size * 0.05, bodyY - size * 0.05, size * 0.1, size * 0.3);
+  }
+
+  buildPaths() {
+    const pathGfx = this.add.graphics();
+    for (let i = 0; i < this.nodePositions.length - 1; i++) {
+      const from = this.nodePositions[i];
+      const to = this.nodePositions[i + 1];
+      const active = this.save.floors[i]?.complete;
+
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2 - 40;
+      const pts = this.sampleBezier(from.x, from.y, midX, midY, to.x, to.y, 32);
+
+      pathGfx.lineStyle(8, active ? COLORS.gold : 0x3a2810, 0.9);
+      this.strokePolyline(pathGfx, pts);
+
+      if (active) {
+        pathGfx.lineStyle(3, 0xffe080, 0.9);
+        this.strokePolyline(pathGfx, pts);
+      }
+    }
+  }
+
+  sampleBezier(ax, ay, cx, cy, bx, by, steps) {
+    const pts = [];
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const u = 1 - t;
+      pts.push({
+        x: u * u * ax + 2 * u * t * cx + t * t * bx,
+        y: u * u * ay + 2 * u * t * cy + t * t * by,
+      });
+    }
+    return pts;
+  }
+
+  strokePolyline(gfx, pts) {
+    if (pts.length < 2) return;
+    gfx.beginPath();
+    gfx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) gfx.lineTo(pts[i].x, pts[i].y);
+    gfx.strokePath();
+  }
+
+  buildHUD() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const uiCam = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    uiCam.setScroll(0, 0);
+    this.uiCam = uiCam;
+
+    const hudContainer = this.add.container(0, 0);
+
+    const title = this.add.text(GAME_WIDTH / 2, 80, 'WORLD MAP', {
+      ...TEXT.title(),
+      fontSize: '40px',
+      color: '#fff8e0',
+      stroke: '#3a2410',
+      strokeThickness: 6,
+    }).setOrigin(0.5).setScrollFactor(0);
+
+    const homeBtn = PaperButton(this, area.left + 100, area.top + 45, '← HOME', {
+      w: 180, h: 64, color: 0xffffff, fontSize: 22,
+      textColor: '#b83820',
+      onClick: () => {
+        audio.play('ui/back');
+        transitionTo(this, SCENES.TITLE);
+      },
+    });
+    this.setScrollFactorDeep(homeBtn, 0);
+
+    const goldPanel = PaperPanel(this, area.left + 320, area.top + 45, 200, 54, {
+      color: 0xffffff, alpha: 0.95, radius: 16,
+    });
+    this.setScrollFactorDeep(goldPanel, 0);
+    const goldIcon = this.add.text(area.left + 228, area.top + 45, '💰', { fontSize: '22px' }).setOrigin(0, 0.5).setScrollFactor(0);
+    const goldText = this.add.text(area.left + 258, area.top + 38, `${this.save.gold}`, {
+      ...TEXT.heading(), fontSize: '20px', color: '#d07818',
+    }).setOrigin(0, 0.5).setScrollFactor(0);
+    const potIcon = this.add.text(area.left + 330, area.top + 45, '🧪', { fontSize: '22px' }).setOrigin(0, 0.5).setScrollFactor(0);
+    const potText = this.add.text(area.left + 360, area.top + 38, `${this.save.potions}`, {
+      ...TEXT.heading(), fontSize: '20px', color: '#4aa848',
+    }).setOrigin(0, 0.5).setScrollFactor(0);
+
+    if (this.save.party && this.save.party.length > 0) {
+      const stripW = 280;
+      const stripCx = area.right - stripW / 2;
+      const stripY = area.top + 45;
+      const partyPanel = PaperPanel(this, stripCx, stripY, stripW, 70, {
+        color: 0xffffff, alpha: 0.95, radius: 16,
+      });
+      this.setScrollFactorDeep(partyPanel, 0);
+      const partyLabel = this.add.text(stripCx - stripW / 2 + 12, stripY - 24, 'PARTY', {
+        ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
+      }).setScrollFactor(0);
+      for (let i = 0; i < 3; i++) {
+        const hx = stripCx - stripW / 2 + 60 + i * 80;
+        const slot = this.save.party[i];
+        if (slot) {
+          const def = getHeroById(slot.id);
+          if (def) {
+            const img = drawHeroSprite(this, hx, stripY - 4, def, { scale: 0.35 });
+            img.setScrollFactor(0);
+          }
+        }
+      }
+    }
+
+    const shopBtn = PaperButton(this, area.cx, area.bottom - 36, 'SHOP', {
+      w: 160, h: 56, color: 0xd07818, fontSize: 20,
+      textColor: '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.SHOP, undefined, 200);
+      },
+    });
+    this.setScrollFactorDeep(shopBtn, 0);
+
+    const settingsBtn = PaperButton(this, area.right - 70, area.bottom - 36, '⚙', {
+      w: 120, h: 50, color: 0x4a6ca8, fontSize: 24,
+      onClick: () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
+      },
+    });
+    this.setScrollFactorDeep(settingsBtn, 0);
+
+    const dailyCompleted = isDailyChallengeCompleted(this.save);
+    const dailyBtn = PaperButton(this, area.left + 130, area.bottom - 36, 'DAILY', {
+      w: 180, h: 50, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 18,
+      textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        this.onDailyChallenge();
+      },
+    });
+    this.setScrollFactorDeep(dailyBtn, 0);
+  }
+
+  setScrollFactorDeep(obj, factor) {
+    if (!obj) return;
+    for (const key of ['bg', 'shadow', 'label', 'zone']) {
+      if (obj[key] && obj[key].setScrollFactor) obj[key].setScrollFactor(factor);
+    }
+  }
+
+  buildPageDots() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this.pageDots = [];
+    for (let i = 0; i < TOTAL_SCREENS; i++) {
+      const dx = GAME_WIDTH / 2 + (i - 1) * 30;
+      const dy = area.bottom - 80;
+      const dot = this.add.circle(dx, dy, 8, 0xffffff, 0.4).setScrollFactor(0);
+      dot.setStrokeStyle(2, 0x3a2410, 0.5);
+      this.pageDots.push(dot);
+    }
+  }
+
+  updatePageDots() {
+    for (let i = 0; i < this.pageDots.length; i++) {
+      const active = i === this.currentScreen;
+      const reachable = i <= this.maxScreen;
+      this.pageDots[i].setFillStyle(
+        active ? 0xf0c040 : (reachable ? 0xffffff : 0x5a5040),
+        active ? 1 : 0.5
+      );
+    }
+  }
+
+  setupScroll() {
+    let dragging = false;
+    let startX = 0;
+    let startScrollX = 0;
+
+    this.input.on('pointerdown', (pointer) => {
+      dragging = true;
+      startX = pointer.x;
+      startScrollX = this.cameras.main.scrollX;
+    });
+
+    this.input.on('pointermove', (pointer) => {
+      if (!dragging || !pointer.isDown) return;
+      const dx = startX - pointer.x;
+      const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, this.maxScreen * SCREEN_W);
+      this.cameras.main.setScroll(newScroll, 0);
+    });
+
+    this.input.on('pointerup', (pointer) => {
+      if (!dragging) return;
+      dragging = false;
+      const dx = startX - pointer.x;
+      let target = this.currentScreen;
+      if (Math.abs(dx) > SCREEN_W * 0.15) {
+        target += dx > 0 ? 1 : -1;
+      }
+      target = Phaser.Math.Clamp(target, 0, this.maxScreen);
+      this.snapToScreen(target);
+    });
+  }
+
+  snapToScreen(screen) {
+    this.currentScreen = screen;
+    this.tweens.add({
+      targets: this.cameras.main,
+      scrollX: screen * SCREEN_W,
+      duration: 300,
+      ease: 'Cubic.out',
+    });
+    this.updatePageDots();
   }
 
   onDailyChallenge() {
@@ -395,24 +488,18 @@ export class WorldMapScene extends Phaser.Scene {
       this.showFlash('Come back tomorrow!');
       return;
     }
-
     const challenge = getDailyChallenge();
     const classLists = { knight: KNIGHTS, wizard: WIZARDS, bunny: BUNNIES };
     const classList = classLists[challenge.heroClass];
     const heroIdx = challenge.heroIndex % classList.length;
-
-    // Build a party of 3 from the daily class
     const party = [];
     for (let i = 0; i < 3; i++) {
       const idx = (heroIdx + i) % classList.length;
       party.push(spawnHero(classList[idx].id));
     }
-
-    // Set return data so BattleScene returns here and we can award daily rewards
     this.registry.set('battleReturnScene', SCENES.WORLD_MAP);
     this.registry.set('battleReturnData', null);
     this.registry.set('dailyChallengeActive', true);
-
     audio.play('ui/confirm');
     transitionTo(this, SCENES.BATTLE, {
       floor: challenge.floor,
@@ -424,11 +511,11 @@ export class WorldMapScene extends Phaser.Scene {
   showFlash(message) {
     const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 180, message, {
       ...TEXT.body(),
-      fontSize: '20px',
+      fontSize: '22px',
       color: '#d07818',
       backgroundColor: '#fff8e0',
       padding: { x: 16, y: 8 },
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setScrollFactor(0);
     this.tweens.add({
       targets: t,
       alpha: 0,
