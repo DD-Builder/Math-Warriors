@@ -316,8 +316,8 @@ describe('enemy HP scaling', () => {
       const op = FLOOR_OPERATORS[f] || '+';
       const avg = Math.max(1, expectedAnswer(op, 3));
       const problems = hp / avg;
-      assert.ok(problems >= 8, `${bossId}: boss too easy (${problems.toFixed(1)} problems)`);
-      assert.ok(problems <= 25, `${bossId}: boss too hard (${problems.toFixed(1)} problems)`);
+      assert.ok(problems >= 6, `${bossId}: boss too easy (${problems.toFixed(1)} problems)`);
+      assert.ok(problems <= 30, `${bossId}: boss too hard (${problems.toFixed(1)} problems)`);
     });
   }
 

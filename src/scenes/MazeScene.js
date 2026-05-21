@@ -934,15 +934,16 @@ export class MazeScene extends Phaser.Scene {
         audio.play('world/floor-complete');
         this.registry.remove(`mazeState_${this.floorId}`);
         const victKey = `floor${this.floorId}_victory`;
+        const afterScene = this.floorId === 9 ? SCENES.ENDING : SCENES.WORLD_MAP;
         if (DIALOGUE[victKey] && DIALOGUE[victKey].length > 0) {
           transitionTo(this, SCENES.CUTSCENE, {
             lines: DIALOGUE[victKey],
             floorId: this.floorId,
-            nextScene: SCENES.WORLD_MAP,
+            nextScene: afterScene,
             nextData: undefined,
           }, 400);
         } else {
-          transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
+          transitionTo(this, afterScene, undefined, 400);
         }
         break;
       }

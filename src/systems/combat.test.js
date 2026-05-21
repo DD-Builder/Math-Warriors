@@ -94,8 +94,8 @@ describe('advanceMomentum', () => {
     assert.equal(advanceMomentum(1.0, true, 10), 1.0);
   });
 
-  test('clamps exactly at 0.0 when saturated', () => {
-    assert.equal(advanceMomentum(0.0, false), 0.0);
+  test('clamps at momentum floor (0.15) when saturated', () => {
+    assert.equal(advanceMomentum(0.15, false), 0.15);
   });
 
   test('streak bonus does not affect wrong answers', () => {

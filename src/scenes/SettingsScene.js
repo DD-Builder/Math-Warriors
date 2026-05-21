@@ -80,10 +80,9 @@ export class SettingsScene extends Phaser.Scene {
     const stY = contentTop + rowH * 3.5;
     this.buildSessionTimerRow(area.cx, stY);
 
-    // Row 5: Grade
     const gradeNames = ['K', '1st', '2nd', '3rd', '4th', '5th'];
     const gradeY = contentTop + rowH * 4.5;
-    this.add.text(area.cx - 320, gradeY, 'GRADE', {
+    this.add.text(area.cx - 320, gradeY, 'DIFFICULTY', {
       ...TEXT.heading(),
       fontSize: '32px',
       color: '#3a2410',
@@ -91,14 +90,18 @@ export class SettingsScene extends Phaser.Scene {
       strokeThickness: 3,
       letterSpacing: 2,
     }).setOrigin(0, 0.5);
-    this.add.text(area.cx - 30, gradeY, gradeNames[this.save.grade ?? 3], {
+    this.gradeLabel = this.add.text(area.cx - 30, gradeY, gradeNames[this.save.grade ?? 3], {
       ...TEXT.heading(),
       fontSize: '30px',
       color: '#d07818',
     }).setOrigin(0.5, 0.5);
-    PaperButton(this, area.cx + 180, gradeY, 'CHANGE', {
-      w: 160, h: 52, color: 0x4a6ca8, fontSize: 18,
-      onClick: () => transitionTo(this, SCENES.GRADE_SELECT, undefined, 200),
+    PaperButton(this, area.cx + 100, gradeY, '◀', {
+      w: 52, h: 52, color: 0x4a6ca8, fontSize: 24,
+      onClick: () => this.changeGrade(-1),
+    });
+    PaperButton(this, area.cx + 170, gradeY, '▶', {
+      w: 52, h: 52, color: 0x4a6ca8, fontSize: 24,
+      onClick: () => this.changeGrade(1),
     });
 
     // Row 6: Stats + Reset
@@ -225,6 +228,17 @@ export class SettingsScene extends Phaser.Scene {
         },
       });
     });
+  }
+
+  changeGrade(delta) {
+    const gradeNames = ['K', '1st', '2nd', '3rd', '4th', '5th'];
+    const current = this.save.grade ?? 3;
+    const next = Math.max(0, Math.min(5, current + delta));
+    if (next === current) return;
+    this.save.grade = next;
+    writeSave(this.save);
+    this.gradeLabel.setText(gradeNames[next]);
+    audio.play('ui/click');
   }
 
   onResetPressed() {

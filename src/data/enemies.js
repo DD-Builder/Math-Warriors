@@ -226,7 +226,7 @@ export function computeEnemyHp(def, grade, isBoss) {
   const hp = Math.round(avg * problemsTarget * weight);
   // Floor at a minimum that still takes at least a couple problems even
   // when the expected answer is tiny (K-grade subtraction avg ~2).
-  const minMob = isBoss ? Math.max(60, 30 + grade * 15) : 12;
+  const minMob = isBoss ? Math.max(80, 40 + grade * 15) : 12;
   return Math.max(minMob, hp);
 }
 

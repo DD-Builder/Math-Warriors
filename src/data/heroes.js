@@ -104,7 +104,7 @@ export function spawnHero(idOrHero) {
 }
 
 // XP thresholds per level. Index = level (1-based), value = total XP needed.
-const LEVEL_THRESHOLDS = [0, 0, 100, 250, 500, 800, 1200, 1800, 2600, 3600, 5000];
+const LEVEL_THRESHOLDS = [0, 0, 80, 180, 320, 500, 750, 1050, 1400, 1850, 2400];
 
 /**
  * Compute the stat bonuses for a given level.

@@ -48,6 +48,7 @@ export const SCENES = {
   CUTSCENE: 'CutsceneScene',
   MAZE: 'MazeScene',
   BATTLE: 'BattleScene',
+  ENDING: 'EndingScene',
   SHOP: 'ShopScene',
   SETTINGS: 'SettingsScene',
 };

@@ -75,7 +75,7 @@ export function advanceMomentum(current, correct, streak = 0) {
 }
 
 function clamp01(n) {
-  if (n < 0) return 0;
+  if (n < 0.15) return 0.15;
   if (n > 1) return 1;
   return n;
 }

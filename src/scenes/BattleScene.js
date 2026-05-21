@@ -1157,7 +1157,8 @@ export class BattleScene extends Phaser.Scene {
     if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
 
     if (this.isBoss) {
-      const timerDuration = 8000;
+      const gradeTimers = [12000, 11000, 10000, 8000, 9000, 10000];
+      const timerDuration = gradeTimers[this.grade] || 8000;
       this.bossTimerStart = this.time.now;
       this.bossTimerDuration = timerDuration;
       this.turnLabel.setText(`${hero.name} — HURRY! ⏱`);
