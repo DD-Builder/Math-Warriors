@@ -13,9 +13,13 @@
  *     isolated so tests can stub them
  */
 
+import { ALL_HEROES } from '../data/heroes.js';
+
 const LEGACY_KEY = 'mathwarriors.save';
 const SLOT_PREFIX = 'mathwarriors.save.';
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
+
+const STARTER_HEROES = ['knight-shadow', 'wizard-stargazer', 'bunny-pepper'];
 
 /** Build the storage key for a given slot number (default 1). */
 function slotKey(slot = 1) {
@@ -39,6 +43,7 @@ export function makeDefaultSave() {
     gold: 0,
     potions: 2,
     inventory: [],
+    unlockedHeroes: [...STARTER_HEROES],
     equipment: {
       hero0: { weapon: null, armor: null, accessory: null },
       hero1: { weapon: null, armor: null, accessory: null },
@@ -96,13 +101,28 @@ const MIGRATIONS = [
   {
     from: 1, to: 2,
     migrate: (save) => {
-      // Add xp, level to each party member; add inventory array
       const party = (save.party || []).map(h => ({
         ...h,
         xp: h.xp ?? 0,
         level: h.level ?? 1,
       }));
       return { ...save, party, inventory: save.inventory || [] };
+    },
+  },
+  {
+    from: 2, to: 3,
+    migrate: (save) => {
+      const unlocked = [...STARTER_HEROES];
+      const floors = save.floors || [];
+      for (const f of floors) {
+        if (f && f.complete) {
+          const heroesForFloor = getHeroesUnlockedAtFloor(f.id);
+          for (const h of heroesForFloor) {
+            if (!unlocked.includes(h.id)) unlocked.push(h.id);
+          }
+        }
+      }
+      return { ...save, unlockedHeroes: unlocked };
     },
   },
 ];
@@ -167,7 +187,11 @@ function normalize(save) {
     return existing ? { ...defFloor, ...existing } : defFloor;
   });
 
-  // Always reflect current version
+  // Ensure unlockedHeroes is present
+  if (!Array.isArray(out.unlockedHeroes)) {
+    out.unlockedHeroes = [...STARTER_HEROES];
+  }
+
   out.version = CURRENT_VERSION;
 
   return out;
@@ -294,6 +318,26 @@ export function markFloorComplete(save, floorId) {
   const next = save.floors.find((f) => f.id === floorId + 1);
   if (next) next.unlocked = true;
   return save;
+}
+
+function getHeroesUnlockedAtFloor(floorId) {
+  return ALL_HEROES.filter(h => h.unlockedAtFloor === floorId);
+}
+
+export function unlockHeroesForFloor(save, floorId) {
+  const heroes = getHeroesUnlockedAtFloor(floorId);
+  const newlyUnlocked = [];
+  for (const h of heroes) {
+    if (!save.unlockedHeroes.includes(h.id)) {
+      save.unlockedHeroes.push(h.id);
+      newlyUnlocked.push(h);
+    }
+  }
+  return newlyUnlocked;
+}
+
+export function isHeroUnlocked(save, heroId) {
+  return Array.isArray(save.unlockedHeroes) && save.unlockedHeroes.includes(heroId);
 }
 
 export { CURRENT_VERSION, STORAGE_KEY, LEGACY_KEY, SLOT_PREFIX };

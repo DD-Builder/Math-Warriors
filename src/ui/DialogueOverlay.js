@@ -22,7 +22,7 @@ export class DialogueOverlay {
     this.timer = null;
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const panelH = 160;
+    const panelH = 180;
     const panelY = area.bottom - panelH / 2 - 10;
 
     const panel = PaperPanel(scene, area.cx, panelY, area.w - 40, panelH, {
@@ -31,27 +31,26 @@ export class DialogueOverlay {
     this.panelBg = panel.bg;
     this.panelShadow = panel.shadow;
 
-    this.nameText = scene.add.text(area.left + 40, panelY - 50, '', {
+    this.nameText = scene.add.text(area.left + 40, panelY - 58, '', {
       ...TEXT.heading(),
-      fontSize: '22px',
+      fontSize: '28px',
       color: '#f0d040',
       stroke: '#1a0e04',
-      strokeThickness: 3,
+      strokeThickness: 4,
     });
 
-    this.bodyText = scene.add.text(area.left + 40, panelY - 20, '', {
+    this.bodyText = scene.add.text(area.left + 40, panelY - 22, '', {
       ...TEXT.body(),
-      fontSize: '20px',
+      fontSize: '24px',
       color: '#f0e4cc',
-      wordWrap: { width: area.w - 260 },
-      lineSpacing: 6,
+      wordWrap: { width: area.w - 280 },
+      lineSpacing: 8,
     });
 
-    // Continue button — visible, tappable, inside the panel
-    const btnX = area.right - 120;
-    const btnY = panelY + 40;
-    this.continueBtn = PaperButton(scene, btnX, btnY, 'CONTINUE', {
-      w: 180, h: 44, color: 0xc07818, fontSize: 14,
+    const btnX = area.right - 130;
+    const btnY = panelY + 48;
+    this.continueBtn = PaperButton(scene, btnX, btnY, 'TAP  ▶', {
+      w: 200, h: 50, color: 0xc07818, fontSize: 18,
       onClick: () => {
         if (!this.active) return;
         if (this.typing) {

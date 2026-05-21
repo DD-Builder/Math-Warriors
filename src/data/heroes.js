@@ -13,7 +13,7 @@ const CLASS_BASE = {
   bunny:  { maxHp: 45, atk: 16, def: 10 },
 };
 
-function make(id, name, className, trait, tweak = {}) {
+function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0) {
   const base = CLASS_BASE[className];
   return {
     id,
@@ -25,6 +25,7 @@ function make(id, name, className, trait, tweak = {}) {
     def:   base.def   + (tweak.def   ?? 0),
     sprite: `heroes/${id}`,
     displayColor: HERO_COLORS[className],
+    unlockedAtFloor,
   };
 }
 
@@ -39,11 +40,11 @@ const HERO_COLORS = {
 // ------------------------------------------------------------------
 
 export const KNIGHTS = [
-  make('knight-shadow',   'Shadow',     'knight', 'Unseen. Unstoppable.',             { atk: 2, def: -1 }),
-  make('knight-crusader', 'Crusader',   'knight', 'Holy. Righteous. Relentless.',     { def: 2, maxHp: -3 }),
-  make('knight-paladin',  'Paladin',    'knight', 'Light in darkness. Grace in battle.', { maxHp: 3 }),
-  make('knight-berserker','Berserker',  'knight', 'Pure fury. Zero chill.',            { atk: 3, def: -3 }),
-  make('knight-greathelm','Great Helm', 'knight', 'Noble. Steadfast. Legendary.',     { def: 3 }),
+  make('knight-shadow',   'Shadow',     'knight', 'Unseen. Unstoppable.',             { atk: 2, def: -1 }, 0),
+  make('knight-crusader', 'Crusader',   'knight', 'Holy. Righteous. Relentless.',     { def: 2, maxHp: -3 }, 1),
+  make('knight-paladin',  'Paladin',    'knight', 'Light in darkness. Grace in battle.', { maxHp: 3 }, 3),
+  make('knight-berserker','Berserker',  'knight', 'Pure fury. Zero chill.',            { atk: 3, def: -3 }, 4),
+  make('knight-greathelm','Great Helm', 'knight', 'Noble. Steadfast. Legendary.',     { def: 3 }, 6),
 ];
 
 // ------------------------------------------------------------------
@@ -51,11 +52,11 @@ export const KNIGHTS = [
 // ------------------------------------------------------------------
 
 export const WIZARDS = [
-  make('wizard-stargazer',  'Stargazer', 'wizard', 'The cosmos bends to her will.',   { atk: 2 }),
-  make('wizard-toadstool',  'Toadstool', 'wizard', 'Brews chaos. Serves it hot.',    { atk: 1, def: 1 }),
-  make('wizard-spellblade', 'Spellblade','wizard', 'Magic fists. Still counts.',     { def: 3, atk: -1 }),
-  make('wizard-bookworm',   'Bookworm',  'wizard', 'Knows every spell. Uses them all.', { maxHp: 3 }),
-  make('wizard-grandmage',  'Grand Mage','wizard', 'Ancient power. Zero patience.',  { atk: 3, maxHp: -3 }),
+  make('wizard-stargazer',  'Stargazer', 'wizard', 'The cosmos bends to her will.',   { atk: 2 }, 0),
+  make('wizard-toadstool',  'Toadstool', 'wizard', 'Brews chaos. Serves it hot.',    { atk: 1, def: 1 }, 1),
+  make('wizard-spellblade', 'Spellblade','wizard', 'Magic fists. Still counts.',     { def: 3, atk: -1 }, 2),
+  make('wizard-bookworm',   'Bookworm',  'wizard', 'Knows every spell. Uses them all.', { maxHp: 3 }, 4),
+  make('wizard-grandmage',  'Grand Mage','wizard', 'Ancient power. Zero patience.',  { atk: 3, maxHp: -3 }, 6),
 ];
 
 // ------------------------------------------------------------------
@@ -63,11 +64,11 @@ export const WIZARDS = [
 // ------------------------------------------------------------------
 
 export const BUNNIES = [
-  make('bunny-pepper',   'Pepper',   'bunny', 'Tiny. Fast. Absolutely feral.',           { atk: 3, def: -2 }),
-  make('bunny-nova',     'Nova',     'bunny', 'She sparkles. Then she wins.',            { atk: 2, maxHp: -2 }),
-  make('bunny-boulder',  'Boulder',  'bunny', 'Heaviest punch in the kingdom.',          { atk: -1, def: 3, maxHp: 3 }),
-  make('bunny-blaze',    'Blaze',    'bunny', 'Fire magic. Fire attitude.',              { atk: 2 }),
-  make('bunny-duchess',  'Duchess',  'bunny', 'Royal blood. Royal fury.',                { def: 2, maxHp: 2 }),
+  make('bunny-pepper',   'Pepper',   'bunny', 'Tiny. Fast. Absolutely feral.',           { atk: 3, def: -2 }, 0),
+  make('bunny-nova',     'Nova',     'bunny', 'She sparkles. Then she wins.',            { atk: 2, maxHp: -2 }, 2),
+  make('bunny-boulder',  'Boulder',  'bunny', 'Heaviest punch in the kingdom.',          { atk: -1, def: 3, maxHp: 3 }, 3),
+  make('bunny-blaze',    'Blaze',    'bunny', 'Fire magic. Fire attitude.',              { atk: 2 }, 5),
+  make('bunny-duchess',  'Duchess',  'bunny', 'Royal blood. Royal fury.',                { def: 2, maxHp: 2 }, 7),
 ];
 
 // ------------------------------------------------------------------

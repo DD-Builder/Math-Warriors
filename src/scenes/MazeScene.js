@@ -238,12 +238,6 @@ export class MazeScene extends Phaser.Scene {
     this.buildHUD();
 
     this.dialogue = new DialogueOverlay(this);
-    if (this.freshEntry) {
-      const key = `floor${this.floorId}_entry`;
-      if (DIALOGUE[key]) {
-        this.time.delayedCall(500, () => this.dialogue.show(DIALOGUE[key]));
-      }
-    }
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -935,12 +929,14 @@ export class MazeScene extends Phaser.Scene {
         }
         audio.play('world/floor-complete');
         this.registry.remove(`mazeState_${this.floorId}`);
-        // Show victory dialogue before leaving
         const victKey = `floor${this.floorId}_victory`;
-        if (DIALOGUE[victKey]) {
-          this.dialogue.show(DIALOGUE[victKey]).then(() => {
-            transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
-          });
+        if (DIALOGUE[victKey] && DIALOGUE[victKey].length > 0) {
+          transitionTo(this, SCENES.CUTSCENE, {
+            lines: DIALOGUE[victKey],
+            floorId: this.floorId,
+            nextScene: SCENES.WORLD_MAP,
+            nextData: undefined,
+          }, 400);
         } else {
           transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
         }
@@ -1003,10 +999,14 @@ export class MazeScene extends Phaser.Scene {
     };
 
     const bossKey = `floor${this.floorId}_boss`;
-    if (isBoss && DIALOGUE[bossKey]) {
-      this.dialogue.show(DIALOGUE[bossKey]).then(() => {
-        transitionTo(this, SCENES.BATTLE, battleData, 300);
-      });
+    if (isBoss && DIALOGUE[bossKey] && DIALOGUE[bossKey].length > 0) {
+      this.saveMazeState();
+      transitionTo(this, SCENES.CUTSCENE, {
+        lines: DIALOGUE[bossKey],
+        floorId: this.floorId,
+        nextScene: SCENES.BATTLE,
+        nextData: battleData,
+      }, 300);
       return;
     }
 

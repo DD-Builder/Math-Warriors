@@ -45,6 +45,7 @@ export const SCENES = {
   GRADE_SELECT: 'GradeSelectScene',
   PARTY_SELECT: 'PartySelectScene',
   WORLD_MAP: 'WorldMapScene',
+  CUTSCENE: 'CutsceneScene',
   MAZE: 'MazeScene',
   BATTLE: 'BattleScene',
   SHOP: 'ShopScene',

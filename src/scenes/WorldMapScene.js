@@ -8,6 +8,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { getDailyChallenge, isDailyChallengeCompleted, markDailyChallengeComplete } from '../systems/dailyChallenge.js';
+import { DIALOGUE } from '../data/dialogue.js';
 
 /**
  * WorldMapScene
@@ -438,13 +439,23 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   enterFloor(floorId) {
-    // Must have a party to enter a floor
     const haveParty = this.save.party && this.save.party.length >= 3;
     if (!haveParty) {
       this.scene.start(SCENES.PARTY_SELECT, { grade: this.save.grade });
       return;
     }
 
-    transitionTo(this, SCENES.MAZE, { floor: floorId }, 300);
+    const entryKey = `floor${floorId}_entry`;
+    const lines = DIALOGUE[entryKey];
+    if (lines && lines.length > 0) {
+      transitionTo(this, SCENES.CUTSCENE, {
+        lines,
+        floorId,
+        nextScene: SCENES.MAZE,
+        nextData: { floor: floorId },
+      }, 300);
+    } else {
+      transitionTo(this, SCENES.MAZE, { floor: floorId }, 300);
+    }
   }
 }

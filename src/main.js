@@ -10,6 +10,7 @@ import { BattleScene } from './scenes/BattleScene.js';
 import { ShopScene } from './scenes/ShopScene.js';
 import { SettingsScene } from './scenes/SettingsScene.js';
 import { TutorialScene } from './scenes/TutorialScene.js';
+import { CutsceneScene } from './scenes/CutsceneScene.js';
 import { audio } from './systems/audio.js';
 import { loadSave } from './systems/save.js';
 
@@ -37,7 +38,7 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [BootScene, TitleScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, MazeScene, BattleScene, ShopScene, SettingsScene],
+  scene: [BootScene, TitleScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, ShopScene, SettingsScene],
 };
 
 const game = new Phaser.Game(config);
