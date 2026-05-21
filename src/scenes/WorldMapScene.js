@@ -60,10 +60,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   getMaxScreen() {
-    const floors = this.save.floors;
-    if (floors[5]?.complete) return 2;
-    if (floors[2]?.complete) return 1;
-    return 0;
+    return 2;
   }
 
   getStartScreen() {
@@ -213,36 +210,39 @@ export class WorldMapScene extends Phaser.Scene {
       6: { sky: 0x281850, ground: 0x4838a0, accent: 0xd0a0ff, detail: 0x5840b0 },
       7: { sky: 0xd8a858, ground: 0x8a6828, accent: 0xf0c040, detail: 0xa07830 },
       8: { sky: 0x3a2010, ground: 0x4a3018, accent: 0xc8a050, detail: 0x5a4020 },
-      9: { sky: 0x281848, ground: 0x382058, accent: 0xe0b0ff, detail: 0x482870 },
+      9: { sky: 0x382060, ground: 0x4030a0, accent: 0xf0c0ff, detail: 0x5840c0 },
     };
     const p = palettes[floorId] || palettes[1];
 
     gfx.fillStyle(p.sky, 1);
     gfx.fillCircle(cx, cy, r);
 
-    const groundY = cy + r * 0.3;
     gfx.fillStyle(p.ground, 1);
-    gfx.fillRect(cx - r, groundY, r * 2, r - r * 0.3 + r);
+    gfx.beginPath();
+    gfx.arc(cx, cy, r, 0.2 * Math.PI, 0.8 * Math.PI, false);
+    gfx.lineTo(cx, cy + r);
+    gfx.closePath();
+    gfx.fillPath();
 
     for (let i = 0; i < 3; i++) {
-      const peakX = cx - r * 0.6 + i * r * 0.6;
-      const peakY = groundY - r * (0.4 + Math.sin(i * 2.3) * 0.15);
-      gfx.fillStyle(p.detail, 0.8);
-      gfx.fillTriangle(peakX - r * 0.35, groundY, peakX, peakY, peakX + r * 0.35, groundY);
+      const dx = (i - 1) * r * 0.45;
+      const baseY = cy + r * 0.15;
+      const peakH = r * (0.35 + (i % 2) * 0.15);
+      gfx.fillStyle(p.detail, 0.85);
+      gfx.fillTriangle(cx + dx - r * 0.25, baseY, cx + dx, baseY - peakH, cx + dx + r * 0.25, baseY);
     }
 
-    for (let i = 0; i < 4; i++) {
-      const dx = (i - 1.5) * r * 0.35;
-      const dy = r * (0.1 + Math.sin(i * 1.7) * 0.15);
-      gfx.fillStyle(p.accent, 0.7);
-      gfx.fillCircle(cx + dx, cy - dy, r * 0.08 + i * 0.5);
+    for (let i = 0; i < 5; i++) {
+      const angle = -0.8 + i * 0.4;
+      const dist = r * (0.3 + (i % 3) * 0.15);
+      const ax = cx + Math.cos(angle) * dist;
+      const ay = cy + Math.sin(angle) * dist - r * 0.2;
+      gfx.fillStyle(p.accent, 0.8);
+      gfx.fillCircle(ax, ay, r * 0.06 + i * 0.8);
     }
 
-    const mask = this.add.graphics();
-    mask.fillStyle(0xffffff);
-    mask.fillCircle(cx, cy, r);
-    const geomMask = new Phaser.Display.Masks.GeometryMask(this, mask);
-    gfx.setMask(geomMask);
+    gfx.lineStyle(2, p.detail, 0.5);
+    gfx.strokeCircle(cx, cy, r);
   }
 
   drawPaperPadlock(cx, cy, size) {
@@ -462,11 +462,9 @@ export class WorldMapScene extends Phaser.Scene {
     this.input.on('pointermove', (pointer) => {
       if (!dragging || !pointer.isDown) return;
       const dx = startX - pointer.x;
-      if (Math.abs(dx) > 30) this._scrolling = true;
-      if (this._scrolling) {
-        const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, this.maxScreen * SCREEN_W);
-        this.cameras.main.setScroll(newScroll, 0);
-      }
+      if (Math.abs(dx) > 8) this._scrolling = true;
+      const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, 2 * SCREEN_W);
+      this.cameras.main.setScroll(newScroll, 0);
     });
 
     this.input.on('pointerup', (pointer) => {
@@ -478,7 +476,7 @@ export class WorldMapScene extends Phaser.Scene {
       if (Math.abs(dx) > 50) {
         target += dx > 0 ? 1 : -1;
       }
-      target = Phaser.Math.Clamp(target, 0, this.maxScreen);
+      target = Phaser.Math.Clamp(target, 0, 2);
       this.snapToScreen(target);
       this.time.delayedCall(100, () => { this._scrolling = false; });
     });

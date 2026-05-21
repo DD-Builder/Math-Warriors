@@ -214,7 +214,7 @@ export function computeEnemyHp(def, grade, isBoss) {
   const avg = Math.max(1, expectedAnswer(op, grade));
 
   // Base target in "problems to defeat"
-  const problemsTarget = isBoss ? 15 : 4;
+  const problemsTarget = isBoss ? 22 : 5;
 
   // Relative difficulty within floor: use the original maxHp as a
   // weight against the floor's median original maxHp. Gives variety

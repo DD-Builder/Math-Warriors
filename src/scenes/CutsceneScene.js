@@ -8,19 +8,18 @@ import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { audio } from '../systems/audio.js';
 import { getHeroById } from '../data/heroes.js';
 import { getEnemyById } from '../data/enemies.js';
+import { loadSave } from '../systems/save.js';
 
 /**
- * CutsceneScene — full-screen graphic-novel dialogue.
+ * CutsceneScene — 3-panel graphic-novel dialogue.
  *
- * Replaces the old text-box overlay for story moments. Each dialogue
- * line is a full-screen panel with:
- *   - Floor-themed papercut background
- *   - Large character art (hero/fairy/boss) on left or right
- *   - Speech bubble with short graphic-novel text
- *   - TAP ▶ to advance
+ * Panel 1: Fairy solo (big, sparkly)
+ * Panel 2: Fairy + hero party (battle-ready)
+ * Panel 3: Fairy solo close
  *
- * Data passed in:
- *   { dialogueKey, lines, floorId, nextScene, nextData }
+ * Lines are auto-mapped: line[0]→panel 1, line[1]→panel 2, line[2]→panel 3.
+ * If >3 lines: first→panel 1, last→panel 3, middle lines cycle on panel 2.
+ * If <3 lines: pad with fewer panels.
  */
 export class CutsceneScene extends Phaser.Scene {
   constructor() {
@@ -28,22 +27,38 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.lines = data.lines || [];
+    this.rawLines = data.lines || [];
     this.floorId = data.floorId || 1;
     this.nextScene = data.nextScene || SCENES.WORLD_MAP;
     this.nextData = data.nextData || undefined;
-    this.lineIdx = 0;
+    this.panels = this.buildPanels(this.rawLines);
+    this.panelIdx = 0;
+    this.subIdx = 0;
     this.typing = false;
     this.charIdx = 0;
     this.fullText = '';
     this.timer = null;
+    this.save = loadSave();
+  }
+
+  buildPanels(lines) {
+    if (lines.length === 0) return [];
+    if (lines.length === 1) return [{ type: 'fairy', lines: [lines[0]] }];
+    if (lines.length === 2) return [
+      { type: 'fairy', lines: [lines[0]] },
+      { type: 'fairy', lines: [lines[1]] },
+    ];
+    const third = Math.max(1, Math.ceil(lines.length / 3));
+    return [
+      { type: 'fairy', lines: lines.slice(0, third) },
+      { type: 'party', lines: lines.slice(third, third * 2) },
+      { type: 'fairy', lines: lines.slice(third * 2) },
+    ].filter(p => p.lines.length > 0);
   }
 
   create() {
     fadeInScene(this);
     audio.playMusic('music/map');
-
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
     drawPapercutBackground(this, this.floorId, GAME_WIDTH, GAME_HEIGHT, 555 + this.floorId);
 
@@ -51,91 +66,75 @@ export class CutsceneScene extends Phaser.Scene {
       GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.25
     );
 
-    this.speakerContainer = this.add.container(0, 0);
-    this.bubbleContainer = this.add.container(0, 0);
+    this.artContainer = this.add.container(0, 0);
+    this.bubbleGfx = this.add.graphics();
+    this.sparkleContainer = this.add.container(0, 0);
 
-    this.buildBubbleUI(area);
-    this.buildAdvanceButton(area);
+    this.speakerDot = this.add.circle(0, 0, 10, 0x88aaff);
+    this.nameText = this.add.text(0, 0, '', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '30px',
+      color: '#f0d040',
+      stroke: '#1a0e04',
+      strokeThickness: 5,
+    });
+    this.bodyText = this.add.text(0, 0, '', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '26px',
+      color: '#f0e4cc',
+      stroke: '#1a0e04',
+      strokeThickness: 3,
+      wordWrap: { width: 480 },
+      lineSpacing: 8,
+    });
+
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this.advanceBtn = PaperButton(this, area.right - 130, area.bottom - 50, 'TAP  ▶', {
+      w: 200, h: 60, color: 0xc07818, fontSize: 22,
+      onClick: () => this.onTap(),
+    });
 
     this.input.on('pointerdown', () => this.onTap());
 
-    if (this.lines.length > 0) {
-      this.showPanel(0);
+    if (this.panels.length > 0) {
+      this.showPanel(0, 0);
     } else {
       this.finish();
     }
   }
 
-  buildBubbleUI(area) {
-    this.bubbleGfx = this.add.graphics();
-    this.bubbleContainer.add(this.bubbleGfx);
-
-    this.speakerDot = this.add.circle(0, 0, 12, 0x88aaff);
-    this.bubbleContainer.add(this.speakerDot);
-
-    this.nameText = this.add.text(0, 0, '', {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '32px',
-      color: '#f0d040',
-      stroke: '#1a0e04',
-      strokeThickness: 5,
-    });
-    this.bubbleContainer.add(this.nameText);
-
-    this.bodyText = this.add.text(0, 0, '', {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '28px',
-      color: '#f0e4cc',
-      stroke: '#1a0e04',
-      strokeThickness: 3,
-      wordWrap: { width: 600 },
-      lineSpacing: 10,
-    });
-    this.bubbleContainer.add(this.bodyText);
-  }
-
-  buildAdvanceButton(area) {
-    this.advanceBtn = PaperButton(this, area.right - 130, area.bottom - 50, 'TAP  ▶', {
-      w: 200, h: 60, color: 0xc07818, fontSize: 22,
-      onClick: () => this.onTap(),
-    });
-  }
-
-  showPanel(idx) {
-    this.lineIdx = idx;
-    const line = this.lines[idx];
+  showPanel(panelIdx, subIdx) {
+    this.panelIdx = panelIdx;
+    this.subIdx = subIdx;
+    const panel = this.panels[panelIdx];
+    if (!panel) { this.finish(); return; }
+    const line = panel.lines[subIdx];
     if (!line) { this.finish(); return; }
 
-    this.speakerContainer.removeAll(true);
+    this.artContainer.removeAll(true);
+    this.sparkleContainer.removeAll(true);
+    this.bubbleGfx.clear();
 
+    const isBoss = line.sprite && (getEnemyById(line.sprite) != null);
     const isWide = line.wide || false;
-    const side = line.side || (idx % 2 === 0 ? 'left' : 'right');
+
+    if (isBoss) {
+      this.drawBossArt(line);
+      this.positionBubble('right');
+      this.drawBubbleBackground('right', isWide);
+    } else if (panel.type === 'party') {
+      this.drawFairySprite(GAME_WIDTH * 0.15, GAME_HEIGHT * 0.50, line.speaker, 80);
+      this.drawPartyHeroes();
+      this.positionBubble('center');
+      this.drawBubbleBackground('center', false);
+    } else {
+      this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
+      this.positionBubble('left');
+      this.drawBubbleBackground('left', isWide);
+    }
 
     const speakerColor = this.getSpeakerColor(line.speaker);
     this.speakerDot.setFillStyle(speakerColor);
-
-    this.bubbleGfx.setAlpha(0);
-    this.speakerDot.setAlpha(0);
-    this.nameText.setAlpha(0);
-    this.bodyText.setAlpha(0);
-
-    if (!isWide) {
-      this.drawCharacterArt(line, side);
-      this.positionBubble(line, side);
-    } else {
-      this.positionBubbleWide(line);
-    }
-
-    this.tweens.add({ targets: [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText], alpha: 1, duration: 250, ease: 'Sine.out' });
-
-    this.speakerContainer.list.forEach(obj => {
-      if (obj.setAlpha) {
-        const finalX = obj.x;
-        obj.setAlpha(0);
-        obj.x = side === 'left' ? finalX - 120 : finalX + 120;
-        this.tweens.add({ targets: obj, alpha: 1, x: finalX, duration: 350, ease: 'Back.out' });
-      }
-    });
 
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';
@@ -143,122 +142,172 @@ export class CutsceneScene extends Phaser.Scene {
     this.bodyText.setText('');
     this.typing = true;
 
+    [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText].forEach(o => o.setAlpha(0));
+    this.tweens.add({
+      targets: [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText],
+      alpha: 1, duration: 250, ease: 'Sine.out',
+    });
+
+    this.artContainer.list.forEach(obj => {
+      if (obj.setAlpha) {
+        const finalX = obj.x;
+        obj.setAlpha(0);
+        obj.x = finalX - 80;
+        this.tweens.add({ targets: obj, alpha: 1, x: finalX, duration: 350, ease: 'Back.out' });
+      }
+    });
+
     if (this.timer) this.timer.remove();
     this.timer = this.time.addEvent({
-      delay: 20,
-      loop: true,
+      delay: 20, loop: true,
       callback: () => {
         this.charIdx++;
         this.bodyText.setText(this.fullText.substring(0, this.charIdx));
-        if (this.charIdx >= this.fullText.length) {
-          this.finishTyping();
-        }
+        if (this.charIdx >= this.fullText.length) this.finishTyping();
       },
     });
-
-    this.bubbleGfx.clear();
-    this.drawBubbleBackground(line, side, isWide);
   }
 
-  drawCharacterArt(line, side) {
-    const cx = side === 'left' ? GAME_WIDTH * 0.2 : GAME_WIDTH * 0.8;
-    const cy = GAME_HEIGHT * 0.5;
-
-    if (line.sprite) {
-      const hero = getHeroById(line.sprite);
-      if (hero) {
-        const img = drawHeroSprite(this, cx, cy, hero, { scale: 1.8 });
-        this.speakerContainer.add(img);
-        return;
-      }
-      const enemy = getEnemyById(line.sprite);
-      if (enemy) {
-        const img = drawMonsterSprite(this, cx, cy, enemy, { scale: 1.8 });
-        this.speakerContainer.add(img);
-        return;
-      }
-    }
-
-    this.drawFairySprite(cx, cy, line.speaker);
-  }
-
-  drawFairySprite(cx, cy, speaker) {
+  drawFairySprite(cx, cy, speaker, radius) {
     const gfx = this.add.graphics();
     const color = this.getSpeakerColor(speaker);
+    const r = radius || 120;
 
-    gfx.fillStyle(0x000000, 0.2);
-    gfx.fillCircle(cx + 4, cy + 6, 60);
-    gfx.fillStyle(color, 0.9);
-    gfx.fillCircle(cx, cy, 55);
-    gfx.fillStyle(0xffffff, 0.5);
-    gfx.fillCircle(cx - 12, cy - 12, 28);
-    gfx.fillStyle(0xffffff, 0.3);
-    gfx.fillCircle(cx + 20, cy - 20, 15);
-
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      const wx = cx + Math.cos(a) * 72;
-      const wy = cy + Math.sin(a) * 72;
-      gfx.fillStyle(color, 0.4);
-      gfx.fillCircle(wx, wy, 8 + Math.random() * 6);
+    for (let ring = 5; ring >= 1; ring--) {
+      gfx.fillStyle(color, 0.08 * ring);
+      gfx.fillCircle(cx, cy, r + 40 + ring * 15);
     }
 
-    const label = this.add.text(cx, cy + 80, speaker || '', {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '18px',
+    const wingW = r * 0.9;
+    const wingH = r * 1.4;
+    gfx.fillStyle(color, 0.25);
+    gfx.fillEllipse(cx - r * 0.5, cy - r * 0.1, wingW, wingH);
+    gfx.fillEllipse(cx + r * 0.5, cy - r * 0.1, wingW, wingH);
+    gfx.fillStyle(0xffffff, 0.12);
+    gfx.fillEllipse(cx - r * 0.5, cy - r * 0.15, wingW * 0.7, wingH * 0.7);
+    gfx.fillEllipse(cx + r * 0.5, cy - r * 0.15, wingW * 0.7, wingH * 0.7);
+
+    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillCircle(cx + 4, cy + 6, r);
+    gfx.fillStyle(color, 0.9);
+    gfx.fillCircle(cx, cy, r);
+    gfx.fillStyle(0xffffff, 0.4);
+    gfx.fillCircle(cx - r * 0.2, cy - r * 0.25, r * 0.45);
+    gfx.fillStyle(0xffffff, 0.25);
+    gfx.fillCircle(cx + r * 0.3, cy - r * 0.35, r * 0.25);
+
+    gfx.fillStyle(0x1a0e04, 1);
+    gfx.fillCircle(cx - r * 0.18, cy - r * 0.05, r * 0.08);
+    gfx.fillCircle(cx + r * 0.18, cy - r * 0.05, r * 0.08);
+    gfx.fillStyle(0xffffff, 1);
+    gfx.fillCircle(cx - r * 0.16, cy - r * 0.07, r * 0.03);
+    gfx.fillCircle(cx + r * 0.20, cy - r * 0.07, r * 0.03);
+
+    gfx.fillStyle(0xe06080, 0.6);
+    gfx.fillEllipse(cx, cy + r * 0.12, r * 0.25, r * 0.08);
+
+    this.artContainer.add(gfx);
+
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const dist = r + 30 + Math.random() * 25;
+      const sx = cx + Math.cos(a) * dist;
+      const sy = cy + Math.sin(a) * dist;
+      const size = 3 + Math.random() * 4;
+      const sparkle = this.add.circle(sx, sy, size, 0xffffff, 0.6 + Math.random() * 0.3);
+      this.sparkleContainer.add(sparkle);
+      this.tweens.add({
+        targets: sparkle,
+        alpha: 0.2,
+        scale: 0.5,
+        duration: 800 + Math.random() * 600,
+        yoyo: true,
+        repeat: -1,
+        delay: Math.random() * 500,
+      });
+    }
+
+    const label = this.add.text(cx, cy + r + 20, speaker || '', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '20px',
       color: '#f0e4cc',
       stroke: '#1a0e04',
       strokeThickness: 3,
     }).setOrigin(0.5);
-
-    this.speakerContainer.add(gfx);
-    this.speakerContainer.add(label);
+    this.artContainer.add(label);
   }
 
-  positionBubble(line, side) {
-    const bx = side === 'left' ? GAME_WIDTH * 0.42 : GAME_WIDTH * 0.08;
-    const by = GAME_HEIGHT * 0.32;
-
-    this.speakerDot.setPosition(bx + 20, by + 25);
-    this.nameText.setPosition(bx + 40, by + 10);
-    this.bodyText.setPosition(bx + 20, by + 55);
-    this.bodyText.setWordWrapWidth(560);
+  drawPartyHeroes() {
+    const party = this.save.party || [];
+    const positions = [
+      { x: GAME_WIDTH * 0.62, y: GAME_HEIGHT * 0.50 - 20 },
+      { x: GAME_WIDTH * 0.75, y: GAME_HEIGHT * 0.50 },
+      { x: GAME_WIDTH * 0.88, y: GAME_HEIGHT * 0.50 + 20 },
+    ];
+    for (let i = 0; i < Math.min(3, party.length); i++) {
+      const slot = party[i];
+      if (!slot) continue;
+      const def = getHeroById(slot.id);
+      if (!def) continue;
+      const pos = positions[i];
+      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.0 });
+      this.artContainer.add(img);
+    }
   }
 
-  positionBubbleWide(line) {
-    const bx = GAME_WIDTH * 0.18;
-    const by = GAME_HEIGHT * 0.38;
-
-    this.speakerDot.setPosition(bx + 20, by + 25);
-    this.nameText.setPosition(bx + 40, by + 10);
-    this.bodyText.setPosition(bx + 20, by + 55);
-    this.bodyText.setWordWrapWidth(GAME_WIDTH * 0.64);
+  drawBossArt(line) {
+    const cx = GAME_WIDTH * 0.78;
+    const cy = GAME_HEIGHT * 0.48;
+    const enemy = getEnemyById(line.sprite);
+    if (enemy) {
+      const img = drawMonsterSprite(this, cx, cy, enemy, { scale: 1.8 });
+      this.artContainer.add(img);
+    }
   }
 
-  drawBubbleBackground(line, side, isWide) {
-    const bx = isWide ? GAME_WIDTH * 0.15 : (side === 'left' ? GAME_WIDTH * 0.39 : GAME_WIDTH * 0.05);
-    const by = GAME_HEIGHT * 0.27;
-    const bw = isWide ? GAME_WIDTH * 0.7 : 620;
-    const bh = 200;
+  positionBubble(layout) {
+    let bx, by;
+    if (layout === 'left') {
+      bx = GAME_WIDTH * 0.42;
+      by = GAME_HEIGHT * 0.30;
+    } else if (layout === 'right') {
+      bx = GAME_WIDTH * 0.05;
+      by = GAME_HEIGHT * 0.30;
+    } else {
+      bx = GAME_WIDTH * 0.22;
+      by = GAME_HEIGHT * 0.15;
+    }
+    this.speakerDot.setPosition(bx + 20, by + 18);
+    this.nameText.setPosition(bx + 38, by + 6);
+    this.bodyText.setPosition(bx + 20, by + 42);
+    this.bodyText.setWordWrapWidth(460);
+  }
+
+  drawBubbleBackground(layout, isWide) {
+    let bx, bw;
+    if (layout === 'center') {
+      bx = GAME_WIDTH * 0.19;
+      bw = GAME_WIDTH * 0.55;
+    } else if (layout === 'right') {
+      bx = GAME_WIDTH * 0.02;
+      bw = 560;
+    } else {
+      bx = GAME_WIDTH * 0.39;
+      bw = 560;
+    }
+    if (isWide) {
+      bx = GAME_WIDTH * 0.12;
+      bw = GAME_WIDTH * 0.76;
+    }
+    const by = GAME_HEIGHT * 0.25;
+    const bh = isWide ? 220 : 200;
 
     this.bubbleGfx.fillStyle(0x000000, 0.3);
     this.bubbleGfx.fillRoundedRect(bx + 4, by + 6, bw, bh, 20);
-
     this.bubbleGfx.fillStyle(0x1a0e04, 0.88);
     this.bubbleGfx.fillRoundedRect(bx, by, bw, bh, 20);
     this.bubbleGfx.lineStyle(3, 0xc07818, 0.8);
     this.bubbleGfx.strokeRoundedRect(bx, by, bw, bh, 20);
-
-    if (!isWide) {
-      const tipX = side === 'left' ? bx - 10 : bx + bw + 10;
-      const tipDir = side === 'left' ? -1 : 1;
-      this.bubbleGfx.fillStyle(0x1a0e04, 0.88);
-      this.bubbleGfx.fillTriangle(
-        tipX, by + bh * 0.4,
-        tipX + tipDir * 30, by + bh * 0.3,
-        tipX, by + bh * 0.55
-      );
-    }
   }
 
   getSpeakerColor(speaker) {
@@ -286,7 +335,7 @@ export class CutsceneScene extends Phaser.Scene {
     if (this.typing) {
       this.finishTyping();
     } else {
-      this.nextPanel();
+      this.advance();
     }
   }
 
@@ -296,12 +345,20 @@ export class CutsceneScene extends Phaser.Scene {
     this.bodyText.setText(this.fullText);
   }
 
-  nextPanel() {
-    this.lineIdx++;
-    if (this.lineIdx >= this.lines.length) {
-      this.finish();
+  advance() {
+    const panel = this.panels[this.panelIdx];
+    if (!panel) { this.finish(); return; }
+    this.subIdx++;
+    if (this.subIdx < panel.lines.length) {
+      this.showPanel(this.panelIdx, this.subIdx);
     } else {
-      this.showPanel(this.lineIdx);
+      this.panelIdx++;
+      this.subIdx = 0;
+      if (this.panelIdx >= this.panels.length) {
+        this.finish();
+      } else {
+        this.showPanel(this.panelIdx, 0);
+      }
     }
   }
 
