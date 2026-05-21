@@ -28,9 +28,6 @@ export const COLORS = {
   scarlet:  0x9c2020,
   scarletL: 0xc83030,
 
-  // Floor mood
-  green:    0x2a5c1e,
-  greenL:   0x4a9830,
 };
 
 export const COLORS_CSS = Object.fromEntries(
@@ -61,4 +58,6 @@ export const SCENES = {
 export const MARGIN = 40;
 export const BOTTOM_SAFE = 120;
 export const TOP_SAFE = 60;
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
+
+export function mazeStateKey(floorId) { return `mazeState_${floorId}`; }

@@ -134,9 +134,9 @@ export class PartySelectScene extends Phaser.Scene {
     this.gridLabel.setText(`Choose your ${this.classLabels[this.activeClass].replace(/S$/, '').toLowerCase()}`);
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const cardW = 200;
+    const cardW = 192;
     const cardH = 260;
-    const gap = 18;
+    const gap = 24;
     const totalW = heroes.length * cardW + (heroes.length - 1) * gap;
     const startX = area.cx - totalW / 2 + cardW / 2;
     const cardY = area.cy + 10;

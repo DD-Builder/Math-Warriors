@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { generateQuestion, recordAnswer } from '../systems/math.js';
 import {
   getZone,
@@ -133,11 +133,11 @@ export class BattleScene extends Phaser.Scene {
       if (heroEquip) {
         if (heroEquip.weapon) {
           const wpn = getEquipmentById(heroEquip.weapon);
-          if (wpn && wpn.atk) this.party[i].atk += wpn.atk;
+          if (wpn != null && typeof wpn.atk === 'number') this.party[i].atk += wpn.atk;
         }
         if (heroEquip.armor) {
           const arm = getEquipmentById(heroEquip.armor);
-          if (arm && arm.def) this.party[i].def += arm.def;
+          if (arm != null && typeof arm.def === 'number') this.party[i].def += arm.def;
         }
         if (heroEquip.accessory) {
           const acc = getEquipmentById(heroEquip.accessory);
@@ -2287,7 +2287,7 @@ export class BattleScene extends Phaser.Scene {
 
   retreatFromBattle() {
     // Save maze state before retreating
-    const mazeKey = `mazeState_${this.floor}`;
+    const mazeKey = mazeStateKey(this.floor);
     const mazeState = this.registry.get(mazeKey);
     if (mazeState) {
       try { localStorage.setItem(`mw_maze_${this.floor}`, JSON.stringify(mazeState)); } catch (e) { /* ignore */ }
@@ -2397,7 +2397,7 @@ export class BattleScene extends Phaser.Scene {
       newHeroes.forEach((h, i) => {
         this.time.delayedCall(900 + i * 600, () => this.showToast(`${h.name} joins your quest!`, '#f0c040'));
       });
-      const mazeKey = `mazeState_${this.floor}`;
+      const mazeKey = mazeStateKey(this.floor);
       const mazeState = this.registry.get(mazeKey);
       if (mazeState) {
         mazeState.bossDefeated = true;

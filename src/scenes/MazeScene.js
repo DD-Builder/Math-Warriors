@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE } from '../data/floors.js';
 import { loadSave, writeSave } from '../systems/save.js';
 import { spawnHero } from '../data/heroes.js';
@@ -67,7 +67,7 @@ export class MazeScene extends Phaser.Scene {
       .filter(Boolean);
 
     // Check if we're returning from a battle (state saved in registry)
-    let mazeState = this.registry.get(`mazeState_${this.floorId}`);
+    let mazeState = this.registry.get(mazeStateKey(this.floorId));
     if (!mazeState) { try { const s = localStorage.getItem(`mw_maze_${this.floorId}`); if (s) mazeState = JSON.parse(s); } catch (e) { /* ignore */ } }
     if (mazeState && (typeof mazeState.x !== 'number' || !Array.isArray(mazeState.objects))) mazeState = null;
     this.freshEntry = !mazeState;
@@ -932,7 +932,7 @@ export class MazeScene extends Phaser.Scene {
           return;
         }
         audio.play('world/floor-complete');
-        this.registry.remove(`mazeState_${this.floorId}`);
+        this.registry.remove(mazeStateKey(this.floorId));
         const victKey = `floor${this.floorId}_victory`;
         const afterScene = this.floorId === 9 ? SCENES.ENDING : SCENES.WORLD_MAP;
         if (DIALOGUE[victKey] && DIALOGUE[victKey].length > 0) {
@@ -1029,7 +1029,7 @@ export class MazeScene extends Phaser.Scene {
       fairiesFreed: this.challengeProgress,
       hasKey: this.hasKey || false,
     };
-    this.registry.set(`mazeState_${this.floorId}`, state);
+    this.registry.set(mazeStateKey(this.floorId), state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
 
     // Brief "Saved!" feedback at the top of the screen

@@ -115,7 +115,8 @@ const MIGRATIONS = [
       const unlocked = [...STARTER_HEROES];
       const floors = save.floors || [];
       for (const f of floors) {
-        if (f && f.complete) {
+        if (!f || typeof f.id !== 'number' || !f.complete) continue;
+        if (f.complete) {
           const heroesForFloor = getHeroesUnlockedAtFloor(f.id);
           for (const h of heroesForFloor) {
             if (!unlocked.includes(h.id)) unlocked.push(h.id);

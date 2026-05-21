@@ -213,7 +213,7 @@ export function PaperButton(scene, x, y, text, opts = {}) {
   });
 
   const label = scene.add.text(x, y, text, {
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: `${fontSize}px`,
     color: textColor,
     stroke: '#000000',
@@ -381,7 +381,7 @@ const LSP = 2;
 
 export const TEXT = {
   title: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '64px',
     color: '#ffffff',
     stroke: '#000000',
@@ -390,7 +390,7 @@ export const TEXT = {
     ...overrides,
   }),
   heading: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '36px',
     color: COLORS_CSS.goldL,
     stroke: '#000000',
@@ -399,28 +399,28 @@ export const TEXT = {
     ...overrides,
   }),
   body: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '22px',
     color: '#ffffff',
     letterSpacing: LSP,
     ...overrides,
   }),
   small: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '16px',
     color: COLORS_CSS.paper,
     letterSpacing: 1,
     ...overrides,
   }),
   label: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '18px',
     color: COLORS_CSS.goldL,
     letterSpacing: LSP,
     ...overrides,
   }),
   stat: (overrides = {}) => ({
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '14px',
     color: COLORS_CSS.paper,
     letterSpacing: 1,
