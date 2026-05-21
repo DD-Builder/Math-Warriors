@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE } from '../data/floors.js';
 import { loadSave, writeSave } from '../systems/save.js';
-import { spawnHero } from '../data/heroes.js';
+import { spawnHero, getHeroById, ALL_HEROES } from '../data/heroes.js';
+import { isHeroUnlocked } from '../systems/save.js';
 import { spawnEnemy, pickEnemyForFloor } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
@@ -680,7 +681,13 @@ export class MazeScene extends Phaser.Scene {
       hpBg.fillRoundedRect(x - 30, partyY + 36, 60 * pct, 4, 2);
     }
 
-    // World Map button — right side
+    const swapZone = this.add.rectangle(partyCx, partyY, 340, hudH - 10, 0xffffff, 0)
+      .setInteractive({ useHandCursor: true });
+    swapZone.on('pointerdown', () => {
+      audio.play('ui/click');
+      this.showHeroSwapOverlay();
+    });
+
     PaperButton(this, area.right - 100, hudCenterY, 'WORLD MAP', {
       w: 180, h: 54, color: 0x4aa848, fontSize: 14,
       onClick: () => {
@@ -719,6 +726,120 @@ export class MazeScene extends Phaser.Scene {
       const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
       this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
     }
+  }
+
+  showHeroSwapOverlay() {
+    if (this._swapOverlay) return;
+    this._swapOverlay = true;
+    this.moving = false;
+
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.7).setScrollFactor(0).setInteractive();
+    const title = this.add.text(GAME_WIDTH / 2, 80, 'SWAP HEROES', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '36px', color: '#f0d040', stroke: '#1a0e04', strokeThickness: 5,
+    }).setOrigin(0.5).setScrollFactor(0);
+
+    const hint = this.add.text(GAME_WIDTH / 2, 130, 'Tap a hero to swap into your party', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '20px', color: '#f0e4cc',
+    }).setOrigin(0.5).setScrollFactor(0);
+
+    const unlocked = ALL_HEROES.filter(h => isHeroUnlocked(this.save, h.id));
+    const partyIds = this.party.map(h => h.id);
+    const cols = 5;
+    const cardW = 160;
+    const cardH = 200;
+    const gap = 14;
+    const gridW = cols * cardW + (cols - 1) * gap;
+    const startX = GAME_WIDTH / 2 - gridW / 2 + cardW / 2;
+    const startY = 200;
+    const objects = [bg, title, hint];
+
+    unlocked.forEach((hero, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = startX + col * (cardW + gap);
+      const y = startY + row * (cardH + gap);
+      const inParty = partyIds.includes(hero.id);
+
+      const cardBg = this.add.graphics().setScrollFactor(0);
+      cardBg.fillStyle(inParty ? 0xd07818 : 0x2a1808, 0.9);
+      cardBg.fillRoundedRect(x - cardW / 2, y - cardH / 2, cardW, cardH, 12);
+      if (inParty) {
+        cardBg.lineStyle(3, 0xf0d040, 1);
+        cardBg.strokeRoundedRect(x - cardW / 2, y - cardH / 2, cardW, cardH, 12);
+      }
+      objects.push(cardBg);
+
+      const sprite = drawHeroSprite(this, x, y - 30, hero, { scale: 0.5 });
+      sprite.setScrollFactor(0);
+      objects.push(sprite);
+
+      const nameT = this.add.text(x, y + 40, hero.name, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '16px', color: inParty ? '#fff8e0' : '#f0e4cc',
+        stroke: '#1a0e04', strokeThickness: 2,
+      }).setOrigin(0.5).setScrollFactor(0);
+      objects.push(nameT);
+
+      const badge = this.add.text(x, y + 60, inParty ? 'IN PARTY' : `HP ${hero.maxHp}  ATK ${hero.atk}`, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '11px', color: inParty ? '#f0d040' : '#a09070',
+      }).setOrigin(0.5).setScrollFactor(0);
+      objects.push(badge);
+
+      if (!inParty) {
+        const zone = this.add.rectangle(x, y, cardW, cardH, 0xffffff, 0)
+          .setScrollFactor(0).setInteractive({ useHandCursor: true });
+        zone.on('pointerdown', () => {
+          audio.play('ui/click');
+          this.performSwap(hero, objects);
+        });
+        objects.push(zone);
+      }
+    });
+
+    const closeBtn = PaperButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 80, 'CLOSE', {
+      w: 200, h: 56, color: 0xe84840, fontSize: 20,
+      onClick: () => {
+        objects.forEach(o => o.destroy());
+        closeBtn.bg.destroy(); closeBtn.shadow.destroy();
+        closeBtn.label.destroy(); if (closeBtn.zone) closeBtn.zone.destroy();
+        this._swapOverlay = false;
+      },
+    });
+    closeBtn.bg.setScrollFactor(0);
+    closeBtn.shadow.setScrollFactor(0);
+    closeBtn.label.setScrollFactor(0);
+    if (closeBtn.zone) closeBtn.zone.setScrollFactor(0);
+  }
+
+  performSwap(newHero, overlayObjects) {
+    const slotIdx = 2;
+    const spawned = spawnHero(newHero.id);
+    if (!spawned) return;
+    spawned.hp = spawned.maxHp;
+    this.party[slotIdx] = spawned;
+    this.save.party[slotIdx] = { id: spawned.id, name: spawned.name, hp: spawned.hp, maxHp: spawned.maxHp };
+    writeSave(this.save);
+
+    overlayObjects.forEach(o => o.destroy());
+    this._swapOverlay = false;
+
+    this.showToast(`${newHero.name} joins the party!`, '#f0c040');
+  }
+
+  showToast(message, color) {
+    const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100, message, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '24px', color: color || '#f0d040',
+      stroke: '#1a0e04', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0);
+    this.tweens.add({
+      targets: t, alpha: 0, y: t.y - 60,
+      duration: 1500, delay: 800,
+      onComplete: () => t.destroy(),
+    });
   }
 
   // ================================================================
