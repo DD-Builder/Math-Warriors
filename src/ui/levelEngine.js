@@ -1110,11 +1110,33 @@ function LV_draw(t) {
   }
   // Objects
   for (var oi = 0; oi < _objs.length; oi++) {
-    var o = _objs[oi]; if (_gs.dead[o.id] || !o.alive) continue;
+    var o = _objs[oi];
+    var isActivated = _gs.activated && _gs.activated[o.id];
+    if ((_gs.dead[o.id] && !isActivated) || !o.alive) continue;
     if (o.type === 'exit' && !o.visible) continue;
     if (!_fog[o.ty] || !_fog[o.ty][o.tx]) continue;
     var osx = camX + o.tx * ts, osy = camY + o.ty * ts;
     if (osx + ts < 0 || osx > _W || osy + ts < 0 || osy > _H) continue;
+    // Draw activated phase 2 items with a golden glow ring
+    if (isActivated) {
+      var acx = osx + ts * 0.5, acy = osy + ts * 0.5;
+      var glowR = ts * 0.32;
+      var glowPulse = 0.4 + Math.sin(t * 3) * 0.2;
+      _G.save();
+      _G.globalAlpha = glowPulse;
+      _G.fillStyle = '#f0c040';
+      _G.beginPath(); _G.arc(acx, acy, glowR + ts * 0.08, 0, Math.PI * 2); _G.fill();
+      _G.restore();
+      _G.save();
+      _G.strokeStyle = '#f0d060';
+      _G.lineWidth = ts * 0.06;
+      _G.globalAlpha = 0.7 + Math.sin(t * 2.5) * 0.2;
+      _G.beginPath(); _G.arc(acx, acy, glowR, 0, Math.PI * 2); _G.stroke();
+      _G.restore();
+      LV_cut('#c09020', 3, function () { _G.arc(acx, acy, ts * 0.14, 0, Math.PI * 2); });
+      LV_cut('#f0d040', 1, function () { _G.arc(acx, acy, ts * 0.09, 0, Math.PI * 2); });
+      continue;
+    }
     if (o.type === 'chestG') LV_drawGoldChest(osx, osy, ts, o, t);
     else if (o.type === 'fairy') LV_drawFairyCage(osx, osy, ts, o, t);
     else if (o.type === 'valve') LV_drawValve(osx, osy, ts, o, t);
@@ -1255,7 +1277,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   }
 
   // Game state
-  _gs = { fairies: 0, hasKey: false, hasMap: false, dead: {}, secretFound: false, flash: 0 };
+  _gs = { fairies: 0, hasKey: false, hasMap: false, dead: {}, activated: {}, secretFound: false, flash: 0 };
 
   // Party
   _party = {
@@ -1318,6 +1340,7 @@ export function getGameState() {
     hasKey: _gs.hasKey,
     hasMap: _gs.hasMap,
     dead: JSON.parse(JSON.stringify(_gs.dead)),
+    activated: JSON.parse(JSON.stringify(_gs.activated || {})),
     secretFound: _gs.secretFound,
     flash: _gs.flash,
     fog: JSON.parse(JSON.stringify(_fog)),
@@ -1347,6 +1370,7 @@ export function setGameState(gs) {
   _gs.hasKey = !!gs.hasKey;
   _gs.hasMap = !!gs.hasMap;
   _gs.dead = gs.dead ? JSON.parse(JSON.stringify(gs.dead)) : {};
+  _gs.activated = gs.activated ? JSON.parse(JSON.stringify(gs.activated)) : {};
   _gs.secretFound = !!gs.secretFound;
   _gs.flash = 0; // reset flash on restore
 
@@ -1413,6 +1437,14 @@ export function markDead(id) {
       break;
     }
   }
+}
+
+/**
+ * Mark an object as activated (phase 2 items glow instead of disappearing).
+ * @param {string} id - Object id
+ */
+export function markActivated(id) {
+  _gs.activated[id] = true;
 }
 
 export function markVisible(id) {

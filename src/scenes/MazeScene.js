@@ -10,7 +10,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markVisible, setFloorTheme } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markActivated, markVisible, setFloorTheme } from '../ui/levelEngine.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
@@ -200,10 +200,16 @@ export class MazeScene extends Phaser.Scene {
 
     // Restore state if returning from battle
     if (!this.freshEntry && this.fog) {
+      // Build activated map from phase 2 items
+      const activatedMap = {};
+      this.objects.forEach(o => {
+        if (o.activated) activatedMap[o.id] = true;
+      });
       setGameState({
         fairies: this.challengeProgress || 0,
         hasKey: this.bossDefeated,
         dead: {},
+        activated: activatedMap,
         fog: this.fog,
         partyX: this.playerX * 56 + 28,
         partyY: this.playerY * 56 + 28,
@@ -797,7 +803,7 @@ export class MazeScene extends Phaser.Scene {
           .setScrollFactor(0).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => {
           audio.play('ui/click');
-          this.performSwap(hero, objects);
+          this.showSlotPicker(hero, objects);
         });
         objects.push(zone);
       }
@@ -818,8 +824,67 @@ export class MazeScene extends Phaser.Scene {
     if (closeBtn.zone) closeBtn.zone.setScrollFactor(0);
   }
 
-  performSwap(newHero, overlayObjects) {
-    const slotIdx = 2;
+  showSlotPicker(newHero, overlayObjects) {
+    const slotObjs = [];
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+      .setScrollFactor(0).setInteractive();
+    slotObjs.push(bg);
+
+    const title = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 160, `Replace which hero with ${newHero.name}?`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '28px', color: '#f0d040', stroke: '#1a0e04', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0);
+    slotObjs.push(title);
+
+    for (let i = 0; i < this.party.length; i++) {
+      const h = this.party[i];
+      if (!h) continue;
+      const sx = GAME_WIDTH / 2 - 200 + i * 200;
+      const sy = GAME_HEIGHT / 2;
+
+      const cardBg = this.add.graphics().setScrollFactor(0);
+      cardBg.fillStyle(0x2a1808, 0.9);
+      cardBg.fillRoundedRect(sx - 80, sy - 80, 160, 180, 12);
+      slotObjs.push(cardBg);
+
+      const heroDef = spawnHero(h.id);
+      if (heroDef) {
+        const spr = drawHeroSprite(this, sx, sy - 20, heroDef, { scale: 0.5 });
+        spr.setScrollFactor(0);
+        slotObjs.push(spr);
+      }
+      const nt = this.add.text(sx, sy + 50, h.name, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '16px', color: '#f0e4cc', stroke: '#1a0e04', strokeThickness: 2,
+      }).setOrigin(0.5).setScrollFactor(0);
+      slotObjs.push(nt);
+
+      const zone = this.add.rectangle(sx, sy, 160, 180, 0xffffff, 0)
+        .setScrollFactor(0).setInteractive({ useHandCursor: true });
+      zone.on('pointerdown', () => {
+        audio.play('ui/confirm');
+        slotObjs.forEach(o => o.destroy());
+        this.performSwap(newHero, i, overlayObjects);
+      });
+      slotObjs.push(zone);
+    }
+
+    const cancelBtn = PaperButton(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 140, 'CANCEL', {
+      w: 180, h: 50, color: 0x6090c0, fontSize: 18,
+      onClick: () => {
+        audio.play('ui/back');
+        slotObjs.forEach(o => o.destroy());
+        cancelBtn.bg.destroy(); cancelBtn.shadow.destroy();
+        cancelBtn.label.destroy(); if (cancelBtn.zone) cancelBtn.zone.destroy();
+      },
+    });
+    cancelBtn.bg.setScrollFactor(0);
+    cancelBtn.shadow.setScrollFactor(0);
+    cancelBtn.label.setScrollFactor(0);
+    if (cancelBtn.zone) cancelBtn.zone.setScrollFactor(0);
+  }
+
+  performSwap(newHero, slotIdx, overlayObjects) {
     const spawned = spawnHero(newHero.id);
     if (!spawned) return;
     spawned.hp = spawned.maxHp;
@@ -963,7 +1028,7 @@ export class MazeScene extends Phaser.Scene {
   checkObjectAt(x, y) {
     for (let i = 0; i < this.objects.length; i++) {
       const obj = this.objects[i];
-      if (obj.consumed) continue;
+      if (obj.consumed || obj.activated) continue;
       if (obj.x !== x || obj.y !== y) continue;
       this.triggerObject(i);
       break;
@@ -1020,8 +1085,8 @@ export class MazeScene extends Phaser.Scene {
         const isPhase2 = this.phase2Active && this.floor.challenge?.phase2?.type === obj.type;
         if (isPhase2) {
           this.phase2Progress++;
-          obj.consumed = true;
-          markDead(obj.id);
+          obj.activated = true;
+          markActivated(obj.id);
           audio.play('world/chest');
           const p2 = this.floor.challenge.phase2;
           const p2remaining = p2.count - this.phase2Progress;

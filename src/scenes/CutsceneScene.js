@@ -74,16 +74,16 @@ export class CutsceneScene extends Phaser.Scene {
     this.nameText = this.add.text(0, 0, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '30px',
-      color: '#f0d040',
-      stroke: '#1a0e04',
-      strokeThickness: 5,
+      color: '#c06a10',
+      stroke: '#3a1a00',
+      strokeThickness: 3,
     });
     this.bodyText = this.add.text(0, 0, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '26px',
-      color: '#f0e4cc',
-      stroke: '#1a0e04',
-      strokeThickness: 3,
+      color: '#3a2410',
+      stroke: '#f5ead0',
+      strokeThickness: 1,
       wordWrap: { width: 480 },
       lineSpacing: 8,
     });
@@ -123,7 +123,7 @@ export class CutsceneScene extends Phaser.Scene {
       this.positionBubble('right');
       this.drawBubbleBackground('right', isWide);
     } else if (panel.type === 'party') {
-      this.drawFairySprite(GAME_WIDTH * 0.15, GAME_HEIGHT * 0.50, line.speaker, 80);
+      this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.88, line.speaker, 60);
       this.drawPartyHeroes();
       this.positionBubble('center');
       this.drawBubbleBackground('center', false);
@@ -240,9 +240,9 @@ export class CutsceneScene extends Phaser.Scene {
   drawPartyHeroes() {
     const party = this.save.party || [];
     const positions = [
-      { x: GAME_WIDTH * 0.62, y: GAME_HEIGHT * 0.50 - 20 },
-      { x: GAME_WIDTH * 0.75, y: GAME_HEIGHT * 0.50 },
-      { x: GAME_WIDTH * 0.88, y: GAME_HEIGHT * 0.50 + 20 },
+      { x: GAME_WIDTH * 0.22, y: GAME_HEIGHT * 0.62 },
+      { x: GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.55 },
+      { x: GAME_WIDTH * 0.78, y: GAME_HEIGHT * 0.62 },
     ];
     for (let i = 0; i < Math.min(3, party.length); i++) {
       const slot = party[i];
@@ -250,7 +250,7 @@ export class CutsceneScene extends Phaser.Scene {
       const def = getHeroById(slot.id);
       if (!def) continue;
       const pos = positions[i];
-      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.0 });
+      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.8 });
       this.artContainer.add(img);
     }
   }
@@ -269,17 +269,17 @@ export class CutsceneScene extends Phaser.Scene {
     let bx, by;
     if (layout === 'left') {
       bx = GAME_WIDTH * 0.42;
-      by = GAME_HEIGHT * 0.30;
+      by = GAME_HEIGHT * 0.25;
     } else if (layout === 'right') {
       bx = GAME_WIDTH * 0.05;
-      by = GAME_HEIGHT * 0.30;
+      by = GAME_HEIGHT * 0.25;
     } else {
       bx = GAME_WIDTH * 0.22;
-      by = GAME_HEIGHT * 0.15;
+      by = GAME_HEIGHT * 0.25;
     }
-    this.speakerDot.setPosition(bx + 20, by + 18);
-    this.nameText.setPosition(bx + 38, by + 6);
-    this.bodyText.setPosition(bx + 20, by + 42);
+    this.speakerDot.setPosition(bx + 16, by + 16);
+    this.nameText.setPosition(bx + 34, by + 8);
+    this.bodyText.setPosition(bx + 20, by + 44);
     this.bodyText.setWordWrapWidth(460);
   }
 
@@ -302,11 +302,11 @@ export class CutsceneScene extends Phaser.Scene {
     const by = GAME_HEIGHT * 0.25;
     const bh = isWide ? 220 : 200;
 
-    this.bubbleGfx.fillStyle(0x000000, 0.3);
+    this.bubbleGfx.fillStyle(0x000000, 0.15);
     this.bubbleGfx.fillRoundedRect(bx + 4, by + 6, bw, bh, 20);
-    this.bubbleGfx.fillStyle(0x1a0e04, 0.88);
+    this.bubbleGfx.fillStyle(0xf5ead0, 0.92);
     this.bubbleGfx.fillRoundedRect(bx, by, bw, bh, 20);
-    this.bubbleGfx.lineStyle(3, 0xc07818, 0.8);
+    this.bubbleGfx.lineStyle(3, 0xd4a840, 0.8);
     this.bubbleGfx.strokeRoundedRect(bx, by, bw, bh, 20);
   }
 

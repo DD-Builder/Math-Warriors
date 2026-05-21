@@ -453,6 +453,8 @@ export class WorldMapScene extends Phaser.Scene {
     let startScrollX = 0;
     this._scrolling = false;
 
+    const maxScreen = this.getMaxScreen();
+
     this.input.on('pointerdown', (pointer) => {
       dragging = true;
       this._scrolling = false;
@@ -463,8 +465,8 @@ export class WorldMapScene extends Phaser.Scene {
     this.input.on('pointermove', (pointer) => {
       if (!dragging || !pointer.isDown) return;
       const dx = startX - pointer.x;
-      if (Math.abs(dx) > 8) this._scrolling = true;
-      const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, 2 * SCREEN_W);
+      if (Math.abs(dx) > 3) this._scrolling = true;
+      const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, maxScreen * SCREEN_W);
       this.cameras.main.setScroll(newScroll, 0);
     });
 
@@ -473,11 +475,16 @@ export class WorldMapScene extends Phaser.Scene {
       dragging = false;
       if (!this._scrolling) return;
       const dx = startX - pointer.x;
-      let target = this.currentScreen;
+      // Determine base screen from where the drag started
+      const baseScreen = Math.round(startScrollX / SCREEN_W);
+      let target = baseScreen;
       if (Math.abs(dx) > 50) {
         target += dx > 0 ? 1 : -1;
+      } else {
+        // Snap to nearest screen based on current scroll position
+        target = Math.round(this.cameras.main.scrollX / SCREEN_W);
       }
-      target = Phaser.Math.Clamp(target, 0, 2);
+      target = Phaser.Math.Clamp(target, 0, maxScreen);
       this.snapToScreen(target);
       this.time.delayedCall(100, () => { this._scrolling = false; });
     });

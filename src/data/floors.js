@@ -301,7 +301,7 @@ export const FLOORS = [
       { type: 'valve',     x: 7,  y: 14 },
       { type: 'valve',     x: 16, y: 24 },
       // Boss & exit in marsh zone (top-left)
-      { type: 'boss',      x: 3,  y: 3, enemyId: 'pressure' },
+      { type: 'boss',      x: 2,  y: 1, enemyId: 'pressure' },
       { type: 'golden',    x: 1,  y: 1 },
       { type: 'exit',      x: 5,  y: 1 },
       // Chests across zones
@@ -340,7 +340,7 @@ export const FLOORS = [
       { type: 'beacon',    x: 10, y: 16 },
       { type: 'beacon',    x: 20, y: 26 },
       // Boss & exit in calm zone (top-left)
-      { type: 'boss',      x: 5,  y: 3, enemyId: 'skywhale' },
+      { type: 'boss',      x: 2,  y: 1, enemyId: 'skywhale' },
       { type: 'golden',    x: 1,  y: 1 },
       { type: 'exit',      x: 7,  y: 1 },
       // Chests across zones
@@ -401,7 +401,7 @@ export const FLOORS = [
       { type: 'encounter', x: 1, y: 1 },
       { type: 'encounter', x: 1, y: 1 },
       { type: 'encounter', x: 1, y: 1 },
-      { type: 'boss',      x: 12, y: 2, enemyId: 'pyroclast' },
+      { type: 'boss',      x: 13, y: 1, enemyId: 'pyroclast' },
       { type: 'exit',      x: 14, y: 1 },
     ],
   },
@@ -542,7 +542,7 @@ export const FLOORS = [
       { type: 'fragment',  x: 27, y: 11 },
       { type: 'fragment',  x: 16, y: 33 },
       { type: 'golden',    x: 16, y: 1 },
-      { type: 'boss',      x: 13, y: 2, enemyId: 'theorem' },
+      { type: 'boss',      x: 15, y: 1, enemyId: 'theorem' },
       { type: 'exit',      x: 16, y: 1 },
       { type: 'chest',     x: 3,  y: 15, loot: { gold: 50 } },
       { type: 'chest',     x: 29, y: 9, loot: { gold: 50 } },

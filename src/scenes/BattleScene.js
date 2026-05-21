@@ -833,10 +833,9 @@ export class BattleScene extends Phaser.Scene {
     // lives in a tight bottom strip.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    // === BOTTOM UI: no enclosing box — equation + answers float over battle ===
     const ansH = 100;
     const ansY = area.bottom - ansH / 2 - 28;
-    const eqY = ansY - ansH / 2 - 60;
+    const eqY = ansY - ansH / 2 - 90;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -875,21 +874,20 @@ export class BattleScene extends Phaser.Scene {
     this.potionLabel = this.potionBtn.label;
     this.refreshPotionButton();
 
-    // === EQUATION — compact dark pill floating over the battle ===
-    const noteW = 300;
-    const noteH = 110;
+    const noteW = 345;
+    const noteH = 127;
     const noteCx = area.cx;
     const noteCy = eqY;
 
     PaperPanel(this, noteCx, noteCy, noteW, noteH, {
-      color: 0x1a0e04, alpha: 0.85, radius: 18, shadowOff: 4, shadowAlpha: 0.3,
+      color: 0xf5ead0, alpha: 0.92, radius: 18, shadowOff: 4, shadowAlpha: 0.2,
     });
 
     this.eqLines = {
-      a:    this.add.text(noteCx + 20, noteCy - 34, '', this.eqLineStyle({ fontSize: '48px', color: '#fff8e0' })),
-      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '48px', color: '#e8a030' })),
-      bar:  this.add.text(noteCx,      noteCy + 28, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '22px', color: '#a08860' })),
-      ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '48px', color: '#f0c040' })),
+      a:    this.add.text(noteCx + 20, noteCy - 34, '', this.eqLineStyle({ fontSize: '52px', color: '#3a2410' })),
+      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '52px', color: '#c06a10' })),
+      bar:  this.add.text(noteCx,      noteCy + 28, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '24px', color: '#8a7050' })),
+      ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '52px', color: '#d08020' })),
     };
     this.eqLines.a.setOrigin(1, 0.5);
     this.eqLines.opB.setOrigin(1, 0.5);
@@ -897,16 +895,16 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.ans.setOrigin(0.5, 0.5);
 
     // Turn label — slim pill at the top of the math area
-    const turnY = eqY - noteH / 2 - 26;
-    PaperPanel(this, area.cx, turnY, 360, 36, {
-      color: 0x1a0e04, alpha: 0.82, radius: 12, shadowOff: 2, shadowAlpha: 0.2,
+    const turnY = eqY - noteH / 2 - 32;
+    PaperPanel(this, area.cx, turnY, 400, 38, {
+      color: 0xf5ead0, alpha: 0.90, radius: 12, shadowOff: 2, shadowAlpha: 0.15,
     });
     this.turnLabel = this.add.text(area.cx, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
-      color: '#fff8e0',
-      stroke: '#1a0e04',
-      strokeThickness: 3,
+      fontSize: '17px',
+      color: '#3a2410',
+      stroke: '#f5ead0',
+      strokeThickness: 1,
       letterSpacing: 1,
     }).setOrigin(0.5);
 
@@ -953,14 +951,14 @@ export class BattleScene extends Phaser.Scene {
     });
     this.setSuperVisible(this.abilityBtn, false);
 
-    this.superBtn = PaperButton(this, area.cx - 160, abilityBtnY, 'SUPER!', {
-      w: 200, h: 46, color: 0xe8a030, fontSize: 18,
+    this.superBtn = PaperButton(this, area.cx - 220, abilityBtnY, 'SUPER!', {
+      w: 180, h: 44, color: 0xe8a030, fontSize: 17,
       onClick: () => this.executeSuperMove(),
     });
     this.setSuperVisible(this.superBtn, false);
 
-    this.teamBtn = PaperButton(this, area.cx + 160, abilityBtnY, 'TEAM ATTACK!', {
-      w: 240, h: 46, color: 0xe04040, fontSize: 16,
+    this.teamBtn = PaperButton(this, area.cx + 220, abilityBtnY, 'TEAM ATTACK!', {
+      w: 200, h: 44, color: 0xe04040, fontSize: 15,
       onClick: () => this.executeTeamAttack(),
     });
     this.setSuperVisible(this.teamBtn, false);
@@ -2394,6 +2392,12 @@ export class BattleScene extends Phaser.Scene {
         save.party[i].maxHp += hpGain;
         save.party[i].hp = Math.min(save.party[i].hp + hpGain, save.party[i].maxHp);
         leveledUp.push(save.party[i].name);
+        const oldSupers = getAvailableSupers(save.party[i].id, oldLevel);
+        const newSupers = getAvailableSupers(save.party[i].id, newLevel);
+        if (newSupers.length > oldSupers.length) {
+          const learned = newSupers[newSupers.length - 1];
+          leveledUp.push(`${save.party[i].name} learned ${learned.name}!`);
+        }
       } else {
         save.party[i].level = newLevel;
       }
@@ -2550,6 +2554,7 @@ export class BattleScene extends Phaser.Scene {
 
   showDefeat() {
     if (this.phase === 'end') return;
+    if (this.tryRevive()) return;
     this.phase = 'end';
     this.locked = true;
     this.clearBossTimer();
@@ -2653,16 +2658,77 @@ export class BattleScene extends Phaser.Scene {
     const baseDmg = 5 + ((hero.atk || 10) * 0.5);
     const dmg = Math.round(baseDmg * mult);
 
-    this.showToast(`${move ? move.name : 'SUPER'}! ${dmg} DMG!`, '#f0c040');
+    const heroSprite = this.heroSprites[heroIdx];
+    const origX = heroSprite?.body?.x;
+    const lungeX = targetSprite.body ? targetSprite.body.x - 80 : (origX || 0) + 200;
+
     audio.play('battle/correct');
-    this.cameras.main.shake(150, 0.01);
+    this.showToast(`${move ? move.name : 'SUPER'}! ${dmg} DMG!`, '#f0c040');
 
-    targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
-    this.updateEnemyHp(targetIdx);
+    if (heroSprite?.body) {
+      heroSprite.body.setTint(0xffff80);
+      this.tweens.add({
+        targets: heroSprite.body, x: lungeX, duration: 200, ease: 'Power2',
+        onComplete: () => {
+          this.burstParticles(targetSprite.body?.x || lungeX + 80, targetSprite.body?.y || heroSprite.body.y, 0xf0c040);
+          this.cameras.main.shake(200, 0.015);
+          heroSprite.body.clearTint();
 
+          targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+          this.updateEnemyHp(targetIdx);
+
+          this.tweens.add({
+            targets: heroSprite.body, x: origX, duration: 200, ease: 'Power2',
+            onComplete: () => this.afterSuperDamage(targetIdx, targetSprite),
+          });
+        },
+      });
+    } else {
+      this.cameras.main.shake(150, 0.01);
+      targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+      this.updateEnemyHp(targetIdx);
+      this.afterSuperDamage(targetIdx, targetSprite);
+    }
+  }
+
+  tryRevive() {
+    const inv = this.save.inventory || [];
+    const idx = inv.indexOf('revive');
+    if (idx === -1) return false;
+
+    inv.splice(idx, 1);
+    this.save.inventory = inv;
+    writeSave(this.save, this.slot);
+
+    for (const hero of this.party) {
+      if (hero && hero.hp <= 0) {
+        hero.hp = Math.ceil(hero.maxHp * 0.5);
+      }
+    }
+
+    this.showToast('Revive Scroll Used!', '#40c080');
+    audio.play('battle/correct');
+
+    for (let i = 0; i < this.heroSprites.length; i++) {
+      const hs = this.heroSprites[i];
+      const hero = this.party[i];
+      if (!hs || !hero) continue;
+      this.updateHeroHpBar(i);
+      if (hs.body) {
+        hs.body.setAlpha(1);
+        hs.body.setScale(hs.body.scaleX > 0 ? hs.body.scaleX : 1);
+      }
+    }
+
+    this.time.delayedCall(600, () => this.nextTurn());
+    return true;
+  }
+
+  afterSuperDamage(targetIdx, targetSprite) {
+    const targetEnemy = this.enemies[targetIdx] || this.enemy;
     if (targetEnemy.hp <= 0) {
-      this.burstParticles(targetSprite.x, targetSprite.y, 0xe8a030);
-      this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+      this.burstParticles(targetSprite.body?.x || 900, targetSprite.body?.y || 400, 0xe8a030);
+      if (targetSprite.body) this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
       if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
       if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
       if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
@@ -2672,7 +2738,7 @@ export class BattleScene extends Phaser.Scene {
         this.time.delayedCall(400, () => this.nextTurn());
       }
     } else {
-      this.time.delayedCall(400, () => this.nextTurn());
+      this.time.delayedCall(200, () => this.nextTurn());
     }
   }
 
@@ -2698,24 +2764,35 @@ export class BattleScene extends Phaser.Scene {
 
     this.showToast(`TEAM ATTACK! ${totalDmg} DMG!`, '#e04040');
     audio.play('battle/correct');
-    this.cameras.main.shake(300, 0.02);
 
-    targetEnemy.hp = Math.max(0, targetEnemy.hp - totalDmg);
-    this.updateEnemyHp(targetIdx);
-
-    if (targetEnemy.hp <= 0) {
-      this.burstParticles(targetSprite.x, targetSprite.y, 0xe8a030);
-      this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-      if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
-      if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
-      if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
-      if (this.allEnemiesDead()) {
-        this.time.delayedCall(400, () => this.showVictory());
-      } else {
-        this.time.delayedCall(400, () => this.nextTurn());
-      }
-    } else {
-      this.time.delayedCall(500, () => this.nextTurn());
+    let delay = 0;
+    const origPositions = [];
+    for (let i = 0; i < this.party.length; i++) {
+      const h = this.party[i];
+      if (!h || h.hp <= 0) continue;
+      const hs = this.heroSprites[i];
+      if (!hs?.body) continue;
+      origPositions.push({ idx: i, x: hs.body.x });
+      const lungeX = targetSprite.body ? targetSprite.body.x - 100 + i * 30 : hs.body.x + 200;
+      this.time.delayedCall(delay, () => {
+        hs.body.setTint(0xff8080);
+        this.tweens.add({
+          targets: hs.body, x: lungeX, duration: 150, ease: 'Power2',
+          onComplete: () => {
+            this.burstParticles(lungeX + 80, hs.body.y, 0xe04040);
+            hs.body.clearTint();
+            this.tweens.add({ targets: hs.body, x: origPositions.find(o => o.idx === i).x, duration: 150, ease: 'Power2' });
+          },
+        });
+      });
+      delay += 120;
     }
+
+    this.time.delayedCall(delay + 300, () => {
+      this.cameras.main.shake(300, 0.02);
+      targetEnemy.hp = Math.max(0, targetEnemy.hp - totalDmg);
+      this.updateEnemyHp(targetIdx);
+      this.afterSuperDamage(targetIdx, targetSprite);
+    });
   }
 }
