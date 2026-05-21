@@ -415,6 +415,31 @@ export class WorldMapScene extends Phaser.Scene {
       },
     });
     this.setScrollFactorDeep(dailyBtn, 0);
+
+    const arrowStyle = { w: 70, h: 70, color: 0xf0e4cc, fontSize: 28, textColor: '#3a2410' };
+    this.leftArrow = PaperButton(this, area.left + 50, area.cy, '◀', {
+      ...arrowStyle,
+      onClick: () => {
+        if (this.currentScreen > 0) {
+          this.snapToScreen(this.currentScreen - 1);
+          this._scrolling = true;
+          this.time.delayedCall(350, () => { this._scrolling = false; });
+        }
+      },
+    });
+    this.setScrollFactorDeep(this.leftArrow, 0);
+
+    this.rightArrow = PaperButton(this, area.right - 50, area.cy, '▶', {
+      ...arrowStyle,
+      onClick: () => {
+        if (this.currentScreen < this.maxScreen) {
+          this.snapToScreen(this.currentScreen + 1);
+          this._scrolling = true;
+          this.time.delayedCall(350, () => { this._scrolling = false; });
+        }
+      },
+    });
+    this.setScrollFactorDeep(this.rightArrow, 0);
   }
 
   setScrollFactorDeep(obj, factor) {
@@ -473,20 +498,21 @@ export class WorldMapScene extends Phaser.Scene {
     this.input.on('pointerup', (pointer) => {
       if (!dragging) return;
       dragging = false;
-      if (!this._scrolling) return;
+      if (!this._scrolling) {
+        this.snapToScreen(Math.round(this.cameras.main.scrollX / SCREEN_W));
+        return;
+      }
       const dx = startX - pointer.x;
-      // Determine base screen from where the drag started
       const baseScreen = Math.round(startScrollX / SCREEN_W);
       let target = baseScreen;
       if (Math.abs(dx) > 50) {
         target += dx > 0 ? 1 : -1;
       } else {
-        // Snap to nearest screen based on current scroll position
         target = Math.round(this.cameras.main.scrollX / SCREEN_W);
       }
       target = Phaser.Math.Clamp(target, 0, maxScreen);
       this.snapToScreen(target);
-      this.time.delayedCall(100, () => { this._scrolling = false; });
+      this.time.delayedCall(350, () => { this._scrolling = false; });
     });
   }
 

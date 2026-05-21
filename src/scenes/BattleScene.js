@@ -2722,14 +2722,13 @@ export class BattleScene extends Phaser.Scene {
     this.showToast('Revive Scroll Used!', '#40c080');
     audio.play('battle/correct');
 
-    for (let i = 0; i < this.heroSprites.length; i++) {
-      const hs = this.heroSprites[i];
+    for (let i = 0; i < this.party.length; i++) {
       const hero = this.party[i];
-      if (!hs || !hero) continue;
-      this.updateHeroHpBar(i);
-      if (hs.body) {
+      const hs = this.heroSprites[i];
+      if (!hero) continue;
+      this.updateHeroHp(hero);
+      if (hs?.body) {
         hs.body.setAlpha(1);
-        hs.body.setScale(hs.body.scaleX > 0 ? hs.body.scaleX : 1);
       }
     }
 
@@ -2794,7 +2793,8 @@ export class BattleScene extends Phaser.Scene {
           onComplete: () => {
             this.burstParticles(lungeX + 80, hs.body.y, 0xe04040);
             hs.body.clearTint();
-            this.tweens.add({ targets: hs.body, x: origPositions.find(o => o.idx === i).x, duration: 150, ease: 'Power2' });
+            const orig = origPositions.find(o => o.idx === i);
+            if (orig) this.tweens.add({ targets: hs.body, x: orig.x, duration: 150, ease: 'Power2' });
           },
         });
       });
