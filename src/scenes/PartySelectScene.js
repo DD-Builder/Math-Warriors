@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
 import { loadSave, writeSave, makeDefaultSave, isHeroUnlocked } from '../systems/save.js';
+import { DIALOGUE } from '../data/dialogue.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
@@ -386,6 +387,16 @@ export class PartySelectScene extends Phaser.Scene {
     save.unlockedHeroes = [...fresh.unlockedHeroes];
     writeSave(save);
 
-    transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
+    const isFirstGame = save.floors.every(f => !f.complete);
+    if (isFirstGame && DIALOGUE.game_intro) {
+      transitionTo(this, SCENES.CUTSCENE, {
+        lines: DIALOGUE.game_intro,
+        floorId: 1,
+        nextScene: SCENES.WORLD_MAP,
+        nextData: undefined,
+      }, 300);
+    } else {
+      transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
+    }
   }
 }

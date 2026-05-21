@@ -1559,9 +1559,9 @@ export class BattleScene extends Phaser.Scene {
         this.shakeCamera(0.012, 300);
         // Fade out the killed enemy sprite
         this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 300 });
-        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 300 });
-        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 300 });
+        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
+        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
+        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
         if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 300 });
         // Check if ALL enemies are dead
         if (this.allEnemiesDead()) {
@@ -2390,9 +2390,12 @@ export class BattleScene extends Phaser.Scene {
     if (this.isBoss || this.returnScene === SCENES.WORLD_MAP) {
       markFloorComplete(save, this.floor);
       const newHeroes = unlockHeroesForFloor(save, this.floor);
-      for (const h of newHeroes) {
-        this.time.delayedCall(600, () => this.showToast(`New hero: ${h.name}!`, '#f0c040'));
+      if (newHeroes.length > 0) {
+        this.time.delayedCall(400, () => this.showToast('The magic freed a new ally!', '#f0c040'));
       }
+      newHeroes.forEach((h, i) => {
+        this.time.delayedCall(900 + i * 600, () => this.showToast(`${h.name} joins your quest!`, '#f0c040'));
+      });
       const mazeKey = `mazeState_${this.floor}`;
       const mazeState = this.registry.get(mazeKey);
       if (mazeState) {

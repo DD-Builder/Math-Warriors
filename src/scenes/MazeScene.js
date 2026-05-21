@@ -859,17 +859,20 @@ export class MazeScene extends Phaser.Scene {
         const remaining = ch.count - this.challengeProgress;
         if (remaining > 0) {
           this.showFloatText(obj.x, obj.y, `${ch.label} ${ch.verb}! ${remaining} left`, '#e088c0');
-          if (shouldShowTutorial('FIRST_FAIRY')) {
+          if (this.challengeProgress === 1 && DIALOGUE.mid_floor_encourage) {
+            this.dialogue.show(DIALOGUE.mid_floor_encourage);
+          } else if (shouldShowTutorial('FIRST_FAIRY')) {
             markTutorialShown('FIRST_FAIRY');
             this.dialogue.show([{ speaker: 'Hint', text: getTutorialText('FIRST_FAIRY') }]);
           }
         } else {
           this.showFloatText(obj.x, obj.y, ch.allDoneMsg, '#f0d040');
-          // Sync challenge progress with level engine so golden chest unlocks
           const egs = getGameState();
           if (egs) egs.fairies = this.challengeProgress;
-          // Create fly-away fairy animation
           this.showFairyFlyAway();
+          if (DIALOGUE.all_fairies_freed) {
+            this.dialogue.show(DIALOGUE.all_fairies_freed);
+          }
         }
         this.updateHud();
         break;

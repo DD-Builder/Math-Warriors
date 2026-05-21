@@ -114,12 +114,28 @@ export class CutsceneScene extends Phaser.Scene {
     const speakerColor = this.getSpeakerColor(line.speaker);
     this.speakerDot.setFillStyle(speakerColor);
 
+    this.bubbleGfx.setAlpha(0);
+    this.speakerDot.setAlpha(0);
+    this.nameText.setAlpha(0);
+    this.bodyText.setAlpha(0);
+
     if (!isWide) {
       this.drawCharacterArt(line, side);
       this.positionBubble(line, side);
     } else {
       this.positionBubbleWide(line);
     }
+
+    this.tweens.add({ targets: [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText], alpha: 1, duration: 250, ease: 'Sine.out' });
+
+    this.speakerContainer.list.forEach(obj => {
+      if (obj.setAlpha) {
+        const finalX = obj.x;
+        obj.setAlpha(0);
+        obj.x = side === 'left' ? finalX - 120 : finalX + 120;
+        this.tweens.add({ targets: obj, alpha: 1, x: finalX, duration: 350, ease: 'Back.out' });
+      }
+    });
 
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';
