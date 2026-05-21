@@ -131,10 +131,14 @@ export class ShopScene extends Phaser.Scene {
       return;
     }
     const target = this.save.party[0];
-    const def = getHeroById(target.id);
+    const heroDef = getHeroById(target.id);
     if (stat === 'maxHp') {
-      target.maxHp = (target.maxHp || def?.maxHp || 50) + amount;
+      target.maxHp = (target.maxHp || heroDef?.maxHp || 50) + amount;
       target.hp = Math.min(target.hp + amount, target.maxHp);
+    } else if (stat === 'atk') {
+      target.atk = (target.atk || heroDef?.atk || 10) + amount;
+    } else if (stat === 'def') {
+      target.def = (target.def || heroDef?.def || 10) + amount;
     }
     this.showFlash(`${target.name} +${amount} ${stat.toUpperCase()}!`);
   }

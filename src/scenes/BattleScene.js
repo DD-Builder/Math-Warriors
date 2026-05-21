@@ -944,7 +944,7 @@ export class BattleScene extends Phaser.Scene {
       this.drawColorblindMomentumPatterns(barX, topY, barW);
     }
 
-    const abilityBtnY = ansY + ansH / 2 + 10;
+    const abilityBtnY = ansY + ansH / 2 + 32;
     this.abilityBtn = PaperButton(this, area.cx, abilityBtnY, 'ABILITY', {
       w: 220, h: 42, color: 0x9050c8, fontSize: 16,
       onClick: () => this.useAbility(),

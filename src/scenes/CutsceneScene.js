@@ -268,13 +268,13 @@ export class CutsceneScene extends Phaser.Scene {
   positionBubble(layout) {
     let bx, by;
     if (layout === 'left') {
-      bx = GAME_WIDTH * 0.42;
+      bx = GAME_WIDTH * 0.39;
       by = GAME_HEIGHT * 0.25;
     } else if (layout === 'right') {
-      bx = GAME_WIDTH * 0.05;
+      bx = GAME_WIDTH * 0.02;
       by = GAME_HEIGHT * 0.25;
     } else {
-      bx = GAME_WIDTH * 0.22;
+      bx = GAME_WIDTH * 0.19;
       by = GAME_HEIGHT * 0.25;
     }
     this.speakerDot.setPosition(bx + 16, by + 16);
