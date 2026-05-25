@@ -173,6 +173,9 @@ export class BattleScene extends Phaser.Scene {
     this.bossHalfHpShown = false;
     // Track whether any hero took damage this battle (for perfectBattle achievement)
     this.battleDamageTaken = false;
+
+    // Boss Rush mode
+    this.bossRush = !!data?.bossRush;
   }
 
   create() {
@@ -2573,6 +2576,24 @@ export class BattleScene extends Phaser.Scene {
 
     writeSave(save, this.slot);
 
+    // Boss Rush: update rush state on victory
+    if (this.bossRush) {
+      const rushState = this.registry.get('bossRushState');
+      if (rushState) {
+        rushState.totalCorrect += this.battleCorrect;
+        rushState.totalWrong += this.battleWrong;
+        rushState.bossesDefeated++;
+        rushState.currentBoss++;
+        // Preserve surviving party HP for next fight
+        rushState.party = this.party.map(h => ({ ...h }));
+        if (rushState.currentBoss >= 9) {
+          rushState.complete = true;
+          rushState.endTime = Date.now();
+        }
+        this.registry.set('bossRushState', rushState);
+      }
+    }
+
     // Enemy fade-out + gold coin burst (all enemy sprites)
     const spritesToFade = this.enemySprites || [this.enemySprite];
     for (let ei = 0; ei < spritesToFade.length; ei++) {
@@ -2708,6 +2729,18 @@ export class BattleScene extends Phaser.Scene {
       save.party[i].maxHp = this.party[i].maxHp;
     }
     writeSave(save, this.slot);
+
+    // Boss Rush: mark defeated
+    if (this.bossRush) {
+      const rushState = this.registry.get('bossRushState');
+      if (rushState) {
+        rushState.totalCorrect += this.battleCorrect;
+        rushState.totalWrong += this.battleWrong;
+        rushState.defeated = true;
+        rushState.endTime = Date.now();
+        this.registry.set('bossRushState', rushState);
+      }
+    }
 
     // Encouraging messages — rotate through them
     const msgs = [

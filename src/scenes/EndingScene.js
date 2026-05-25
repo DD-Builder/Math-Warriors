@@ -69,7 +69,23 @@ export class EndingScene extends Phaser.Scene {
       }).setOrigin(0.5);
     });
 
-    PaperButton(this, area.cx, area.bottom - 60, 'PLAY AGAIN', {
+    // Check if all 9 floors are complete for Boss Rush unlock
+    const allFloorsComplete = (save.floors || []).filter(f => f && f.complete).length >= 9;
+
+    const btnY = allFloorsComplete ? area.bottom - 50 : area.bottom - 60;
+
+    if (allFloorsComplete) {
+      PaperButton(this, area.cx, btnY - 80, 'BOSS RUSH', {
+        w: 300, h: 70, color: 0xc83030, fontSize: 26,
+        textColor: '#fff8e0',
+        onClick: () => {
+          audio.play('ui/confirm');
+          transitionTo(this, SCENES.BOSS_RUSH, undefined, 400);
+        },
+      });
+    }
+
+    PaperButton(this, area.cx, btnY, 'PLAY AGAIN', {
       w: 300, h: 70, color: 0xd07818, fontSize: 26,
       textColor: '#fff8e0',
       onClick: () => {
