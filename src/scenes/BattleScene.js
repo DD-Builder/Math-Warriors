@@ -32,6 +32,7 @@ import { computeLevel, levelBonuses } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
+import { getHint } from '../systems/hints.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -1932,6 +1933,9 @@ export class BattleScene extends Phaser.Scene {
         this.shakeCamera(0.01, 250);
         audio.play('battle/hit-hero');
       });
+
+      // Show HINT button after wrong answer
+      this.showHintButton(this.currentQuestion);
     }
 
     // Snappy turn advance — see principle #3 (tempo) in DESIGN-PRINCIPLES.md.
@@ -2292,6 +2296,78 @@ export class BattleScene extends Phaser.Scene {
       duration: 400,
       delay: 800,
     });
+  }
+
+  /**
+   * Show a HINT button that appears for 3 seconds after a wrong answer.
+   * When tapped, displays a step-by-step hint in a cream panel overlay.
+   */
+  showHintButton(question) {
+    if (!question) return;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+
+    // Create hint button
+    const hintBtn = PaperButton(this, area.cx, area.top + 140, 'HINT', {
+      w: 140, h: 50, color: 0xe8a030, fontSize: 18,
+      onClick: () => {
+        // Remove the hint button
+        this.destroyHintButton(hintBtn, hintTimer);
+        // Show the hint overlay
+        this.showHintOverlay(question);
+      },
+    });
+    hintBtn.bg.setDepth(90);
+    hintBtn.shadow.setDepth(89);
+    hintBtn.label.setDepth(91);
+    if (hintBtn.zone) hintBtn.zone.setDepth(91);
+
+    // Auto-dismiss after 3 seconds
+    const hintTimer = this.time.delayedCall(3000, () => {
+      this.destroyHintButton(hintBtn, null);
+    });
+  }
+
+  destroyHintButton(hintBtn, timer) {
+    if (timer) timer.remove();
+    if (hintBtn.bg) hintBtn.bg.destroy();
+    if (hintBtn.shadow) hintBtn.shadow.destroy();
+    if (hintBtn.label) hintBtn.label.destroy();
+    if (hintBtn.zone) hintBtn.zone.destroy();
+  }
+
+  showHintOverlay(question) {
+    const hintText = getHint(question.op, question.a, question.b, question.answer);
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+
+    // Cream panel overlay
+    const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5)
+      .setDepth(150).setInteractive();
+    const panel = PaperPanel(this, area.cx, area.cy, 620, 180, {
+      color: 0xf5ead0, alpha: 0.97, radius: 20,
+    });
+    if (panel.bg) panel.bg.setDepth(151);
+    if (panel.shadow) panel.shadow.setDepth(150);
+
+    const hintLabel = this.add.text(area.cx, area.cy, hintText, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '22px',
+      color: '#3a2410',
+      align: 'center',
+      wordWrap: { width: 560 },
+    }).setOrigin(0.5).setDepth(152);
+
+    const elements = [overlayBg, hintLabel];
+    if (panel.bg) elements.push(panel.bg);
+    if (panel.shadow) elements.push(panel.shadow);
+
+    // Dismiss on tap or after 4 seconds
+    const dismissHint = () => {
+      if (dismissTimer) dismissTimer.remove();
+      elements.forEach(el => { if (el && el.scene) el.destroy(); });
+    };
+
+    overlayBg.on('pointerdown', dismissHint);
+    const dismissTimer = this.time.delayedCall(4000, dismissHint);
   }
 
   // ================================================================

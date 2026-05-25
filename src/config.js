@@ -50,6 +50,7 @@ export const SCENES = {
   SETTINGS: 'SettingsScene',
   SAVE_SELECT: 'SaveSlotScene',
   MASTERY: 'MasteryScene',
+  BOSS_RUSH: 'BossRushScene',
 };
 
 // Safe margin from screen edges (pixels). All UI MUST stay inside this.
