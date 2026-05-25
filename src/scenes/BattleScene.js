@@ -3,6 +3,7 @@ import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } fro
 import { generateQuestion, recordAnswer } from '../systems/math.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
+import { recordSkillAnswer } from '../systems/mastery.js';
 import {
   getZone,
   advanceMomentum,
@@ -1467,6 +1468,7 @@ export class BattleScene extends Phaser.Scene {
 
     // Phase 2.1: Record answer for spaced repetition & adaptive difficulty
     recordAnswer(correct);
+    recordSkillAnswer(this.save, this.currentQuestion?.op, correct);
 
     if (correct) {
       this.recolorAnswerButton(index, 0x40c040, 1);

@@ -386,7 +386,18 @@ export class WorldMapScene extends Phaser.Scene {
       }
     }
 
-    const shopBtn = PaperButton(this, area.cx, area.bottom - 36, 'SHOP', {
+    const skillsBtn = PaperButton(this, area.cx - 100, area.bottom - 36, 'SKILLS', {
+      w: 150, h: 56, color: 0x4080c0, fontSize: 18,
+      textColor: '#fff8e0',
+      onClick: () => {
+        if (this._scrolling) return;
+        audio.play('ui/click');
+        transitionTo(this, SCENES.MASTERY, undefined, 200);
+      },
+    });
+    this.setScrollFactorDeep(skillsBtn, 0);
+
+    const shopBtn = PaperButton(this, area.cx + 100, area.bottom - 36, 'SHOP', {
       w: 160, h: 56, color: 0xd07818, fontSize: 20,
       textColor: '#fff8e0',
       onClick: () => {
