@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
 import { loadSave, writeSave, makeDefaultSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
+import { getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
@@ -215,6 +216,15 @@ export class PartySelectScene extends Phaser.Scene {
       color: '#4a3018',
     }).setOrigin(0.5);
 
+    const rarCol = getRarityColor(hero.rarity);
+    const rarBadge = this.add.graphics();
+    rarBadge.fillStyle(rarCol.glow, 0.9);
+    rarBadge.fillRoundedRect(x - 30, y - h / 2 + 6, 60, 18, 6);
+    const rarText = this.add.text(x, y - h / 2 + 15, getRarityLabel(hero.rarity), {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '9px', color: '#ffffff',
+    }).setOrigin(0.5);
+
     if (isSelected) {
       const badge = this.add.circle(x + w / 2 - 18, y - h / 2 + 18, 14, 0xf0c040);
       badge.setStrokeStyle(2, 0x1a0e04);
@@ -231,7 +241,7 @@ export class PartySelectScene extends Phaser.Scene {
       this.toggleHeroSelection(this.activeClass, heroIndex);
     });
 
-    this.heroCardContainer.add([card.shadow, card.bg, portrait, name, trait, stats, card.zone]);
+    this.heroCardContainer.add([card.shadow, card.bg, portrait, name, trait, stats, rarBadge, rarText, card.zone]);
   }
 
   buildPartyStrip(area) {

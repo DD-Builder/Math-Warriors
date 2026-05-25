@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
-import { getHeroById } from '../data/heroes.js';
+import { getHeroById, getHeroSkins, getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea } from '../ui/paperUI.js';
@@ -20,9 +20,10 @@ export class ShopScene extends Phaser.Scene {
     super({ key: SCENES.SHOP });
   }
 
-  init() {
+  init(data) {
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
+    this.activeTab = data?.tab || 'items';
   }
 
   create() {
@@ -44,7 +45,21 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.updateGoldLabel();
 
-    this.buildItemCards(area);
+    const tabY = area.top + 140;
+    PaperButton(this, area.cx - 120, tabY, 'ITEMS', {
+      w: 180, h: 46, color: this.activeTab === 'items' ? 0xd07818 : 0x8a7a60, fontSize: 18,
+      onClick: () => this.switchTab('items'),
+    });
+    PaperButton(this, area.cx + 120, tabY, 'SKINS', {
+      w: 180, h: 46, color: this.activeTab === 'skins' ? 0xa040d0 : 0x8a7a60, fontSize: 18,
+      onClick: () => this.switchTab('skins'),
+    });
+
+    if (this.activeTab === 'skins') {
+      this.buildSkinCards(area);
+    } else {
+      this.buildItemCards(area);
+    }
 
     PaperButton(this, area.cx, area.bottom - 50, 'BACK', {
       w: 260, h: 64, color: 0x4aa848, fontSize: 24,
@@ -163,5 +178,100 @@ export class ShopScene extends Phaser.Scene {
       targets: t, alpha: 0, delay: 1200, duration: 400,
       onComplete: () => t.destroy(),
     });
+  }
+
+  switchTab(tab) {
+    if (this.activeTab === tab) return;
+    writeSave(this.save, this.slot);
+    this.scene.restart({ tab });
+  }
+
+  buildSkinCards(area) {
+    if (!this.save.party || this.save.party.length === 0) return;
+    if (!this.save.ownedSkins) this.save.ownedSkins = [];
+
+    const party = this.save.party;
+    const cardW = 360;
+    const cardH = 250;
+    const gap = 24;
+    const totalW = party.length * cardW + (party.length - 1) * gap;
+    const startX = area.cx - totalW / 2 + cardW / 2;
+    const cardY = area.cy + 40;
+
+    for (let pi = 0; pi < party.length; pi++) {
+      const hero = party[pi];
+      if (!hero) continue;
+      const cx = startX + pi * (cardW + gap);
+      const heroDef = getHeroById(hero.id);
+      const rarity = heroDef?.rarity || 'common';
+      const rarityCol = getRarityColor(rarity);
+      const skins = getHeroSkins(hero.id);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(0xf5ead0, 0.9);
+      bg.fillRoundedRect(cx - cardW / 2, cardY - cardH / 2, cardW, cardH, 14);
+      bg.lineStyle(2, rarityCol.border, 0.8);
+      bg.strokeRoundedRect(cx - cardW / 2, cardY - cardH / 2, cardW, cardH, 14);
+
+
+      const nameT = this.add.text(cx, cardY - cardH / 2 + 24, hero.name, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '22px', color: '#3a2410',
+      }).setOrigin(0.5);
+
+      const rarBadge = this.add.text(cx, cardY - cardH / 2 + 48, getRarityLabel(rarity), {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '12px', color: rarityCol.label,
+      }).setOrigin(0.5);
+
+      for (let si = 0; si < skins.length; si++) {
+        const skin = skins[si];
+        const sy = cardY - cardH / 2 + 80 + si * 44;
+        const owned = skin.id === 'default' || this.save.ownedSkins.includes(`${hero.id}:${skin.id}`);
+        const equipped = (hero.skin || 'default') === skin.id;
+
+        const skinLabel = this.add.text(cx - cardW / 2 + 20, sy, skin.name, {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+          fontSize: '15px', color: equipped ? '#40a040' : (owned ? '#3a2410' : '#8a7a60'),
+        }).setOrigin(0, 0.5);
+
+        if (equipped) {
+          const eqT = this.add.text(cx + cardW / 2 - 20, sy, 'EQUIPPED', {
+            fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+            fontSize: '12px', color: '#40a040',
+          }).setOrigin(1, 0.5);
+        } else if (owned) {
+          const eqBtn = this.add.text(cx + cardW / 2 - 20, sy, 'EQUIP', {
+            fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+            fontSize: '13px', color: '#4080c0', stroke: '#1a0e04', strokeThickness: 1,
+          }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+          eqBtn.on('pointerdown', () => {
+            hero.skin = skin.id;
+            writeSave(this.save, this.slot);
+            audio.play('ui/confirm');
+            this.switchTab('skins', area);
+          });
+        } else {
+          const buyT = this.add.text(cx + cardW / 2 - 20, sy,
+            this.save.gold >= skin.cost ? `BUY ${skin.cost}g` : `${skin.cost}g`, {
+            fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+            fontSize: '13px',
+            color: this.save.gold >= skin.cost ? '#f0c040' : '#8a7a60',
+            stroke: '#1a0e04', strokeThickness: 1,
+          }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+          buyT.on('pointerdown', () => {
+            if (this.save.gold < skin.cost) return;
+            this.save.gold -= skin.cost;
+            this.save.ownedSkins.push(`${hero.id}:${skin.id}`);
+            hero.skin = skin.id;
+            writeSave(this.save, this.slot);
+            audio.play('ui/confirm');
+            this.updateGoldLabel();
+            this.showFlash(`${skin.name} unlocked!`);
+            this.switchTab('skins', area);
+          });
+        }
+      }
+    }
   }
 }

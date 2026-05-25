@@ -15,11 +15,13 @@ const CLASS_BASE = {
 
 function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, superMoves = []) {
   const base = CLASS_BASE[className];
+  const rarity = unlockedAtFloor >= 5 ? 'legendary' : unlockedAtFloor >= 3 ? 'epic' : unlockedAtFloor >= 1 ? 'rare' : 'common';
   return {
     id,
     name,
     class: className,
     trait,
+    rarity,
     maxHp: base.maxHp + (tweak.maxHp ?? 0),
     atk:   base.atk   + (tweak.atk   ?? 0),
     def:   base.def   + (tweak.def   ?? 0),
@@ -206,3 +208,41 @@ export function xpToNextLevel(level) {
   const next = Math.min(level + 1, LEVEL_THRESHOLDS.length - 1);
   return LEVEL_THRESHOLDS[next] || 9999;
 }
+
+const RARITY_COLORS = {
+  common:    { glow: 0xa0a0a0, label: '#b0b0b0', border: 0x909090 },
+  rare:      { glow: 0x4488e0, label: '#60a0f0', border: 0x3070c0 },
+  epic:      { glow: 0xa040d0, label: '#c060f0', border: 0x8030b0 },
+  legendary: { glow: 0xf0c040, label: '#f0d060', border: 0xd0a020 },
+};
+
+export function getRarityColor(rarity) {
+  return RARITY_COLORS[rarity] || RARITY_COLORS.common;
+}
+
+export function getRarityLabel(rarity) {
+  return (rarity || 'common').toUpperCase();
+}
+
+const HERO_SKINS = {
+  'knight-shadow':    [{ id: 'default', name: 'Shadow' }, { id: 'golden', name: 'Golden Shadow', cost: 150 }, { id: 'crimson', name: 'Crimson Shadow', cost: 200 }],
+  'wizard-stargazer': [{ id: 'default', name: 'Stargazer' }, { id: 'nebula', name: 'Nebula', cost: 150 }, { id: 'eclipse', name: 'Eclipse', cost: 200 }],
+  'bunny-pepper':     [{ id: 'default', name: 'Pepper' }, { id: 'frost', name: 'Frost Pepper', cost: 150 }, { id: 'blaze', name: 'Blaze Pepper', cost: 200 }],
+  'knight-crusader':  [{ id: 'default', name: 'Crusader' }, { id: 'dark', name: 'Dark Crusader', cost: 200 }],
+  'wizard-toadstool': [{ id: 'default', name: 'Toadstool' }, { id: 'toxic', name: 'Toxic Bloom', cost: 200 }],
+  'bunny-nova':       [{ id: 'default', name: 'Nova' }, { id: 'stellar', name: 'Stellar Nova', cost: 200 }],
+  'knight-paladin':   [{ id: 'default', name: 'Paladin' }, { id: 'radiant', name: 'Radiant Paladin', cost: 250 }],
+  'bunny-boulder':    [{ id: 'default', name: 'Boulder' }, { id: 'crystal', name: 'Crystal Boulder', cost: 250 }],
+  'knight-berserker': [{ id: 'default', name: 'Berserker' }, { id: 'bloodrage', name: 'Blood Rage', cost: 300 }],
+  'wizard-bookworm':  [{ id: 'default', name: 'Bookworm' }, { id: 'arcane', name: 'Arcane Scholar', cost: 300 }],
+  'bunny-blaze':      [{ id: 'default', name: 'Blaze' }, { id: 'inferno', name: 'Inferno Blaze', cost: 350 }],
+  'knight-greathelm': [{ id: 'default', name: 'Great Helm' }, { id: 'titan', name: 'Titan Helm', cost: 400 }],
+  'wizard-grandmage': [{ id: 'default', name: 'Grand Mage' }, { id: 'archmage', name: 'Archmage', cost: 400 }],
+  'bunny-duchess':    [{ id: 'default', name: 'Duchess' }, { id: 'empress', name: 'Empress', cost: 400 }],
+  'wizard-spellblade':[{ id: 'default', name: 'Spellblade' }, { id: 'void', name: 'Void Blade', cost: 250 }],
+};
+
+export function getHeroSkins(heroId) {
+  return HERO_SKINS[heroId] || [{ id: 'default', name: 'Default', cost: 0 }];
+}
+
