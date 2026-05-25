@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE } from '../data/floors.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
+import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, getHeroById, ALL_HEROES } from '../data/heroes.js';
 import { spawnEnemy, pickEnemyForFloor } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
@@ -1188,6 +1189,8 @@ export class MazeScene extends Phaser.Scene {
           return;
         }
         audio.play('world/floor-complete');
+        updateQuestProgress(this.save, 'floor');
+        writeSave(this.save, this.slot);
         this.registry.remove(mazeStateKey(this.floorId));
         const victKey = `floor${this.floorId}_victory`;
         const afterScene = this.floorId === 9 ? SCENES.ENDING : SCENES.WORLD_MAP;

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { generateQuestion, recordAnswer } from '../systems/math.js';
+import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
+import { updateQuestProgress } from '../systems/dailyQuests.js';
 import {
   getZone,
   advanceMomentum,
@@ -117,6 +119,7 @@ export class BattleScene extends Phaser.Scene {
     this.streak = 0;
     this.heroStreaks = new Array(this.party.length).fill(0);
     this.superReady = new Array(this.party.length).fill(false);
+    this.potionUsedThisBattle = false;
     this.turnSeq = buildTurnSequence(this.party.length);
     this.turnIdx = -1;
     this.phase = 'intro';
@@ -1468,6 +1471,7 @@ export class BattleScene extends Phaser.Scene {
     if (correct) {
       this.recolorAnswerButton(index, 0x40c040, 1);
       audio.play('battle/correct');
+      updateQuestProgress(this.save, 'correct');
 
       this.streak++;
       this.battleCorrect++;
@@ -1483,14 +1487,25 @@ export class BattleScene extends Phaser.Scene {
         this.updateSuperButton();
       }
 
+      const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+      const btnObj = this.answerButtons[index];
       if (this.momentum >= 1.0) {
         this.showToast('TEAM ATTACK READY!', '#f0d040');
+      } else if (this.streak >= 8) {
+        streakBanner(this, this.streak, area.cx, area.cy);
+        screenEdgeGlow(this, 0xff4040, 500);
+      } else if (this.streak >= 5) {
+        streakBanner(this, this.streak, area.cx, area.cy);
+        screenEdgeGlow(this, 0xf0a020, 400);
+      } else if (this.streak >= 3) {
+        streakBanner(this, this.streak, area.cx, area.cy);
+        screenEdgeGlow(this, 0x40c040, 300);
       } else if (this.momentum > 0.66) {
         this.showToast('CRITICAL HIT!', COLORS_CSS.goldL);
-      } else if (this.streak >= 3) {
-        this.showToast(`${this.streak}x STREAK!`, COLORS_CSS.goldL);
+        confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 12);
       } else {
         this.showToast('CORRECT!', COLORS_CSS.greenL);
+        confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
       }
 
       // Target the current enemy
@@ -1940,6 +1955,7 @@ export class BattleScene extends Phaser.Scene {
 
   usePotion() {
     if (this.phase !== 'question' || this.locked) return;
+    this.potionUsedThisBattle = true;
 
     if ((this.save.potions || 0) <= 0) {
       this.showToast('No potions left!', COLORS_CSS.scarletL);
@@ -2363,6 +2379,11 @@ export class BattleScene extends Phaser.Scene {
     this.clearBossTimer();
     this.time.removeAllEvents();
 
+    for (const hs of this.heroSprites) heroVictoryBounce(this, hs);
+    const vArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    confettiBurst(this, vArea.cx, vArea.cy - 100, 40);
+    screenEdgeGlow(this, 0xf0c040, 600);
+
     // Hide equation panel, answer buttons, and ability buttons
     if (this.eqLines) {
       Object.values(this.eqLines).forEach(el => { if (el) el.setVisible(false); });
@@ -2445,6 +2466,12 @@ export class BattleScene extends Phaser.Scene {
         try { localStorage.setItem(`mw_maze_${this.floor}`, JSON.stringify(mazeState)); } catch (e) { /* ignore */ }
       }
     }
+
+    updateQuestProgress(save, 'wins');
+    updateQuestProgress(save, 'streak', this.streak);
+    updateQuestProgress(save, 'gold', goldEarned);
+    if (!this.battleDamageTaken) updateQuestProgress(save, 'perfect');
+    if (!this.potionUsedThisBattle) updateQuestProgress(save, 'nopotion');
 
     // Daily challenge rewards
     let dailyGold = 0;
@@ -2653,6 +2680,7 @@ export class BattleScene extends Phaser.Scene {
     const heroIdx = this.currentTurn.heroIndex;
     if (!this.superReady[heroIdx]) return;
     this.locked = true;
+    updateQuestProgress(this.save, 'super');
 
     const hero = this.party[heroIdx];
     const level = hero.level || 1;

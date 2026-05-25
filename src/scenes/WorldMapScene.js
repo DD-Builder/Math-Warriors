@@ -8,6 +8,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { getDailyChallenge, isDailyChallengeCompleted, markDailyChallengeComplete } from '../systems/dailyChallenge.js';
+import { getDailyQuests, getQuestProgress, claimQuestReward, getLoginReward } from '../systems/dailyQuests.js';
 import { DIALOGUE } from '../data/dialogue.js';
 
 const SCREEN_W = GAME_WIDTH;
@@ -51,6 +52,8 @@ export class WorldMapScene extends Phaser.Scene {
     this.buildFloorNodes();
     this.buildPaths();
     this.buildHUD();
+    this.buildQuestPanel();
+    this.showLoginReward();
     this.buildPageDots();
     this.setupScroll();
 
@@ -447,6 +450,112 @@ export class WorldMapScene extends Phaser.Scene {
     for (const key of ['bg', 'shadow', 'label', 'zone']) {
       if (obj[key] && obj[key].setScrollFactor) obj[key].setScrollFactor(factor);
     }
+  }
+
+  buildQuestPanel() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const quests = getDailyQuests();
+    const progress = getQuestProgress(this.save);
+    const panelX = area.right - 200;
+    const panelY = area.top + 170;
+    const panelW = 340;
+    const panelH = 160;
+
+    const bg = this.add.graphics().setScrollFactor(0).setDepth(900);
+    bg.fillStyle(0xf5ead0, 0.9);
+    bg.fillRoundedRect(panelX - panelW / 2, panelY - panelH / 2, panelW, panelH, 14);
+    bg.lineStyle(2, 0xd4a840, 0.7);
+    bg.strokeRoundedRect(panelX - panelW / 2, panelY - panelH / 2, panelW, panelH, 14);
+
+    const title = this.add.text(panelX, panelY - panelH / 2 + 16, 'DAILY QUESTS', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '14px', color: '#c06a10',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(901);
+
+    const tierColors = { easy: '#40a040', medium: '#d08020', hard: '#c03030' };
+    for (let i = 0; i < quests.length; i++) {
+      const q = quests[i];
+      const p = progress.quests[i];
+      const qy = panelY - panelH / 2 + 38 + i * 36;
+      const done = p.progress >= q.target;
+      const claimed = p.claimed;
+
+      const dot = this.add.circle(panelX - panelW / 2 + 16, qy + 6, 5,
+        claimed ? 0x40a040 : (done ? 0xf0c040 : 0x8a7a60)
+      ).setScrollFactor(0).setDepth(901);
+
+      const label = this.add.text(panelX - panelW / 2 + 28, qy, q.label, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '12px', color: claimed ? '#80a070' : '#3a2410',
+      }).setOrigin(0, 0).setScrollFactor(0).setDepth(901);
+
+      const prog = this.add.text(panelX + panelW / 2 - 16, qy,
+        claimed ? '✓' : `${Math.min(p.progress, q.target)}/${q.target}`, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '12px', color: claimed ? '#40a040' : (done ? '#f0c040' : '#8a7a60'),
+      }).setOrigin(1, 0).setScrollFactor(0).setDepth(901);
+
+      if (done && !claimed) {
+        const claimBtn = this.add.text(panelX + panelW / 2 - 14, qy, `+${q.reward}g`, {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+          fontSize: '13px', color: '#f0c040', stroke: '#3a1a00', strokeThickness: 2,
+        }).setOrigin(1, 0).setScrollFactor(0).setDepth(902).setInteractive({ useHandCursor: true });
+        claimBtn.on('pointerdown', () => {
+          const reward = claimQuestReward(this.save, i);
+          if (reward > 0) {
+            writeSave(this.save, this.slot);
+            audio.play('ui/confirm');
+            this.scene.restart();
+          }
+        });
+        prog.setVisible(false);
+      }
+    }
+  }
+
+  showLoginReward() {
+    const reward = getLoginReward(this.save);
+    if (!reward) return;
+    writeSave(this.save, this.slot);
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+      .setScrollFactor(0).setDepth(990).setInteractive();
+
+    const panel = this.add.graphics().setScrollFactor(0).setDepth(991);
+    panel.fillStyle(0xf5ead0, 0.95);
+    panel.fillRoundedRect(area.cx - 200, area.cy - 120, 400, 240, 20);
+    panel.lineStyle(3, 0xd4a840, 0.8);
+    panel.strokeRoundedRect(area.cx - 200, area.cy - 120, 400, 240, 20);
+
+    const title = this.add.text(area.cx, area.cy - 80, 'DAILY LOGIN REWARD!', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '28px', color: '#c06a10', stroke: '#3a1a00', strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(992);
+
+    const dayText = this.add.text(area.cx, area.cy - 30, `Day ${reward.streakDay} Streak`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '20px', color: '#3a2410',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(992);
+
+    const rewardText = this.add.text(area.cx, area.cy + 20, reward.label, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '36px', color: '#f0c040', stroke: '#3a1a00', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(992);
+
+    const okBtn = PaperButton(this, area.cx, area.cy + 80, 'COLLECT!', {
+      w: 200, h: 56, color: 0x58c848, fontSize: 22,
+      onClick: () => {
+        audio.play('ui/confirm');
+        [bg, panel, title, dayText, rewardText].forEach(o => o.destroy());
+        okBtn.bg.destroy(); okBtn.shadow.destroy(); okBtn.label.destroy();
+        if (okBtn.zone) okBtn.zone.destroy();
+      },
+    });
+    okBtn.bg.setScrollFactor(0).setDepth(993);
+    okBtn.shadow.setScrollFactor(0).setDepth(993);
+    okBtn.label.setScrollFactor(0).setDepth(993);
+    if (okBtn.zone) okBtn.zone.setScrollFactor(0).setDepth(993);
   }
 
   buildPageDots() {
