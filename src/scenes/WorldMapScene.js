@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
-import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
+import { loadSave, writeSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
+import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES, levelBonuses, getAvailableSupers, LEVEL_THRESHOLDS, getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
@@ -365,17 +365,33 @@ export class WorldMapScene extends Phaser.Scene {
         color: 0xffffff, alpha: 0.95, radius: 16,
       });
       this.setScrollFactorDeep(partyPanel, 0);
+      partyPanel.bg.setInteractive({ useHandCursor: true });
+      partyPanel.bg.on('pointerup', () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.PARTY_SELECT, {
+          grade: this.save.grade,
+          returnScene: SCENES.WORLD_MAP,
+        }, 200);
+      });
       const partyLabel = this.add.text(stripCx - stripW / 2 + 12, stripY - 24, 'PARTY', {
         ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
       }).setScrollFactor(0);
+      const editHint = this.add.text(stripCx + stripW / 2 - 12, stripY - 24, 'TAP TO EDIT', {
+        ...TEXT.stat(), fontSize: '9px', color: '#8a7a60',
+      }).setOrigin(1, 0).setScrollFactor(0);
       for (let i = 0; i < 3; i++) {
         const hx = stripCx - stripW / 2 + 50 + i * 65;
         const slot = this.save.party[i];
         if (slot) {
-          const def = getHeroById(slot.id);
-          if (def) {
-            const img = drawHeroSprite(this, hx, stripY - 4, def, { scale: 0.35 });
+          const heroDef = getHeroById(slot.id);
+          if (heroDef) {
+            const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35 });
             img.setScrollFactor(0);
+            img.setInteractive({ useHandCursor: true });
+            img.on('pointerup', () => {
+              audio.play('ui/click');
+              this.showHeroDetail(slot.id);
+            });
           }
         }
       }
@@ -684,5 +700,123 @@ export class WorldMapScene extends Phaser.Scene {
     } else {
       transitionTo(this, SCENES.MAZE, { floor: floorId }, 300);
     }
+  }
+
+  showHeroDetail(heroId) {
+    if (this._detailOpen) return;
+    this._detailOpen = true;
+    const hero = getHeroById(heroId);
+    if (!hero) return;
+    const elements = [];
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const cx = area.cx, cy = area.cy;
+    const pw = 520, ph = 620;
+
+    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+      .setScrollFactor(0).setDepth(950).setInteractive();
+    elements.push(dim);
+
+    const panel = this.add.graphics().setScrollFactor(0).setDepth(951);
+    panel.fillStyle(0xf5ead0, 0.97);
+    panel.fillRoundedRect(cx - pw / 2, cy - ph / 2, pw, ph, 22);
+    panel.lineStyle(3, 0xd4a840, 0.8);
+    panel.strokeRoundedRect(cx - pw / 2, cy - ph / 2, pw, ph, 22);
+    elements.push(panel);
+
+    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1 });
+    portrait.setScrollFactor(0).setDepth(952);
+    elements.push(portrait);
+
+    const nameT = this.add.text(cx, cy - 90, hero.name.toUpperCase(), {
+      ...TEXT.title(), fontSize: '30px', color: '#d07818',
+      stroke: '#fff8e0', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(nameT);
+
+    const classLabel = hero.class.charAt(0).toUpperCase() + hero.class.slice(1);
+    const rarCol = getRarityColor(hero.rarity);
+    const classT = this.add.text(cx, cy - 58, `${classLabel} — ${getRarityLabel(hero.rarity)}`, {
+      ...TEXT.body(), fontSize: '16px', color: rarCol.main || '#5a3820',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(classT);
+
+    const partyEntry = (this.save.party || []).find(p => p.id === heroId);
+    const level = partyEntry?.level || 1;
+    const xp = partyEntry?.xp || 0;
+    const bonus = levelBonuses(level);
+    const hp = hero.maxHp + bonus.maxHp;
+    const atk = hero.atk + bonus.atk;
+    const def = hero.def + bonus.def;
+
+    const levelT = this.add.text(cx, cy - 8, `LEVEL ${level}`, {
+      ...TEXT.heading(), fontSize: '26px', color: '#3a2410',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(levelT);
+
+    const nextXp = level < LEVEL_THRESHOLDS.length - 1 ? LEVEL_THRESHOLDS[level + 1] : LEVEL_THRESHOLDS[level];
+    const currXp = level < LEVEL_THRESHOLDS.length - 1 ? LEVEL_THRESHOLDS[level] : nextXp;
+    const frac = nextXp > currXp ? (xp - currXp) / (nextXp - currXp) : 1;
+
+    const barW = 260, barH = 18, barX = cx - barW / 2, barY = cy + 18;
+    const barBg = this.add.graphics().setScrollFactor(0).setDepth(952);
+    barBg.fillStyle(0x3a2410, 0.3);
+    barBg.fillRoundedRect(barX, barY, barW, barH, 8);
+    barBg.fillStyle(0x40a848, 0.9);
+    barBg.fillRoundedRect(barX, barY, Math.max(barW * frac, 8), barH, 8);
+    elements.push(barBg);
+
+    const xpT = this.add.text(cx, barY + barH / 2, `${xp} / ${nextXp} XP`, {
+      ...TEXT.stat(), fontSize: '11px', color: '#ffffff',
+    }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(953);
+    elements.push(xpT);
+
+    const statsT = this.add.text(cx, cy + 58, `HP ${hp}    ATK ${atk}    DEF ${def}`, {
+      ...TEXT.heading(), fontSize: '20px', color: '#3a2410',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(statsT);
+
+    if (level > 1) {
+      const bonusT = this.add.text(cx, cy + 82, `(+${bonus.maxHp} HP  +${bonus.atk} ATK  +${bonus.def} DEF from level)`, {
+        ...TEXT.stat(), fontSize: '11px', color: '#6a8a40',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+      elements.push(bonusT);
+    }
+
+    const supersY = cy + 112;
+    const supersTitle = this.add.text(cx, supersY, 'SUPER MOVES', {
+      ...TEXT.heading(), fontSize: '16px', color: '#c06a10',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(supersTitle);
+
+    const allSupers = hero.superMoves || [];
+    allSupers.forEach((s, i) => {
+      const sy = supersY + 28 + i * 30;
+      const unlocked = level >= (s.unlockLevel || 1);
+      const icon = unlocked ? '⚔' : '🔒';
+      const txt = this.add.text(cx - 100, sy, `${icon}  ${s.name}`, {
+        ...TEXT.body(), fontSize: '15px',
+        color: unlocked ? '#3a2410' : '#8a7a60',
+      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(952);
+      elements.push(txt);
+      const mult = this.add.text(cx + 100, sy, unlocked ? `${s.multiplier}x` : `Lv ${s.unlockLevel}`, {
+        ...TEXT.stat(), fontSize: '13px',
+        color: unlocked ? '#d07818' : '#8a7a60',
+      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(952);
+      elements.push(mult);
+    });
+
+    const closeBtn = PaperButton(this, cx, cy + ph / 2 - 40, 'CLOSE', {
+      w: 180, h: 50, color: 0xd07818, fontSize: 20, textColor: '#fff8e0',
+      onClick: () => {
+        elements.forEach(e => { if (e && e.destroy) e.destroy(); });
+        closeBtn.bg.destroy(); closeBtn.shadow.destroy();
+        closeBtn.label.destroy(); if (closeBtn.zone) closeBtn.zone.destroy();
+        this._detailOpen = false;
+      },
+    });
+    closeBtn.bg.setScrollFactor(0).setDepth(953);
+    closeBtn.shadow.setScrollFactor(0).setDepth(953);
+    closeBtn.label.setScrollFactor(0).setDepth(953);
+    if (closeBtn.zone) closeBtn.zone.setScrollFactor(0).setDepth(953);
   }
 }

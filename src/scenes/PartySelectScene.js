@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { KNIGHTS, WIZARDS, BUNNIES, spawnHero } from '../data/heroes.js';
+import { KNIGHTS, WIZARDS, BUNNIES, spawnHero, getAvailableSupers, levelBonuses, computeLevel, LEVEL_THRESHOLDS, getHeroById } from '../data/heroes.js';
 import { loadSave, writeSave, makeDefaultSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { DIALOGUE } from '../data/dialogue.js';
@@ -21,6 +21,8 @@ export class PartySelectScene extends Phaser.Scene {
 
   init(data) {
     this.grade = data?.grade ?? 3;
+    this.returnScene = data?.returnScene || null;
+    this.editMode = !!this.returnScene;
     this.selections = [];
     this.activeClass = 'knight';
     this.classes = { knight: KNIGHTS, wizard: WIZARDS, bunny: BUNNIES };
@@ -241,6 +243,15 @@ export class PartySelectScene extends Phaser.Scene {
       this.toggleHeroSelection(this.activeClass, heroIndex);
     });
 
+    const infoBtn = PaperButton(this, x + w / 2 - 20, y + h / 2 - 16, 'i', {
+      w: 32, h: 32, color: 0x4080c0, fontSize: 16, textColor: '#ffffff',
+      onClick: () => {
+        audio.play('ui/click');
+        this.showHeroDetail(hero);
+      },
+    });
+    this.heroCardContainer.add([infoBtn.bg, infoBtn.shadow, infoBtn.label, infoBtn.zone]);
+
     this.heroCardContainer.add([card.shadow, card.bg, portrait, name, trait, stats, rarBadge, rarText, card.zone]);
   }
 
@@ -387,8 +398,20 @@ export class PartySelectScene extends Phaser.Scene {
     if (this.selections.length < 3) return;
     audio.play('ui/confirm');
     const party = this.selections.map((s) => spawnHero(this.classes[s.class][s.index].id));
-
     const save = loadSave(this.slot);
+
+    if (this.editMode) {
+      const oldParty = save.party || [];
+      save.party = party.map((h) => {
+        const existing = oldParty.find(p => p.id === h.id);
+        if (existing) return { ...existing, hp: existing.maxHp };
+        return { id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp, xp: 0, level: 1 };
+      });
+      writeSave(save, this.slot);
+      transitionTo(this, this.returnScene, undefined, 300);
+      return;
+    }
+
     const fresh = makeDefaultSave();
     save.grade = this.grade;
     save.party = party.map((h) => ({ id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp }));
@@ -410,5 +433,127 @@ export class PartySelectScene extends Phaser.Scene {
     } else {
       transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
     }
+  }
+
+  showHeroDetail(hero) {
+    if (this._detailOpen) return;
+    this._detailOpen = true;
+    const elements = [];
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const cx = area.cx, cy = area.cy;
+    const pw = 520, ph = 620;
+
+    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+      .setDepth(950).setInteractive();
+    elements.push(dim);
+
+    const panel = this.add.graphics().setDepth(951);
+    panel.fillStyle(0xf5ead0, 0.97);
+    panel.fillRoundedRect(cx - pw / 2, cy - ph / 2, pw, ph, 22);
+    panel.lineStyle(3, 0xd4a840, 0.8);
+    panel.strokeRoundedRect(cx - pw / 2, cy - ph / 2, pw, ph, 22);
+    elements.push(panel);
+
+    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1 });
+    portrait.setDepth(952);
+    elements.push(portrait);
+
+    const nameT = this.add.text(cx, cy - 90, hero.name.toUpperCase(), {
+      ...TEXT.title(), fontSize: '30px', color: '#d07818',
+      stroke: '#fff8e0', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(952);
+    elements.push(nameT);
+
+    const classLabel = hero.class.charAt(0).toUpperCase() + hero.class.slice(1);
+    const rarCol = getRarityColor(hero.rarity);
+    const classT = this.add.text(cx, cy - 58, `${classLabel} — ${getRarityLabel(hero.rarity)}`, {
+      ...TEXT.body(), fontSize: '16px', color: rarCol.main || '#5a3820',
+    }).setOrigin(0.5).setDepth(952);
+    elements.push(classT);
+
+    const traitT = this.add.text(cx, cy - 36, hero.trait, {
+      ...TEXT.body(), fontSize: '14px', color: '#6a5a40', fontStyle: 'italic',
+    }).setOrigin(0.5).setDepth(952);
+    elements.push(traitT);
+
+    const partyEntry = (this.save.party || []).find(p => p.id === hero.id);
+    const level = partyEntry?.level || 1;
+    const xp = partyEntry?.xp || 0;
+    const bonus = levelBonuses(level);
+    const hp = hero.maxHp + bonus.maxHp;
+    const atk = hero.atk + bonus.atk;
+    const def = hero.def + bonus.def;
+
+    const levelT = this.add.text(cx, cy - 8, `LEVEL ${level}`, {
+      ...TEXT.heading(), fontSize: '26px', color: '#3a2410',
+    }).setOrigin(0.5).setDepth(952);
+    elements.push(levelT);
+
+    const nextXp = level < LEVEL_THRESHOLDS.length - 1 ? LEVEL_THRESHOLDS[level + 1] : LEVEL_THRESHOLDS[level];
+    const currXp = level < LEVEL_THRESHOLDS.length - 1 ? LEVEL_THRESHOLDS[level] : nextXp;
+    const frac = nextXp > currXp ? (xp - currXp) / (nextXp - currXp) : 1;
+
+    const barW = 260, barH = 18, barX = cx - barW / 2, barY = cy + 18;
+    const barBg = this.add.graphics().setDepth(952);
+    barBg.fillStyle(0x3a2410, 0.3);
+    barBg.fillRoundedRect(barX, barY, barW, barH, 8);
+    barBg.fillStyle(0x40a848, 0.9);
+    barBg.fillRoundedRect(barX, barY, Math.max(barW * frac, 8), barH, 8);
+    elements.push(barBg);
+
+    const xpT = this.add.text(cx, barY + barH / 2, `${xp} / ${nextXp} XP`, {
+      ...TEXT.stat(), fontSize: '11px', color: '#ffffff',
+    }).setOrigin(0.5, 0.5).setDepth(953);
+    elements.push(xpT);
+
+    const statsY = cy + 58;
+    const statsT = this.add.text(cx, statsY, `HP ${hp}    ATK ${atk}    DEF ${def}`, {
+      ...TEXT.heading(), fontSize: '20px', color: '#3a2410',
+    }).setOrigin(0.5).setDepth(952);
+    elements.push(statsT);
+
+    if (level > 1) {
+      const bonusT = this.add.text(cx, statsY + 24, `(+${bonus.maxHp} HP  +${bonus.atk} ATK  +${bonus.def} DEF from level)`, {
+        ...TEXT.stat(), fontSize: '11px', color: '#6a8a40',
+      }).setOrigin(0.5).setDepth(952);
+      elements.push(bonusT);
+    }
+
+    const supersY = statsY + 56;
+    const supersTitle = this.add.text(cx, supersY, 'SUPER MOVES', {
+      ...TEXT.heading(), fontSize: '16px', color: '#c06a10',
+    }).setOrigin(0.5).setDepth(952);
+    elements.push(supersTitle);
+
+    const allSupers = hero.superMoves || [];
+    allSupers.forEach((s, i) => {
+      const sy = supersY + 28 + i * 30;
+      const unlocked = level >= (s.unlockLevel || 1);
+      const icon = unlocked ? '⚔' : '🔒';
+      const txt = this.add.text(cx - 100, sy, `${icon}  ${s.name}`, {
+        ...TEXT.body(), fontSize: '15px',
+        color: unlocked ? '#3a2410' : '#8a7a60',
+      }).setOrigin(0, 0.5).setDepth(952);
+      elements.push(txt);
+      const mult = this.add.text(cx + 100, sy, unlocked ? `${s.multiplier}x` : `Lv ${s.unlockLevel}`, {
+        ...TEXT.stat(), fontSize: '13px',
+        color: unlocked ? '#d07818' : '#8a7a60',
+      }).setOrigin(0, 0.5).setDepth(952);
+      elements.push(mult);
+    });
+
+    const closeBtn = PaperButton(this, cx, cy + ph / 2 - 40, 'CLOSE', {
+      w: 180, h: 50, color: 0xd07818, fontSize: 20, textColor: '#fff8e0',
+      onClick: () => {
+        elements.forEach(e => { if (e && e.destroy) e.destroy(); });
+        closeBtn.bg.destroy(); closeBtn.shadow.destroy();
+        closeBtn.label.destroy(); if (closeBtn.zone) closeBtn.zone.destroy();
+        this._detailOpen = false;
+      },
+    });
+    closeBtn.bg.setDepth(953);
+    closeBtn.shadow.setDepth(953);
+    closeBtn.label.setDepth(953);
+    if (closeBtn.zone) closeBtn.zone.setDepth(953);
   }
 }
