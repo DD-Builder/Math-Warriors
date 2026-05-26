@@ -123,10 +123,10 @@ export class CutsceneScene extends Phaser.Scene {
       this.positionBubble('right');
       this.drawBubbleBackground('right', isWide);
     } else if (panel.type === 'party') {
-      this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.88, line.speaker, 60);
       this.drawPartyHeroes();
-      this.positionBubble('center');
-      this.drawBubbleBackground('center', false);
+      this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.30, line.speaker, 50);
+      this.positionBubble('party');
+      this.drawBubbleBackground('party', false);
     } else {
       this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
       this.positionBubble('left');
@@ -240,9 +240,9 @@ export class CutsceneScene extends Phaser.Scene {
   drawPartyHeroes() {
     const party = this.save.party || [];
     const positions = [
-      { x: GAME_WIDTH * 0.22, y: GAME_HEIGHT * 0.62 },
-      { x: GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.55 },
-      { x: GAME_WIDTH * 0.78, y: GAME_HEIGHT * 0.62 },
+      { x: GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.74 },
+      { x: GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.70 },
+      { x: GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.74 },
     ];
     for (let i = 0; i < Math.min(3, party.length); i++) {
       const slot = party[i];
@@ -250,7 +250,7 @@ export class CutsceneScene extends Phaser.Scene {
       const def = getHeroById(slot.id);
       if (!def) continue;
       const pos = positions[i];
-      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.8 });
+      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.2 });
       this.artContainer.add(img);
     }
   }
@@ -273,6 +273,9 @@ export class CutsceneScene extends Phaser.Scene {
     } else if (layout === 'right') {
       bx = GAME_WIDTH * 0.02;
       by = GAME_HEIGHT * 0.25;
+    } else if (layout === 'party') {
+      bx = GAME_WIDTH * 0.19;
+      by = GAME_HEIGHT * 0.08;
     } else {
       bx = GAME_WIDTH * 0.19;
       by = GAME_HEIGHT * 0.25;
@@ -285,7 +288,7 @@ export class CutsceneScene extends Phaser.Scene {
 
   drawBubbleBackground(layout, isWide) {
     let bx, bw;
-    if (layout === 'center') {
+    if (layout === 'party') {
       bx = GAME_WIDTH * 0.19;
       bw = GAME_WIDTH * 0.55;
     } else if (layout === 'right') {
@@ -299,8 +302,8 @@ export class CutsceneScene extends Phaser.Scene {
       bx = GAME_WIDTH * 0.12;
       bw = GAME_WIDTH * 0.76;
     }
-    const by = GAME_HEIGHT * 0.25;
-    const bh = isWide ? 220 : 200;
+    const by = layout === 'party' ? GAME_HEIGHT * 0.08 : GAME_HEIGHT * 0.25;
+    const bh = isWide ? 220 : 180;
 
     this.bubbleGfx.fillStyle(0x000000, 0.15);
     this.bubbleGfx.fillRoundedRect(bx + 4, by + 6, bw, bh, 20);
