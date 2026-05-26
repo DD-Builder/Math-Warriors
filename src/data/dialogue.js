@@ -44,16 +44,16 @@ export const DIALOGUE = {
 
   // ── FLOOR 1: THE GARDEN ──
   floor1_entry: [
-    { speaker: 'Elder Fairy', text: 'This is the Garden of Addition.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Walk carefully. Thorns listen.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Three fairies are trapped here!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Free them to find the treasure.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Welcome to the Garden!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Addition makes things grow here.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Free three fairies from cages!', side: 'left' },
     { speaker: 'Elder Fairy', text: 'Then find the Rune Stones.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'The boss guards the Fragment.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'The Briar King guards the way.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Add your strength! You can do it!', side: 'left' },
   ],
   floor1_boss: [
-    { speaker: 'Briar King', text: 'Wrong answers make me STRONGER!', sprite: 'briarking', side: 'right' },
-    { speaker: 'Narrator', text: 'Answer fast! It grows each turn!', wide: true },
+    { speaker: 'Briar King', text: 'My vines ADD up every second!', sprite: 'briarking', side: 'right' },
+    { speaker: 'Narrator', text: 'Add fast to cut through!', wide: true },
   ],
   floor1_victory: [
     { speaker: 'Elder Fairy', text: 'The Addition Fragment glows!', side: 'left' },
@@ -63,15 +63,16 @@ export const DIALOGUE = {
 
   // ── FLOOR 2: TIDEPOOL RUINS ──
   floor2_entry: [
-    { speaker: 'Water Fairy', text: 'Oh no! The tides are rising!', side: 'left' },
-    { speaker: 'Water Fairy', text: "We'll drown if we don't act!", side: 'left' },
-    { speaker: 'Water Fairy', text: 'Find three drain valves!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Then seal the Coral Keys!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Please hurry! Please!', side: 'left' },
+    { speaker: 'Water Fairy', text: 'Welcome to the Tidepool Ruins!', side: 'left' },
+    { speaker: 'Water Fairy', text: 'Subtraction drains the water!', side: 'left' },
+    { speaker: 'Water Fairy', text: 'Turn three drain valves!', side: 'left' },
+    { speaker: 'Water Fairy', text: 'Then find the Coral Keys.', side: 'left' },
+    { speaker: 'Water Fairy', text: 'The Pressure lurks below...', side: 'left' },
+    { speaker: 'Water Fairy', text: 'Subtract the flood! Hurry!', side: 'left' },
   ],
   floor2_boss: [
-    { speaker: 'The Pressure', text: 'Down, down, down you go...', sprite: 'pressure', side: 'right' },
-    { speaker: 'Narrator', text: 'Subtract its power! Quickly!', wide: true },
+    { speaker: 'The Pressure', text: 'The deeper you go, the less air!', sprite: 'pressure', side: 'right' },
+    { speaker: 'Narrator', text: 'Subtract its strength! Fast!', wide: true },
   ],
   floor2_victory: [
     { speaker: 'Water Fairy', text: 'Oh thank goodness! We did it!', side: 'left' },
@@ -81,15 +82,16 @@ export const DIALOGUE = {
 
   // ── FLOOR 3: CLOUD MAZE ──
   floor3_entry: [
-    { speaker: 'Sky Fairy', text: 'Ha! A storm? I LOVE storms!', side: 'left' },
-    { speaker: 'Sky Fairy', text: "Don't worry. I know these skies.", side: 'left' },
+    { speaker: 'Sky Fairy', text: 'Welcome to the Cloud Maze!', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'Multiply the light to clear it!', side: 'left' },
     { speaker: 'Sky Fairy', text: 'Light three sky beacons!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Then ring the Wind Chimes!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Follow me! Onward and up!', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'Then ring the Wind Chimes.', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'The Skywhale hides in clouds...', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'Multiply your courage! Go!', side: 'left' },
   ],
   floor3_boss: [
-    { speaker: 'Skywhale', text: 'One of me? Try a THOUSAND!', sprite: 'skywhale', side: 'right' },
-    { speaker: 'Narrator', text: 'Multiply to shrink it down!', wide: true },
+    { speaker: 'Skywhale', text: 'I MULTIPLY with every breath!', sprite: 'skywhale', side: 'right' },
+    { speaker: 'Narrator', text: 'Multiply faster than it grows!', wide: true },
   ],
   floor3_victory: [
     { speaker: 'Sky Fairy', text: 'HA! That whale had no chance!', side: 'left' },
@@ -99,15 +101,16 @@ export const DIALOGUE = {
 
   // ── FLOOR 4: EMBER CAVES ──
   floor4_entry: [
-    { speaker: 'Fire Fairy', text: 'The caves crack open! Move!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Lava pours through the cracks.', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'Welcome to the Ember Caves!', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'Division splits the lava flow!', side: 'left' },
     { speaker: 'Fire Fairy', text: 'Seal three volcanic vents!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Then build the Lava Bridges!', side: 'left' },
-    { speaker: 'Fire Fairy', text: "No time to waste. Let's GO!", side: 'left' },
+    { speaker: 'Fire Fairy', text: 'Then build the Lava Bridges.', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'Pyroclast burns deep inside...', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'Divide and conquer! Move!', side: 'left' },
   ],
   floor4_boss: [
-    { speaker: 'Pyroclast', text: "I'll split you into pieces!", sprite: 'pyroclast', side: 'right' },
-    { speaker: 'Narrator', text: 'Use division to break through!', wide: true },
+    { speaker: 'Pyroclast', text: "I'll DIVIDE you to nothing!", sprite: 'pyroclast', side: 'right' },
+    { speaker: 'Narrator', text: 'Divide to break it apart!', wide: true },
   ],
   floor4_victory: [
     { speaker: 'Fire Fairy', text: 'The lava cools. We survived.', side: 'left' },
@@ -117,15 +120,16 @@ export const DIALOGUE = {
 
   // ── FLOOR 5: FROZEN PEAK ──
   floor5_entry: [
-    { speaker: 'Ice Fairy', text: 'B-brrr! I c-can barely move!', side: 'left' },
-    { speaker: 'Ice Fairy', text: "It's all f-frozen solid!", side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Find three frozen c-crystals!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Then melt the Thaw Crystals!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'S-stay warm out there!', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'W-welcome to Frozen Peak!', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'Use every math skill to thaw!', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'Find three f-frozen crystals!', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'Then melt the Thaw Crystals.', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'Absolute Zero waits in ice...', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'All your skills together! Go!', side: 'left' },
   ],
   floor5_boss: [
-    { speaker: 'Absolute Zero', text: 'Your courage... freezing.', sprite: 'absolutezero', side: 'right' },
-    { speaker: 'Narrator', text: 'Fractions can crack the ice!', wide: true },
+    { speaker: 'Absolute Zero', text: 'Every answer freezes here!', sprite: 'absolutezero', side: 'right' },
+    { speaker: 'Narrator', text: 'Use every skill to melt it!', wide: true },
   ],
   floor5_victory: [
     { speaker: 'Ice Fairy', text: 'The ice melts! I can move!', side: 'left' },
@@ -135,11 +139,12 @@ export const DIALOGUE = {
 
   // ── FLOOR 6: CRYSTAL CAVERNS ──
   floor6_entry: [
-    { speaker: 'Crystal Fairy', text: 'Fascinating. Every facet is data.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'The patterns follow geometry.', side: 'left' },
+    { speaker: 'Crystal Fairy', text: 'Welcome to Crystal Caverns.', side: 'left' },
+    { speaker: 'Crystal Fairy', text: 'Fractions shape every crystal.', side: 'left' },
     { speaker: 'Crystal Fairy', text: 'Collect three geo shards.', side: 'left' },
     { speaker: 'Crystal Fairy', text: 'Then align the Prism Shards.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Precisely. No errors.', side: 'left' },
+    { speaker: 'Crystal Fairy', text: 'The Prism bends all light...', side: 'left' },
+    { speaker: 'Crystal Fairy', text: 'Piece the fractions together!', side: 'left' },
   ],
   floor6_boss: [
     { speaker: 'The Prism', text: 'Every angle hides a trick.', sprite: 'theprism', side: 'right' },
@@ -153,11 +158,12 @@ export const DIALOGUE = {
 
   // ── FLOOR 7: MARKET SQUARE ──
   floor7_entry: [
-    { speaker: 'Market Fairy', text: 'Ooh! Shiny coins everywhere!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'But careful! Most are FAKES!', side: 'left' },
+    { speaker: 'Market Fairy', text: 'Welcome to Market Square!', side: 'left' },
+    { speaker: 'Market Fairy', text: 'Money math spots the fakes!', side: 'left' },
     { speaker: 'Market Fairy', text: 'Find three real gold tokens!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'Then crack the Vault Seals!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'A good deal awaits the clever!', side: 'left' },
+    { speaker: 'Market Fairy', text: 'Then crack the Vault Seals.', side: 'left' },
+    { speaker: 'Market Fairy', text: 'The Counterfeiter hides here...', side: 'left' },
+    { speaker: 'Market Fairy', text: 'Count every coin! Let us go!', side: 'left' },
   ],
   floor7_boss: [
     { speaker: 'The Counterfeiter', text: "Real? Fake? I can't tell!", sprite: 'counterfeiter', side: 'right' },
@@ -171,11 +177,12 @@ export const DIALOGUE = {
 
   // ── FLOOR 8: INFINITY LIBRARY ──
   floor8_entry: [
-    { speaker: 'Book Fairy', text: 'Pages drift like lost poems...', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Every word has been scrambled.', side: 'left' },
+    { speaker: 'Book Fairy', text: 'Welcome to Infinity Library.', side: 'left' },
+    { speaker: 'Book Fairy', text: 'Word problems fill these shelves.', side: 'left' },
     { speaker: 'Book Fairy', text: 'Restore three lost pages.', side: 'left' },
     { speaker: 'Book Fairy', text: 'Then bind the Chapter Seals.', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Handle them gently, please.', side: 'left' },
+    { speaker: 'Book Fairy', text: 'The Paradox twists all words...', side: 'left' },
+    { speaker: 'Book Fairy', text: 'Read carefully and solve on!', side: 'left' },
   ],
   floor8_boss: [
     { speaker: 'The Paradox', text: "If I'm wrong, I'm right!", sprite: 'theparadox', side: 'right' },
@@ -189,12 +196,12 @@ export const DIALOGUE = {
 
   // ── FLOOR 9: THE MENDING ROOM ──
   floor9_entry: [
-    { speaker: 'All Fairies', text: 'Together at last!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'This is the Mending Room.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Place three equation pieces.', side: 'left' },
+    { speaker: 'All Fairies', text: 'The Mending Room! At last!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Every math skill matters here.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Place three equation fragments.', side: 'left' },
     { speaker: 'Elder Fairy', text: 'Then set the Equation Anchors.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'The Theorem awaits within...', side: 'left' },
     { speaker: 'All Fairies', text: 'Use EVERYTHING you learned!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'The final battle awaits.', side: 'left' },
   ],
   floor9_boss: [
     { speaker: 'The Theorem', text: 'I am every question you feared.', sprite: 'theorem', side: 'right' },

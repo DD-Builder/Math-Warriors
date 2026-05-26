@@ -769,6 +769,13 @@ function LV_drawValve(sx, sy, ts, o, t) {
   }
   // Center hub
   LV_cut(col, 2, function () { _G.arc(x, y, ts * 0.07, 0, Math.PI * 2); });
+  // Water drips below (when not open)
+  if (!o.open) {
+    var dripY = y + radius + ts * 0.08 + Math.sin(t * 4) * ts * 0.06;
+    _G.fillStyle = 'rgba(64,160,220,0.6)';
+    _G.beginPath(); _G.arc(x, dripY, ts * 0.04, 0, Math.PI * 2); _G.fill();
+    _G.beginPath(); _G.arc(x - ts * 0.12, dripY + ts * 0.04, ts * 0.025, 0, Math.PI * 2); _G.fill();
+  }
   _G.restore();
 }
 
@@ -921,6 +928,40 @@ function LV_drawPage(sx, sy, ts, o, t) {
   LV_cut('#f0e8d0', 1, function () { _G.rect(x - ts * 0.08, fy - ts * 0.12, ts * 0.16, ts * 0.24); });
   for (var l = 0; l < 3; l++) { LV_cut('#806040', 0, function () { _G.rect(x - ts * 0.06, fy - ts * 0.08 + l * ts * 0.08, ts * 0.12, ts * 0.015); }); }
 }
+
+function LV_drawPhase2Item(sx, sy, ts, o, t, mainCol, glowCol, shape) {
+  var x = sx + ts * 0.5, y = sy + ts * 0.5;
+  var bob = Math.sin(t * 2.5) * ts * 0.04;
+  var pulse = 0.3 + Math.sin(t * 3) * 0.15;
+  _G.save(); _G.globalAlpha = pulse; _G.fillStyle = glowCol;
+  _G.beginPath(); _G.arc(x, y + bob, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
+  _G.save(); _G.translate(x, y + bob);
+  if (shape === 'diamond') {
+    var s = ts * 0.14;
+    LV_cut(mainCol, 3, function () { _G.moveTo(0, -s); _G.lineTo(s, 0); _G.lineTo(0, s); _G.lineTo(-s, 0); });
+  } else if (shape === 'circle') {
+    LV_cut(mainCol, 3, function () { _G.arc(0, 0, ts * 0.12, 0, Math.PI * 2); });
+  } else if (shape === 'key') {
+    LV_cut(mainCol, 3, function () { _G.arc(0, -ts * 0.06, ts * 0.08, 0, Math.PI * 2); });
+    LV_cut(mainCol, 2, function () { _G.rect(-ts * 0.025, -ts * 0.02, ts * 0.05, ts * 0.16); });
+  } else {
+    LV_cut(mainCol, 3, function () { _G.moveTo(0, -ts * 0.14); _G.lineTo(ts * 0.12, ts * 0.08); _G.lineTo(-ts * 0.12, ts * 0.08); });
+  }
+  _G.restore();
+  var sparkX = x + Math.sin(t * 5) * ts * 0.15, sparkY = y + bob - ts * 0.1 + Math.cos(t * 4) * ts * 0.08;
+  _G.save(); _G.globalAlpha = 0.6 + Math.sin(t * 6) * 0.3; _G.fillStyle = '#ffffff';
+  _G.beginPath(); _G.arc(sparkX, sparkY, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
+}
+
+function LV_drawRune(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#60c080', '#40a060', 'diamond'); }
+function LV_drawCoralKey(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f08070', '#e06050', 'key'); }
+function LV_drawWindChime(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#c0d8f0', '#80b0e0', 'triangle'); }
+function LV_drawLavaBridge(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#d07030', '#c05020', 'diamond'); }
+function LV_drawThawCrystal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f0a040', '#e08020', 'diamond'); }
+function LV_drawPrismShard(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#d080f0', '#b060e0', 'triangle'); }
+function LV_drawVaultSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#b0a080', '#908060', 'circle'); }
+function LV_drawChapterSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#c0a070', '#a08050', 'diamond'); }
+function LV_drawEqAnchor(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f0c040', '#d0a020', 'circle'); }
 
 function LV_drawGoldChest(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.55;
@@ -1147,6 +1188,15 @@ function LV_draw(t) {
     else if (o.type === 'geoshard') LV_drawGeoshard(osx, osy, ts, o, t);
     else if (o.type === 'token') LV_drawToken(osx, osy, ts, o, t);
     else if (o.type === 'page') LV_drawPage(osx, osy, ts, o, t);
+    else if (o.type === 'rune') LV_drawRune(osx, osy, ts, o, t);
+    else if (o.type === 'coralkey') LV_drawCoralKey(osx, osy, ts, o, t);
+    else if (o.type === 'windchime') LV_drawWindChime(osx, osy, ts, o, t);
+    else if (o.type === 'lavabridge') LV_drawLavaBridge(osx, osy, ts, o, t);
+    else if (o.type === 'thawcrystal') LV_drawThawCrystal(osx, osy, ts, o, t);
+    else if (o.type === 'prismshard') LV_drawPrismShard(osx, osy, ts, o, t);
+    else if (o.type === 'vaultseal') LV_drawVaultSeal(osx, osy, ts, o, t);
+    else if (o.type === 'chapterseal') LV_drawChapterSeal(osx, osy, ts, o, t);
+    else if (o.type === 'eqanchor') LV_drawEqAnchor(osx, osy, ts, o, t);
     else if (o.type === 'chest') LV_drawChest(osx, osy, ts, o);
     else if (o.type === 'potion') LV_drawPotion(osx, osy, ts, t);
     else if (o.type === 'gold') LV_drawGold(osx, osy, ts, o);
