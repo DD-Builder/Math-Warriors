@@ -613,6 +613,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     this.input.on('pointermove', (pointer) => {
       if (!dragging || !pointer.isDown) return;
+      if (this._arrowClicked) return;
       const dx = startX - pointer.x;
       if (Math.abs(dx) > 3) this._scrolling = true;
       const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, maxScreen * SCREEN_W);
