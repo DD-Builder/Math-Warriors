@@ -169,8 +169,9 @@ export class BattleScene extends Phaser.Scene {
     this.battleCorrect = 0;
     this.battleWrong = 0;
 
-    // Track whether the boss half-HP dialogue has been shown
+    // Track whether boss story dialogue has been shown
     this.bossHalfHpShown = false;
+    this.bossQuarterHpShown = false;
     // Track whether any hero took damage this battle (for perfectBattle achievement)
     this.battleDamageTaken = false;
 
@@ -1589,6 +1590,16 @@ export class BattleScene extends Phaser.Scene {
         }
       }
 
+      // Boss quarter-HP story beat
+      if (this.isBoss && !this.bossQuarterHpShown && targetEnemy.hp > 0 && targetEnemy.hp <= targetEnemy.maxHp / 4) {
+        this.bossQuarterHpShown = true;
+        const qKey = `floor${this.floor}_boss_quarter`;
+        const qDialogue = DIALOGUE[qKey];
+        if (qDialogue && qDialogue.length > 0) {
+          this.showToast(qDialogue[0].text, COLORS_CSS.goldL);
+        }
+      }
+
       // Check for kill IMMEDIATELY — don't wait for animations
       if (targetEnemy.hp <= 0) {
         this.hitFlash();
@@ -2742,15 +2753,21 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    // Encouraging messages — rotate through them
-    const msgs = [
-      "You'll get them next time!",
-      "Practice makes perfect!",
-      "Every try makes you stronger!",
-      "Don't give up — heroes never quit!",
-      "Take a breath and try again!",
-    ];
-    const msg = msgs[Math.floor(Math.random() * msgs.length)];
+    // Floor-specific or generic encouraging messages
+    const defeatKey = `floor${this.floor}_defeat`;
+    const defeatDialogue = DIALOGUE[defeatKey];
+    const msgs = defeatDialogue
+      ? defeatDialogue.map(d => d.text)
+      : [
+        "You'll get them next time!",
+        "Practice makes perfect!",
+        "Every try makes you stronger!",
+        "Don't give up — heroes never quit!",
+        "Take a breath and try again!",
+      ];
+    const msg = defeatDialogue
+      ? msgs.join(' ')
+      : msgs[Math.floor(Math.random() * msgs.length)];
 
     this.endOverlay.titleText.setText('RETREAT!');
     this.endOverlay.subText.setText(`Your party retreats to camp.\n${msg}`);

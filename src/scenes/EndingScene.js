@@ -5,6 +5,8 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { DialogueOverlay } from '../ui/DialogueOverlay.js';
+import { DIALOGUE } from '../data/dialogue.js';
 
 export class EndingScene extends Phaser.Scene {
   constructor() {
@@ -39,12 +41,15 @@ export class EndingScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setOrigin(0.5);
 
+    // Stats panel and buttons — hidden initially if epilogue exists
+    const hasEpilogue = DIALOGUE.game_ending && DIALOGUE.game_ending.length > 0;
+
     const statsY = area.cy + 20;
-    PaperPanel(this, area.cx, statsY, 600, 260, {
+    const statsPanel = PaperPanel(this, area.cx, statsY, 600, 260, {
       color: 0x1a0e04, alpha: 0.85, radius: 20,
     });
 
-    this.add.text(area.cx, statsY - 100, 'YOUR ADVENTURE', {
+    const statsTitle = this.add.text(area.cx, statsY - 100, 'YOUR ADVENTURE', {
       ...TEXT.heading(),
       fontSize: '24px',
       color: '#f0d040',
@@ -61,39 +66,47 @@ export class EndingScene extends Phaser.Scene {
       `Gold Earned: ${s.totalGold || save.gold}`,
       `Accuracy: ${accuracy}%`,
     ];
-    lines.forEach((line, i) => {
+    const statTexts = lines.map((line, i) =>
       this.add.text(area.cx, statsY - 50 + i * 36, line, {
         ...TEXT.body(),
         fontSize: '22px',
         color: '#f0e4cc',
-      }).setOrigin(0.5);
-    });
+      }).setOrigin(0.5)
+    );
 
-    // Check if all 9 floors are complete for Boss Rush unlock
     const allFloorsComplete = (save.floors || []).filter(f => f && f.complete).length >= 9;
-
     const btnY = allFloorsComplete ? area.bottom - 50 : area.bottom - 60;
 
+    const buttons = [];
     if (allFloorsComplete) {
-      PaperButton(this, area.cx, btnY - 80, 'BOSS RUSH', {
+      buttons.push(PaperButton(this, area.cx, btnY - 80, 'BOSS RUSH', {
         w: 300, h: 70, color: 0xc83030, fontSize: 26,
         textColor: '#fff8e0',
         onClick: () => {
           audio.play('ui/confirm');
           transitionTo(this, SCENES.BOSS_RUSH, undefined, 400);
         },
-      });
+      }));
     }
 
-    PaperButton(this, area.cx, btnY, 'PLAY AGAIN', {
+    buttons.push(PaperButton(this, area.cx, btnY, 'PLAY AGAIN', {
       w: 300, h: 70, color: 0xd07818, fontSize: 26,
       textColor: '#fff8e0',
       onClick: () => {
         audio.play('ui/confirm');
         transitionTo(this, SCENES.TITLE, undefined, 400);
       },
-    });
+    }));
 
+    // Hide stats elements if epilogue will play first
+    const statsElements = [statsPanel, statsTitle, ...statTexts, ...buttons].flat();
+    if (hasEpilogue) {
+      statsElements.forEach(el => {
+        if (el && el.setAlpha) el.setAlpha(0);
+      });
+    }
+
+    // Sparkle particles
     for (let i = 0; i < 30; i++) {
       const sx = Math.random() * GAME_WIDTH;
       const sy = Math.random() * GAME_HEIGHT;
@@ -109,6 +122,18 @@ export class EndingScene extends Phaser.Scene {
           star.setPosition(Math.random() * GAME_WIDTH, GAME_HEIGHT + 20);
           star.setAlpha(0.6);
         },
+      });
+    }
+
+    // Show epilogue dialogue, then reveal stats
+    if (hasEpilogue) {
+      const dialogue = new DialogueOverlay(this);
+      dialogue.show(DIALOGUE.game_ending).then(() => {
+        statsElements.forEach(el => {
+          if (el && el.setAlpha) {
+            this.tweens.add({ targets: el, alpha: 1, duration: 600 });
+          }
+        });
       });
     }
   }

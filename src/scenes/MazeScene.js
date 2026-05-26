@@ -83,6 +83,9 @@ export class MazeScene extends Phaser.Scene {
       this.challengeProgress = mazeState.fairiesFreed || 0;
       this.phase2Progress = mazeState.phase2Progress || 0;
       this.phase2Active = mazeState.phase2Active || false;
+      this.encountersFought = mazeState.encountersFought || 0;
+      this.midExploreShown = mazeState.midExploreShown || false;
+      this.fairyTalkShown = mazeState.fairyTalkShown || false;
     } else {
       // Fresh entry: reset state
       this.playerX = this.floor.startX;
@@ -93,6 +96,9 @@ export class MazeScene extends Phaser.Scene {
       this.challengeProgress = 0;
       this.phase2Progress = 0;
       this.phase2Active = false;
+      this.encountersFought = 0;
+      this.midExploreShown = false;
+      this.fairyTalkShown = false;
 
       // Hand-placed objects (chests, potions, boss, exit) keep their
       // designated positions. Encounter (monster) tiles get randomized
@@ -238,6 +244,19 @@ export class MazeScene extends Phaser.Scene {
           markDead(o.id);
         }
       });
+    }
+
+    // Mid-explore story beat after returning from battle
+    if (!this.freshEntry && !this.midExploreShown && this.encountersFought >= 2) {
+      const midKey = `floor${this.floorId}_mid_explore`;
+      if (DIALOGUE[midKey]) {
+        this.midExploreShown = true;
+        this.time.delayedCall(500, () => {
+          if (this.dialogue && !this.dialogue.active) {
+            this.dialogue.show(DIALOGUE[midKey]);
+          }
+        });
+      }
     }
 
     // Draw first frame and add as Phaser texture
@@ -1118,6 +1137,16 @@ export class MazeScene extends Phaser.Scene {
           this.showFloatText(obj.x, obj.y, `${ch.label} ${ch.verb}! ${remaining} left`, '#e088c0');
           if (this.challengeProgress === 1 && DIALOGUE.mid_floor_encourage) {
             this.dialogue.show(DIALOGUE.mid_floor_encourage);
+          } else if (this.challengeProgress === 2 && !this.fairyTalkShown) {
+            const talkKey = `floor${this.floorId}_fairy_talk`;
+            if (DIALOGUE[talkKey]) {
+              this.fairyTalkShown = true;
+              this.time.delayedCall(1500, () => {
+                if (this.dialogue && !this.dialogue.active) {
+                  this.dialogue.show(DIALOGUE[talkKey]);
+                }
+              });
+            }
           } else if (shouldShowTutorial('FIRST_FAIRY')) {
             markTutorialShown('FIRST_FAIRY');
             this.dialogue.show([{ speaker: 'Hint', text: getTutorialText('FIRST_FAIRY') }]);
@@ -1172,6 +1201,7 @@ export class MazeScene extends Phaser.Scene {
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/encounter');
+        this.encountersFought++;
         this.startBattle(false);
         break;
       }
@@ -1319,6 +1349,9 @@ export class MazeScene extends Phaser.Scene {
       hasKey: this.hasKey || false,
       phase2Progress: this.phase2Progress || 0,
       phase2Active: this.phase2Active || false,
+      encountersFought: this.encountersFought || 0,
+      midExploreShown: this.midExploreShown || false,
+      fairyTalkShown: this.fairyTalkShown || false,
     };
     this.registry.set(mazeStateKey(this.floorId), state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
