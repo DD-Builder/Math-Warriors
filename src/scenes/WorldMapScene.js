@@ -61,6 +61,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.currentScreen = startScreen;
     this.cameras.main.setScroll(startScreen * SCREEN_W, 0);
     this.updatePageDots();
+    this.updateArrows();
   }
 
   getMaxScreen() {
@@ -430,11 +431,12 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(dailyBtn, 0);
 
-    const arrowStyle = { w: 70, h: 70, color: 0xf0e4cc, fontSize: 28, textColor: '#3a2410' };
-    this.leftArrow = PaperButton(this, area.left + 50, area.cy, '◀', {
+    const arrowStyle = { w: 110, h: 60, color: 0xd0a040, fontSize: 20, textColor: '#fff8e0' };
+    this.leftArrow = PaperButton(this, area.left + 65, area.cy, 'PREV', {
       ...arrowStyle,
       onClick: () => {
         if (this.currentScreen > 0) {
+          this._arrowClicked = true;
           this.snapToScreen(this.currentScreen - 1);
           this._scrolling = true;
           this.time.delayedCall(350, () => { this._scrolling = false; });
@@ -443,10 +445,11 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(this.leftArrow, 0);
 
-    this.rightArrow = PaperButton(this, area.right - 50, area.cy, '▶', {
+    this.rightArrow = PaperButton(this, area.right - 65, area.cy, 'NEXT', {
       ...arrowStyle,
       onClick: () => {
         if (this.currentScreen < this.maxScreen) {
+          this._arrowClicked = true;
           this.snapToScreen(this.currentScreen + 1);
           this._scrolling = true;
           this.time.delayedCall(350, () => { this._scrolling = false; });
@@ -597,6 +600,7 @@ export class WorldMapScene extends Phaser.Scene {
     let startX = 0;
     let startScrollX = 0;
     this._scrolling = false;
+    this._arrowClicked = false;
 
     const maxScreen = this.getMaxScreen();
 
@@ -618,6 +622,11 @@ export class WorldMapScene extends Phaser.Scene {
     this.input.on('pointerup', (pointer) => {
       if (!dragging) return;
       dragging = false;
+      if (this._arrowClicked) {
+        this._arrowClicked = false;
+        this.time.delayedCall(350, () => { this._scrolling = false; });
+        return;
+      }
       if (!this._scrolling) {
         this.snapToScreen(Math.round(this.cameras.main.scrollX / SCREEN_W));
         return;
@@ -645,6 +654,16 @@ export class WorldMapScene extends Phaser.Scene {
       ease: 'Cubic.out',
     });
     this.updatePageDots();
+    this.updateArrows();
+  }
+
+  updateArrows() {
+    const showLeft = this.currentScreen > 0;
+    const showRight = this.currentScreen < this.maxScreen;
+    ['bg', 'shadow', 'label', 'zone'].forEach(k => {
+      if (this.leftArrow[k]) this.leftArrow[k].setVisible(showLeft);
+      if (this.rightArrow[k]) this.rightArrow[k].setVisible(showRight);
+    });
   }
 
   onDailyChallenge() {

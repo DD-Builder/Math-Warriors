@@ -96,12 +96,12 @@ export class SettingsScene extends Phaser.Scene {
       fontSize: '30px',
       color: '#d07818',
     }).setOrigin(0.5, 0.5);
-    PaperButton(this, area.cx + 100, gradeY, '◀', {
-      w: 52, h: 52, color: 0x4a6ca8, fontSize: 24,
+    PaperButton(this, area.cx + 100, gradeY, '-', {
+      w: 52, h: 52, color: 0x4a6ca8, fontSize: 28,
       onClick: () => this.changeGrade(-1),
     });
-    PaperButton(this, area.cx + 170, gradeY, '▶', {
-      w: 52, h: 52, color: 0x4a6ca8, fontSize: 24,
+    PaperButton(this, area.cx + 170, gradeY, '+', {
+      w: 52, h: 52, color: 0x4a6ca8, fontSize: 28,
       onClick: () => this.changeGrade(1),
     });
 
