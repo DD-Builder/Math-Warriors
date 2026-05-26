@@ -197,7 +197,7 @@ export class WorldMapScene extends Phaser.Scene {
         repeat: -1,
       });
       ring.on('pointerup', () => {
-        if (this._scrolling) return;
+        if (this._navLocked) return;
         audio.play('ui/confirm');
         this.enterFloor(info.id);
       });
@@ -325,11 +325,6 @@ export class WorldMapScene extends Phaser.Scene {
 
   buildHUD() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiCam = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    uiCam.setScroll(0, 0);
-    this.uiCam = uiCam;
-
-    const hudContainer = this.add.container(0, 0);
 
     const title = this.add.text(GAME_WIDTH / 2, 80, 'WORLD MAP', {
       ...TEXT.title(),
@@ -343,7 +338,6 @@ export class WorldMapScene extends Phaser.Scene {
       w: 180, h: 64, color: 0xffffff, fontSize: 22,
       textColor: '#b83820',
       onClick: () => {
-        if (this._scrolling) return;
         audio.play('ui/back');
         transitionTo(this, SCENES.TITLE);
       },
@@ -391,7 +385,6 @@ export class WorldMapScene extends Phaser.Scene {
       w: 150, h: 56, color: 0x4080c0, fontSize: 18,
       textColor: '#fff8e0',
       onClick: () => {
-        if (this._scrolling) return;
         audio.play('ui/click');
         transitionTo(this, SCENES.MASTERY, undefined, 200);
       },
@@ -402,7 +395,6 @@ export class WorldMapScene extends Phaser.Scene {
       w: 160, h: 56, color: 0xd07818, fontSize: 20,
       textColor: '#fff8e0',
       onClick: () => {
-        if (this._scrolling) return;
         audio.play('ui/click');
         transitionTo(this, SCENES.SHOP, undefined, 200);
       },
@@ -412,7 +404,6 @@ export class WorldMapScene extends Phaser.Scene {
     const settingsBtn = PaperButton(this, area.right - 60, area.bottom - 36, '⚙', {
       w: 100, h: 50, color: 0x4a6ca8, fontSize: 24,
       onClick: () => {
-        if (this._scrolling) return;
         audio.play('ui/click');
         transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
       },
@@ -424,7 +415,6 @@ export class WorldMapScene extends Phaser.Scene {
       w: 180, h: 50, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 18,
       textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
       onClick: () => {
-        if (this._scrolling) return;
         audio.play('ui/click');
         this.onDailyChallenge();
       },
@@ -434,27 +424,13 @@ export class WorldMapScene extends Phaser.Scene {
     const arrowStyle = { w: 110, h: 60, color: 0xd0a040, fontSize: 20, textColor: '#fff8e0' };
     this.leftArrow = PaperButton(this, area.left + 65, area.cy, 'PREV', {
       ...arrowStyle,
-      onClick: () => {
-        if (this.currentScreen > 0) {
-          this._arrowClicked = true;
-          this.snapToScreen(this.currentScreen - 1);
-          this._scrolling = true;
-          this.time.delayedCall(350, () => { this._scrolling = false; });
-        }
-      },
+      onClick: () => this.goScreen(this.currentScreen - 1),
     });
     this.setScrollFactorDeep(this.leftArrow, 0);
 
     this.rightArrow = PaperButton(this, area.right - 65, area.cy, 'NEXT', {
       ...arrowStyle,
-      onClick: () => {
-        if (this.currentScreen < this.maxScreen) {
-          this._arrowClicked = true;
-          this.snapToScreen(this.currentScreen + 1);
-          this._scrolling = true;
-          this.time.delayedCall(350, () => { this._scrolling = false; });
-        }
-      },
+      onClick: () => this.goScreen(this.currentScreen + 1),
     });
     this.setScrollFactorDeep(this.rightArrow, 0);
   }
@@ -596,63 +572,43 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   setupScroll() {
-    let dragging = false;
+    this._navLocked = false;
     let startX = 0;
-    let startScrollX = 0;
-    this._scrolling = false;
-    this._arrowClicked = false;
-
-    const maxScreen = this.getMaxScreen();
+    let didDrag = false;
 
     this.input.on('pointerdown', (pointer) => {
-      dragging = true;
-      this._scrolling = false;
       startX = pointer.x;
-      startScrollX = this.cameras.main.scrollX;
+      didDrag = false;
     });
 
     this.input.on('pointermove', (pointer) => {
-      if (!dragging || !pointer.isDown) return;
-      if (this._arrowClicked) return;
-      const dx = startX - pointer.x;
-      if (Math.abs(dx) > 3) this._scrolling = true;
-      const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, maxScreen * SCREEN_W);
-      this.cameras.main.setScroll(newScroll, 0);
+      if (!pointer.isDown || this._navLocked) return;
+      if (Math.abs(pointer.x - startX) > 30) didDrag = true;
     });
 
     this.input.on('pointerup', (pointer) => {
-      if (!dragging) return;
-      dragging = false;
-      if (this._arrowClicked) {
-        this._arrowClicked = false;
-        this.time.delayedCall(350, () => { this._scrolling = false; });
-        return;
-      }
-      if (!this._scrolling) {
-        this.snapToScreen(Math.round(this.cameras.main.scrollX / SCREEN_W));
-        return;
-      }
+      if (this._navLocked || !didDrag) return;
       const dx = startX - pointer.x;
-      const baseScreen = Math.round(startScrollX / SCREEN_W);
-      let target = baseScreen;
-      if (Math.abs(dx) > 50) {
-        target += dx > 0 ? 1 : -1;
-      } else {
-        target = Math.round(this.cameras.main.scrollX / SCREEN_W);
+      if (dx > 60) {
+        this.goScreen(this.currentScreen + 1);
+      } else if (dx < -60) {
+        this.goScreen(this.currentScreen - 1);
       }
-      target = Phaser.Math.Clamp(target, 0, maxScreen);
-      this.snapToScreen(target);
-      this.time.delayedCall(350, () => { this._scrolling = false; });
     });
   }
 
-  snapToScreen(screen) {
+  goScreen(screen) {
+    if (this._navLocked) return;
+    screen = Phaser.Math.Clamp(screen, 0, this.maxScreen);
+    if (screen === this.currentScreen) return;
+    this._navLocked = true;
     this.currentScreen = screen;
     this.tweens.add({
       targets: this.cameras.main,
       scrollX: screen * SCREEN_W,
       duration: 300,
       ease: 'Cubic.out',
+      onComplete: () => { this._navLocked = false; },
     });
     this.updatePageDots();
     this.updateArrows();
