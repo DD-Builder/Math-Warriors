@@ -735,7 +735,12 @@ export class MazeScene extends Phaser.Scene {
     this.hudPotions.setText(`${this.save.potions}`);
     if (this.hudChallenge) {
       const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
-      this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
+      if (this.phase2Active && ch.phase2) {
+        const p2 = ch.phase2;
+        this.hudChallenge.setText(`${p2.label} ${this.phase2Progress}/${p2.count}`);
+      } else {
+        this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
+      }
     }
   }
 
@@ -1091,10 +1096,13 @@ export class MazeScene extends Phaser.Scene {
           audio.play('world/chest');
           const p2 = this.floor.challenge.phase2;
           const p2remaining = p2.count - this.phase2Progress;
+          this.showChallengeEffect(obj.type);
           if (p2remaining > 0) {
             this.showFloatText(obj.x, obj.y, `${p2.label} ${p2.verb}! ${p2remaining} left`, '#f0c040');
           } else {
             this.showFloatText(obj.x, obj.y, p2.allDoneMsg, '#f0d040');
+            const p2Key = `floor${this.floorId}_phase2_done`;
+            if (DIALOGUE[p2Key]) this.dialogue.show(DIALOGUE[p2Key]);
           }
           this.updateHud();
           break;
@@ -1103,7 +1111,7 @@ export class MazeScene extends Phaser.Scene {
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/chest');
-        this.showFairyFlyAway();
+        this.showChallengeEffect(obj.type);
         const ch = this.floor.challenge || { count: 3, label: 'ITEM', verb: 'found', allDoneMsg: 'Challenge complete!' };
         const remaining = ch.count - this.challengeProgress;
         if (remaining > 0) {
@@ -1118,13 +1126,14 @@ export class MazeScene extends Phaser.Scene {
           this.showFloatText(obj.x, obj.y, ch.allDoneMsg, '#f0d040');
           const egs = getGameState();
           if (egs) egs.fairies = this.challengeProgress;
-          this.showFairyFlyAway();
+          this.showChallengeEffect(obj.type);
+          const p1Key = `floor${this.floorId}_phase1_done`;
           if (ch.phase2 && !this.phase2Active) {
             this.spawnPhase2Items(ch.phase2);
             this.phase2Active = true;
-            this.dialogue.show(DIALOGUE.all_fairies_freed || []);
-          } else if (DIALOGUE.all_fairies_freed) {
-            this.dialogue.show(DIALOGUE.all_fairies_freed);
+            this.dialogue.show(DIALOGUE[p1Key] || DIALOGUE.all_fairies_freed || []);
+          } else if (DIALOGUE[p1Key]) {
+            this.dialogue.show(DIALOGUE[p1Key]);
           }
         }
         this.updateHud();
@@ -1209,23 +1218,44 @@ export class MazeScene extends Phaser.Scene {
     }
   }
 
-  showFairyFlyAway() {
+  showChallengeEffect(type) {
     const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2 - 100;
-    const fairy = this.add.graphics();
-    fairy.fillStyle(0x88aaff, 0.9);
-    fairy.fillCircle(0, 0, 12);
-    fairy.fillStyle(0xffffff, 0.6);
-    fairy.fillCircle(-2, -2, 6);
-    fairy.setPosition(cx, cy);
-    fairy.setScrollFactor(0);
-    // Sparkle particles around fairy
-    for (let i = 0; i < 6; i++) {
-      const sp = this.add.circle(cx + (Math.random() - 0.5) * 40, cy + (Math.random() - 0.5) * 40, 3, 0xffe880, 0.8);
-      sp.setScrollFactor(0);
-      this.tweens.add({ targets: sp, alpha: 0, scale: 0, x: 80, y: 60, duration: 1200, delay: i * 100, onComplete: () => sp.destroy() });
+    const EFFECTS = {
+      fairy:    { color: 0x88aaff, particles: 0xffe880 },
+      valve:    { color: 0x40a0d0, particles: 0x80d0ff },
+      beacon:   { color: 0xf0c040, particles: 0xffe060 },
+      vent:     { color: 0xe06030, particles: 0xff8040 },
+      crystal:  { color: 0x60e0e0, particles: 0xa0f0ff },
+      geoshard: { color: 0xa040d0, particles: 0xd080ff },
+      token:    { color: 0xf0c040, particles: 0xf0d060 },
+      page:     { color: 0xd0c0a0, particles: 0xf0e8d0 },
+      fragment: { color: 0x9040d0, particles: 0xc080f0 },
+    };
+    const e = EFFECTS[type] || EFFECTS.fairy;
+    const orb = this.add.graphics();
+    orb.fillStyle(e.color, 0.9);
+    orb.fillCircle(0, 0, 14);
+    orb.setPosition(cx, cy).setScrollFactor(0);
+    for (let i = 0; i < 8; i++) {
+      const sp = this.add.circle(
+        cx + (Math.random() - 0.5) * 50,
+        cy + (Math.random() - 0.5) * 50,
+        3 + Math.random() * 3, e.particles, 0.8
+      ).setScrollFactor(0);
+      this.tweens.add({
+        targets: sp, alpha: 0, scale: 0,
+        x: sp.x + (Math.random() - 0.5) * 80,
+        y: sp.y - 40 - Math.random() * 60,
+        duration: 800 + Math.random() * 400,
+        delay: i * 60,
+        onComplete: () => sp.destroy(),
+      });
     }
-    // Fly to top-right corner
-    this.tweens.add({ targets: fairy, x: GAME_WIDTH - 80, y: 80, scale: 0.5, alpha: 0, duration: 1500, ease: 'Cubic.out', onComplete: () => fairy.destroy() });
+    this.tweens.add({
+      targets: orb, y: cy - 80, scale: 0.3, alpha: 0,
+      duration: 1000, ease: 'Cubic.out',
+      onComplete: () => orb.destroy(),
+    });
   }
 
   showKeyAnimation() {

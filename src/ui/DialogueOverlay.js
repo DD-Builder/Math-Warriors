@@ -49,7 +49,7 @@ export class DialogueOverlay {
 
     const btnX = area.right - 130;
     const btnY = panelY + 48;
-    this.continueBtn = PaperButton(scene, btnX, btnY, 'TAP  ▶', {
+    this.continueBtn = PaperButton(scene, btnX, btnY, 'TAP', {
       w: 200, h: 50, color: 0xc07818, fontSize: 18,
       onClick: () => {
         if (!this.active) return;

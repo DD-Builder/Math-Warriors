@@ -230,4 +230,98 @@ export const DIALOGUE = {
     { speaker: 'Rescued Fairy', text: 'All of us are free!' },
     { speaker: 'Rescued Fairy', text: 'The golden treasure appeared!' },
   ],
+
+  // ── PER-FLOOR PHASE 1 COMPLETION ──
+  floor1_phase1_done: [
+    { speaker: 'Elder Fairy', text: 'All three fairies are free!' },
+    { speaker: 'Elder Fairy', text: 'Now find the hidden Rune Stones!' },
+    { speaker: 'Elder Fairy', text: 'They glow when the garden heals.' },
+  ],
+  floor2_phase1_done: [
+    { speaker: 'Water Fairy', text: 'All drain valves are open!' },
+    { speaker: 'Water Fairy', text: 'The water is going down!' },
+    { speaker: 'Water Fairy', text: 'Now find the Coral Keys!' },
+  ],
+  floor3_phase1_done: [
+    { speaker: 'Sky Fairy', text: 'All beacons are lit! YES!' },
+    { speaker: 'Sky Fairy', text: 'The storm clouds are breaking!' },
+    { speaker: 'Sky Fairy', text: 'Now ring the Wind Chimes!' },
+  ],
+  floor4_phase1_done: [
+    { speaker: 'Fire Fairy', text: 'All lava vents are sealed!' },
+    { speaker: 'Fire Fairy', text: 'The caves are cooling down!' },
+    { speaker: 'Fire Fairy', text: 'Now build the Lava Bridges!' },
+  ],
+  floor5_phase1_done: [
+    { speaker: 'Ice Fairy', text: 'All f-frozen crystals found!' },
+    { speaker: 'Ice Fairy', text: 'The frost is starting to lift!' },
+    { speaker: 'Ice Fairy', text: 'Now melt the Thaw Crystals!' },
+  ],
+  floor6_phase1_done: [
+    { speaker: 'Crystal Fairy', text: 'All geo shards collected.' },
+    { speaker: 'Crystal Fairy', text: 'The cavern hums with energy.' },
+    { speaker: 'Crystal Fairy', text: 'Now align the Prism Shards.' },
+  ],
+  floor7_phase1_done: [
+    { speaker: 'Market Fairy', text: 'All real tokens recovered!' },
+    { speaker: 'Market Fairy', text: 'The fakes are crumbling!' },
+    { speaker: 'Market Fairy', text: 'Now crack the Vault Seals!' },
+  ],
+  floor8_phase1_done: [
+    { speaker: 'Book Fairy', text: 'All lost pages are restored.' },
+    { speaker: 'Book Fairy', text: 'The book breathes again.' },
+    { speaker: 'Book Fairy', text: 'Now bind the Chapter Seals.' },
+  ],
+  floor9_phase1_done: [
+    { speaker: 'Elder Fairy', text: 'All equation pieces placed!' },
+    { speaker: 'Elder Fairy', text: 'The equation is taking shape!' },
+    { speaker: 'Elder Fairy', text: 'Now set the Equation Anchors!' },
+  ],
+
+  // ── PER-FLOOR PHASE 2 COMPLETION ──
+  floor1_phase2_done: [
+    { speaker: 'Elder Fairy', text: 'The Rune Stones glow bright!' },
+    { speaker: 'Elder Fairy', text: 'The garden gate rumbles open.' },
+    { speaker: 'Elder Fairy', text: 'The Briar King awaits you!' },
+  ],
+  floor2_phase2_done: [
+    { speaker: 'Water Fairy', text: 'The Coral Keys shimmer!' },
+    { speaker: 'Water Fairy', text: 'The tides are locked away!' },
+    { speaker: 'Water Fairy', text: 'Face The Pressure now!' },
+  ],
+  floor3_phase2_done: [
+    { speaker: 'Sky Fairy', text: 'The Wind Chimes sing!' },
+    { speaker: 'Sky Fairy', text: 'Winds calm. Skies clear!' },
+    { speaker: 'Sky Fairy', text: 'Time to face the Skywhale!' },
+  ],
+  floor4_phase2_done: [
+    { speaker: 'Fire Fairy', text: 'The Lava Bridges hold!' },
+    { speaker: 'Fire Fairy', text: 'A path to the Pyroclast!' },
+    { speaker: 'Fire Fairy', text: 'Charge! No turning back!' },
+  ],
+  floor5_phase2_done: [
+    { speaker: 'Ice Fairy', text: 'The Thaw Crystals melt!' },
+    { speaker: 'Ice Fairy', text: 'The ice throne cracks open!' },
+    { speaker: 'Ice Fairy', text: 'Absolute Zero trembles!' },
+  ],
+  floor6_phase2_done: [
+    { speaker: 'Crystal Fairy', text: 'Prism Shards aligned.' },
+    { speaker: 'Crystal Fairy', text: 'Light bends. Boss revealed.' },
+    { speaker: 'Crystal Fairy', text: 'The Prism cannot hide now.' },
+  ],
+  floor7_phase2_done: [
+    { speaker: 'Market Fairy', text: 'Vault Seals cracked!' },
+    { speaker: 'Market Fairy', text: "The Counterfeiter's exposed!" },
+    { speaker: 'Market Fairy', text: 'Time to settle the debt!' },
+  ],
+  floor8_phase2_done: [
+    { speaker: 'Book Fairy', text: 'Chapter Seals bound tight.' },
+    { speaker: 'Book Fairy', text: 'The book is whole again.' },
+    { speaker: 'Book Fairy', text: 'The Paradox has nowhere to hide.' },
+  ],
+  floor9_phase2_done: [
+    { speaker: 'Elder Fairy', text: 'Equation Anchors set!' },
+    { speaker: 'All Fairies', text: 'The Great Equation holds!' },
+    { speaker: 'Elder Fairy', text: 'Face The Theorem. End this!' },
+  ],
 };
