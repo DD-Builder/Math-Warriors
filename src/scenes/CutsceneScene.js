@@ -139,6 +139,7 @@ export class CutsceneScene extends Phaser.Scene {
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';
     this.charIdx = 0;
+    this.layoutBubble();
     this.bodyText.setText('');
     this.typing = true;
 
@@ -266,51 +267,60 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   positionBubble(layout) {
-    let bx, by;
+    let bx;
     if (layout === 'left') {
       bx = GAME_WIDTH * 0.39;
-      by = GAME_HEIGHT * 0.25;
     } else if (layout === 'right') {
       bx = GAME_WIDTH * 0.02;
-      by = GAME_HEIGHT * 0.25;
     } else if (layout === 'party') {
       bx = GAME_WIDTH * 0.19;
-      by = GAME_HEIGHT * 0.08;
     } else {
       bx = GAME_WIDTH * 0.19;
-      by = GAME_HEIGHT * 0.25;
     }
-    this.speakerDot.setPosition(bx + 16, by + 16);
-    this.nameText.setPosition(bx + 34, by + 8);
-    this.bodyText.setPosition(bx + 20, by + 44);
-    this.bodyText.setWordWrapWidth(460);
+    this._bubbleLayout = layout;
+    this._bubbleBx = bx;
   }
 
-  drawBubbleBackground(layout, isWide) {
-    let bx, bw;
-    if (layout === 'party') {
-      bx = GAME_WIDTH * 0.19;
-      bw = GAME_WIDTH * 0.55;
-    } else if (layout === 'right') {
-      bx = GAME_WIDTH * 0.02;
-      bw = 560;
-    } else {
-      bx = GAME_WIDTH * 0.39;
-      bw = 560;
-    }
-    if (isWide) {
-      bx = GAME_WIDTH * 0.12;
-      bw = GAME_WIDTH * 0.76;
-    }
+  layoutBubble() {
+    const layout = this._bubbleLayout;
+    const isWide = this._bubbleIsWide;
+    let bx = this._bubbleBx;
+    const maxW = isWide ? GAME_WIDTH * 0.76 : 560;
+    const wrapW = maxW - 60;
+    const maxRatio = 3.5;
+    const pad = { x: 20, top: 44, bottom: 20, name: 36 };
     const by = layout === 'party' ? GAME_HEIGHT * 0.08 : GAME_HEIGHT * 0.25;
-    const bh = isWide ? 220 : 180;
 
+    if (isWide) bx = GAME_WIDTH * 0.12;
+
+    this.bodyText.setWordWrapWidth(wrapW);
+    this.bodyText.setText(this.fullText);
+    const textW = Math.min(this.bodyText.width, wrapW);
+    const textH = this.bodyText.height;
+
+    let bw = Math.min(textW + pad.x * 2 + pad.name, maxW);
+    bw = Math.max(bw, 200);
+    let bh = textH + pad.top + pad.bottom;
+    bh = Math.max(bh, 90);
+
+    if (bw / bh > maxRatio) bh = Math.ceil(bw / maxRatio);
+
+    this.speakerDot.setPosition(bx + 16, by + 16);
+    this.nameText.setPosition(bx + 34, by + 8);
+    this.bodyText.setPosition(bx + pad.x, by + pad.top);
+    this.bodyText.setText('');
+
+    this.bubbleGfx.clear();
     this.bubbleGfx.fillStyle(0x000000, 0.15);
     this.bubbleGfx.fillRoundedRect(bx + 4, by + 6, bw, bh, 20);
     this.bubbleGfx.fillStyle(0xf5ead0, 0.92);
     this.bubbleGfx.fillRoundedRect(bx, by, bw, bh, 20);
     this.bubbleGfx.lineStyle(3, 0xd4a840, 0.8);
     this.bubbleGfx.strokeRoundedRect(bx, by, bw, bh, 20);
+  }
+
+  drawBubbleBackground(_layout, isWide) {
+    this._bubbleIsWide = isWide;
   }
 
   getSpeakerColor(speaker) {
