@@ -365,14 +365,6 @@ export class WorldMapScene extends Phaser.Scene {
         color: 0xffffff, alpha: 0.95, radius: 16,
       });
       this.setScrollFactorDeep(partyPanel, 0);
-      partyPanel.bg.setInteractive({ useHandCursor: true });
-      partyPanel.bg.on('pointerup', () => {
-        audio.play('ui/click');
-        transitionTo(this, SCENES.PARTY_SELECT, {
-          grade: this.save.grade,
-          returnScene: SCENES.WORLD_MAP,
-        }, 200);
-      });
       const partyLabel = this.add.text(stripCx - stripW / 2 + 12, stripY - 24, 'PARTY', {
         ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
       }).setScrollFactor(0);
@@ -387,14 +379,18 @@ export class WorldMapScene extends Phaser.Scene {
           if (heroDef) {
             const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35 });
             img.setScrollFactor(0);
-            img.setInteractive({ useHandCursor: true });
-            img.on('pointerup', () => {
-              audio.play('ui/click');
-              this.showHeroDetail(slot.id);
-            });
           }
         }
       }
+      const partyZone = this.add.rectangle(stripCx, stripY, stripW, 70, 0x000000, 0)
+        .setScrollFactor(0).setInteractive({ useHandCursor: true });
+      partyZone.on('pointerup', () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.PARTY_SELECT, {
+          grade: this.save.grade,
+          returnScene: SCENES.WORLD_MAP,
+        }, 200);
+      });
     }
 
     const skillsBtn = PaperButton(this, area.cx - 100, area.bottom - 36, 'SKILLS', {
