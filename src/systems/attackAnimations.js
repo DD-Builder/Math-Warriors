@@ -136,10 +136,13 @@ function sparkBurst(scene, x, y, count, colors, gravity = false) {
 // ================================================================
 
 function playKnightFight(scene, heroSprite, enemyX, enemyY, result, cb) {
+  const origSX = heroSprite.body.scaleX;
+  const origSY = heroSprite.body.scaleY;
+
   scene.tweens.add({
     targets: heroSprite.body,
     x: enemyX - 80,
-    duration: 200,
+    duration: 350,
     ease: 'Back.out',
     onComplete: () => {
       hitPause(scene, { body: heroSprite.body }, 80);
@@ -166,7 +169,7 @@ function playKnightFight(scene, heroSprite, enemyX, enemyY, result, cb) {
       if (cb.onHit) cb.onHit();
       scene.tweens.add({
         targets: heroSprite.body, x: heroSprite.x,
-        duration: 150, delay: 80, ease: 'Sine.in',
+        duration: 250, delay: 80, ease: 'Sine.in',
         onComplete: () => { if (cb.onComplete) cb.onComplete(); },
       });
     },
@@ -174,9 +177,12 @@ function playKnightFight(scene, heroSprite, enemyX, enemyY, result, cb) {
 }
 
 function playKnightMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
+  const origSX = heroSprite.body.scaleX;
+  const origSY = heroSprite.body.scaleY;
+
   // 0-200ms: Hero charges (gold tint, energy converges)
   heroSprite.body.setTint(0xffee80);
-  scene.tweens.add({ targets: heroSprite.body, scaleX: 1.1, scaleY: 1.1, duration: 200, ease: 'Cubic.in' });
+  scene.tweens.add({ targets: heroSprite.body, scaleX: origSX * 1.15, scaleY: origSY * 1.15, duration: 200, ease: 'Cubic.in' });
 
   // Converging energy particles
   for (let i = 0; i < 8; i++) {
@@ -203,7 +209,7 @@ function playKnightMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
 
     scene.tweens.add({
       targets: heroSprite.body,
-      x: enemyX - 60, scaleX: 1, scaleY: 1,
+      x: enemyX - 60, scaleX: origSX, scaleY: origSY,
       duration: 200, ease: 'Back.out',
       onComplete: () => {
         // 400-500ms: IMPACT
@@ -252,6 +258,9 @@ function playKnightMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
 // ================================================================
 
 function playWizardFight(scene, heroSprite, enemyX, enemyY, op, result, cb) {
+  const origSX = heroSprite.body.scaleX;
+  const origSY = heroSprite.body.scaleY;
+
   const beamStartX = heroSprite.x + 60;
   const beamStartY = heroSprite.y - 40;
   const beamColors = { '+': 0xff6020, '-': 0xf0e020, '*': 0x40c0f0, '/': 0x8040c0 };
@@ -291,13 +300,16 @@ function playWizardFight(scene, heroSprite, enemyX, enemyY, op, result, cb) {
   impactRing(scene, enemyX, enemyY, beamColor, 40);
   sparkBurst(scene, enemyX, enemyY, 14, particleColors[op] || [beamColor]);
 
-  scene.tweens.add({ targets: beam, alpha: 0, duration: 250, onComplete: () => beam.destroy() });
+  scene.tweens.add({ targets: beam, alpha: 0, duration: 400, onComplete: () => beam.destroy() });
 
   if (cb.onHit) cb.onHit();
   scene.time.delayedCall(300, () => { if (cb.onComplete) cb.onComplete(); });
 }
 
 function playWizardMagic(scene, heroSprite, enemyX, enemyY, op, result, cb) {
+  const origSX = heroSprite.body.scaleX;
+  const origSY = heroSprite.body.scaleY;
+
   // 0-150ms: Arms raise, magic circle at feet
   const circle = scene.add.graphics();
   circle.setDepth(20);
@@ -375,6 +387,9 @@ function playWizardMagic(scene, heroSprite, enemyX, enemyY, op, result, cb) {
 // ================================================================
 
 function playBunnyFight(scene, heroSprite, enemyX, enemyY, result, cb) {
+  const origSX = heroSprite.body.scaleX;
+  const origSY = heroSprite.body.scaleY;
+  const origY = heroSprite.y;
   const hitCount = result.hitCount || 2;
 
   // Dash to enemy
@@ -389,8 +404,8 @@ function playBunnyFight(scene, heroSprite, enemyX, enemyY, result, cb) {
         if (hitIndex >= hitCount) {
           // Return
           scene.tweens.add({
-            targets: heroSprite.body, x: heroSprite.x,
-            duration: 150, ease: 'Sine.in',
+            targets: heroSprite.body, x: heroSprite.x, y: origY,
+            duration: 250, ease: 'Sine.in',
             onComplete: () => { if (cb.onComplete) cb.onComplete(); },
           });
           return;
@@ -400,8 +415,8 @@ function playBunnyFight(scene, heroSprite, enemyX, enemyY, result, cb) {
         const off = offsets[hitIndex % 3];
         scene.tweens.add({
           targets: heroSprite.body,
-          x: enemyX + off[0], y: heroSprite.y + off[1],
-          duration: 80, ease: 'Linear',
+          x: enemyX + off[0], y: origY + off[1],
+          duration: 140, ease: 'Linear',
           onComplete: () => {
             // Afterimage
             const ghost = scene.add.circle(heroSprite.body.x, heroSprite.body.y, 20, 0xe86898, 0.25);
@@ -425,6 +440,9 @@ function playBunnyFight(scene, heroSprite, enemyX, enemyY, result, cb) {
 }
 
 function playBunnyMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
+  const origSX = heroSprite.body.scaleX;
+  const origSY = heroSprite.body.scaleY;
+
   // 0-100ms: Dash to enemy
   scene.tweens.add({
     targets: heroSprite.body,

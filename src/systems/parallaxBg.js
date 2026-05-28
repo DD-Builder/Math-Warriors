@@ -136,23 +136,45 @@ function fillShape(gfx, points, color, alpha = 1, closeBottom = false, bottomY =
   gfx.fillPath();
 }
 
-function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY) {
-  if (shadowColor) {
-    const shadow = points.map(p => ({ x: p.x + 3, y: p.y + 6 }));
-    fillShape(gfx, shadow, shadowColor, 0.4, closeBottom, bottomY + 6);
+/**
+ * Draw a puffy cloud as a cluster of overlapping circles.
+ * Adapted from papercut.js drawCloud pattern.
+ */
+function drawParallaxCloud(gfx, cx, cy, w, h, color, alpha, rng) {
+  const bumpCount = 3 + Math.floor(rng() * 3); // 3-5 circles
+  for (let i = 0; i < bumpCount; i++) {
+    const bx = cx + (i / bumpCount - 0.5) * w;
+    const by = cy + (rng() - 0.5) * h * 0.3;
+    const br = (w / bumpCount) * (0.5 + rng() * 0.4);
+    gfx.fillStyle(color, alpha * (0.7 + rng() * 0.3)); // vary per bump
+    gfx.fillCircle(bx, by, br);
   }
+}
+
+function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY, rng) {
+  // 1. Paper-cutout shadow: offset 5px down-right at 35% alpha
+  if (shadowColor) {
+    const shadow = points.map(p => ({ x: p.x + 5, y: p.y + 5 }));
+    fillShape(gfx, shadow, shadowColor, 0.35, closeBottom, bottomY + 5);
+  }
+
+  // Main fill
   fillShape(gfx, points, color, 1, closeBottom, bottomY);
 
-  // Interior gradient shading: darker at bottom for depth
+  // 2. Gradient depth: darker at the base (bottom 40%) via layered strips
   if (closeBottom && points.length > 2) {
     const minY = Math.min(...points.map(p => p.y));
-    const gradientSteps = 4;
-    for (let s = 0; s < gradientSteps; s++) {
-      const t = (s + 1) / gradientSteps;
-      const stripY = minY + (bottomY - minY) * t;
-      const stripH = (bottomY - minY) / gradientSteps;
-      gfx.fillStyle(0x000000, 0.03 * t);
-      gfx.fillRect(points[0].x, stripY - stripH * 0.5, points[points.length - 1].x - points[0].x, stripH);
+    const totalH = bottomY - minY;
+    const gradientTop = minY + totalH * 0.6; // start darkening at 60% from top
+    const stripCount = 5;
+    const stripH = (bottomY - gradientTop) / stripCount;
+    const leftX = points[0].x;
+    const rightX = points[points.length - 1].x;
+    for (let s = 0; s < stripCount; s++) {
+      const t = (s + 1) / stripCount;
+      const stripY = gradientTop + s * stripH;
+      gfx.fillStyle(0x000000, 0.04 * t); // 0.04 -> 0.20 across strips
+      gfx.fillRect(leftX, stripY, rightX - leftX, stripH);
     }
   }
 
@@ -165,6 +187,20 @@ function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY
       gfx.lineTo(points[i].x, points[i].y);
     }
     gfx.strokePath();
+  }
+
+  // 3. Texture detail: small decorative circles (trees/rocks) on the hill surface
+  if (rng && points.length > 4) {
+    const detailCount = 3 + Math.floor(rng() * 3); // 3-5 elements
+    for (let d = 0; d < detailCount; d++) {
+      const idx = Math.floor(rng() * points.length);
+      const pt = points[idx];
+      const radius = 3 + rng() * 2; // 3-5px
+      // Place slightly below the hill edge so it sits on the surface
+      const dy = 6 + rng() * 14;
+      gfx.fillStyle(shadowColor || 0x000000, 0.10 + rng() * 0.05); // 10-15% alpha
+      gfx.fillCircle(pt.x, pt.y + dy, radius);
+    }
   }
 }
 
@@ -194,10 +230,23 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   const layers = [];
 
-  // --- Layer 0: Sky ---
+  // --- Layer 0: Sky + Clouds ---
   const sky = scene.add.graphics();
   sky.fillStyle(pal.sky, 1);
   sky.fillRect(-40, -40, width + 80, height + 80);
+
+  // 5. Clouds in the top 20% of the screen
+  const cloudColor = pal.cloud || pal.skyGlow;
+  const cloudCount = 3 + Math.floor(rng() * 3); // 3-5 clouds
+  for (let ci = 0; ci < cloudCount; ci++) {
+    const cx = width * (0.05 + rng() * 0.90);
+    const cy = height * (0.04 + rng() * 0.16); // top 20%
+    const cw = 50 + rng() * 70; // cloud width 50-120
+    const ch = 12 + rng() * 10; // cloud height 12-22
+    const cAlpha = 0.15 + rng() * 0.10; // 15-25% alpha
+    drawParallaxCloud(sky, cx, cy, cw, ch, cloudColor, cAlpha, rng);
+  }
+
   sky.setDepth(LAYER_CONFIG[0].depth);
   layers.push({ gfx: sky, baseX: 0, baseY: 0, ...LAYER_CONFIG[0] });
 
@@ -241,7 +290,7 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
       pts = hillGen(-40, width + 40, baseY, peakH, layerDef.peaks, rng, 3 + li * 2);
     }
 
-    drawShadowedLayer(hillGfx, pts, layerDef.color, layerDef.shadow, true, height);
+    drawShadowedLayer(hillGfx, pts, layerDef.color, layerDef.shadow, true, height, rng);
 
     // Variant-specific detail on near hills
     if (li === hillLayers.length - 1 && variant > 0) {
@@ -272,6 +321,33 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
   ground.lineTo(-20 - perspectiveExpand, height + 40);
   ground.closePath();
   ground.fillPath();
+
+  // 4. Perspective gradient: 4 horizontal strips darkening toward bottom
+  {
+    const groundH = (height + 40) - groundY;
+    const stripCount = 4;
+    const stripH = groundH / stripCount;
+    for (let s = 0; s < stripCount; s++) {
+      const t = (s + 1) / stripCount;
+      ground.fillStyle(0x000000, 0.04 * t); // 0.04 -> 0.16
+      ground.fillRect(-20 - perspectiveExpand, groundY + s * stripH, width + 40 + perspectiveExpand * 2, stripH);
+    }
+  }
+
+  // 4b. Tiny grass/detail lines at the front edge of the ground
+  {
+    const grassCount = 8 + Math.floor(rng() * 5); // 8-12 blades
+    const grassColor = pal.trees || 0x000000;
+    for (let gi = 0; gi < grassCount; gi++) {
+      const gx = rng() * width;
+      const grassH = 8 + rng() * 4; // 8-12px tall
+      ground.lineStyle(1, grassColor, 0.20);
+      ground.beginPath();
+      ground.moveTo(gx, groundY);
+      ground.lineTo(gx + (rng() - 0.5) * 3, groundY - grassH);
+      ground.strokePath();
+    }
+  }
 
   // Ground texture (floor-specific)
   if (floorId === 1) {
@@ -487,67 +563,6 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   fg.setDepth(LAYER_CONFIG[6].depth);
   layers.push({ gfx: fg, baseX: 0, baseY: 0, ...LAYER_CONFIG[6] });
-
-  // --- Decorative diorama frame ---
-  const vignette = scene.add.graphics();
-  const vw = 55;
-  const frameColor = 0x1a0e04;
-
-  // Solid edge strips
-  vignette.fillStyle(frameColor, 0.45);
-  vignette.fillRect(0, 0, vw, height);
-  vignette.fillRect(width - vw, 0, vw, height);
-  vignette.fillRect(0, 0, width, 30);
-
-  // Gradient fade inward (softer transition than a hard edge)
-  for (let gi = 0; gi < 6; gi++) {
-    const ga = 0.25 * (1 - gi / 6);
-    vignette.fillStyle(frameColor, ga);
-    vignette.fillRect(vw + gi * 8, 0, 8, height);
-    vignette.fillRect(width - vw - (gi + 1) * 8, 0, 8, height);
-    vignette.fillRect(0, 30 + gi * 5, width, 5);
-  }
-
-  // Decorative arch at top (papercut arch silhouette)
-  vignette.fillStyle(frameColor, 0.35);
-  vignette.beginPath();
-  vignette.moveTo(0, 0);
-  vignette.lineTo(0, 50);
-  // Left curve up to arch peak
-  for (let t = 0; t <= 20; t++) {
-    const p = t / 20;
-    const x = p * width * 0.5;
-    const y = 50 - Math.sin(p * Math.PI) * 30;
-    vignette.lineTo(x, y);
-  }
-  // Right curve down from arch peak
-  for (let t = 0; t <= 20; t++) {
-    const p = t / 20;
-    const x = width * 0.5 + p * width * 0.5;
-    const y = 20 + Math.sin(p * Math.PI) * 30;
-    vignette.lineTo(x, y);
-  }
-  vignette.lineTo(width, 50);
-  vignette.lineTo(width, 0);
-  vignette.closePath();
-  vignette.fillPath();
-
-  // Inner border highlight (warm gold line along frame edge)
-  vignette.lineStyle(1.5, 0xc07818, 0.15);
-  vignette.beginPath();
-  vignette.moveTo(vw, height);
-  vignette.lineTo(vw, 45);
-  for (let t = 0; t <= 20; t++) {
-    const p = t / 20;
-    const x = vw + p * (width - vw * 2);
-    const y = 45 - Math.sin(p * Math.PI) * 25;
-    vignette.lineTo(x, y);
-  }
-  vignette.lineTo(width - vw, height);
-  vignette.strokePath();
-
-  vignette.setDepth(-2);
-  layers.push({ gfx: vignette, baseX: 0, baseY: 0, name: 'vignette', depth: -2, parallax: 0 });
 
   return {
     layers,

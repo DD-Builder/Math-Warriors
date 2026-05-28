@@ -16,7 +16,7 @@ import {
   isPartyDefeated,
   pickRandomLivingHero,
 } from '../systems/combat.js';
-import { COMMANDS, getAvailableCommands, getCommandConfig } from '../systems/commandMenu.js';
+import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
 import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
@@ -809,8 +809,8 @@ export class BattleScene extends Phaser.Scene {
     } else {
       // Triangle: top-center, bottom-left, bottom-right
       positions.push({ dx: 0, dy: -displayH * 0.4 });
-      positions.push({ dx: -90, dy: displayH * 0.3 });
-      positions.push({ dx: 90, dy: displayH * 0.3 });
+      positions.push({ dx: -130, dy: displayH * 0.3 });
+      positions.push({ dx: 130, dy: displayH * 0.3 });
     }
 
     this.enemySprites = [];
@@ -892,7 +892,7 @@ export class BattleScene extends Phaser.Scene {
 
     const ansH = 100;
     const ansY = area.bottom - ansH / 2 - 28;
-    const eqY = ansY - ansH / 2 - 90;
+    const eqY = ansY - ansH / 2 - 55;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -952,7 +952,8 @@ export class BattleScene extends Phaser.Scene {
       ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '52px', color: '#d08020' })),
       stars: this.add.text(noteCx + noteW / 2 - 10, noteCy - noteH / 2 + 8, '', {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '14px', color: '#c07818', letterSpacing: 2,
+        fontSize: '18px', color: '#8a5010', letterSpacing: 3,
+        stroke: '#f5ead0', strokeThickness: 1,
       }),
     };
     this.eqLines.a.setOrigin(1, 0.5);
@@ -968,10 +969,10 @@ export class BattleScene extends Phaser.Scene {
     });
     this.turnLabel = this.add.text(area.cx, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '17px',
+      fontSize: '19px',
       color: '#3a2410',
       stroke: '#f5ead0',
-      strokeThickness: 1,
+      strokeThickness: 2,
       letterSpacing: 1,
     }).setOrigin(0.5);
 
@@ -1202,7 +1203,7 @@ export class BattleScene extends Phaser.Scene {
     const gap = 14;
     const totalW = cmds.length * btnW + (cmds.length - 1) * gap;
     const startX = area.cx - totalW / 2 + btnW / 2;
-    const cmdY = this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 120;
+    const cmdY = this.turnLabel ? this.turnLabel.y : this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 85;
 
     this.commandButtons = [];
     const cmdColors = {
@@ -1251,6 +1252,16 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  setCommandMenuForClass(allowedCmds) {
+    for (const btn of this.commandButtons) {
+      const allowed = allowedCmds.includes(btn.cmd);
+      if (btn.bg) btn.bg.setVisible(allowed);
+      if (btn.shadow) btn.shadow.setVisible(allowed);
+      if (btn.label) btn.label.setVisible(allowed);
+      if (btn.zone) btn.zone.setVisible(allowed);
+    }
+  }
+
   selectCommand(cmd) {
     this.selectedCommand = cmd;
     this.setCommandMenuVisible(false);
@@ -1289,7 +1300,8 @@ export class BattleScene extends Phaser.Scene {
     // Show star rating on the turn label
     const starStr = '★'.repeat(this.currentQuestion.stars) +
                     '☆'.repeat(5 - this.currentQuestion.stars);
-    const cmdName = cmd === COMMANDS.MAGIC ? 'MAGIC' : 'FIGHT';
+    const isBunnyHeal = cmd === COMMANDS.MAGIC && (hero.class || 'knight') === 'bunny';
+    const cmdName = isBunnyHeal ? 'HEAL' : cmd === COMMANDS.MAGIC ? 'MAGIC' : 'FIGHT';
     this.turnLabel.setText(`${hero.name}: ${cmdName}! ${starStr}`);
 
     this.phase = 'question';
@@ -1420,8 +1432,9 @@ export class BattleScene extends Phaser.Scene {
     // Clear guard from previous round
     this.guardActive[this.currentTurn.heroIndex] = false;
 
-    // Show command menu, hide answer buttons until command is chosen
-    this.setCommandMenuVisible(true);
+    // Show command menu filtered by hero class, hide answer buttons
+    const heroCmds = getClassCommands(hero.class || 'knight', this.grade);
+    this.setCommandMenuForClass(heroCmds);
     this.setAnswerButtonsVisible(false);
     this.turnLabel.setText(`${hero.name}'s turn — choose a command!`);
 
@@ -1771,6 +1784,42 @@ export class BattleScene extends Phaser.Scene {
 
       const hero = this.party[heroIdx];
       const cls = hero.class || 'knight';
+
+      // Bunny MAGIC = heal (not attack)
+      if (cls === 'bunny' && activeCommand === COMMANDS.MAGIC) {
+        const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
+        const healAmt = Math.max(8, Math.round((hero.atk || 10) * getDifficultyMultiplier(stars) * 1.2));
+        const alive = this.party.filter(h => h.hp > 0);
+        const target = alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+        if (target) {
+          const before = target.hp;
+          target.hp = Math.min(target.maxHp, target.hp + healAmt);
+          const healed = target.hp - before;
+          this.showToast(`${target.name} healed ${healed} HP!`, '#60ff60');
+          this.updateAllHeroHp();
+          const hs = this.heroSprites.find(s => s.hero === target);
+          if (hs) {
+            const floatText = this.add.text(hs.x, hs.y - 40, `+${healed}`, {
+              fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+              fontSize: '28px', color: '#60ff60',
+              stroke: '#1a0e04', strokeThickness: 4,
+            }).setOrigin(0.5).setDepth(30);
+            this.tweens.add({ targets: floatText, y: hs.y - 100, alpha: 0, duration: 900, ease: 'Cubic.out', onComplete: () => floatText.destroy() });
+            for (let i = 0; i < 10; i++) {
+              const px = hs.x + (Math.random() - 0.5) * 60;
+              const py = hs.y + 20;
+              const sp = this.add.circle(px, py, 3 + Math.random() * 3, 0x60ff60, 0.7).setDepth(30);
+              this.tweens.add({ targets: sp, y: py - 60 - Math.random() * 40, alpha: 0, duration: 600 + Math.random() * 400, ease: 'Sine.out', onComplete: () => sp.destroy() });
+            }
+          }
+        }
+        const advanceDelay = 750;
+        this.time.delayedCall(advanceDelay, () => {
+          this._answerProcessing = false;
+          this.nextTurn();
+        });
+        return;
+      }
 
       // Difficulty-rated damage: stars drive damage, not answer magnitude
       const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
@@ -2224,7 +2273,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Snappy turn advance — MAGIC gets longer (spectacular animation is 900ms)
-    const advanceDelay = activeCommand === COMMANDS.MAGIC ? 950 : 550;
+    const advanceDelay = activeCommand === COMMANDS.MAGIC ? 950 : 750;
     this.time.delayedCall(advanceDelay, () => {
       this._answerProcessing = false;
       this.nextTurn();

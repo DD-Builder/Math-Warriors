@@ -18,23 +18,9 @@
  * @returns {EnvState}
  */
 export function createEnvironmentState(scene, parallaxState) {
-  const overlay = scene.add.rectangle(
-    parallaxState.width / 2,
-    parallaxState.height / 2,
-    parallaxState.width + 80,
-    parallaxState.height + 80,
-    0x000000,
-    0,
-  );
-  overlay.setDepth(-1);
-
   return {
-    scene,
+    overlay: null,
     parallaxState,
-    overlay,
-    currentAlpha: 0,
-    currentColor: 0x000000,
-    _tween: null,
   };
 }
 
@@ -48,22 +34,7 @@ export function createEnvironmentState(scene, parallaxState) {
  * @param {boolean} justWrong - true if the player just answered wrong
  */
 export function updateEnvironment(envState, momentum, streak, zoneLabel, justWrong = false) {
-  if (!envState || !envState.overlay) return;
-
-  const scene = envState.scene;
-
-  if (justWrong) {
-    // Red-tinted dimming on wrong answer
-    applyOverlay(envState, 0x200000, 0.18, 200);
-    scene.time.delayedCall(1200, () => {
-      const { color, alpha } = getZoneMood(zoneLabel, streak);
-      applyOverlay(envState, color, alpha, 600);
-    });
-    return;
-  }
-
-  const { color, alpha } = getZoneMood(zoneLabel, streak);
-  applyOverlay(envState, color, alpha, 500);
+  return;
 }
 
 function getZoneMood(zoneLabel, streak) {
@@ -112,7 +83,5 @@ function applyOverlay(envState, color, alpha, duration) {
  * @param {EnvState} envState
  */
 export function destroyEnvironmentState(envState) {
-  if (!envState) return;
-  if (envState._tween) envState._tween.stop();
-  if (envState.overlay) envState.overlay.destroy();
+  return;
 }

@@ -63,6 +63,20 @@ export function getAvailableCommands(grade) {
 }
 
 /**
+ * Returns the commands available for a specific hero class.
+ * Knight: FIGHT + GUARD
+ * Wizard: MAGIC + GUARD
+ * Bunny: FIGHT + MAGIC + GUARD (MAGIC = heal for bunnies)
+ * K-1 override: always FIGHT + GUARD only.
+ */
+export function getClassCommands(cls, grade) {
+  if (grade <= 1) return [COMMANDS.FIGHT, COMMANDS.GUARD];
+  if (cls === 'knight') return [COMMANDS.FIGHT, COMMANDS.GUARD];
+  if (cls === 'wizard') return [COMMANDS.MAGIC, COMMANDS.GUARD];
+  return [COMMANDS.FIGHT, COMMANDS.MAGIC, COMMANDS.GUARD];
+}
+
+/**
  * Get the config for a specific command.
  * @param {string} command - One of COMMANDS values
  * @returns {object}
