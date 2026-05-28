@@ -144,92 +144,186 @@ function startPanelAmbient(scene, panelFx) {
   });
 }
 
-// Corner decoration drawers
+// Corner decoration drawers — rich themed borders
 function drawLeafCorners(gfx, cx, cy, hw, hh, theme) {
-  const corners = [[-1,-1], [1,-1], [-1,1], [1,1]];
-  for (const [sx, sy] of corners) {
-    const x = cx + sx * (hw - 10);
-    const y = cy + sy * (hh - 8);
-    gfx.fillStyle(theme.borderColor, 0.6);
-    gfx.fillCircle(x, y, 6);
-    gfx.fillCircle(x + sx * 5, y + sy * 3, 4);
-  }
-  // Vine along top
-  gfx.lineStyle(2, theme.borderColor, 0.3);
+  // Ivy vine wrapping along top and down sides
+  gfx.lineStyle(2.5, theme.borderColor, 0.35);
   gfx.beginPath();
-  gfx.moveTo(cx - hw + 15, cy - hh + 3);
-  gfx.lineTo(cx + hw - 15, cy - hh + 3);
+  gfx.moveTo(cx - hw + 5, cy + hh);
+  for (let t = 0; t <= 16; t++) {
+    const p = t / 16;
+    const x = cx - hw + 5 + (p < 0.3 ? 0 : (p - 0.3) / 0.7 * (hw * 2 - 10));
+    const y = p < 0.3 ? cy + hh - p / 0.3 * (hh * 2) : cy - hh + 3 + Math.sin(p * 8) * 3;
+    gfx.lineTo(x, y);
+  }
   gfx.strokePath();
+  // Leaf clusters at corners and along vine
+  const leafPositions = [
+    [cx - hw + 8, cy - hh + 6], [cx + hw - 8, cy - hh + 6],
+    [cx - hw + 8, cy + hh - 6], [cx + hw - 8, cy + hh - 6],
+    [cx - hw * 0.3, cy - hh + 4], [cx + hw * 0.3, cy - hh + 4],
+  ];
+  for (const [lx, ly] of leafPositions) {
+    gfx.fillStyle(theme.borderColor, 0.45);
+    // Leaf shape: two overlapping ovals
+    gfx.fillEllipse(lx, ly, 8, 5);
+    gfx.fillEllipse(lx + 3, ly - 2, 6, 4);
+    gfx.fillStyle(theme.accentColor, 0.3);
+    gfx.fillCircle(lx + 1, ly + 1, 2.5);
+  }
+  // Flower buds at corners
+  gfx.fillStyle(theme.accentColor, 0.45);
+  gfx.fillCircle(cx - hw + 12, cy - hh + 10, 4);
+  gfx.fillCircle(cx + hw - 12, cy - hh + 10, 4);
+  gfx.fillStyle(0xffffff, 0.2);
+  gfx.fillCircle(cx - hw + 11, cy - hh + 9, 1.5);
+  gfx.fillCircle(cx + hw - 13, cy - hh + 9, 1.5);
 }
 
 function drawBubbleCorners(gfx, cx, cy, hw, hh, theme) {
-  const positions = [
-    { x: cx - hw + 8, y: cy + hh - 8 },
-    { x: cx - hw + 18, y: cy + hh - 5 },
-    { x: cx + hw - 10, y: cy + hh - 10 },
-    { x: cx + hw - 20, y: cy + hh - 6 },
+  // Wave pattern border along top and bottom
+  for (const yOff of [-hh + 3, hh - 3]) {
+    gfx.lineStyle(2, theme.borderColor, 0.3);
+    gfx.beginPath();
+    for (let i = 0; i <= 30; i++) {
+      const t = i / 30;
+      const x = cx - hw + 8 + t * (hw * 2 - 16);
+      const y = cy + yOff + Math.sin(t * Math.PI * 4) * 4;
+      if (i === 0) gfx.moveTo(x, y);
+      else gfx.lineTo(x, y);
+    }
+    gfx.strokePath();
+  }
+  // Coral clusters at corners
+  const cornerPositions = [
+    [cx - hw + 10, cy - hh + 10], [cx + hw - 10, cy - hh + 10],
+    [cx - hw + 10, cy + hh - 10], [cx + hw - 10, cy + hh - 10],
   ];
-  for (const p of positions) {
-    gfx.fillStyle(theme.borderColor, 0.25);
-    gfx.fillCircle(p.x, p.y, 3 + Math.random() * 3);
+  for (const [px, py] of cornerPositions) {
+    gfx.fillStyle(theme.accentColor, 0.35);
+    gfx.fillCircle(px, py, 5);
+    gfx.fillCircle(px + 4, py - 3, 3.5);
+    gfx.fillCircle(px - 3, py + 2, 3);
+    gfx.fillStyle(theme.borderColor, 0.2);
+    gfx.fillCircle(px + 1, py - 1, 2);
   }
-  // Wave curve at top
-  gfx.lineStyle(2, theme.borderColor, 0.25);
-  gfx.beginPath();
-  for (let i = 0; i <= 20; i++) {
-    const t = i / 20;
-    const x = cx - hw + 10 + t * (hw * 2 - 20);
-    const y = cy - hh + 4 + Math.sin(t * Math.PI * 3) * 3;
-    if (i === 0) gfx.moveTo(x, y);
-    else gfx.lineTo(x, y);
+  // Bubble trail along sides
+  for (let side = -1; side <= 1; side += 2) {
+    const sx = cx + side * (hw - 5);
+    for (let b = 0; b < 4; b++) {
+      const by = cy - hh * 0.5 + b * hh * 0.35;
+      gfx.fillStyle(theme.borderColor, 0.15);
+      gfx.fillCircle(sx, by, 2 + b * 0.5);
+    }
   }
-  gfx.strokePath();
 }
 
 function drawWispCorners(gfx, cx, cy, hw, hh, theme) {
-  gfx.fillStyle(theme.accentColor, 0.15);
-  gfx.fillCircle(cx - hw + 12, cy - hh + 10, 8);
-  gfx.fillCircle(cx + hw - 12, cy - hh + 10, 8);
+  // Soft cloud puffs along all edges
+  const puffPositions = [
+    [cx - hw + 10, cy - hh + 8, 10], [cx, cy - hh + 5, 14],
+    [cx + hw - 10, cy - hh + 8, 10],
+    [cx - hw + 6, cy, 8], [cx + hw - 6, cy, 8],
+    [cx - hw + 10, cy + hh - 8, 10], [cx + hw - 10, cy + hh - 8, 10],
+  ];
+  for (const [px, py, pr] of puffPositions) {
+    gfx.fillStyle(0xffffff, 0.08);
+    gfx.fillCircle(px, py, pr);
+    gfx.fillCircle(px + 5, py + 2, pr * 0.7);
+  }
+  // Golden light rays from top
+  for (let r = 0; r < 3; r++) {
+    const rx = cx - hw * 0.4 + r * hw * 0.4;
+    gfx.fillStyle(theme.accentColor, 0.05);
+    gfx.fillTriangle(rx - 2, cy - hh, rx + 2, cy - hh, rx + (r - 1) * 15, cy + hh);
+  }
   // Soft glow behind panel
-  gfx.fillStyle(0xffffff, 0.06);
-  gfx.fillCircle(cx, cy, Math.max(hw, hh) + 10);
+  gfx.fillStyle(0xffffff, 0.05);
+  gfx.fillCircle(cx, cy, Math.max(hw, hh) + 15);
 }
 
 function drawFlameCorners(gfx, cx, cy, hw, hh, theme) {
+  // Flame lick pattern along bottom (pointed triangle sequence)
+  const flameCount = 12;
+  for (let f = 0; f < flameCount; f++) {
+    const t = f / flameCount;
+    const fx = cx - hw + 10 + t * (hw * 2 - 20);
+    const fh = 6 + Math.sin(f * 1.7) * 4;
+    gfx.fillStyle(theme.accentColor, 0.3 + Math.sin(f * 0.9) * 0.15);
+    gfx.fillTriangle(fx - 5, cy + hh, fx + 5, cy + hh, fx + (f % 2 ? 2 : -2), cy + hh - fh);
+  }
+  // Flame tips at corners
   const corners = [[-1,-1], [1,-1], [-1,1], [1,1]];
   for (const [sx, sy] of corners) {
     const x = cx + sx * (hw - 8);
     const y = cy + sy * (hh - 6);
-    gfx.fillStyle(theme.accentColor, 0.5);
-    gfx.fillTriangle(x - 4, y + 6, x + 4, y + 6, x, y - 6);
-    gfx.fillStyle(0xff4010, 0.3);
-    gfx.fillTriangle(x - 2, y + 4, x + 2, y + 4, x, y - 3);
+    gfx.fillStyle(theme.accentColor, 0.45);
+    gfx.fillTriangle(x - 5, y + 8, x + 5, y + 8, x, y - 8);
+    gfx.fillStyle(0xff4010, 0.25);
+    gfx.fillTriangle(x - 3, y + 6, x + 3, y + 6, x, y - 5);
+    gfx.fillStyle(0xffe040, 0.15);
+    gfx.fillTriangle(x - 1.5, y + 4, x + 1.5, y + 4, x, y - 2);
   }
-  // Glow line along bottom
-  gfx.fillStyle(theme.accentColor, 0.15);
-  gfx.fillRect(cx - hw + 10, cy + hh - 4, hw * 2 - 20, 4);
+  // Warm glow halo behind panel
+  gfx.fillStyle(theme.accentColor, 0.04);
+  gfx.fillCircle(cx, cy, Math.max(hw, hh) + 20);
+  // Heat shimmer lines along top
+  gfx.lineStyle(1, theme.accentColor, 0.12);
+  for (let h = 0; h < 3; h++) {
+    gfx.beginPath();
+    for (let t = 0; t <= 15; t++) {
+      const p = t / 15;
+      const x = cx - hw + 15 + p * (hw * 2 - 30);
+      const y = cy - hh + 3 - h * 4 + Math.sin(p * 6 + h) * 2;
+      if (t === 0) gfx.moveTo(x, y);
+      else gfx.lineTo(x, y);
+    }
+    gfx.strokePath();
+  }
 }
 
 function drawCrystalCorners(gfx, cx, cy, hw, hh, theme) {
-  const topCorners = [[-1,-1], [1,-1]];
-  for (const [sx] of topCorners) {
+  // Icicle fringe along top edge
+  const icicleCount = 8;
+  for (let i = 0; i < icicleCount; i++) {
+    const t = (i + 0.5) / icicleCount;
+    const ix = cx - hw + 10 + t * (hw * 2 - 20);
+    const ih = 5 + Math.abs(Math.sin(i * 1.3)) * 10;
+    const iw = 3 + Math.sin(i * 0.7) * 1.5;
+    gfx.fillStyle(theme.accentColor, 0.3);
+    gfx.fillTriangle(ix - iw, cy - hh + 2, ix + iw, cy - hh + 2, ix, cy - hh + 2 + ih);
+    gfx.fillStyle(0xffffff, 0.12);
+    gfx.fillTriangle(ix - iw * 0.4, cy - hh + 2, ix, cy - hh + 2, ix - 0.5, cy - hh + 2 + ih * 0.7);
+  }
+  // Crystal clusters at all four corners
+  const corners = [[-1,-1], [1,-1], [-1,1], [1,1]];
+  for (const [sx, sy] of corners) {
     const x = cx + sx * (hw - 8);
-    const y = cy - hh + 2;
-    gfx.fillStyle(theme.accentColor, 0.35);
-    gfx.fillTriangle(x - 4, y + 12, x + 4, y + 12, x, y);
-    gfx.fillStyle(theme.borderColor, 0.25);
-    gfx.fillTriangle(x - 2, y + 10, x + 2, y + 10, x, y + 3);
+    const y = cy + sy * (hh - 8);
+    // Multi-crystal cluster
+    for (let c = 0; c < 3; c++) {
+      const ox = c * sx * 4;
+      const oy = c * sy * 3;
+      const ch = 6 + c * 3;
+      gfx.fillStyle(theme.accentColor, 0.25 + c * 0.05);
+      gfx.fillTriangle(x + ox - 3, y + oy + ch, x + ox + 3, y + oy + ch, x + ox, y + oy);
+    }
   }
-  // Frost line along bottom
-  gfx.lineStyle(1, theme.accentColor, 0.3);
-  gfx.beginPath();
-  gfx.moveTo(cx - hw + 10, cy + hh - 3);
-  for (let i = 1; i <= 10; i++) {
-    const x = cx - hw + 10 + i * (hw * 2 - 20) / 10;
-    const y = cy + hh - 3 + (i % 2 === 0 ? -2 : 2);
-    gfx.lineTo(x, y);
+  // Frost crack pattern along bottom and sides
+  gfx.lineStyle(1, theme.accentColor, 0.2);
+  for (const yOff of [-hh + 3, hh - 3]) {
+    gfx.beginPath();
+    gfx.moveTo(cx - hw + 8, cy + yOff);
+    for (let i = 1; i <= 16; i++) {
+      const x = cx - hw + 8 + i * (hw * 2 - 16) / 16;
+      const y = cy + yOff + (i % 2 === 0 ? -2.5 : 2.5);
+      gfx.lineTo(x, y);
+    }
+    gfx.strokePath();
   }
-  gfx.strokePath();
+  // Cold glow behind panel
+  gfx.fillStyle(theme.borderColor, 0.04);
+  gfx.fillCircle(cx, cy, Math.max(hw, hh) + 15);
 }
 
 // Ambient particle spawners

@@ -142,6 +142,30 @@ function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY
     fillShape(gfx, shadow, shadowColor, 0.4, closeBottom, bottomY + 6);
   }
   fillShape(gfx, points, color, 1, closeBottom, bottomY);
+
+  // Interior gradient shading: darker at bottom for depth
+  if (closeBottom && points.length > 2) {
+    const minY = Math.min(...points.map(p => p.y));
+    const gradientSteps = 4;
+    for (let s = 0; s < gradientSteps; s++) {
+      const t = (s + 1) / gradientSteps;
+      const stripY = minY + (bottomY - minY) * t;
+      const stripH = (bottomY - minY) / gradientSteps;
+      gfx.fillStyle(0x000000, 0.03 * t);
+      gfx.fillRect(points[0].x, stripY - stripH * 0.5, points[points.length - 1].x - points[0].x, stripH);
+    }
+  }
+
+  // Edge highlight: lighter line along top edge simulates paper catching light
+  if (points.length > 3) {
+    gfx.lineStyle(1.5, 0xffffff, 0.12);
+    gfx.beginPath();
+    gfx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      gfx.lineTo(points[i].x, points[i].y);
+    }
+    gfx.strokePath();
+  }
 }
 
 function getFloorHillGen(floorId) {
@@ -295,61 +319,168 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
   ground.setDepth(LAYER_CONFIG[5].depth);
   layers.push({ gfx: ground, baseX: 0, baseY: 0, ...LAYER_CONFIG[5], groundY });
 
-  // --- Layer 6: Foreground framing elements ---
+  // --- Layer 6: Foreground framing — rich organic elements at edges ---
   const fg = scene.add.graphics();
 
   if (floorId === 1) {
-    // Grass tufts and flower silhouettes at bottom corners
+    // Garden: lush grass tufts, wildflowers, vine tendrils at both sides
     for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -10 : width - 60;
-      for (let g = 0; g < 6; g++) {
-        const gx = baseX + rng() * 80;
-        const gy = height - 80 - rng() * 60;
-        const gh = 20 + rng() * 30;
-        fg.fillStyle(pal.trees, 0.5 + rng() * 0.3);
-        fg.fillTriangle(gx, gy, gx - 3, gy + gh, gx + 3, gy + gh);
+      const baseX = side === 0 ? -10 : width - 80;
+      const spread = 100;
+      // Dense grass tuft cluster
+      for (let g = 0; g < 14; g++) {
+        const gx = baseX + rng() * spread;
+        const gy = height - 50 - rng() * 100;
+        const gh = 15 + rng() * 40;
+        const gw = 2 + rng() * 3;
+        fg.fillStyle(pal.trees, 0.4 + rng() * 0.3);
+        fg.fillTriangle(gx - gw, gy + gh, gx + gw, gy + gh, gx + (rng() - 0.5) * 4, gy);
       }
-      // Flowers
-      for (let f = 0; f < 3; f++) {
-        const fx = baseX + 10 + rng() * 60;
-        const fy = height - 90 - rng() * 50;
+      // Flowers with stems
+      for (let f = 0; f < 6; f++) {
+        const fx = baseX + 10 + rng() * (spread - 20);
+        const fy = height - 70 - rng() * 80;
+        const stemH = 10 + rng() * 15;
+        fg.lineStyle(1, pal.trees, 0.4);
+        fg.beginPath(); fg.moveTo(fx, fy + stemH); fg.lineTo(fx, fy); fg.strokePath();
         fg.fillStyle(pal.accent, 0.5 + rng() * 0.3);
-        fg.fillCircle(fx, fy, 4 + rng() * 4);
+        fg.fillCircle(fx, fy, 3 + rng() * 4);
+        fg.fillStyle(0xffffff, 0.2);
+        fg.fillCircle(fx - 1, fy - 1, 1.5);
       }
+      // Vine tendril curving up the edge
+      fg.lineStyle(2, pal.trees, 0.25);
+      fg.beginPath();
+      const vineX = side === 0 ? 8 : width - 8;
+      fg.moveTo(vineX, height);
+      for (let v = 0; v < 6; v++) {
+        const vy = height - (v + 1) * 25 - rng() * 15;
+        const vx = vineX + (rng() - 0.5) * 20;
+        fg.lineTo(vx, vy);
+        fg.fillStyle(pal.trees, 0.2);
+        fg.fillCircle(vx + (rng() - 0.5) * 8, vy, 3 + rng() * 3);
+      }
+      fg.strokePath();
     }
   } else if (floorId === 2) {
-    // Coral branches at sides
+    // Tidepool: coral branches, seaweed fronds, sea foam at bottom
     for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -5 : width - 40;
-      for (let c = 0; c < 4; c++) {
-        const cx = baseX + rng() * 50;
-        const cy = height - 60 - rng() * 80;
-        fg.fillStyle(pal.accent, 0.4 + rng() * 0.3);
-        fg.fillCircle(cx, cy, 6 + rng() * 8);
-        fg.fillCircle(cx + rng() * 10, cy - 10, 4 + rng() * 5);
+      const baseX = side === 0 ? -5 : width - 60;
+      // Branching coral structures
+      for (let c = 0; c < 6; c++) {
+        const cx = baseX + rng() * 70;
+        const cy = height - 40 - rng() * 100;
+        const coralH = 20 + rng() * 35;
+        fg.fillStyle(pal.accent, 0.35 + rng() * 0.25);
+        fg.fillCircle(cx, cy, 5 + rng() * 6);
+        fg.fillCircle(cx + rng() * 12 - 6, cy - coralH * 0.4, 4 + rng() * 4);
+        fg.fillCircle(cx + rng() * 8 - 4, cy - coralH * 0.7, 3 + rng() * 3);
+        // Stem
+        fg.lineStyle(2, pal.accent, 0.25);
+        fg.beginPath(); fg.moveTo(cx, cy + 5); fg.lineTo(cx, cy - coralH); fg.strokePath();
+      }
+      // Seaweed fronds (wavy lines)
+      for (let sw = 0; sw < 3; sw++) {
+        const sx = baseX + 10 + rng() * 50;
+        fg.lineStyle(2, 0x48a838, 0.25);
+        fg.beginPath();
+        fg.moveTo(sx, height);
+        for (let seg = 0; seg < 5; seg++) {
+          fg.lineTo(sx + Math.sin(seg * 1.2) * 8, height - (seg + 1) * 20);
+        }
+        fg.strokePath();
       }
     }
-  } else if (floorId === 4) {
-    // Stalactites at top
-    for (let s = 0; s < 5; s++) {
-      const sx = rng() * width;
-      const sh = 30 + rng() * 50;
-      fg.fillStyle(0x2a1808, 0.6);
-      fg.fillTriangle(sx - 8, 0, sx + 8, 0, sx + (rng() - 0.5) * 4, sh);
+    // Sea foam along bottom
+    for (let foam = 0; foam < 20; foam++) {
+      fg.fillStyle(0xe0f0f8, 0.15 + rng() * 0.15);
+      fg.fillCircle(rng() * width, height - 10 - rng() * 20, 4 + rng() * 6);
     }
-    // Lava edge glow at bottom
-    fg.fillStyle(0xe04010, 0.15);
-    fg.fillRect(-20, height - 40, width + 40, 50);
-  } else if (floorId === 5) {
-    // Ice crystal formations at corners
+  } else if (floorId === 3) {
+    // Cloud: wispy cloud tendrils at edges, golden light rays from top
+    for (let side = 0; side < 2; side++) {
+      const baseX = side === 0 ? -20 : width - 30;
+      for (let c = 0; c < 5; c++) {
+        const cx = baseX + rng() * 50;
+        const cy = rng() * height * 0.6;
+        fg.fillStyle(0xffffff, 0.08 + rng() * 0.08);
+        fg.fillCircle(cx, cy, 12 + rng() * 20);
+        fg.fillCircle(cx + rng() * 15, cy + rng() * 10, 8 + rng() * 12);
+      }
+    }
+    // Golden light rays from top-center
+    for (let ray = 0; ray < 5; ray++) {
+      const rx = width * 0.3 + rng() * width * 0.4;
+      fg.fillStyle(pal.glow, 0.04 + rng() * 0.03);
+      fg.fillTriangle(rx - 3, 0, rx + 3, 0, rx + (rng() - 0.5) * 60, height * 0.7);
+    }
+  } else if (floorId === 4) {
+    // Ember: stalactites at top, lava glow at bottom, rock formations at sides
+    for (let s = 0; s < 8; s++) {
+      const sx = (s < 4 ? rng() * width * 0.3 : width * 0.7 + rng() * width * 0.3);
+      const sh = 25 + rng() * 60;
+      const sw = 4 + rng() * 8;
+      fg.fillStyle(0x2a1808, 0.5 + rng() * 0.2);
+      fg.fillTriangle(sx - sw, 0, sx + sw, 0, sx + (rng() - 0.5) * 4, sh);
+      // Drip detail
+      fg.fillStyle(0x3a2010, 0.3);
+      fg.fillCircle(sx, sh + 2, 2);
+    }
+    // Lava glow gradient at bottom
+    for (let lg = 0; lg < 4; lg++) {
+      const ga = 0.12 * (1 - lg / 4);
+      fg.fillStyle(0xe04010, ga);
+      fg.fillRect(-20, height - 15 - lg * 12, width + 40, 15);
+    }
+    // Rock formations at sides
     for (let side = 0; side < 2; side++) {
       const baseX = side === 0 ? -5 : width - 30;
-      for (let c = 0; c < 3; c++) {
-        const cx = baseX + rng() * 40;
-        const cy = rng() * height * 0.3;
-        const ch = 15 + rng() * 25;
-        fg.fillStyle(0xc0e0f0, 0.3 + rng() * 0.2);
+      for (let r = 0; r < 4; r++) {
+        const rx = baseX + rng() * 40;
+        const ry = height - 30 - rng() * 80;
+        const rw = 8 + rng() * 12;
+        const rh = 15 + rng() * 25;
+        fg.fillStyle(0x3a2010, 0.4 + rng() * 0.2);
+        fg.fillTriangle(rx - rw / 2, ry + rh, rx + rw / 2, ry + rh, rx + (rng() - 0.5) * 5, ry);
+      }
+    }
+  } else if (floorId === 5) {
+    // Frozen: icicle fringe at top, crystal clusters at sides, frost edge
+    // Icicle fringe along top edge
+    for (let ic = 0; ic < 12; ic++) {
+      const ix = (ic < 5 ? rng() * width * 0.25 : ic < 8 ? width * 0.75 + rng() * width * 0.25 : rng() * width);
+      const ih = 15 + rng() * 40;
+      const iw = 3 + rng() * 5;
+      fg.fillStyle(0xc0e0f0, 0.35 + rng() * 0.2);
+      fg.fillTriangle(ix - iw, 0, ix + iw, 0, ix + (rng() - 0.5) * 3, ih);
+      fg.fillStyle(0xffffff, 0.15);
+      fg.fillTriangle(ix - iw * 0.5, 0, ix, 0, ix + (rng() - 0.5) * 2, ih * 0.7);
+    }
+    // Crystal clusters at bottom sides
+    for (let side = 0; side < 2; side++) {
+      const baseX = side === 0 ? -5 : width - 40;
+      for (let c = 0; c < 5; c++) {
+        const cx = baseX + rng() * 50;
+        const cy = height - 20 - rng() * 100;
+        const ch = 12 + rng() * 25;
+        fg.fillStyle(0xc0e0f0, 0.25 + rng() * 0.2);
         fg.fillTriangle(cx - 4, cy + ch, cx + 4, cy + ch, cx + (rng() - 0.5) * 3, cy);
+        fg.fillStyle(0xffffff, 0.1);
+        fg.fillTriangle(cx - 2, cy + ch, cx + 1, cy + ch, cx, cy + ch * 0.3);
+      }
+    }
+    // Frost edge glow at bottom
+    fg.fillStyle(0xc0e0f0, 0.08);
+    fg.fillRect(-20, height - 30, width + 40, 35);
+  } else {
+    // Floors 6-9: generic mystical framing
+    for (let side = 0; side < 2; side++) {
+      const baseX = side === 0 ? -5 : width - 40;
+      for (let d = 0; d < 6; d++) {
+        const dx = baseX + rng() * 50;
+        const dy = rng() * height * 0.8;
+        fg.fillStyle(pal.accent, 0.15 + rng() * 0.15);
+        fg.fillCircle(dx, dy, 4 + rng() * 8);
       }
     }
   }
@@ -357,20 +488,64 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
   fg.setDepth(LAYER_CONFIG[6].depth);
   layers.push({ gfx: fg, baseX: 0, baseY: 0, ...LAYER_CONFIG[6] });
 
-  // --- Vignette frame ---
+  // --- Decorative diorama frame ---
   const vignette = scene.add.graphics();
-  const vw = 70;
-  vignette.fillStyle(0x1a0e04, 0.4);
+  const vw = 55;
+  const frameColor = 0x1a0e04;
+
+  // Solid edge strips
+  vignette.fillStyle(frameColor, 0.45);
   vignette.fillRect(0, 0, vw, height);
   vignette.fillRect(width - vw, 0, vw, height);
-  vignette.fillRect(0, 0, width, vw * 0.6);
-  // Gradient fade on edges
-  for (let gi = 0; gi < 5; gi++) {
-    const ga = 0.3 * (1 - gi / 5);
-    vignette.fillStyle(0x1a0e04, ga);
-    vignette.fillRect(vw + gi * 10, 0, 10, height);
-    vignette.fillRect(width - vw - (gi + 1) * 10, 0, 10, height);
+  vignette.fillRect(0, 0, width, 30);
+
+  // Gradient fade inward (softer transition than a hard edge)
+  for (let gi = 0; gi < 6; gi++) {
+    const ga = 0.25 * (1 - gi / 6);
+    vignette.fillStyle(frameColor, ga);
+    vignette.fillRect(vw + gi * 8, 0, 8, height);
+    vignette.fillRect(width - vw - (gi + 1) * 8, 0, 8, height);
+    vignette.fillRect(0, 30 + gi * 5, width, 5);
   }
+
+  // Decorative arch at top (papercut arch silhouette)
+  vignette.fillStyle(frameColor, 0.35);
+  vignette.beginPath();
+  vignette.moveTo(0, 0);
+  vignette.lineTo(0, 50);
+  // Left curve up to arch peak
+  for (let t = 0; t <= 20; t++) {
+    const p = t / 20;
+    const x = p * width * 0.5;
+    const y = 50 - Math.sin(p * Math.PI) * 30;
+    vignette.lineTo(x, y);
+  }
+  // Right curve down from arch peak
+  for (let t = 0; t <= 20; t++) {
+    const p = t / 20;
+    const x = width * 0.5 + p * width * 0.5;
+    const y = 20 + Math.sin(p * Math.PI) * 30;
+    vignette.lineTo(x, y);
+  }
+  vignette.lineTo(width, 50);
+  vignette.lineTo(width, 0);
+  vignette.closePath();
+  vignette.fillPath();
+
+  // Inner border highlight (warm gold line along frame edge)
+  vignette.lineStyle(1.5, 0xc07818, 0.15);
+  vignette.beginPath();
+  vignette.moveTo(vw, height);
+  vignette.lineTo(vw, 45);
+  for (let t = 0; t <= 20; t++) {
+    const p = t / 20;
+    const x = vw + p * (width - vw * 2);
+    const y = 45 - Math.sin(p * Math.PI) * 25;
+    vignette.lineTo(x, y);
+  }
+  vignette.lineTo(width - vw, height);
+  vignette.strokePath();
+
   vignette.setDepth(8);
   layers.push({ gfx: vignette, baseX: 0, baseY: 0, name: 'vignette', depth: 8, parallax: 0 });
 

@@ -1,12 +1,13 @@
 /**
  * Environmental responsiveness system
  *
- * Subtly modulates the battle background based on player performance.
- * All changes are SUBTLE (10-15% max) — mood enhancement, not distraction.
+ * Modulates the battle background based on player performance.
+ * Uses color-tinted overlays for visible but non-distracting mood shifts.
  *
- * - Streak 3+: brightness +5-10%, more atmospheric particles
- * - Wrong answer: brief dimming for 1.5s
- * - HEAT zone: full vibrancy, COOL zone: slightly muted
+ * - Streak 3+: warm golden tint brightening
+ * - Wrong answer: brief desaturation + red-tinted dimming
+ * - HEAT zone: warm amber glow
+ * - COOL zone: cool blue-gray tint
  */
 
 /**
@@ -32,7 +33,7 @@ export function createEnvironmentState(scene, parallaxState) {
     parallaxState,
     overlay,
     currentAlpha: 0,
-    targetAlpha: 0,
+    currentColor: 0x000000,
     _tween: null,
   };
 }
@@ -50,46 +51,51 @@ export function updateEnvironment(envState, momentum, streak, zoneLabel, justWro
   if (!envState || !envState.overlay) return;
 
   const scene = envState.scene;
-  let targetAlpha = 0;
 
   if (justWrong) {
-    // Brief dimming on wrong answer
-    targetAlpha = 0.08;
-    applyOverlay(envState, 0x000000, targetAlpha, 200);
-    // Snap back after 1.5s
-    scene.time.delayedCall(1500, () => {
-      const zoneAlpha = getZoneAlpha(zoneLabel, streak);
-      applyOverlay(envState, zoneAlpha < 0 ? 0xffffff : 0x000000, Math.abs(zoneAlpha), 600);
+    // Red-tinted dimming on wrong answer
+    applyOverlay(envState, 0x200000, 0.18, 200);
+    scene.time.delayedCall(1200, () => {
+      const { color, alpha } = getZoneMood(zoneLabel, streak);
+      applyOverlay(envState, color, alpha, 600);
     });
     return;
   }
 
-  const zoneAlpha = getZoneAlpha(zoneLabel, streak);
-  const color = zoneAlpha < 0 ? 0xffffff : 0x000000;
-  applyOverlay(envState, color, Math.abs(zoneAlpha), 500);
+  const { color, alpha } = getZoneMood(zoneLabel, streak);
+  applyOverlay(envState, color, alpha, 500);
 }
 
-function getZoneAlpha(zoneLabel, streak) {
-  let alpha = 0;
-
-  // Zone contribution
-  if (zoneLabel === 'HEAT') alpha = -0.04;  // slightly brighter (white overlay)
-  else if (zoneLabel === 'COOL') alpha = 0.05; // slightly dimmer (black overlay)
-
-  // Streak contribution (brightening)
-  if (streak >= 3) {
-    const streakBright = Math.min(streak, 10) * 0.005 + 0.03;
-    alpha -= streakBright; // negative = brighter
+function getZoneMood(zoneLabel, streak) {
+  // HEAT zone: warm amber glow
+  if (zoneLabel === 'HEAT') {
+    const streakBoost = streak >= 3 ? Math.min(streak, 10) * 0.008 : 0;
+    return { color: 0xf0a020, alpha: 0.08 + streakBoost };
   }
 
-  // Clamp to ±15%
-  return Math.max(-0.12, Math.min(0.12, alpha));
+  // COOL zone: cool blue-gray tint
+  if (zoneLabel === 'COOL') {
+    return { color: 0x2040a0, alpha: 0.10 };
+  }
+
+  // ZONE (balanced): subtle warm tint on streaks, neutral otherwise
+  if (streak >= 5) {
+    return { color: 0xf0c040, alpha: 0.06 + Math.min(streak, 10) * 0.006 };
+  }
+  if (streak >= 3) {
+    return { color: 0xf0d060, alpha: 0.04 };
+  }
+
+  return { color: 0x000000, alpha: 0 };
 }
 
 function applyOverlay(envState, color, alpha, duration) {
   if (envState._tween) envState._tween.stop();
 
-  envState.overlay.setFillStyle(color, envState.currentAlpha);
+  const startAlpha = envState.currentAlpha;
+  const startColor = envState.currentColor;
+  envState.currentColor = color;
+
   envState._tween = envState.scene.tweens.add({
     targets: envState,
     currentAlpha: alpha,

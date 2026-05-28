@@ -936,11 +936,16 @@ export class BattleScene extends Phaser.Scene {
       opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '52px', color: '#c06a10' })),
       bar:  this.add.text(noteCx,      noteCy + 28, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '24px', color: '#8a7050' })),
       ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '52px', color: '#d08020' })),
+      stars: this.add.text(noteCx + noteW / 2 - 10, noteCy - noteH / 2 + 8, '', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '14px', color: '#c07818', letterSpacing: 2,
+      }),
     };
     this.eqLines.a.setOrigin(1, 0.5);
     this.eqLines.opB.setOrigin(1, 0.5);
     this.eqLines.bar.setOrigin(0.5);
     this.eqLines.ans.setOrigin(0.5, 0.5);
+    this.eqLines.stars.setOrigin(1, 0);
 
     // Turn label — slim pill at the top of the math area
     const turnY = eqY - noteH / 2 - 32;
@@ -1509,18 +1514,20 @@ export class BattleScene extends Phaser.Scene {
     const opSym = q.op === '*' ? '\u00d7' : q.op === '/' ? '\u00f7' : q.op;
 
     if (q.format === 'missing') {
-      // Phase 2.3: Missing operand format \u2014 "? [op] b = fullAnswer"
-      // Student solves for 'a', the missing operand
       this.eqLines.a.setText(`  ?`);
       this.eqLines.opB.setText(`${opSym} ${q.b}`);
       this.eqLines.bar.setText('\u2500'.repeat(Math.max(3, String(Math.max(q.fullAnswer, q.b)).length + 2)));
       this.eqLines.ans.setText(String(q.fullAnswer));
     } else {
-      // Standard format: "a [op] b = ?"
       this.eqLines.a.setText(`  ${q.a}`);
       this.eqLines.opB.setText(`${opSym} ${q.b}`);
       this.eqLines.bar.setText('\u2500'.repeat(Math.max(3, String(Math.max(q.a, q.b)).length + 2)));
       this.eqLines.ans.setText('?');
+    }
+
+    // Star rating on equation panel
+    if (this.eqLines.stars && q.stars) {
+      this.eqLines.stars.setText('\u2605'.repeat(q.stars) + '\u2606'.repeat(5 - q.stars));
     }
   }
 
@@ -1530,6 +1537,7 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.opB.setText('');
     this.eqLines.bar.setText('');
     this.eqLines.ans.setText('');
+    if (this.eqLines.stars) this.eqLines.stars.setText('');
   }
 
   startEnemyTurn() {
