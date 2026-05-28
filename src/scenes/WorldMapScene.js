@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { loadSave, writeSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
 import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES, levelBonuses, getAvailableSupers, LEVEL_THRESHOLDS, getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
@@ -684,9 +684,15 @@ export class WorldMapScene extends Phaser.Scene {
       return;
     }
 
+    // Skip cutscene if player has saved maze state (they've already seen it)
+    let hasSavedState = !!this.registry.get(mazeStateKey(floorId));
+    if (!hasSavedState) {
+      try { hasSavedState = !!localStorage.getItem(`mw_maze_${floorId}`); } catch (e) { /* ignore */ }
+    }
+
     const entryKey = `floor${floorId}_entry`;
     const lines = DIALOGUE[entryKey];
-    if (lines && lines.length > 0) {
+    if (lines && lines.length > 0 && !hasSavedState) {
       transitionTo(this, SCENES.CUTSCENE, {
         lines,
         floorId,
