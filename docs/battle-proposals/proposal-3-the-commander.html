@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440,height=1080,initial-scale=0.6,user-scalable=yes">
+<title>Battle Redesign — Set 3: Three Raw Ideas → Ultimate Proposal 3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Baloo+2:wght@500;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a0e04; font-family: 'Baloo 2', sans-serif; color: #3a2410; }
+  .page { max-width: 1500px; margin: 0 auto; padding: 20px; }
+  .card { background: #f5ead0; border-radius: 24px; border: 3px solid #d4a840; padding: 48px 60px; margin-bottom: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  h1 { font-family: 'Fredoka One', cursive; font-size: 48px; color: #c06a10; margin-bottom: 4px; }
+  h2 { font-family: 'Fredoka One', cursive; font-size: 32px; color: #c06a10; margin: 32px 0 12px; }
+  h3 { font-family: 'Fredoka One', cursive; font-size: 22px; color: #8a6a30; margin: 20px 0 8px; }
+  h4 { font-family: 'Fredoka One', cursive; font-size: 17px; color: #6a5430; margin: 14px 0 6px; }
+  p, li { font-size: 16px; line-height: 1.7; margin-bottom: 6px; }
+  ul, ol { padding-left: 24px; }
+  .subtitle { font-size: 22px; color: #8a6a30; font-weight: 700; margin-bottom: 20px; }
+  .pill { display: inline-block; padding: 3px 14px; border-radius: 14px; font-size: 13px; font-weight: 700; color: #fff; margin-right: 6px; }
+  .pill.keep { background: #4aa848; }
+  .pill.discard { background: #c04040; }
+  .pill.elevate { background: #d07818; }
+  .callout { background: #fff8e0; border-left: 5px solid #d07818; padding: 16px 24px; border-radius: 0 12px 12px 0; margin: 16px 0; }
+  .versus { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+  .spec-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  .spec-table th, .spec-table td { padding: 8px 14px; text-align: left; border-bottom: 1px solid #d4a840; font-size: 14px; }
+  .spec-table th { color: #c06a10; font-family: 'Fredoka One', cursive; }
+  .divider { height: 4px; background: linear-gradient(90deg, transparent, #d4a840, transparent); margin: 40px 0; border-radius: 2px; }
+  .tag-row { margin: 12px 0; }
+
+  /* ─── MOCKUP CORE ─── */
+  .mockup-title { font-family: 'Fredoka One', cursive; font-size: 32px; color: #f0d040; text-align: center; margin: 30px 0 16px; }
+  .battle-frame {
+    width: 1440px; height: 1080px; position: relative; overflow: hidden;
+    border-radius: 24px; border: 4px solid #3a2410;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6); margin: 0 auto 40px;
+  }
+
+  /* ─── BACKGROUND ─── */
+  .bg-sky { position: absolute; inset: 0; background: linear-gradient(180deg, #4898d0 0%, #78c8f0 35%, #a8e0ff 100%); }
+  .bg-sun { position: absolute; top: 50px; right: 240px; width: 140px; height: 140px;
+    background: radial-gradient(circle, rgba(255,240,140,0.6) 0%, transparent 70%); border-radius: 50%; }
+  .bg-hill { position: absolute; left: 0; right: 0; }
+  .bg-hill.h1 { bottom: 380px; height: 220px; background: #2a6828; opacity: 0.3;
+    clip-path: polygon(0% 100%, 8% 42%, 18% 58%, 30% 28%, 44% 52%, 58% 18%, 72% 38%, 84% 24%, 100% 40%, 100% 100%); }
+  .bg-hill.h2 { bottom: 330px; height: 200px; background: #3a8838; opacity: 0.55;
+    clip-path: polygon(0% 100%, 6% 50%, 16% 36%, 28% 54%, 40% 24%, 52% 42%, 64% 18%, 76% 36%, 88% 28%, 100% 50%, 100% 100%); }
+  .bg-hill.h3 { bottom: 280px; height: 160px; background: #48a840; opacity: 0.75;
+    clip-path: polygon(0% 100%, 5% 48%, 14% 58%, 24% 34%, 36% 52%, 48% 26%, 60% 44%, 72% 32%, 84% 50%, 96% 38%, 100% 52%, 100% 100%); }
+  .bg-ground { position: absolute; bottom: 0; left: 0; right: 0; height: 320px;
+    background: linear-gradient(180deg, #58b848, #48a038, #3a8828); }
+
+  /* ─── TURN ORDER BAR (Final Fantasy X style) ─── */
+  .turn-bar {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(26,14,4,0.75); border-radius: 14px; padding: 6px 14px;
+    display: flex; align-items: center; gap: 4px; z-index: 25;
+    border: 2px solid rgba(212,168,64,0.5);
+  }
+  .turn-bar-label { font-family: 'Fredoka One', cursive; font-size: 11px; color: #d4a840; margin-right: 6px; }
+  .turn-icon {
+    width: 40px; height: 40px; border-radius: 8px; border: 2px solid #5a4030;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-family: 'Fredoka One', cursive; color: #fff;
+    position: relative; transition: all 0.3s;
+  }
+  .turn-icon.active { border-color: #f0c040; box-shadow: 0 0 10px rgba(240,192,64,0.5); transform: scale(1.15); }
+  .turn-icon.hero-t { background: linear-gradient(135deg, #2868a0, #3888c8); }
+  .turn-icon.enemy-t { background: linear-gradient(135deg, #802030, #a03040); }
+  .turn-sep { width: 1px; height: 24px; background: rgba(212,168,64,0.3); margin: 0 2px; }
+
+  /* ─── HUD ─── */
+  .hud-left { position: absolute; top: 14px; left: 24px; display: flex; gap: 8px; align-items: center; z-index: 25; }
+  .hud-right { position: absolute; top: 14px; right: 24px; display: flex; gap: 8px; align-items: center; z-index: 25; }
+  .hud-btn {
+    font-family: 'Fredoka One', cursive; font-size: 13px; padding: 5px 14px;
+    border-radius: 10px; cursor: pointer; border: 2px solid rgba(255,255,255,0.15);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+  }
+  .hud-gear { background: rgba(245,234,208,0.9); color: #3a2410; border-color: #d4a840; font-size: 18px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+  .hud-floor { font-family: 'Fredoka One', cursive; font-size: 13px; color: #f0e4cc; background: rgba(26,14,4,0.6); padding: 4px 14px; border-radius: 10px; }
+  .hud-potion { background: #4caa5c; color: #fff8e0; border-color: #388a40; font-family: 'Fredoka One', cursive; font-size: 13px; padding: 5px 14px; border-radius: 10px; }
+
+  /* ─── HERO PARTY (classic RPG row) ─── */
+  .hero-row {
+    position: absolute; bottom: 305px; left: 50px;
+    display: flex; gap: 10px; z-index: 10;
+  }
+  .hero-card {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    transition: all 0.3s ease;
+  }
+  .hero-card.active { transform: translateY(-10px); filter: drop-shadow(0 8px 16px rgba(0,0,0,0.3)); }
+  .hero-card:not(.active) { filter: brightness(0.85); }
+  .hero-spr {
+    width: 110px; height: 144px; border-radius: 6px; position: relative;
+    animation: hBob 1.5s ease-in-out infinite;
+  }
+  @keyframes hBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .hero-turn-arrow {
+    position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+    border-left: 8px solid transparent; border-right: 8px solid transparent;
+    border-top: 12px solid #f0c040; filter: drop-shadow(0 2px 4px rgba(240,192,64,0.5));
+  }
+  .hero-nm { font-family: 'Fredoka One', cursive; font-size: 13px; color: #fff8e0; text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
+  .hero-hp { display: flex; gap: 2px; font-size: 14px; }
+  .hf { color: #e04040; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+  .he { color: #5a4030; opacity: 0.25; }
+
+  /* Status effect icons */
+  .status-row { display: flex; gap: 3px; margin-top: 1px; }
+  .status-icon {
+    width: 20px; height: 20px; border-radius: 5px; font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .st-atk { background: #c04030; }
+  .st-def { background: #3080c0; }
+  .st-haste { background: #e0a020; }
+  .st-poison { background: #50a030; }
+
+  /* ─── ENEMY ─── */
+  .enemy-area {
+    position: absolute; bottom: 335px; right: 80px;
+    display: flex; flex-direction: column; align-items: center; z-index: 10;
+    animation: eBreathe 2s ease-in-out infinite;
+  }
+  @keyframes eBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+  .enemy-spr { width: 240px; height: 270px; border-radius: 16px; }
+  .enemy-nm { font-family: 'Fredoka One', cursive; font-size: 20px; color: #fff8e0; text-shadow: 0 2px 6px rgba(0,0,0,0.7); margin-bottom: 4px; }
+  .enemy-hp-bar { width: 200px; height: 14px; background: #3a2410; border-radius: 7px; overflow: hidden; border: 2px solid #5a3820; margin-top: 4px; }
+  .enemy-hp-fill { height: 100%; width: 72%; background: linear-gradient(90deg, #c04030, #e06040); border-radius: 5px; transition: width 0.6s; }
+  .enemy-hp-txt { font-family: 'Fredoka One', cursive; font-size: 12px; color: #f0e4cc; margin-top: 2px; }
+  .enemy-status { display: flex; gap: 4px; margin-top: 3px; }
+
+  /* ─── COMMAND MENU (classic JRPG) ─── */
+  .cmd-menu {
+    position: absolute; bottom: 270px; left: 40px;
+    background: rgba(26,14,4,0.85); border-radius: 14px; padding: 10px 6px;
+    border: 2px solid #d4a840; z-index: 20;
+    display: flex; flex-direction: column; gap: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+  .cmd-btn {
+    width: 120px; height: 38px; border-radius: 8px;
+    font-family: 'Fredoka One', cursive; font-size: 15px; color: #fff8e0;
+    display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    cursor: pointer; border: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .cmd-btn:hover { border-color: #f0c040; }
+  .cmd-btn.selected { border-color: #f0c040; box-shadow: 0 0 8px rgba(240,192,64,0.3); }
+  .cmd-btn .cmd-icon { font-size: 16px; width: 20px; text-align: center; }
+  .cmd-fight { background: linear-gradient(135deg, #c04838, #a03828); }
+  .cmd-magic { background: linear-gradient(135deg, #6848b0, #5038a0); }
+  .cmd-guard { background: linear-gradient(135deg, #3070b0, #2060a0); }
+  .cmd-item { background: linear-gradient(135deg, #48a048, #389038); }
+
+  /* ─── MATH PANEL ─── */
+  .math-panel {
+    position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%); z-index: 18;
+  }
+  .math-card {
+    background: linear-gradient(145deg, #f5ead0, #fff8e0);
+    border: 3px solid #d4a840; border-radius: 16px;
+    padding: 10px 30px 14px; text-align: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  }
+  .math-label { font-family: 'Fredoka One', cursive; font-size: 12px; color: #c06a10; margin-bottom: 2px; }
+  .math-stars { font-size: 13px; letter-spacing: 2px; }
+  .math-eq { font-family: 'Fredoka One', cursive; font-size: 40px; color: #3a2410; line-height: 1.1; }
+  .math-op { color: #c06a10; }
+  .math-q { color: #d08020; font-size: 44px; }
+  .math-rule { width: 90px; height: 3px; background: #8a7050; margin: 3px auto; border-radius: 2px; }
+
+  /* ─── ANSWER BUTTONS ─── */
+  .answers {
+    position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 14px; z-index: 20;
+  }
+  .ans-btn {
+    width: 158px; height: 66px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fredoka One', cursive; font-size: 30px; color: #fff8e0;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    cursor: pointer; border: 3px solid rgba(255,255,255,0.12);
+    transition: transform 0.12s;
+  }
+  .ans-btn:active { transform: scale(0.94); }
+  .ans-btn.a1 { background: linear-gradient(135deg, #3888d8, #2878c8); }
+  .ans-btn.a2 { background: linear-gradient(135deg, #e84840, #d03838); }
+  .ans-btn.a3 { background: linear-gradient(135deg, #4aa848, #3a9838); }
+  .ans-btn.a4 { background: linear-gradient(135deg, #9050c8, #7840b0); }
+
+  /* ─── ABILITY BAR ─── */
+  .ability-bar {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px; z-index: 20;
+  }
+  .ab-btn {
+    font-family: 'Fredoka One', cursive; font-size: 13px; color: #fff8e0;
+    padding: 6px 18px; border-radius: 10px; cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+  }
+  .ab-super { background: #e8a030; }
+  .ab-shield { background: #9050c8; }
+  .ab-hint { background: #4080c0; }
+
+  /* ─── TURN LABEL ─── */
+  .turn-label {
+    position: absolute; bottom: 160px; left: 50%; transform: translateX(-50%);
+    background: rgba(245,234,208,0.9); padding: 5px 20px; border-radius: 10px;
+    font-family: 'Fredoka One', cursive; font-size: 13px; color: #3a2410;
+    border: 2px solid #d4a840; z-index: 19; white-space: nowrap;
+  }
+
+  /* ─── DAMAGE POPUP ─── */
+  .dmg-pop {
+    position: absolute; font-family: 'Fredoka One', cursive;
+    text-shadow: 0 3px 6px rgba(0,0,0,0.5); z-index: 30;
+    animation: dmgFloat 1.2s ease-out forwards; pointer-events: none;
+  }
+  @keyframes dmgFloat {
+    0% { opacity:1; transform: translateY(0) scale(0.8); }
+    30% { transform: translateY(-25px) scale(1.2); }
+    100% { opacity:0; transform: translateY(-70px) scale(1); }
+  }
+
+  /* Status effect popup */
+  .status-popup {
+    position: absolute; font-family: 'Fredoka One', cursive; font-size: 16px;
+    background: rgba(26,14,4,0.8); color: #f0c040; padding: 4px 14px;
+    border-radius: 8px; z-index: 30; pointer-events: none;
+    animation: statusPop 1.5s ease-out forwards;
+  }
+  @keyframes statusPop {
+    0% { opacity:0; transform: translateY(10px); }
+    20% { opacity:1; transform: translateY(0); }
+    80% { opacity:1; }
+    100% { opacity:0; transform: translateY(-20px); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- HEADER -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h1>Battle Redesign — Set 3</h1>
+  <p class="subtitle">Three raw ideas → one synthesized ultimate proposal</p>
+  <p>Three ideas rooted in <strong>classic JRPG tradition</strong> — the kind of systems that made Final Fantasy, Pokemon, Paper Mario, and Dragon Quest legendary. These aren't experimental art concepts; they're proven gameplay systems adapted for a math RPG. Each is developed to full depth, then synthesized into <strong>Ultimate Proposal 3: "The Commander."</strong></p>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA J: THE TURN ORDER -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea J: "The Turn Order"</h2>
+  <p class="subtitle">Visible initiative timeline — see what's coming, plan ahead</p>
+
+  <h3>Visual Concept</h3>
+  <p>A horizontal TURN ORDER BAR runs across the top of the screen, showing portrait icons for every combatant in the order they'll act. Heroes are blue-framed, enemies are red-framed. The active character's icon is highlighted and enlarged. You can see 6-8 turns ahead. This is straight from Final Fantasy X's Conditional Turn-Based system (CTB) — widely considered one of the greatest turn systems ever designed — adapted for a kids' math game.</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>Anticipation creates strategy.</strong> Right now, turns alternate predictably: hero, enemy, hero, enemy. With a visible turn order based on speed stats, kids can SEE that the enemy is about to get two turns in a row, or that their fast bunny hero will act twice before the slow knight. This creates natural moments of tension ("the boss acts next!") and triumph ("I get three turns before he goes!"). It also makes speed a meaningful stat — currently it barely matters.
+  </div>
+
+  <h3>How Turn Order Works</h3>
+  <table class="spec-table">
+    <tr><th>Mechanic</th><th>Rule</th></tr>
+    <tr><td>Base order</td><td>All combatants sorted by Speed stat. Higher speed = earlier turn.</td></tr>
+    <tr><td>Turn cycling</td><td>After acting, character goes to back of queue. Faster chars cycle back sooner.</td></tr>
+    <tr><td>Quick answer bonus</td><td>Answer within 3 seconds: hero's next turn comes 1 slot sooner (Haste tick)</td></tr>
+    <tr><td>Slow answer penalty</td><td>Answer after 10 seconds: hero's next turn pushed 1 slot later</td></tr>
+    <tr><td>Wrong answer</td><td>Hero's next turn pushed 1 slot later (enemy effectively gets extra momentum)</td></tr>
+    <tr><td>Bunny speed bonus</td><td>Bunnies naturally have highest speed — they appear more often in the timeline</td></tr>
+    <tr><td>Boss priority</td><td>Bosses act every 3rd turn regardless (ensures regular boss pressure)</td></tr>
+  </table>
+
+  <h3>Visual Turn Bar Design</h3>
+  <ul>
+    <li>Horizontal strip at top of screen, semi-transparent dark background</li>
+    <li>8 portrait slots showing upcoming turns left-to-right</li>
+    <li>Active character (slot 1) highlighted with gold border and glow</li>
+    <li>Hero icons: blue border with tiny class icon (sword/staff/paw)</li>
+    <li>Enemy icons: red border with monster silhouette</li>
+    <li>When a turn resolves, icons slide left with smooth animation (300ms)</li>
+    <li>New turns slide in from the right</li>
+    <li>If quick-answer shifts order, affected icons animate their swap</li>
+  </ul>
+
+  <h3>What This Changes About Combat</h3>
+  <ul>
+    <li><strong>Speed matters:</strong> Currently all heroes act at similar rates. Now, a fast Bunny might get 3 turns for every 2 Knight turns, making speed builds viable.</li>
+    <li><strong>Strategic awareness:</strong> Seeing "enemy → enemy → hero" tells the player to use a potion or shield BEFORE the double-enemy window.</li>
+    <li><strong>Answer speed matters:</strong> Quick correct answers shift timeline — creating a skill-based acceleration that rewards fast math fluency.</li>
+    <li><strong>Boss rhythm:</strong> Bosses act on a fixed cadence, creating predictable "danger windows" kids learn to prepare for.</li>
+  </ul>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Proven system from the best JRPGs — decades of game design validation</li>
+    <li>Speed becomes a meaningful stat that creates build diversity</li>
+    <li>Visible future turns create natural strategic thinking</li>
+    <li>Quick-answer bonus rewards math fluency without punishing slow thinkers harshly</li>
+    <li>Boss cadence creates learnable patterns (great for pattern-loving kids)</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Turn order bar takes screen real estate at the top</li>
+    <li>K-1 kids might not understand timeline reading (left-to-right = future)</li>
+    <li>Quick-answer timer could create anxiety for slower learners</li>
+    <li>Complexity increase — more to track, more to understand</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA K: STATUS EFFECTS -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea K: "The Tactician"</h2>
+  <p class="subtitle">Status effects, buffs, and debuffs — the strategic layer RPGs need</p>
+
+  <h3>Visual Concept</h3>
+  <p>Heroes and enemies can have STATUS EFFECTS — small icons floating above their sprites showing active buffs and debuffs. Strength Up (red sword icon), Shield (blue shield icon), Haste (yellow lightning), Poison (green skull), Weaken (gray broken sword). These effects change the math of combat in visible, understandable ways. They're earned through streak performance: a 3-streak lets you apply a buff. A 5-streak lets you apply a powerful debuff to the enemy. Wrong answers risk the enemy applying debuffs to you.</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>Math accuracy unlocks tactical options.</strong> Currently, correct answers just deal damage. With status effects, correct answers build toward STRATEGIC CHOICES: "I have a 3-streak — should I use it to buff my knight's attack, or shield my wounded wizard?" This transforms the battle from a binary pass/fail quiz into a genuine tactical game. The math is still the gatekeeper, but now it gates access to meaningful decisions, not just damage numbers.
+  </div>
+
+  <h3>Status Effect Catalog</h3>
+  <table class="spec-table">
+    <tr><th>Effect</th><th>Icon</th><th>Duration</th><th>What It Does</th><th>How Earned</th></tr>
+    <tr><td>ATK Up</td><td>⚔️ red</td><td>3 turns</td><td>Hero deals +30% damage</td><td>3-streak: apply to active hero</td></tr>
+    <tr><td>DEF Up</td><td>🛡️ blue</td><td>3 turns</td><td>Hero takes -25% damage</td><td>3-streak: apply to any hero</td></tr>
+    <tr><td>Haste</td><td>⚡ yellow</td><td>2 turns</td><td>Hero acts sooner in turn order</td><td>4-streak: apply to active hero</td></tr>
+    <tr><td>Regen</td><td>💚 green</td><td>3 turns</td><td>Heal 8% max HP per turn</td><td>3-streak: apply to weakest hero</td></tr>
+    <tr><td>Weaken</td><td>💔 gray</td><td>3 turns</td><td>Enemy deals -20% damage</td><td>5-streak: apply to enemy</td></tr>
+    <tr><td>Poison</td><td>☠️ purple</td><td>3 turns</td><td>Enemy takes 5% max HP per turn</td><td>5-streak: apply to enemy</td></tr>
+    <tr><td>Slow</td><td>🐌 brown</td><td>2 turns</td><td>Enemy acts later in turn order</td><td>4-streak: apply to enemy</td></tr>
+  </table>
+
+  <h3>Streak → Status Selection</h3>
+  <p>When a player reaches a streak milestone, a brief CHOICE appears:</p>
+  <ol>
+    <li><strong>3-streak:</strong> "Choose a buff!" — 2 options appear (ATK Up or DEF Up or Regen). Player taps one. Applied immediately with animation.</li>
+    <li><strong>4-streak:</strong> Haste (hero) or Slow (enemy) — a speed-focused choice.</li>
+    <li><strong>5-streak:</strong> Weaken or Poison the enemy — powerful debuffs that swing the battle.</li>
+  </ol>
+  <p>The choice takes 1-2 seconds, doesn't break flow, and creates a "reward moment" that feels significant. Streak resets after claiming the buff (you start building toward the next milestone).</p>
+
+  <h3>Enemy Status Attacks</h3>
+  <p>Enemies can inflict negative status on heroes:</p>
+  <ul>
+    <li><strong>After wrong answer:</strong> 25% chance enemy applies a debuff (ATK Down, DEF Down, or Slow) to the hero who answered wrong</li>
+    <li><strong>Boss special:</strong> Bosses apply a status effect every 4th turn (Poison to party, Weaken to strongest hero, etc.) — creating urgency to defeat them quickly</li>
+    <li><strong>Debuff removal:</strong> Answering 2 consecutive correct answers cleanses one debuff from the active hero</li>
+  </ul>
+
+  <h3>Visual Presentation</h3>
+  <ul>
+    <li>Status icons float above the character sprite in a row (max 3 visible)</li>
+    <li>Each icon gently pulses to indicate it's active</li>
+    <li>When a status is applied: icon flies in from the side with a flash</li>
+    <li>When a status expires: icon fades out with a pop</li>
+    <li>Turn counter below each icon shows remaining turns (3... 2... 1...)</li>
+    <li>Buff icons have a gold border; debuff icons have a red border</li>
+  </ul>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Transforms streaks from just "damage bonus" into meaningful strategic choices</li>
+    <li>Status effects are a universal RPG language — kids learn it from any RPG exposure</li>
+    <li>Creates emergent tactics: "buff the knight before the boss turn, then go all-out"</li>
+    <li>Debuff cleansing via correct answers reinforces the math → reward loop</li>
+    <li>Boss status attacks create urgency and rhythm within fights</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Status icons add visual clutter to character areas</li>
+    <li>Choice moment (select a buff) interrupts combat flow, even briefly</li>
+    <li>K-1 kids might not understand what "+30% ATK" means</li>
+    <li>Stacking multiple systems (streaks + status + damage) increases cognitive load</li>
+    <li>Need careful balance — too-powerful buffs trivialize content, too-weak ones feel pointless</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA L: THE COMMAND MENU -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea L: "The Commander"</h2>
+  <p class="subtitle">FIGHT / MAGIC / GUARD / ITEM — the player chooses, then solves</p>
+
+  <h3>Visual Concept</h3>
+  <p>Before each math question, the player sees a classic JRPG COMMAND MENU: four options stacked vertically next to their hero. FIGHT (basic attack — moderate math, moderate damage). MAGIC (special attack — harder math, big damage). GUARD (skip math, raise defense for this turn). ITEM (use a consumable). The player CHOOSES their action, THEN solves the math. This adds a layer of AGENCY that doesn't exist in the current system — instead of "answer correctly to attack," it's "decide what to do, then prove you can do it."</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>Player agency before the math.</strong> Currently, every hero turn is identical: see question → answer → attack happens. With the command menu, the player makes a DECISION first: "Do I want a big risky attack (hard math) or a safe basic hit (easy math)? Should I guard because the boss is about to attack? Should I heal my wizard with a potion?" This transforms the battle from a math quiz with animations into a genuine RPG where math is the execution mechanic. The math still matters — you still have to solve it — but now you're also THINKING about strategy.
+  </div>
+
+  <h3>Command Options</h3>
+  <table class="spec-table">
+    <tr><th>Command</th><th>Math Required</th><th>Effect on Success</th><th>Effect on Failure</th></tr>
+    <tr><td>⚔️ FIGHT</td><td>Grade-level problem (2-3 stars)</td><td>Standard attack: 1.0x damage</td><td>Weak attack: 0.4x damage + enemy counter</td></tr>
+    <tr><td>✨ MAGIC</td><td>Hard problem (4-5 stars)</td><td>Powerful attack: 2.0x damage + element effect</td><td>Fizzle: 0x damage, turn wasted, no counter</td></tr>
+    <tr><td>🛡️ GUARD</td><td>No math required</td><td>Reduce incoming damage by 50% this turn</td><td>—</td></tr>
+    <tr><td>🧪 ITEM</td><td>Easy problem (1-2 stars)</td><td>Use selected item (heal, cure, buff)</td><td>Item fumbled, not consumed but turn wasted</td></tr>
+  </table>
+
+  <h3>The Risk/Reward Ladder</h3>
+  <div class="callout">
+    <p><strong>GUARD:</strong> Zero risk, zero reward. Use when you're about to be hit hard.</p>
+    <p><strong>ITEM:</strong> Low risk (easy math), utility reward. Use when you need to heal.</p>
+    <p><strong>FIGHT:</strong> Medium risk (grade math), reliable damage. The bread and butter.</p>
+    <p><strong>MAGIC:</strong> High risk (hard math), high reward. The glory play — if you nail it, huge damage. If you miss, nothing happens. This is where confident math students shine.</p>
+  </div>
+
+  <h3>How MAGIC Differs Per Class</h3>
+  <div class="versus">
+    <div>
+      <h4>Knight MAGIC → "Power Strike"</h4>
+      <ul>
+        <li>Single massive blow with enhanced animation</li>
+        <li>2.0x damage to single target</li>
+        <li>Screen shake on impact</li>
+        <li>Unique animation per knight hero</li>
+      </ul>
+      <h4>Wizard MAGIC → "Spell Blast"</h4>
+      <ul>
+        <li>Elemental burst that can hit multiple enemies</li>
+        <li>1.8x damage + chance of status effect</li>
+        <li>Element based on wizard's palette</li>
+        <li>Full-screen visual effect</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Bunny MAGIC → "Combo Rush"</h4>
+      <ul>
+        <li>Extended combo that hits 5 times</li>
+        <li>1.6x total damage spread across hits</li>
+        <li>Each hit has individual damage popup</li>
+        <li>Speed lines and afterimage effects</li>
+      </ul>
+      <h4>Why MAGIC is 4-5 Stars</h4>
+      <ul>
+        <li>The harder the math, the more spectacular the payoff</li>
+        <li>Creates a natural "challenge ladder" — kids choose MAGIC when they feel ready</li>
+        <li>Wrong: no damage but no punishment (fizzle) — encourages trying hard problems</li>
+        <li>Builds confidence: "I chose MAGIC and got it right!"</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>GUARD Strategic Value</h3>
+  <p>GUARD requires no math — the player just taps it and their hero raises their defense for this turn. This serves three critical purposes:</p>
+  <ul>
+    <li><strong>Strategic tool:</strong> When the boss is about to use a big attack, GUARD lets the player prepare (this requires reading the turn order or recognizing boss patterns)</li>
+    <li><strong>Safety valve:</strong> When a player is struggling with math, GUARD lets them "skip" a question without feeling like they failed — they made a tactical choice instead</li>
+    <li><strong>Pacing control:</strong> GUARD breaks up the math question rhythm, preventing quiz fatigue — it's a "rest turn" that still feels like gameplay</li>
+  </ul>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Transforms the game from "math quiz with RPG skin" into "RPG where math is the execution"</li>
+    <li>Player agency creates ownership — "I CHOSE to try MAGIC and it worked!"</li>
+    <li>Risk/reward ladder naturally differentiates difficulty — kids self-select their challenge level</li>
+    <li>GUARD as safety valve prevents frustration spirals</li>
+    <li>MAGIC's fizzle-on-wrong (no punishment) encourages attempting hard problems</li>
+    <li>Classic JRPG command menu is the most recognizable RPG element possible</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Command selection adds a step before each math question — potential pacing drag</li>
+    <li>K-1 kids might not understand the risk/reward tradeoffs</li>
+    <li>Players might never choose MAGIC (sticking with safe FIGHT) — needs incentivization</li>
+    <li>GUARD with no math could be abused (always guard, never answer) — needs cooldown or limit</li>
+    <li>Four options might overwhelm very young players</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- EVALUATION -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Evaluation: What to Keep, Discard, and Elevate</h2>
+
+  <h3>From J (Turn Order)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Visible turn order bar — see upcoming turns for both heroes and enemies
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Speed stat mattering for turn frequency (Bunnies act more often)
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Boss acts on fixed cadence (predictable danger windows)
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Quick-answer time bonus shifting timeline — creates anxiety, punishes slow thinkers
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Wrong-answer timeline penalty — wrong answer already costs damage, double punishment is too harsh
+  </div>
+
+  <h3>From K (Tactician)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Status effects earned through streaks — transforms streaks into strategic choices
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Status icons above characters (universal RPG visual language)
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Enemy debuffs on wrong answer (25% chance) — risk/consequence for errors
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Boss status attacks on cadence — adds urgency and rhythm
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> 7-effect catalog — too many for K-5 kids. Pare down to 4 core effects.
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Streak resets after claiming buff — punishes claiming, incentivizes hoarding
+  </div>
+
+  <h3>From L (Commander)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Command menu (FIGHT/MAGIC/GUARD/ITEM) — player agency before math
+  </div>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Risk/reward ladder — MAGIC = harder math, bigger payoff
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> GUARD as safety valve — strategic choice that skips math without shame
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> MAGIC fizzle on wrong (no punishment) — encourages attempting hard problems
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> ITEM requiring math — potions should be simple utility, not another quiz
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>The Synthesis Insight</h3>
+  <div class="callout">
+    <p>These three ideas form a complete tactical RPG combat system:</p>
+    <ul>
+      <li><strong>J provides information:</strong> The turn order bar tells the player WHEN things will happen</li>
+      <li><strong>L provides decisions:</strong> The command menu lets the player choose WHAT to do</li>
+      <li><strong>K provides consequences:</strong> Status effects give those decisions LASTING IMPACT</li>
+    </ul>
+    <p>Together: "I can SEE the boss attacks in 2 turns (J). I CHOOSE to Guard now and Magic next turn (L). My 3-streak earned me ATK Up (K), so my Magic will hit extra hard." This is genuine tactical thinking driven by math performance. The math is the execution, but the STRATEGY is the game.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- ULTIMATE PROPOSAL 3 -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Ultimate Proposal 3: "The Commander"</h2>
+  <p class="subtitle">See the future. Choose your action. Prove it with math. Shape the battle.</p>
+
+  <h3>Core Concept</h3>
+  <p>A classic turn-based RPG battle system with three interlocking layers: a <strong>turn order bar</strong> showing upcoming turns (from J), a <strong>command menu</strong> giving players strategic choice before each math question (from L), and <strong>status effects</strong> earned through streaks that create lasting tactical advantages (from K). The math question is the EXECUTION of a DECISION the player already made. This transforms battles from "quiz with animations" into "RPG where math is the action mechanic."</p>
+
+  <h3>What each source idea contributes</h3>
+  <ul>
+    <li><strong>From J (Turn Order):</strong> Visible initiative bar showing upcoming turns — provides INFORMATION</li>
+    <li><strong>From K (Tactician):</strong> Status effects earned through streaks — provides CONSEQUENCE</li>
+    <li><strong>From L (Commander):</strong> FIGHT/MAGIC/GUARD/ITEM command menu — provides AGENCY</li>
+  </ul>
+
+  <h3>Battle Flow (One Turn)</h3>
+  <ol>
+    <li><strong>Turn bar advances</strong> — the active character's icon slides to position 1 (300ms animation)</li>
+    <li><strong>If hero turn:</strong> Command menu appears next to the hero (FIGHT / MAGIC / GUARD / ITEM)</li>
+    <li><strong>Player chooses command</strong> — taps one of the four options</li>
+    <li><strong>Math question appears</strong> — difficulty matches the chosen command (FIGHT = 2-3★, MAGIC = 4-5★, GUARD = no math, ITEM = no math)</li>
+    <li><strong>Player answers</strong> — correct or wrong</li>
+    <li><strong>Action resolves</strong> — attack animation, damage, status effects applied</li>
+    <li><strong>Streak check</strong> — if 3-streak or 5-streak, buff/debuff choice appears</li>
+    <li><strong>Turn bar cycles</strong> — active character goes to back of queue</li>
+    <li><strong>If enemy turn:</strong> Enemy attacks automatically (no math), hero takes damage, turn bar cycles</li>
+  </ol>
+
+  <h3>Turn Order Bar (Refined from J)</h3>
+  <table class="spec-table">
+    <tr><th>Aspect</th><th>Design</th></tr>
+    <tr><td>Position</td><td>Top-center, semi-transparent dark strip</td></tr>
+    <tr><td>Slots shown</td><td>8 upcoming turns (enough to see 2+ full cycles)</td></tr>
+    <tr><td>Hero icons</td><td>Blue border, tiny class icon, hero initial</td></tr>
+    <tr><td>Enemy icons</td><td>Red border, monster silhouette</td></tr>
+    <tr><td>Active slot</td><td>Gold border, enlarged, glow</td></tr>
+    <tr><td>Speed influence</td><td>Bunnies appear ~40% more often than Knights in the bar (matches speed differential)</td></tr>
+    <tr><td>Boss cadence</td><td>Boss icon appears every 3 slots (predictable, learnable rhythm)</td></tr>
+    <tr><td>Animation</td><td>Icons slide left on turn advance (300ms ease-out)</td></tr>
+  </table>
+
+  <h3>Command Menu (Refined from L)</h3>
+  <table class="spec-table">
+    <tr><th>Command</th><th>Math Difficulty</th><th>On Correct</th><th>On Wrong</th></tr>
+    <tr><td>⚔️ FIGHT</td><td>2-3★ (grade-level)</td><td>Standard attack (1.0x damage)</td><td>Weak hit (0.4x) + enemy counter-attack</td></tr>
+    <tr><td>✨ MAGIC</td><td>4-5★ (challenging)</td><td>Power attack (2.0x damage) + class-specific spectacle</td><td>Fizzle — 0 damage, no counter, turn ends safely</td></tr>
+    <tr><td>🛡️ GUARD</td><td>None</td><td>-50% damage taken this round + cleanse 1 debuff</td><td>—</td></tr>
+    <tr><td>🧪 ITEM</td><td>None</td><td>Use selected item from inventory</td><td>—</td></tr>
+  </table>
+
+  <div class="callout">
+    <strong>Key refinement from L:</strong> GUARD and ITEM require NO math. This is deliberate. GUARD is a tactical and emotional safety valve — it lets struggling players take a "rest turn" that still feels like a strategic decision. ITEM is utility. The math challenge is in FIGHT and MAGIC, where the risk/reward is clear.
+  </div>
+
+  <h3>MAGIC Risk/Reward Design</h3>
+  <p>MAGIC is the signature mechanic of this proposal. It's designed to make hard math EXCITING, not scary:</p>
+  <ul>
+    <li><strong>The reward is massive:</strong> 2.0x damage with a spectacular class-specific animation. Kids WANT to see the cool attack.</li>
+    <li><strong>The risk is gentle:</strong> Wrong answer = "fizzle" — spell fails, sparkles fizzle out, turn ends. No damage taken. No counter-attack. The worst outcome of trying MAGIC is the same as doing nothing.</li>
+    <li><strong>This encourages challenge-seeking:</strong> A kid who normally avoids hard problems might try MAGIC because "if I get it wrong, nothing bad happens, but if I get it RIGHT..." This is the growth mindset in game form.</li>
+    <li><strong>MAGIC cooldown:</strong> Can only use MAGIC once every 3 turns per hero (prevents spamming, makes each MAGIC attempt feel special)</li>
+  </ul>
+
+  <h3>Status Effects (Simplified from K)</h3>
+  <p>Pared down from 7 effects to 4 core effects that even a kindergartner can understand with icons:</p>
+  <table class="spec-table">
+    <tr><th>Effect</th><th>Icon</th><th>Duration</th><th>Simple Description</th><th>Earned By</th></tr>
+    <tr><td>Power Up</td><td>⚔️🔴</td><td>3 turns</td><td>"Hit harder!"</td><td>3-streak: apply to active hero</td></tr>
+    <tr><td>Shield</td><td>🛡️🔵</td><td>3 turns</td><td>"Take less damage!"</td><td>3-streak: apply to any hero</td></tr>
+    <tr><td>Weaken</td><td>💔⬇️</td><td>3 turns</td><td>"Enemy hits softer!"</td><td>5-streak: apply to enemy</td></tr>
+    <tr><td>Poison</td><td>☠️🟢</td><td>3 turns</td><td>"Enemy loses HP each turn!"</td><td>5-streak: apply to enemy</td></tr>
+  </table>
+  <p><strong>Streak does NOT reset after claiming a buff.</strong> Streaks continue building. At 3-streak you get a hero buff choice. At 5-streak you get an enemy debuff choice. At 7+ streak, damage continues scaling with a flat +5% per additional correct answer. This rewards sustained performance without punishing buff claims.</p>
+
+  <h3>Enemy Status Attacks</h3>
+  <ul>
+    <li>Wrong answer: 20% chance enemy applies "Weaken" to the hero who answered wrong (3 turns)</li>
+    <li>Boss special (every 4th boss turn): applies Poison to a random hero</li>
+    <li>Debuff cleansing: GUARD removes 1 debuff. 2 consecutive correct FIGHTs also cleanse 1 debuff.</li>
+  </ul>
+
+  <h3>Damage Formula</h3>
+  <p><code>damage = (5 + hero.atk * 0.4) × difficultyMult × commandMult × statusMult × classMult</code></p>
+  <ul>
+    <li><strong>difficultyMult:</strong> 1.0-2.5x based on problem stars (same as all proposals)</li>
+    <li><strong>commandMult:</strong> FIGHT correct = 1.0x, FIGHT wrong = 0.4x, MAGIC correct = 2.0x, MAGIC wrong = 0x</li>
+    <li><strong>statusMult:</strong> 1.3x if hero has Power Up, 0.8x if enemy has Shield</li>
+    <li><strong>classMult:</strong> Knight 1.3x single, Wizard 1.0-1.5x scaling, Bunny 1.0x split</li>
+  </ul>
+
+  <h3>Hero Attack Animations</h3>
+  <p>Each hero has TWO attack animations: a FIGHT animation (quick, reliable) and a MAGIC animation (spectacular, dramatic):</p>
+
+  <div class="versus">
+    <div>
+      <h4>FIGHT Animations (500ms, efficient)</h4>
+      <ul>
+        <li><strong>Shadow:</strong> Quick dark slash — single purple arc</li>
+        <li><strong>Crusader:</strong> Shield bash — short forward push</li>
+        <li><strong>Paladin:</strong> Lance thrust — gold light tip</li>
+        <li><strong>Berserker:</strong> Axe chop — single overhead</li>
+        <li><strong>Great Helm:</strong> Hammer swing — side arc</li>
+        <li><strong>Stargazer:</strong> Star bolt — single blue projectile</li>
+        <li><strong>Toadstool:</strong> Poison spit — green arc</li>
+        <li><strong>Spellblade:</strong> Energy cut — quick crescent</li>
+        <li><strong>Bookworm:</strong> Page throw — single page projectile</li>
+        <li><strong>Grand Mage:</strong> Light beam — brief laser</li>
+        <li><strong>Pepper:</strong> Quick punch — single jab</li>
+        <li><strong>Nova:</strong> Spark shot — single bolt</li>
+        <li><strong>Boulder:</strong> Ground punch — small crack</li>
+        <li><strong>Blaze:</strong> Fire kick — single flame sweep</li>
+        <li><strong>Duchess:</strong> Fan slash — quick arc</li>
+      </ul>
+    </div>
+    <div>
+      <h4>MAGIC Animations (900ms, spectacular)</h4>
+      <ul>
+        <li><strong>Shadow:</strong> Void Rend — screen tears with purple-black rift, enemies inside</li>
+        <li><strong>Crusader:</strong> Holy Radiance — golden explosion radiates outward</li>
+        <li><strong>Paladin:</strong> Celestial Lance — light beam descends from sky</li>
+        <li><strong>Berserker:</strong> Fury Storm — 5 rapid axe slashes, X marks everywhere</li>
+        <li><strong>Great Helm:</strong> Earthquake — massive slam, entire screen shakes</li>
+        <li><strong>Stargazer:</strong> Constellation Burst — star map appears, converges into blast</li>
+        <li><strong>Toadstool:</strong> Toxic Cloud — poison mist fills enemy area</li>
+        <li><strong>Spellblade:</strong> Arcane Barrage — 3 crescent waves in succession</li>
+        <li><strong>Bookworm:</strong> Library Storm — tornado of pages engulfs enemy</li>
+        <li><strong>Grand Mage:</strong> Prismatic Nova — rainbow explosion fills screen</li>
+        <li><strong>Pepper:</strong> Meteor Fists — 7-hit rapid combo, afterimages</li>
+        <li><strong>Nova:</strong> Lightning Cage — electric prison forms around enemy</li>
+        <li><strong>Boulder:</strong> Seismic Drop — leaps off-screen, crashes from sky</li>
+        <li><strong>Blaze:</strong> Inferno Wheel — spinning fire kick tornado</li>
+        <li><strong>Duchess:</strong> Royal Storm — rose petal vortex with sword finisher</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>The spectacle gap between FIGHT and MAGIC is the incentive.</strong> Kids will see FIGHT's simple slash and then see another kid's hero do MAGIC's screen-filling spectacular attack. They'll WANT to try MAGIC. This creates natural aspiration to attempt harder math problems.
+  </div>
+
+  <h3>Monster Attack Animations</h3>
+  <table class="spec-table">
+    <tr><th>Monster</th><th>Attack</th><th>Boss Special (every 4th turn)</th></tr>
+    <tr><td>Sproutling</td><td>Vine whip snap at target hero</td><td>—</td></tr>
+    <tr><td>Thornwall</td><td>Thorn spray in fan pattern</td><td>—</td></tr>
+    <tr><td>Briar King</td><td>Root eruption under random hero</td><td>Poison Bloom: applies Poison to all heroes</td></tr>
+    <tr><td>Drifter</td><td>Tentacle reach + wrap</td><td>—</td></tr>
+    <tr><td>Skywhale</td><td>Gust wave pushback</td><td>Storm Call: applies Weaken to strongest hero</td></tr>
+    <tr><td>Pyroclast</td><td>Lava geyser under target</td><td>Eruption: AOE damage + Weaken to all</td></tr>
+    <tr><td>Absolute Zero</td><td>Ice wave across ground</td><td>Deep Freeze: applies Slow to all heroes</td></tr>
+    <tr><td>The Prism</td><td>Light refraction sweep</td><td>Shatter: removes all hero buffs</td></tr>
+    <tr><td>The Theorem</td><td>Equation shrapnel burst</td><td>Corruption: applies Poison + Weaken to lead hero</td></tr>
+  </table>
+
+  <h3>Grade-Appropriate Simplification</h3>
+  <p>For K-1 players (who might be overwhelmed by 4 commands):</p>
+  <ul>
+    <li><strong>Simplified mode:</strong> Only FIGHT and GUARD visible. MAGIC unlocks at Grade 2. ITEM is always available via a separate potion button (not in the command menu).</li>
+    <li><strong>Status effects:</strong> Shown as simple emoji-like icons without numbers. "Sword = stronger. Shield = tougher." Turn counters hidden; effects just fade when they expire.</li>
+    <li><strong>Turn bar:</strong> Shows only 4 upcoming turns (less to process).</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- MOCKUP -->
+<!-- ════════════════════════════════════════════════ -->
+</div>
+
+<div class="mockup-title">INTERACTIVE MOCKUP — "The Commander" (Floor 1: Garden, Shadow's Turn — Choose Your Command!)</div>
+
+<div class="battle-frame" id="bf">
+  <!-- Background -->
+  <div class="bg-sky"></div>
+  <div class="bg-sun"></div>
+  <div class="bg-hill h1"></div>
+  <div class="bg-hill h2"></div>
+  <div class="bg-hill h3"></div>
+  <div class="bg-ground"></div>
+
+  <!-- Turn Order Bar -->
+  <div class="turn-bar">
+    <span class="turn-bar-label">TURN ORDER</span>
+    <div class="turn-icon hero-t active" title="Shadow" style="background: linear-gradient(135deg, #2a2040, #4a3060);">S</div>
+    <div class="turn-sep"></div>
+    <div class="turn-icon enemy-t" title="Briar King" style="background: linear-gradient(135deg, #3a5020, #506830);">👑</div>
+    <div class="turn-sep"></div>
+    <div class="turn-icon hero-t" title="Pepper" style="background: linear-gradient(135deg, #a08060, #c8a888);">P</div>
+    <div class="turn-sep"></div>
+    <div class="turn-icon hero-t" title="Stargazer" style="background: linear-gradient(135deg, #1a2858, #3050a0);">★</div>
+    <div class="turn-sep"></div>
+    <div class="turn-icon enemy-t" title="Briar King" style="background: linear-gradient(135deg, #3a5020, #506830);">👑</div>
+    <div class="turn-sep"></div>
+    <div class="turn-icon hero-t" title="Shadow" style="background: linear-gradient(135deg, #2a2040, #4a3060);">S</div>
+    <div class="turn-sep"></div>
+    <div class="turn-icon hero-t" title="Pepper" style="background: linear-gradient(135deg, #a08060, #c8a888);">P</div>
+    <div class="turn-sep"></div>
+    <div class="turn-icon enemy-t" title="Briar King" style="background: linear-gradient(135deg, #3a5020, #506830);">👑</div>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud-left">
+    <div class="hud-gear">⚙</div>
+    <div class="hud-floor">QUEST 1 — The Garden</div>
+  </div>
+  <div class="hud-right">
+    <div class="hud-potion">POTION ×2</div>
+  </div>
+
+  <!-- Heroes -->
+  <div class="hero-row">
+    <div class="hero-card active" id="heroCard0">
+      <div class="hero-spr" style="background: linear-gradient(135deg, #2a2040, #4a3060);">
+        <div class="hero-turn-arrow"></div>
+      </div>
+      <div class="hero-nm">SHADOW</div>
+      <div class="hero-hp">
+        <span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="he">♥</span>
+      </div>
+      <div class="status-row">
+        <div class="status-icon st-atk" title="Power Up (2 turns)">⚔️</div>
+      </div>
+    </div>
+    <div class="hero-card" id="heroCard1">
+      <div class="hero-spr" style="background: linear-gradient(135deg, #1a2858, #3050a0); animation-delay:0.15s;"></div>
+      <div class="hero-nm">STARGAZER</div>
+      <div class="hero-hp">
+        <span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="he">♥</span>
+      </div>
+      <div class="status-row"></div>
+    </div>
+    <div class="hero-card" id="heroCard2">
+      <div class="hero-spr" style="background: linear-gradient(135deg, #c0a080, #e8c8a0); animation-delay:0.3s;"></div>
+      <div class="hero-nm">PEPPER</div>
+      <div class="hero-hp">
+        <span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span>
+      </div>
+      <div class="status-row">
+        <div class="status-icon st-def" title="Shield (1 turn)">🛡️</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enemy -->
+  <div class="enemy-area">
+    <div class="enemy-nm">BRIAR KING</div>
+    <div class="enemy-spr" style="background: radial-gradient(circle at 40% 35%, #508030, #3a6020, #2a4810); border-radius: 30% 30% 45% 45%;"></div>
+    <div class="enemy-hp-bar"><div class="enemy-hp-fill" id="eHpBar"></div></div>
+    <div class="enemy-hp-txt" id="eHpTxt">528 / 732</div>
+    <div class="enemy-status">
+      <div class="status-icon st-poison" title="Poison (2 turns)">☠️</div>
+    </div>
+  </div>
+
+  <!-- Command Menu -->
+  <div class="cmd-menu" id="cmdMenu">
+    <div class="cmd-btn cmd-fight selected" id="cmdFight" data-cmd="fight">
+      <span class="cmd-icon">⚔️</span> FIGHT
+    </div>
+    <div class="cmd-btn cmd-magic" id="cmdMagic" data-cmd="magic">
+      <span class="cmd-icon">✨</span> MAGIC
+    </div>
+    <div class="cmd-btn cmd-guard" id="cmdGuard" data-cmd="guard">
+      <span class="cmd-icon">🛡️</span> GUARD
+    </div>
+    <div class="cmd-btn cmd-item" id="cmdItem" data-cmd="item">
+      <span class="cmd-icon">🧪</span> ITEM
+    </div>
+  </div>
+
+  <!-- Turn label -->
+  <div class="turn-label" id="turnLbl">Shadow's turn — choose a command!</div>
+
+  <!-- Math Panel -->
+  <div class="math-panel" id="mathPanel">
+    <div class="math-card">
+      <div class="math-label" id="mathLabel">FIGHT — Grade-Level Problem</div>
+      <div class="math-stars" id="mathStars">
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#d0c8b0;">☆</span>
+        <span style="color:#d0c8b0;">☆</span>
+      </div>
+      <div class="math-eq">&nbsp;&nbsp;73</div>
+      <div class="math-eq"><span class="math-op">+ 7</span></div>
+      <div class="math-rule"></div>
+      <div class="math-q">?</div>
+    </div>
+  </div>
+
+  <!-- Answers -->
+  <div class="answers" id="answersRow">
+    <div class="ans-btn a1" data-v="80">80</div>
+    <div class="ans-btn a2" data-v="83">83</div>
+    <div class="ans-btn a3" data-v="78">78</div>
+    <div class="ans-btn a4" data-v="85">85</div>
+  </div>
+
+  <!-- Abilities -->
+  <div class="ability-bar">
+    <div class="ab-btn ab-super">Shadow Strike</div>
+    <div class="ab-btn ab-shield">Shield Bash</div>
+    <div class="ab-btn ab-hint">HINT</div>
+  </div>
+
+  <!-- Damage float -->
+  <div class="dmg-pop" style="color:#f0c040; top:310px; right:140px; font-size:28px;">+18</div>
+  <!-- Status popup -->
+  <div class="status-popup" style="top:260px; right:100px;">☠️ Poisoned!</div>
+</div>
+
+<div class="page">
+<div class="card">
+  <h2>Implementation Scope</h2>
+  <table class="spec-table">
+    <tr><th>System</th><th>Files</th><th>Effort</th></tr>
+    <tr><td>Turn order bar (initiative system, speed-based sorting)</td><td>combat.js, BattleScene.js</td><td>High — new turn management system, visual bar with sliding animations</td></tr>
+    <tr><td>Command menu (FIGHT/MAGIC/GUARD/ITEM)</td><td>BattleScene.js</td><td>High — new UI system, command selection flow, difficulty routing</td></tr>
+    <tr><td>MAGIC system (hard math → 2x damage, fizzle on wrong)</td><td>BattleScene.js, math.js</td><td>Medium — difficulty scaling per command, fizzle animation</td></tr>
+    <tr><td>Status effects engine (apply, tick, expire, cleanse)</td><td>combat.js (new statusEffects module)</td><td>High — 4 effects, duration tracking, visual icons, stat modification</td></tr>
+    <tr><td>Streak → buff selection UI</td><td>BattleScene.js</td><td>Medium — popup choice at 3/5 streak milestones</td></tr>
+    <tr><td>FIGHT attack animations (15 heroes, quick)</td><td>BattleScene.js</td><td>Medium — 15 simple 500ms animations</td></tr>
+    <tr><td>MAGIC attack animations (15 heroes, spectacular)</td><td>BattleScene.js</td><td>Very High — 15 elaborate 900ms animations with full VFX</td></tr>
+    <tr><td>Monster attacks + boss specials</td><td>BattleScene.js</td><td>High — per-monster attack + boss status abilities</td></tr>
+    <tr><td>Difficulty-rated damage formula</td><td>math.js, combat.js</td><td>Medium — same as all proposals</td></tr>
+    <tr><td>Grade-appropriate simplification (K-1 mode)</td><td>BattleScene.js</td><td>Low — hide MAGIC/ITEM, simplify turn bar</td></tr>
+    <tr><td>GUARD system (defense boost + cleanse)</td><td>BattleScene.js, combat.js</td><td>Low — skip math, apply defense buff</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Key Distinction from Proposals 0, 1, and 2</h2>
+  <div class="callout">
+    <p><strong>Proposal 0 (Pop-Up Page)</strong> is IDENTITY-focused — the visual presentation.</p>
+    <p><strong>Proposal 1 (Spell Circle)</strong> is MECHANIC-focused — the rune accumulation system.</p>
+    <p><strong>Proposal 2 (Living World)</strong> is EMOTION-focused — the responsive environment.</p>
+    <p><strong>Proposal 3 (The Commander)</strong> is STRATEGY-focused — genuine tactical depth.</p>
+    <p>This is the proposal that makes Math Warriors play like a real RPG. The command menu, turn order bar, and status effects are the three pillars of classic JRPG combat. Every RPG that's beloved — from Pokemon's type matchups to Final Fantasy's ATB gauge to Paper Mario's action commands — gives the player DECISIONS that matter. The Commander does this while keeping math as the core execution mechanic. It's the most "game" of all four proposals.</p>
+  </div>
+</div>
+
+<div class="card" style="text-align:center;">
+  <h2>All 4 Proposals Complete</h2>
+  <p style="font-size: 18px; color: #8a6a30; margin-bottom: 20px;">12 raw ideas explored, 4 ultimate proposals synthesized:</p>
+  <table class="spec-table" style="max-width: 800px; margin: 0 auto;">
+    <tr><th>Proposal</th><th>Source Ideas</th><th>Focus</th><th>Core Innovation</th></tr>
+    <tr><td><strong>0: The Pop-Up Page</strong></td><td>A + B + C</td><td>Identity</td><td>Papercraft pop-up book aesthetic, territory line, math flap</td></tr>
+    <tr><td><strong>1: The Spell Circle</strong></td><td>D + E + F</td><td>Mechanic</td><td>5-rune spell circle, visible streak accumulation, crescendo detonation</td></tr>
+    <tr><td><strong>2: The Living World</strong></td><td>G + H + I</td><td>Emotion</td><td>Responsive environment, audience creatures, hero vitality glow</td></tr>
+    <tr><td><strong>3: The Commander</strong></td><td>J + K + L</td><td>Strategy</td><td>Command menu, turn order bar, status effects from streaks</td></tr>
+  </table>
+  <p style="margin-top: 20px; font-size: 16px; color: #6a5430;">These proposals are not mutually exclusive — elements from multiple proposals can be combined in the final design.</p>
+</div>
+</div>
+
+<!-- Interactive script -->
+<script>
+let eHp = 72;
+let streak = 0;
+let selectedCmd = 'fight';
+
+// Command menu interaction
+document.querySelectorAll('.cmd-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.cmd-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedCmd = btn.dataset.cmd;
+
+    const mathPanel = document.getElementById('mathPanel');
+    const answersRow = document.getElementById('answersRow');
+    const label = document.getElementById('mathLabel');
+    const stars = document.getElementById('mathStars');
+    const turnLbl = document.getElementById('turnLbl');
+
+    if (selectedCmd === 'guard') {
+      mathPanel.style.opacity = '0.3';
+      answersRow.style.opacity = '0.3';
+      answersRow.style.pointerEvents = 'none';
+      label.textContent = 'GUARD — No Math Required';
+      turnLbl.textContent = 'Shadow raises guard! -50% damage this round.';
+    } else if (selectedCmd === 'item') {
+      mathPanel.style.opacity = '0.3';
+      answersRow.style.opacity = '0.3';
+      answersRow.style.pointerEvents = 'none';
+      label.textContent = 'ITEM — Select an item to use';
+      turnLbl.textContent = 'Choose an item from your inventory.';
+    } else if (selectedCmd === 'magic') {
+      mathPanel.style.opacity = '1';
+      answersRow.style.opacity = '1';
+      answersRow.style.pointerEvents = 'auto';
+      label.textContent = 'MAGIC — Challenging Problem (2x damage!)';
+      stars.innerHTML = '<span style="color:#f0c040;">★</span><span style="color:#f0c040;">★</span><span style="color:#f0c040;">★</span><span style="color:#f0c040;">★</span><span style="color:#f0c040;">★</span>';
+      turnLbl.textContent = 'Shadow prepares Void Rend! Solve to unleash!';
+    } else {
+      mathPanel.style.opacity = '1';
+      answersRow.style.opacity = '1';
+      answersRow.style.pointerEvents = 'auto';
+      label.textContent = 'FIGHT — Grade-Level Problem';
+      stars.innerHTML = '<span style="color:#f0c040;">★</span><span style="color:#f0c040;">★</span><span style="color:#f0c040;">★</span><span style="color:#d0c8b0;">☆</span><span style="color:#d0c8b0;">☆</span>';
+      turnLbl.textContent = "Shadow's turn — solve to attack!";
+    }
+  });
+});
+
+// Answer buttons
+document.querySelectorAll('.ans-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (selectedCmd === 'guard' || selectedCmd === 'item') return;
+
+    const correct = btn.dataset.v === '80';
+    const isMagic = selectedCmd === 'magic';
+    const turnLbl = document.getElementById('turnLbl');
+
+    if (correct) {
+      streak++;
+      const dmg = isMagic ? 16 : 9;
+      eHp = Math.max(3, eHp - dmg);
+      btn.style.background = '#40c040';
+      turnLbl.textContent = isMagic
+        ? 'VOID REND! 2x damage! (' + streak + '-streak!)'
+        : 'Hit! (' + streak + '-streak)';
+      if (streak === 3) {
+        turnLbl.textContent += ' — 🎉 Choose a buff: ⚔️ Power Up or 🛡️ Shield!';
+      }
+      if (streak === 5) {
+        turnLbl.textContent += ' — 🎉 Choose a debuff: 💔 Weaken or ☠️ Poison!';
+      }
+    } else {
+      streak = 0;
+      if (isMagic) {
+        btn.style.background = '#8060a0';
+        turnLbl.textContent = 'Fizzle... spell fails, but no penalty!';
+      } else {
+        btn.style.background = '#c04040';
+        eHp = Math.max(3, eHp - 3);
+        turnLbl.textContent = 'Weak hit (0.4x) — enemy counters!';
+      }
+    }
+
+    document.getElementById('eHpBar').style.width = eHp + '%';
+    document.getElementById('eHpTxt').textContent = Math.round(732 * eHp / 100) + ' / 732';
+
+    setTimeout(() => { btn.style.background = ''; }, 400);
+  });
+});
+</script>
+
+</body>
+</html>
