@@ -31,6 +31,7 @@ import { createParallaxBackground, shiftParallaxLayers, startAtmosphericParticle
 import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } from '../systems/envResponsive.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
+import { playMagicAnimation, playFizzleAnimation } from '../systems/attackAnimations.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
@@ -1730,7 +1731,7 @@ export class BattleScene extends Phaser.Scene {
       const modified = hitCount > 1 ? Math.max(3, Math.round(totalDmg / hitCount)) * hitCount : totalDmg;
       const newHp = Math.max(0, targetEnemy.hp - modified);
       const result = {
-        baseDamage: rawDmg,
+        baseDamage: commandResult.baseDamage,
         modifiedDamage: modified,
         newHp,
         killed: newHp === 0 && targetEnemy.hp > 0,
@@ -1781,8 +1782,21 @@ export class BattleScene extends Phaser.Scene {
         const nextAlive = this.findNextAliveEnemy();
         if (nextAlive >= 0) this.currentTarget = nextAlive;
         // Fall through to turn advance
+      } else if (this.selectedCommand === COMMANDS.MAGIC) {
+        // MAGIC: spectacular animation (900ms) via the new animation system
+        const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
+        const op = this.currentQuestion?.op || '+';
+        playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, {
+          onHit: () => {
+            this.hitFlash();
+            this.flashEnemy(result, targetIdx);
+            this.updateEnemyHp(targetIdx);
+            this.shakeCamera(0.018, 400);
+            audio.play('battle/hit-enemy');
+          },
+        });
       } else {
-        // Class-specific attack animation (enemy survived)
+        // FIGHT: class-specific attack animation (existing, enhanced)
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const enemyX = targetSprite.x;
         const enemyY = targetSprite.y;
@@ -2079,23 +2093,8 @@ export class BattleScene extends Phaser.Scene {
         // MAGIC FIZZLE: no damage dealt, NO counter-attack. Safe failure.
         audio.play('battle/wrong');
         this.showToast('Fizzle!', '#b080e0');
-        // Sparkle-poof visual on the hero
         const hs = this.heroSprites[this.currentTurn.heroIndex];
-        if (hs && hs.body) {
-          for (let i = 0; i < 8; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 20 + Math.random() * 30;
-            const sp = this.add.circle(hs.x, hs.y - 40, 3 + Math.random() * 3, 0xc080f0, 0.8);
-            this.tweens.add({
-              targets: sp,
-              x: hs.x + Math.cos(angle) * dist,
-              y: hs.y - 40 + Math.sin(angle) * dist,
-              alpha: 0, scale: 0.2,
-              duration: 400 + Math.random() * 200,
-              onComplete: () => sp.destroy(),
-            });
-          }
-        }
+        if (hs) playFizzleAnimation(this, hs);
         this.showHintButton(this.currentQuestion);
       } else {
         // FIGHT wrong: normal counter-attack
@@ -2136,8 +2135,9 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    // Snappy turn advance — see principle #3 (tempo) in DESIGN-PRINCIPLES.md.
-    this.time.delayedCall(550, () => this.nextTurn());
+    // Snappy turn advance — MAGIC gets longer (spectacular animation is 900ms)
+    const advanceDelay = this.selectedCommand === COMMANDS.MAGIC ? 950 : 550;
+    this.time.delayedCall(advanceDelay, () => this.nextTurn());
   }
 
   // ================================================================
