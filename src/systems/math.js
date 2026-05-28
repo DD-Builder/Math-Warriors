@@ -818,9 +818,9 @@ export function generateRatedQuestion(opts = {}) {
     }
   }
 
-  // Fallback: accept whatever we got, rate it
+  // Fallback: accept whatever we got, rate it with actual difficulty
   const q = generateQuestion(opts);
-  q.stars = Math.max(minStar, Math.min(maxStar, rateQuestion(q, grade)));
+  q.stars = rateQuestion(q, grade);
   return q;
 }
 

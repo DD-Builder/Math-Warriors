@@ -76,7 +76,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.floor = data?.floor ?? 1;
-    this.grade = data?.grade ?? 3;
+    this.grade = data?.grade ?? this.registry.get('grade') ?? 3;
     this.operator = FLOOR_OPERATORS[this.floor] ?? '+';
     this.isBoss = !!data?.isBoss;
 
@@ -194,7 +194,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create() {
+    this._shuttingDown = false;
     this.events.on('shutdown', () => {
+      this._shuttingDown = true;
       this.tweens.killAll();
       this.time.removeAllEvents();
       if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
@@ -973,6 +975,7 @@ export class BattleScene extends Phaser.Scene {
         seed,
         onClick: () => {
           if (this.locked) return;
+          if (this._consumedButtonIdx === i) return;
           audio.play('ui/click');
           this.onAnswer(i);
         },
@@ -1278,10 +1281,12 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Consume ability (enemy ate a wrong answer button)
+    this._consumedButtonIdx = -1;
     if (this._consumeNextTurn) {
       this._consumeNextTurn = false;
       const wrongIndices = [0, 1, 2, 3].filter((i) => i !== this.currentQuestion.correctIndex);
       const victim = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+      this._consumedButtonIdx = victim;
       this.recolorAnswerButton(victim, this.answerButtons[victim].baseColor, 0.25);
       this.answerButtons[victim].label.setText('?');
     }
@@ -1577,9 +1582,15 @@ export class BattleScene extends Phaser.Scene {
       this.time.delayedCall(350, () => {
         const cls = target.class || 'knight';
 
-        // Bunny dodge — 30% chance to avoid all damage
-        if (cls === 'bunny' && Math.random() < 0.3) {
-          this.showToast(`${target.name} DODGES!`, '#e86898');
+        // Bunny dodge — base 30% chance, Dodge Roll ability raises to 60%
+        const dodgeChance = (cls === 'bunny') ? (this.dodgeActive ? 0.6 : 0.3) : 0;
+        if (dodgeChance > 0 && Math.random() < dodgeChance) {
+          if (this.dodgeActive) {
+            this.dodgeActive = false;
+            this.showToast(`${target.name} DODGE ROLL!`, '#e86898');
+          } else {
+            this.showToast(`${target.name} DODGES!`, '#e86898');
+          }
           audio.play('battle/hit-hero');
           this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
           return;
@@ -1587,14 +1598,18 @@ export class BattleScene extends Phaser.Scene {
 
         let result = computeEnemyDamage(attacker, target, { momentum: this.momentum });
 
-        // Guard reduction — hero chose GUARD this turn
+        // Guard reduction — lasts the FULL enemy round (not consumed per hit)
         const targetHeroIdx = this.party.indexOf(target);
         if (targetHeroIdx >= 0 && this.guardActive[targetHeroIdx]) {
           result = applyGuardReduction(result, target.hp);
           this.showToast(`${target.name} GUARDS! Half damage!`, '#48a848');
-          this.guardActive[targetHeroIdx] = false;
+        } else if (this.shieldBashActive && targetHeroIdx >= 0) {
+          // Shield Bash ability — block 50% of next attack
+          result.modifiedDamage = Math.max(1, Math.ceil(result.modifiedDamage * 0.5));
+          result.newHp = Math.max(0, target.hp - result.modifiedDamage);
+          this.shieldBashActive = false;
+          this.showToast(`${target.name} SHIELD BASH! Half damage!`, '#5a7ab8');
         } else if (cls === 'knight' && Math.random() < 0.4) {
-          // Knight shield block — 40% chance to halve incoming damage
           result.modifiedDamage = Math.max(1, Math.round(result.modifiedDamage / 2));
           result.newHp = Math.max(0, target.hp - result.modifiedDamage);
           this.showToast(`${target.name} BLOCKS! Half damage!`, '#5a7ab8');
@@ -1613,6 +1628,11 @@ export class BattleScene extends Phaser.Scene {
     };
 
     doEnemyAttack(0);
+
+    // Clear guard flags at END of enemy phase (guard lasts full round)
+    this.time.delayedCall(aliveEnemies.length * 650 + 100, () => {
+      this.guardActive.fill(false);
+    });
   }
 
   // ================================================================
@@ -1621,9 +1641,14 @@ export class BattleScene extends Phaser.Scene {
 
   onAnswer(index) {
     if (this.phase !== 'question' || !this.currentQuestion) return;
+    if (this._answerProcessing) return;
+    this._answerProcessing = true;
     this.locked = true;
     this.clearBossTimer();
     hidePanelFx(this.panelFx);
+
+    // Freeze command for this answer — prevents race conditions
+    const activeCommand = this.selectedCommand || COMMANDS.FIGHT;
 
     const correct = index === this.currentQuestion.correctIndex;
     const btn = this.answerButtons[index];
@@ -1692,8 +1717,13 @@ export class BattleScene extends Phaser.Scene {
       // Difficulty-rated damage: stars drive damage, not answer magnitude
       const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
       const diffMult = getDifficultyMultiplier(stars);
-      const cmdConfig = getCommandConfig(this.selectedCommand || COMMANDS.FIGHT);
+      const cmdConfig = getCommandConfig(activeCommand);
       const cmdMult = cmdConfig.damageMult;
+
+      // Rally ability: +2 ATK for 3 turns (applied temporarily)
+      let atkBonus = 0;
+      if (this.rallyTurns > 0) atkBonus = 2;
+      const effectiveHero = { ...hero, atk: (hero.atk || 10) + atkBonus };
 
       // Class-specific modifiers
       let classMult = 1;
@@ -1719,8 +1749,8 @@ export class BattleScene extends Phaser.Scene {
         this.showToast('ON FIRE!', COLORS_CSS.goldL);
       }
 
-      // Use the new command-aware damage formula
-      const commandResult = computeCommandDamage(hero, targetEnemy, {
+      // Damage formula: base × difficulty × command × momentum, then class modifier
+      const commandResult = computeCommandDamage(effectiveHero, targetEnemy, {
         momentum: this.momentum,
         streak: this.streak,
         difficultyMult: diffMult,
@@ -1782,7 +1812,7 @@ export class BattleScene extends Phaser.Scene {
         const nextAlive = this.findNextAliveEnemy();
         if (nextAlive >= 0) this.currentTarget = nextAlive;
         // Fall through to turn advance
-      } else if (this.selectedCommand === COMMANDS.MAGIC) {
+      } else if (activeCommand === COMMANDS.MAGIC) {
         // MAGIC: spectacular animation (900ms) via the new animation system
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
@@ -2089,7 +2119,7 @@ export class BattleScene extends Phaser.Scene {
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar(true);
 
-      if (this.selectedCommand === COMMANDS.MAGIC) {
+      if (activeCommand === COMMANDS.MAGIC) {
         // MAGIC FIZZLE: no damage dealt, NO counter-attack. Safe failure.
         audio.play('battle/wrong');
         this.showToast('Fizzle!', '#b080e0');
@@ -2136,8 +2166,11 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Snappy turn advance — MAGIC gets longer (spectacular animation is 900ms)
-    const advanceDelay = this.selectedCommand === COMMANDS.MAGIC ? 950 : 550;
-    this.time.delayedCall(advanceDelay, () => this.nextTurn());
+    const advanceDelay = activeCommand === COMMANDS.MAGIC ? 950 : 550;
+    this.time.delayedCall(advanceDelay, () => {
+      this._answerProcessing = false;
+      this.nextTurn();
+    });
   }
 
   // ================================================================
@@ -2658,6 +2691,9 @@ export class BattleScene extends Phaser.Scene {
 
     this.clearBossTimer();
     this.time.removeAllEvents();
+    if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
+    if (this.envState) destroyEnvironmentState(this.envState);
+    hidePanelFx(this.panelFx);
 
     for (const hs of this.heroSprites) heroVictoryBounce(this, hs);
     const vArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
@@ -2897,6 +2933,9 @@ export class BattleScene extends Phaser.Scene {
     this.locked = true;
     this.clearBossTimer();
     this.time.removeAllEvents();
+    if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
+    if (this.envState) destroyEnvironmentState(this.envState);
+    hidePanelFx(this.panelFx);
 
     // Hide equation panel, answer buttons, and ability buttons
     if (this.eqLines) {
