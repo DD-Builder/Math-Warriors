@@ -27,7 +27,10 @@ import { invokeAbility } from '../systems/abilities.js';
 import { getAbilitiesForClass } from '../systems/heroAbilities.js';
 import { getEquipmentById } from '../systems/equipment.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
+import { createParallaxBackground, shiftParallaxLayers, startAtmosphericParticles, destroyParallaxBackground } from '../systems/parallaxBg.js';
+import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } from '../systems/envResponsive.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
+import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
@@ -193,6 +196,8 @@ export class BattleScene extends Phaser.Scene {
     this.events.on('shutdown', () => {
       this.tweens.killAll();
       this.time.removeAllEvents();
+      if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
+      if (this.envState) destroyEnvironmentState(this.envState);
     });
 
     this.buildBackground();
@@ -236,15 +241,32 @@ export class BattleScene extends Phaser.Scene {
   buildBackground() {
     this.cameras.main.setBackgroundColor(0x000000);
     const bgHeight = GAME_HEIGHT * 0.72;
-    drawPapercutBackground(this, this.floor, GAME_WIDTH, bgHeight, 42);
 
-    // Floor-specific foreground details to make each level feel unique
+    // Parallax layered diorama background
+    this.parallaxState = createParallaxBackground(
+      this, this.floor, this.battleVariant, GAME_WIDTH, bgHeight,
+    );
+    startAtmosphericParticles(this, this.parallaxState);
+
+    // Environmental responsiveness — subtle mood shifts based on performance
+    this.envState = createEnvironmentState(this, this.parallaxState);
+
+    // Hook into update loop for parallax on camera shake
+    this.events.on('update', () => {
+      const cam = this.cameras.main;
+      if (cam._shakeDuration > 0) {
+        shiftParallaxLayers(this.parallaxState, cam._shakeOffsetX || 0, cam._shakeOffsetY || 0);
+      } else {
+        shiftParallaxLayers(this.parallaxState, 0, 0);
+      }
+    });
+
+    // Legacy: still draw themed details on top for extra richness
     this.drawBattleThemeDetails(bgHeight);
 
-    // Ambient floating particles — drift upward slowly for atmosphere
-    this.startAmbientParticles(bgHeight);
-
-    this.add.text(30, 20, `QUEST ${this.floor}`, {
+    const sceneName = this.registry.get('battleSceneName') || '';
+    const questLabel = sceneName ? `QUEST ${this.floor} — ${sceneName}` : `QUEST ${this.floor}`;
+    this.add.text(30, 20, questLabel, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: COLORS_CSS.paper,
@@ -903,6 +925,9 @@ export class BattleScene extends Phaser.Scene {
       color: 0xf5ead0, alpha: 0.92, radius: 18, shadowOff: 4, shadowAlpha: 0.2,
     });
 
+    // Floor-themed math panel decorations
+    this.panelFx = createPanelDecorations(this, this.floor, noteCx, noteCy, noteW, noteH);
+
     this.eqLines = {
       a:    this.add.text(noteCx + 20, noteCy - 34, '', this.eqLineStyle({ fontSize: '52px', color: '#3a2410' })),
       opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '52px', color: '#c06a10' })),
@@ -1210,6 +1235,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.phase = 'question';
     this.renderStackedEquation(this.currentQuestion);
+    showPanelFx(this, this.panelFx);
 
     for (let i = 0; i < 4; i++) {
       this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
@@ -1596,6 +1622,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase !== 'question' || !this.currentQuestion) return;
     this.locked = true;
     this.clearBossTimer();
+    hidePanelFx(this.panelFx);
 
     const correct = index === this.currentQuestion.correctIndex;
     const btn = this.answerButtons[index];
@@ -2046,7 +2073,7 @@ export class BattleScene extends Phaser.Scene {
       this.updateSuperButton();
       this.battleWrong++;
       this.momentum = advanceMomentum(this.momentum, false);
-      this.updateMomentumBar();
+      this.updateMomentumBar(true);
 
       if (this.selectedCommand === COMMANDS.MAGIC) {
         // MAGIC FIZZLE: no damage dealt, NO counter-attack. Safe failure.
@@ -2441,7 +2468,7 @@ export class BattleScene extends Phaser.Scene {
     sprite.hpText.setText(`${enemy.hp}/${enemy.maxHp}`);
   }
 
-  updateMomentumBar() {
+  updateMomentumBar(justWrong = false) {
     const zone = getZone(this.momentum);
     this.momentumLabel.setText(zone.label);
     let fillColor = 0x4aa848; // ZONE (green)
@@ -2449,6 +2476,10 @@ export class BattleScene extends Phaser.Scene {
     else if (zone.label === 'HEAT') fillColor = 0xd06020;
     if (this.momentumBarObj) {
       updatePaperBar(this.momentumBarObj, this.momentum, fillColor);
+    }
+    // Environmental responsiveness
+    if (this.envState) {
+      updateEnvironment(this.envState, this.momentum, this.streak, zone.label, justWrong);
     }
   }
 
