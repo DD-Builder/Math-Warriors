@@ -21,13 +21,13 @@ import { FLOOR_PALETTES } from './papercut.js';
 // Layer depth configuration
 // parallax: 0.0 = static (sky), 1.0 = moves with camera (foreground)
 const LAYER_CONFIG = [
-  { name: 'sky',        depth: 0,  parallax: 0.0  },
-  { name: 'glow',       depth: 1,  parallax: 0.03 },
-  { name: 'farHills',   depth: 2,  parallax: 0.12 },
-  { name: 'midHills',   depth: 3,  parallax: 0.25 },
-  { name: 'nearHills',  depth: 4,  parallax: 0.45 },
-  { name: 'ground',     depth: 5,  parallax: 0.65 },
-  { name: 'foreground', depth: 6,  parallax: 0.90 },
+  { name: 'sky',        depth: -10, parallax: 0.0  },
+  { name: 'glow',       depth: -9,  parallax: 0.03 },
+  { name: 'farHills',   depth: -8,  parallax: 0.12 },
+  { name: 'midHills',   depth: -7,  parallax: 0.25 },
+  { name: 'nearHills',  depth: -6,  parallax: 0.45 },
+  { name: 'ground',     depth: -5,  parallax: 0.65 },
+  { name: 'foreground', depth: -4,  parallax: 0.90 },
 ];
 
 // Variant-specific scene seeds per floor
@@ -546,8 +546,8 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
   vignette.lineTo(width - vw, height);
   vignette.strokePath();
 
-  vignette.setDepth(8);
-  layers.push({ gfx: vignette, baseX: 0, baseY: 0, name: 'vignette', depth: 8, parallax: 0 });
+  vignette.setDepth(-2);
+  layers.push({ gfx: vignette, baseX: 0, baseY: 0, name: 'vignette', depth: -2, parallax: 0 });
 
   return {
     layers,
@@ -613,7 +613,7 @@ function getParticleConfig(floorId, width, groundY) {
         const y = -10;
         const colors = [0x68c050, 0x48a040, 0xf0c040];
         const leaf = scene.add.circle(x, y, 3 + Math.random() * 3, colors[Math.floor(Math.random() * 3)], 0.6);
-        leaf.setDepth(7);
+        leaf.setDepth(-3);
         scene.tweens.add({
           targets: leaf,
           x: x + (Math.random() - 0.5) * 120,
@@ -639,7 +639,7 @@ function getParticleConfig(floorId, width, groundY) {
         const x = Math.random() * width;
         const y = groundY + 20;
         const bubble = scene.add.circle(x, y, 2 + Math.random() * 3, 0x88d8f8, 0.5);
-        bubble.setDepth(7);
+        bubble.setDepth(-3);
         scene.tweens.add({
           targets: bubble,
           x: x + (Math.random() - 0.5) * 30,
@@ -665,7 +665,7 @@ function getParticleConfig(floorId, width, groundY) {
         const x = -30;
         const y = Math.random() * groundY * 0.6;
         const wisp = scene.add.circle(x, y, 8 + Math.random() * 12, 0xffffff, 0.2);
-        wisp.setDepth(7);
+        wisp.setDepth(-3);
         scene.tweens.add({
           targets: wisp,
           x: width + 40,
@@ -691,7 +691,7 @@ function getParticleConfig(floorId, width, groundY) {
         const y = groundY + 10;
         const colors = [0xff6020, 0xf0a020, 0xff4010];
         const ember = scene.add.circle(x, y, 2 + Math.random() * 2, colors[Math.floor(Math.random() * 3)], 0.7);
-        ember.setDepth(7);
+        ember.setDepth(-3);
         scene.tweens.add({
           targets: ember,
           x: x + (Math.random() - 0.5) * 60,
@@ -717,7 +717,7 @@ function getParticleConfig(floorId, width, groundY) {
         const x = Math.random() * width;
         const y = -10;
         const snow = scene.add.circle(x, y, 2 + Math.random() * 2, 0xffffff, 0.5);
-        snow.setDepth(7);
+        snow.setDepth(-3);
         scene.tweens.add({
           targets: snow,
           x: x + (Math.random() - 0.5) * 80,
@@ -742,7 +742,7 @@ function getParticleConfig(floorId, width, groundY) {
       const x = Math.random() * width;
       const y = Math.random() * groundY;
       const sparkle = scene.add.circle(x, y, 2, 0xffffff, 0.3);
-      sparkle.setDepth(7);
+      sparkle.setDepth(-3);
       scene.tweens.add({
         targets: sparkle,
         alpha: 0,

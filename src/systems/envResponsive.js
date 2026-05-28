@@ -26,7 +26,7 @@ export function createEnvironmentState(scene, parallaxState) {
     0x000000,
     0,
   );
-  overlay.setDepth(7.5);
+  overlay.setDepth(-1);
 
   return {
     scene,
