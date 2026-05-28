@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
-import { generateQuestion, recordAnswer } from '../systems/math.js';
+import { generateQuestion, generateRatedQuestion, recordAnswer } from '../systems/math.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { recordSkillAnswer } from '../systems/mastery.js';
@@ -8,12 +8,16 @@ import {
   getZone,
   advanceMomentum,
   computeEnemyDamage,
+  computeCommandDamage,
+  applyGuardReduction,
   applyDamageResult,
   buildTurnSequence,
   advanceTurn,
   isPartyDefeated,
   pickRandomLivingHero,
 } from '../systems/combat.js';
+import { COMMANDS, getAvailableCommands, getCommandConfig } from '../systems/commandMenu.js';
+import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
@@ -177,6 +181,12 @@ export class BattleScene extends Phaser.Scene {
 
     // Boss Rush mode
     this.bossRush = !!data?.bossRush;
+
+    // Command menu state (Phase 2: Streamlined Commander)
+    this.selectedCommand = null;        // 'fight', 'magic', or 'guard'
+    this.guardActive = new Array(this.party.length).fill(false);
+    this.commandButtons = [];           // Phaser objects for command menu
+    this.availableCommands = getAvailableCommands(this.grade);
   }
 
   create() {
@@ -189,6 +199,7 @@ export class BattleScene extends Phaser.Scene {
     this.buildHeroSprites();
     this.buildEnemySprite();
     this.buildUI();
+    this.buildCommandMenu();
 
     audio.playMusic('music/battle');
 
@@ -1097,6 +1108,168 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // ================================================================
+  // ================================================================
+  // COMMAND MENU
+  // ================================================================
+
+  buildCommandMenu() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const cmds = this.availableCommands;
+    const btnW = 130;
+    const btnH = 70;
+    const gap = 14;
+    const totalW = cmds.length * btnW + (cmds.length - 1) * gap;
+    const startX = area.cx - totalW / 2 + btnW / 2;
+    const cmdY = this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 120;
+
+    this.commandButtons = [];
+    const cmdColors = {
+      [COMMANDS.FIGHT]: 0x3888d8,
+      [COMMANDS.MAGIC]: 0x7848b8,
+      [COMMANDS.GUARD]: 0x48a848,
+    };
+    const cmdIcons = {
+      [COMMANDS.FIGHT]: '⚔️',
+      [COMMANDS.MAGIC]: '✨',
+      [COMMANDS.GUARD]: '🛡️',
+    };
+    const cmdLabels = {
+      [COMMANDS.FIGHT]: 'FIGHT',
+      [COMMANDS.MAGIC]: 'MAGIC',
+      [COMMANDS.GUARD]: 'GUARD',
+    };
+
+    for (let i = 0; i < cmds.length; i++) {
+      const cmd = cmds[i];
+      const x = startX + i * (btnW + gap);
+      const btn = PaperButton(this, x, cmdY, `${cmdIcons[cmd]} ${cmdLabels[cmd]}`, {
+        w: btnW, h: btnH,
+        color: cmdColors[cmd],
+        fontSize: 18,
+        onClick: () => {
+          if (this.phase !== 'command') return;
+          audio.play('ui/click');
+          this.selectCommand(cmd);
+        },
+      });
+      btn.cmd = cmd;
+      this.commandButtons.push(btn);
+    }
+    this.setCommandMenuVisible(false);
+  }
+
+  setCommandMenuVisible(visible) {
+    for (const btn of this.commandButtons) {
+      if (btn.bg) btn.bg.setVisible(visible);
+      if (btn.shadow) btn.shadow.setVisible(visible);
+      if (btn.label) btn.label.setVisible(visible);
+      if (btn.zone) btn.zone.setVisible(visible);
+    }
+  }
+
+  selectCommand(cmd) {
+    this.selectedCommand = cmd;
+    this.setCommandMenuVisible(false);
+
+    const hero = this.party[this.currentTurn.heroIndex];
+    const config = getCommandConfig(cmd);
+
+    if (cmd === COMMANDS.GUARD) {
+      this.guardActive[this.currentTurn.heroIndex] = true;
+      this.turnLabel.setText(`${hero.name} guards! -50% damage`);
+      this.showToast(`${hero.name} GUARDS!`, '#48a848');
+      audio.play('battle/correct');
+      // Brief shield visual on the hero sprite
+      const hs = this.heroSprites[this.currentTurn.heroIndex];
+      if (hs && hs.body) {
+        const shield = this.add.circle(hs.x, hs.y, 60, 0x48a848, 0.3);
+        this.tweens.add({
+          targets: shield, scale: 1.3, alpha: 0,
+          duration: 400, ease: 'Cubic.out',
+          onComplete: () => shield.destroy(),
+        });
+      }
+      this.time.delayedCall(500, () => this.nextTurn());
+      return;
+    }
+
+    // FIGHT or MAGIC: generate a rated question and show it
+    this.currentQuestion = generateRatedQuestion({
+      operator: this.operator,
+      grade: this.grade,
+      streak: this.streak,
+      floor: this.floor,
+      targetStars: config.targetStars,
+    });
+
+    // Show star rating on the turn label
+    const starStr = '★'.repeat(this.currentQuestion.stars) +
+                    '☆'.repeat(5 - this.currentQuestion.stars);
+    const cmdName = cmd === COMMANDS.MAGIC ? 'MAGIC' : 'FIGHT';
+    this.turnLabel.setText(`${hero.name}: ${cmdName}! ${starStr}`);
+
+    this.phase = 'question';
+    this.renderStackedEquation(this.currentQuestion);
+
+    for (let i = 0; i < 4; i++) {
+      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
+      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
+    }
+    this.setAnswerButtonsVisible(true);
+
+    // Boss timer starts AFTER command selection
+    if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
+    if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
+    if (this.isBoss) {
+      const gradeTimers = [12000, 11000, 10000, 8000, 9000, 10000];
+      const timerDuration = gradeTimers[this.grade] || 8000;
+      this.bossTimerStart = this.time.now;
+      this.bossTimerDuration = timerDuration;
+
+      const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+      const barW = 400;
+      const barY = this.turnLabel.y - 30;
+      this.bossTimerBar = this.add.graphics();
+      this.bossTimerBar.setScrollFactor(0);
+      this.updateBossTimerBar(barW, barY, 1);
+
+      this.bossTimerUpdate = this.time.addEvent({
+        delay: 50, loop: true,
+        callback: () => {
+          const elapsed = this.time.now - this.bossTimerStart;
+          const pct = Math.max(0, 1 - elapsed / timerDuration);
+          this.updateBossTimerBar(barW, barY, pct);
+        },
+      });
+
+      this.bossTimer = this.time.delayedCall(timerDuration, () => {
+        if (this.phase !== 'question' || this.locked) return;
+        this.showToast('TIME UP!', COLORS_CSS.scarletL);
+        const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
+        this.onAnswer(wrongIdx);
+      });
+    }
+
+    // Consume ability (enemy ate a wrong answer button)
+    if (this._consumeNextTurn) {
+      this._consumeNextTurn = false;
+      const wrongIndices = [0, 1, 2, 3].filter((i) => i !== this.currentQuestion.correctIndex);
+      const victim = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+      this.recolorAnswerButton(victim, this.answerButtons[victim].baseColor, 0.25);
+      this.answerButtons[victim].label.setText('?');
+    }
+  }
+
+  setAnswerButtonsVisible(visible) {
+    for (const btn of this.answerButtons) {
+      if (btn.bg) btn.bg.setVisible(visible);
+      if (btn.shadow) btn.shadow.setVisible(visible);
+      if (btn.label) btn.label.setVisible(visible);
+      if (btn.zone) btn.zone.setVisible(visible);
+    }
+  }
+
+  // ================================================================
   // TURN FLOW
   // ================================================================
 
@@ -1145,8 +1318,9 @@ export class BattleScene extends Phaser.Scene {
 
   startHeroTurn() {
     const hero = this.party[this.currentTurn.heroIndex];
-    this.phase = 'question';
+    this.phase = 'command';
     this.locked = false;
+    this.selectedCommand = null;
     this.refreshPotionButton();
     this.refreshAbilityButton();
     this.updateSuperButton();
@@ -1156,70 +1330,19 @@ export class BattleScene extends Phaser.Scene {
       this.showToast(getTutorialText('FIRST_BATTLE'), COLORS_CSS.goldL);
     }
 
-    this.currentQuestion = generateQuestion({
-      operator: this.operator,
-      grade: this.grade,
-      streak: this.streak,
-      floor: this.floor,
-    });
+    // Clear guard from previous round
+    this.guardActive[this.currentTurn.heroIndex] = false;
 
-    this.renderStackedEquation(this.currentQuestion);
+    // Show command menu, hide answer buttons until command is chosen
+    this.setCommandMenuVisible(true);
+    this.setAnswerButtonsVisible(false);
+    this.turnLabel.setText(`${hero.name}'s turn — choose a command!`);
 
-    for (let i = 0; i < 4; i++) {
-      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
-      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
-    }
-
-    // Boss fights have a countdown timer — race to answer!
-    if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
-    if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
-
-    if (this.isBoss) {
-      const gradeTimers = [12000, 11000, 10000, 8000, 9000, 10000];
-      const timerDuration = gradeTimers[this.grade] || 8000;
-      this.bossTimerStart = this.time.now;
-      this.bossTimerDuration = timerDuration;
-      this.turnLabel.setText(`${hero.name} — HURRY! ⏱`);
-
-      // Visual timer bar above the turn label
-      const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-      const barW = 400;
-      const barY = this.turnLabel.y - 30;
-      this.bossTimerBar = this.add.graphics();
-      this.bossTimerBar.setScrollFactor(0);
-      this.updateBossTimerBar(barW, barY, 1);
-
-      this.bossTimerUpdate = this.time.addEvent({
-        delay: 50,
-        loop: true,
-        callback: () => {
-          const elapsed = this.time.now - this.bossTimerStart;
-          const pct = Math.max(0, 1 - elapsed / timerDuration);
-          this.updateBossTimerBar(barW, barY, pct);
-        },
-      });
-
-      this.bossTimer = this.time.delayedCall(timerDuration, () => {
-        if (this.phase !== 'question' || this.locked) return;
-        this.showToast('TIME UP!', COLORS_CSS.scarletL);
-        // Find a wrong answer index and force-select it
-        const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
-        this.onAnswer(wrongIdx);
-      });
-    } else {
-      this.turnLabel.setText(`${hero.name}'s turn — answer the question!`);
-    }
-
-    // Consume ability: if the previous turn was wrong and the enemy has
-    // the consume ability, one random wrong answer button is "eaten"
-    // and can't be tapped. This forces the player to commit without a
-    // full set of options.
-    if (this._consumeNextTurn) {
-      this._consumeNextTurn = false;
-      const wrongIndices = [0, 1, 2, 3].filter((i) => i !== this.currentQuestion.correctIndex);
-      const victim = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
-      this.recolorAnswerButton(victim, this.answerButtons[victim].baseColor, 0.25);
-      this.answerButtons[victim].label.setText('?');
+    // Clear any stale equation text
+    if (this.eqLines) {
+      this.eqLines.a.setText('');
+      this.eqLines.opB.setText('');
+      this.eqLines.ans.setText('');
     }
   }
 
@@ -1435,10 +1558,16 @@ export class BattleScene extends Phaser.Scene {
           return;
         }
 
-        const result = computeEnemyDamage(attacker, target, { momentum: this.momentum });
+        let result = computeEnemyDamage(attacker, target, { momentum: this.momentum });
 
-        // Knight shield block — 40% chance to halve incoming damage
-        if (cls === 'knight' && Math.random() < 0.4) {
+        // Guard reduction — hero chose GUARD this turn
+        const targetHeroIdx = this.party.indexOf(target);
+        if (targetHeroIdx >= 0 && this.guardActive[targetHeroIdx]) {
+          result = applyGuardReduction(result, target.hp);
+          this.showToast(`${target.name} GUARDS! Half damage!`, '#48a848');
+          this.guardActive[targetHeroIdx] = false;
+        } else if (cls === 'knight' && Math.random() < 0.4) {
+          // Knight shield block — 40% chance to halve incoming damage
           result.modifiedDamage = Math.max(1, Math.round(result.modifiedDamage / 2));
           result.newHp = Math.max(0, target.hp - result.modifiedDamage);
           this.showToast(`${target.name} BLOCKS! Half damage!`, '#5a7ab8');
@@ -1529,26 +1658,22 @@ export class BattleScene extends Phaser.Scene {
         activeHero: this.party[this.currentTurn.heroIndex],
       });
 
-      const answer = this.currentQuestion.answer;
-      const zone = getZone(this.momentum);
       const hero = this.party[heroIdx];
       const cls = hero.class || 'knight';
 
-      const streakBonus = this.streak >= 8 ? 6 : this.streak >= 5 ? 4 : this.streak >= 3 ? 2 : 0;
-      const BASE_POWER = 5;
-      const rawDmg = BASE_POWER + (answer * 0.8) + ((hero.atk || 10) * 0.3) + streakBonus;
+      // Difficulty-rated damage: stars drive damage, not answer magnitude
+      const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
+      const diffMult = getDifficultyMultiplier(stars);
+      const cmdConfig = getCommandConfig(this.selectedCommand || COMMANDS.FIGHT);
+      const cmdMult = cmdConfig.damageMult;
 
-      // Apply enemy DEF reduction
-      const defReduction = (targetEnemy.def || 0) * 0.2;
-
-      // Class-specific damage modifiers
+      // Class-specific modifiers
       let classMult = 1;
       let hitCount = 1;
       if (cls === 'knight') {
-        classMult = 1.3; // heavy single hit
+        classMult = 1.3;
       } else if (cls === 'wizard') {
         if (this.streak >= 5) {
-          // Streak 5+: heal weakest ally 10 HP
           const weakest = this.party.filter(h => h.hp > 0).sort((a, b) => a.hp - b.hp)[0];
           if (weakest) {
             weakest.hp = Math.min(weakest.maxHp, weakest.hp + 10);
@@ -1556,18 +1681,25 @@ export class BattleScene extends Phaser.Scene {
             this.updateAllHeroHp();
           }
         }
-        classMult = this.streak >= 3 ? 1.5 : 1.0; // streak bonus
+        classMult = this.streak >= 3 ? 1.5 : 1.0;
       } else if (cls === 'bunny') {
-        hitCount = 2 + (this.streak >= 4 ? 1 : 0); // 2-3 hit combo
-        classMult = 1.0 / hitCount * 1.2; // split damage but 20% total bonus
+        hitCount = 2 + (this.streak >= 4 ? 1 : 0);
+        classMult = 1.0 / hitCount * 1.2;
       }
 
-      // Show ON FIRE! toast at streak 8
       if (this.streak === 8) {
         this.showToast('ON FIRE!', COLORS_CSS.goldL);
       }
 
-      const totalDmg = Math.max(3, Math.round((rawDmg - defReduction) * zone.heroMult * classMult));
+      // Use the new command-aware damage formula
+      const commandResult = computeCommandDamage(hero, targetEnemy, {
+        momentum: this.momentum,
+        streak: this.streak,
+        difficultyMult: diffMult,
+        commandMult: cmdMult,
+      });
+      const baseDmg = commandResult.modifiedDamage;
+      const totalDmg = Math.max(3, Math.round(baseDmg * classMult));
       const modified = hitCount > 1 ? Math.max(3, Math.round(totalDmg / hitCount)) * hitCount : totalDmg;
       const newHp = Math.max(0, targetEnemy.hp - modified);
       const result = {
@@ -1905,9 +2037,7 @@ export class BattleScene extends Phaser.Scene {
       }
     } else {
       this.recolorAnswerButton(index, 0xc04040, 1);
-      // Flash the correct one in green too
       this.recolorAnswerButton(this.currentQuestion.correctIndex, 0x40c040, 1);
-      audio.play('battle/wrong');
 
       this.streak = 0;
       const heroIdx = this.currentTurn.heroIndex;
@@ -1917,39 +2047,66 @@ export class BattleScene extends Phaser.Scene {
       this.battleWrong++;
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar();
-      if (shouldShowTutorial('FIRST_WRONG')) {
-        markTutorialShown('FIRST_WRONG');
-        this.showToast(getTutorialText('FIRST_WRONG'), COLORS_CSS.goldL);
+
+      if (this.selectedCommand === COMMANDS.MAGIC) {
+        // MAGIC FIZZLE: no damage dealt, NO counter-attack. Safe failure.
+        audio.play('battle/wrong');
+        this.showToast('Fizzle!', '#b080e0');
+        // Sparkle-poof visual on the hero
+        const hs = this.heroSprites[this.currentTurn.heroIndex];
+        if (hs && hs.body) {
+          for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 20 + Math.random() * 30;
+            const sp = this.add.circle(hs.x, hs.y - 40, 3 + Math.random() * 3, 0xc080f0, 0.8);
+            this.tweens.add({
+              targets: sp,
+              x: hs.x + Math.cos(angle) * dist,
+              y: hs.y - 40 + Math.sin(angle) * dist,
+              alpha: 0, scale: 0.2,
+              duration: 400 + Math.random() * 200,
+              onComplete: () => sp.destroy(),
+            });
+          }
+        }
+        this.showHintButton(this.currentQuestion);
       } else {
-        this.showToast('Try again!', COLORS_CSS.scarletL);
+        // FIGHT wrong: normal counter-attack
+        audio.play('battle/wrong');
+        if (shouldShowTutorial('FIRST_WRONG')) {
+          markTutorialShown('FIRST_WRONG');
+          this.showToast(getTutorialText('FIRST_WRONG'), COLORS_CSS.goldL);
+        } else {
+          this.showToast('Try again!', COLORS_CSS.scarletL);
+        }
+
+        const wrongTargetEnemy = this.enemies[this.currentTarget] || this.enemy;
+        invokeAbility(wrongTargetEnemy.ability, 'onHeroWrong', {
+          enemy: wrongTargetEnemy,
+          party: this.party,
+          scene: this,
+          activeHero: this.party[this.currentTurn.heroIndex],
+        });
+
+        this.time.delayedCall(300, () => {
+          const target = this.party[this.currentTurn.heroIndex];
+          const counterEnemy = this.enemies[this.currentTarget] || this.enemy;
+          let result = computeEnemyDamage(counterEnemy, target, { momentum: this.momentum });
+          // Apply guard reduction if hero is guarding
+          if (this.guardActive[this.currentTurn.heroIndex]) {
+            result = applyGuardReduction(result, target.hp);
+          }
+          applyDamageResult(target, result);
+          if (result.modifiedDamage > 0) this.battleDamageTaken = true;
+          this.hitFlash();
+          this.flashHero(target, result);
+          this.updateHeroHp(target);
+          this.shakeCamera(0.01, 250);
+          audio.play('battle/hit-hero');
+        });
+
+        this.showHintButton(this.currentQuestion);
       }
-
-      // Fire enemy ability hook for wrong answers — most interesting
-      // side effects trigger here (sporulate boost, crown tally, consume)
-      const wrongTargetEnemy = this.enemies[this.currentTarget] || this.enemy;
-      invokeAbility(wrongTargetEnemy.ability, 'onHeroWrong', {
-        enemy: wrongTargetEnemy,
-        party: this.party,
-        scene: this,
-        activeHero: this.party[this.currentTurn.heroIndex],
-      });
-
-      // Brief pause, then enemy counters
-      this.time.delayedCall(300, () => {
-        const target = this.party[this.currentTurn.heroIndex];
-        const counterEnemy = this.enemies[this.currentTarget] || this.enemy;
-        const result = computeEnemyDamage(counterEnemy, target, { momentum: this.momentum });
-        applyDamageResult(target, result);
-        if (result.modifiedDamage > 0) this.battleDamageTaken = true;
-        this.hitFlash();
-        this.flashHero(target, result);
-        this.updateHeroHp(target);
-        this.shakeCamera(0.01, 250);
-        audio.play('battle/hit-hero');
-      });
-
-      // Show HINT button after wrong answer
-      this.showHintButton(this.currentQuestion);
     }
 
     // Snappy turn advance — see principle #3 (tempo) in DESIGN-PRINCIPLES.md.
@@ -1964,7 +2121,7 @@ export class BattleScene extends Phaser.Scene {
     if (!this.potionLabel) return;
     const count = this.save.potions || 0;
     this.potionLabel.setText(`POTION ${count}`);
-    const canUse = count > 0 && this.phase === 'question';
+    const canUse = count > 0 && (this.phase === 'question' || this.phase === 'command');
     if (this.potionBtn && this.potionBtn.bg) {
       const alpha = canUse ? 1 : 0.5;
       this.potionBtn.bg.setAlpha(alpha);
@@ -1974,7 +2131,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   usePotion() {
-    if (this.phase !== 'question' || this.locked) return;
+    if ((this.phase !== 'question' && this.phase !== 'command') || this.locked) return;
     this.potionUsedThisBattle = true;
 
     if ((this.save.potions || 0) <= 0) {

@@ -763,6 +763,67 @@ export function formatQuestion(q) {
   return `${q.a} ${opSymbol(q.op)} ${q.b} = ?`;
 }
 
+// ------------------------------------------------------------------
+// TARGETED DIFFICULTY GENERATION
+// ------------------------------------------------------------------
+
+import { rateQuestion } from './difficultyRating.js';
+
+/**
+ * Generate a question constrained to a target star range.
+ * Generates questions and rates them, retrying (up to 8 times) until
+ * a question falls within the target range.
+ *
+ * @param {object} opts - Same as generateQuestion, plus:
+ * @param {number[]} [opts.targetStars] - e.g. [2,3] for FIGHT, [4,5] for MAGIC
+ * @returns {Question} - Question with `stars` field attached
+ */
+export function generateRatedQuestion(opts = {}) {
+  const targetStars = opts.targetStars;
+  const grade = opts.grade ?? 3;
+
+  if (!targetStars || targetStars.length === 0) {
+    const q = generateQuestion(opts);
+    q.stars = rateQuestion(q, grade);
+    return q;
+  }
+
+  const minStar = Math.min(...targetStars);
+  const maxStar = Math.max(...targetStars);
+
+  // For higher star targets, bias toward harder operators and larger operands
+  const biasedOpts = { ...opts };
+  if (minStar >= 4) {
+    const gradeOps = GRADE_TABLE[clampGrade(grade)]?.ops ?? ['+', '-'];
+    const hardOps = gradeOps.filter(o => ['*', '/', '-'].includes(o));
+    if (hardOps.length > 0 && (!biasedOpts.operator || biasedOpts.operator === 'mixed')) {
+      biasedOpts.operator = hardOps[Math.floor(Math.random() * hardOps.length)];
+    }
+    // Push streak higher to get harder operand ranges
+    biasedOpts.streak = Math.max(biasedOpts.streak ?? 0, 4);
+  } else if (maxStar <= 2) {
+    // For easy targets, prefer simpler operators
+    if (!biasedOpts.operator || biasedOpts.operator === 'mixed') {
+      biasedOpts.operator = '+';
+    }
+    biasedOpts.streak = Math.min(biasedOpts.streak ?? 0, 0);
+  }
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const q = generateQuestion(attempt === 0 ? biasedOpts : opts);
+    const stars = rateQuestion(q, grade);
+    if (stars >= minStar && stars <= maxStar) {
+      q.stars = stars;
+      return q;
+    }
+  }
+
+  // Fallback: accept whatever we got, rate it
+  const q = generateQuestion(opts);
+  q.stars = Math.max(minStar, Math.min(maxStar, rateQuestion(q, grade)));
+  return q;
+}
+
 /**
  * Estimate the mean answer value for questions generated with a given
  * operator + grade. Used to size enemy HP so a mob takes ~3-5 problems

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
-import { getFloor, TILE } from '../data/floors.js';
+import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, getHeroById, ALL_HEROES } from '../data/heroes.js';
@@ -1308,11 +1308,11 @@ export class MazeScene extends Phaser.Scene {
 
     this.registry.set('battleReturnScene', SCENES.MAZE);
     this.registry.set('battleReturnData', { floor: this.floorId });
-    const d = this.playerX + this.playerY;
-    const variant = this.floorId === 2 ? (d < 14 ? 0 : d < 28 ? 1 : 2)
-                 : this.floorId === 3 ? (d < 16 ? 0 : d < 36 ? 1 : 2)
-                 : Math.floor(Math.random() * 3);
-    this.registry.set('battleVariant', variant);
+    const tileType = this.floor.tiles[this.playerY]?.[this.playerX] ?? TILE.FLOOR;
+    const sceneInfo = getBattleSceneVariant(this.floorId, tileType, isBoss);
+    this.registry.set('battleVariant', sceneInfo.variant);
+    this.registry.set('battleTileType', tileType);
+    this.registry.set('battleSceneName', sceneInfo.name);
 
     const battleData = {
       party: this.party,

@@ -574,3 +574,74 @@ export const FLOORS = [
 export function getFloor(id) {
   return FLOORS.find((f) => f.id === id) ?? null;
 }
+
+// ------------------------------------------------------------------
+// BATTLE SCENE VARIANTS
+// ------------------------------------------------------------------
+// Each floor has 2-3 distinct battle backgrounds tied to maze tile types.
+// Boss fights always use variant 2 (the dramatic scene).
+// tileTypes: which TILE codes trigger this variant in the maze.
+
+export const BATTLE_SCENES = {
+  1: [
+    { name: 'Meadow',        variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Pond Clearing',  variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Briar Throne',   variant: 2, tileTypes: [], boss: true },
+  ],
+  2: [
+    { name: 'Shallow Reef',    variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Deep Grotto',     variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Pressure Chamber', variant: 2, tileTypes: [], boss: true },
+  ],
+  3: [
+    { name: 'Cloudtop',       variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Storm Front',    variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Eye of the Storm', variant: 2, tileTypes: [], boss: true },
+  ],
+  4: [
+    { name: 'Lava Tunnel',     variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Caldera',         variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Pyroclasts Forge', variant: 2, tileTypes: [], boss: true },
+  ],
+  5: [
+    { name: 'Ice Shelf',      variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Frozen Lake',    variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Summit Throne',  variant: 2, tileTypes: [], boss: true },
+  ],
+  6: [
+    { name: 'Crystal Gallery',  variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Prism Depths',     variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Prism Chamber',    variant: 2, tileTypes: [], boss: true },
+  ],
+  7: [
+    { name: 'Market Alley',   variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Fountain Square', variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Grand Bazaar',   variant: 2, tileTypes: [], boss: true },
+  ],
+  8: [
+    { name: 'Reading Room',   variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Archive Depths',  variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Theorem Sanctum', variant: 2, tileTypes: [], boss: true },
+  ],
+  9: [
+    { name: 'Mending Hall',    variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Dream Pool',      variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Final Threshold',  variant: 2, tileTypes: [], boss: true },
+  ],
+};
+
+/**
+ * Get the battle scene variant for a given floor, tile type, and boss flag.
+ * @param {number} floorId
+ * @param {number} tileType - TILE constant from the maze
+ * @param {boolean} isBoss
+ * @returns {object} - { name, variant }
+ */
+export function getBattleSceneVariant(floorId, tileType, isBoss) {
+  const scenes = BATTLE_SCENES[floorId] ?? BATTLE_SCENES[1];
+  if (isBoss) {
+    return scenes.find(s => s.boss) ?? scenes[scenes.length - 1];
+  }
+  const match = scenes.find(s => !s.boss && s.tileTypes.includes(tileType));
+  return match ?? scenes[0];
+}
