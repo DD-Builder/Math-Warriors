@@ -243,7 +243,8 @@ export class BattleScene extends Phaser.Scene {
 
   buildBackground() {
     this.cameras.main.setBackgroundColor(0x000000);
-    const bgHeight = GAME_HEIGHT * 0.72;
+    // Background fills FULL screen height — no black void
+    const bgHeight = GAME_HEIGHT;
 
     // Parallax layered diorama background
     this.parallaxState = createParallaxBackground(
@@ -275,7 +276,7 @@ export class BattleScene extends Phaser.Scene {
       color: COLORS_CSS.paper,
       stroke: '#000000',
       strokeThickness: 4,
-    });
+    }).setDepth(20);
   }
 
   drawBattleThemeDetails(bgH) {
@@ -728,12 +729,13 @@ export class BattleScene extends Phaser.Scene {
     const uiTop = area.bottom - 220;
     const groundY = uiTop - 30;
 
-    // Draw a ground path strip so heroes aren't on black void
+    // Ground strip for character area (above parallax)
     const groundGfx = this.add.graphics();
     groundGfx.fillStyle(0x3a6818, 0.6);
     groundGfx.fillRect(0, groundY, GAME_WIDTH, uiTop - groundY + 40);
     groundGfx.fillStyle(0x4a8828, 0.4);
     groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
+    groundGfx.setDepth(10);
 
     const enemyCount = this.enemies.length;
     const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
@@ -745,6 +747,7 @@ export class BattleScene extends Phaser.Scene {
       const y = groundY - 100;
 
       const body = drawHeroSprite(this, x, y, hero, { scale: heroScale });
+      body.setDepth(12);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -752,20 +755,20 @@ export class BattleScene extends Phaser.Scene {
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
         strokeThickness: 3,
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(14);
 
       const hpBarBg = this.add.rectangle(x, y + 80, 150, 14, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD);
+        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
       const hpBarFill = this.add.rectangle(x - 73, y + 80, 146, 10, 0x40c040)
-        .setOrigin(0, 0.5);
+        .setOrigin(0, 0.5).setDepth(13);
       const hpText = this.add.text(x, y + 96, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '14px',
         color: COLORS_CSS.paper,
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(14);
 
       const indicator = this.add.triangle(x, y - 160, 0, 0, 20, 0, 10, 20, COLORS.goldL)
-        .setVisible(false);
+        .setVisible(false).setDepth(15);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y };
     });
@@ -821,6 +824,7 @@ export class BattleScene extends Phaser.Scene {
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
+      body.setDepth(12);
 
       // Name/HP bars directly above the sprite head
       const spriteHalfH = (640 * monsterScale) * 0.35;
@@ -834,19 +838,19 @@ export class BattleScene extends Phaser.Scene {
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.scarlet,
         strokeThickness: 4,
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(14);
 
       const hpBarBg = this.add.rectangle(x, hpY, w + 20, 20, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD);
+        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
       const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (enemy.hp / enemy.maxHp), 14, 0xc04030)
-        .setOrigin(0, 0.5);
+        .setOrigin(0, 0.5).setDepth(13);
       const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '15px',
         color: '#fff8e0',
         stroke: '#1a0e04',
         strokeThickness: 3,
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(14);
 
       const spriteData = { body, name, hpBarBg, hpBarFill, hpText, x, y };
       this.enemySprites.push(spriteData);
@@ -872,6 +876,14 @@ export class BattleScene extends Phaser.Scene {
   // UI — momentum, question, answers, toasts, end screen
   // ================================================================
 
+  setUIDepth(obj, depth) {
+    if (!obj) return;
+    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track']) {
+      if (obj[key] && obj[key].setDepth) obj[key].setDepth(depth);
+    }
+    if (obj.setDepth) obj.setDepth(depth);
+  }
+
   buildUI() {
     // NEW LAYOUT — characters always visible, equation floats as a
     // small paper note in the upper area, only the answer-button row
@@ -887,16 +899,18 @@ export class BattleScene extends Phaser.Scene {
     const barW = 380;
     const barX = area.cx - barW / 2;
 
-    PaperPanel(this, area.cx, topY, barW + 220, 50, {
+    const topPanel = PaperPanel(this, area.cx, topY, barW + 220, 50, {
       color: 0xfff4e0, alpha: 0.92, radius: 16,
     });
+    if (topPanel.bg) topPanel.bg.setDepth(20);
+    if (topPanel.shadow) topPanel.shadow.setDepth(19);
 
     this.add.text(barX - 10, topY, 'MOMENTUM', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '13px',
       color: '#3a2410',
       letterSpacing: 1,
-    }).setOrigin(1, 0.5);
+    }).setOrigin(1, 0.5).setDepth(21);
 
     this.momentumBarObj = PaperBar(this, barX, topY, barW, 16, this.momentum, 0x4aa848, {
       bgColor: 0xc8b898,
@@ -1018,11 +1032,12 @@ export class BattleScene extends Phaser.Scene {
     this.setSuperVisible(this.teamBtn, false);
 
     // Pause/gear button — top-left near QUEST label
-    PaperButton(this, area.left + 60, area.top + 22, '⚙', {
+    const gearBtn = PaperButton(this, area.left + 60, area.top + 22, '⚙', {
       w: 54, h: 46, color: 0xfff8e8, fontSize: 22,
       textColor: '#3a2410',
       onClick: () => this.showPauseOverlay(),
     });
+    this.setUIDepth(gearBtn, 20);
 
     // Pause overlay — all elements at absolute positions, collected into
     // an array so we can show/hide them together. Depth is set high so
@@ -1089,7 +1104,40 @@ export class BattleScene extends Phaser.Scene {
       fontSize: '26px',
       backgroundColor: '#1a0e04',
       padding: { x: 20, y: 10 },
-    }).setOrigin(0.5).setAlpha(0);
+    }).setOrigin(0.5).setAlpha(0).setDepth(50);
+
+    // --- DEPTH FIX: Set all UI elements above parallax background (depths 0-8) ---
+    const UI_DEPTH = 20;
+    const UI_TEXT_DEPTH = 21;
+    // Momentum bar
+    this.setUIDepth(this.momentumBarObj, UI_DEPTH);
+    if (this.momentumLabel) this.momentumLabel.setDepth(UI_TEXT_DEPTH);
+    // Potion button
+    this.setUIDepth(this.potionBtn, UI_DEPTH);
+    // Equation panel elements
+    for (const key of Object.keys(this.eqLines || {})) {
+      if (this.eqLines[key]?.setDepth) this.eqLines[key].setDepth(UI_TEXT_DEPTH + 2);
+    }
+    // Turn label
+    if (this.turnLabel) this.turnLabel.setDepth(UI_TEXT_DEPTH + 2);
+    // Answer buttons
+    for (const btn of this.answerButtons || []) {
+      this.setUIDepth(btn, UI_DEPTH + 5);
+      if (btn.label?.setDepth) btn.label.setDepth(UI_DEPTH + 6);
+    }
+    // Ability buttons
+    for (const btn of [this.abilityBtn, this.superBtn, this.teamBtn]) {
+      this.setUIDepth(btn, UI_DEPTH + 4);
+    }
+    // Gear/pause button — find all non-depth-set game objects and bump UI ones
+    // The PaperPanels for equation and turn label need depth too
+    this.children.list.forEach(child => {
+      if (child.depth === 0 && child.type === 'Graphics' && child !== this.parallaxState?.layers?.[0]?.gfx) {
+        // Only bump UI graphics, not parallax ones
+        const y = child.y ?? 0;
+        if (y > 800 || child._paperPanel) child.setDepth(UI_DEPTH);
+      }
+    });
 
     // End overlay (hidden by default)
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
@@ -1187,6 +1235,8 @@ export class BattleScene extends Phaser.Scene {
         },
       });
       btn.cmd = cmd;
+      this.setUIDepth(btn, 28);
+      if (btn.label?.setDepth) btn.label.setDepth(29);
       this.commandButtons.push(btn);
     }
     this.setCommandMenuVisible(false);
