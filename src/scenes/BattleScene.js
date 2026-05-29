@@ -726,17 +726,16 @@ export class BattleScene extends Phaser.Scene {
 
   buildHeroSprites() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    // Layout: heroes in middle-left, standing on the ground strip.
-    // The bottom ~220px is the equation+answer UI. Characters go above.
-    const uiTop = area.bottom - 220;
-    const groundY = uiTop - 30;
+    // Characters occupy the upper portion; UI lives in the bottom 340px.
+    const uiTop = area.bottom - 340;
+    const groundY = uiTop - 10;
 
-    // Ground strip for character area (above parallax)
+    // Ground strip — subtle separator between characters and UI
     const groundGfx = this.add.graphics();
-    groundGfx.fillStyle(0x3a6818, 0.6);
-    groundGfx.fillRect(0, groundY, GAME_WIDTH, uiTop - groundY + 40);
-    groundGfx.fillStyle(0x4a8828, 0.4);
-    groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
+    groundGfx.fillStyle(0x3a6818, 0.45);
+    groundGfx.fillRect(0, groundY, GAME_WIDTH, uiTop - groundY + 20);
+    groundGfx.fillStyle(0x4a8828, 0.3);
+    groundGfx.fillRect(0, groundY, GAME_WIDTH, 6);
     groundGfx.setDepth(10);
 
     const enemyCount = this.enemies.length;
@@ -790,8 +789,8 @@ export class BattleScene extends Phaser.Scene {
 
   buildEnemySprite() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 220;
-    const groundY = uiTop - 30;
+    const uiTop = area.bottom - 340;
+    const groundY = uiTop - 10;
     const centerX = GAME_WIDTH * 0.76;
     const count = this.enemies.length;
 
@@ -893,8 +892,8 @@ export class BattleScene extends Phaser.Scene {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
     const ansH = 100;
-    const ansY = area.bottom - ansH / 2 - 28;
-    const eqY = ansY - ansH / 2 - 55;
+    const ansY = area.bottom - ansH / 2 - 12;
+    const eqY = ansY - ansH / 2 - 50;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -964,9 +963,9 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.ans.setOrigin(0.5, 0.5);
     this.eqLines.stars.setOrigin(1, 0);
 
-    // Turn label — slim pill at the top of the math area
-    const turnY = eqY - noteH / 2 - 32;
-    PaperPanel(this, area.cx, turnY, 400, 38, {
+    // Turn label — above the math panel
+    const turnY = eqY - noteH / 2 - 26;
+    PaperPanel(this, area.cx, turnY, 520, 38, {
       color: 0xf5ead0, alpha: 0.90, radius: 12, shadowOff: 2, shadowAlpha: 0.15,
     });
     this.turnLabel = this.add.text(area.cx, turnY, '', {
@@ -1205,7 +1204,7 @@ export class BattleScene extends Phaser.Scene {
     const gap = 14;
     const totalW = cmds.length * btnW + (cmds.length - 1) * gap;
     const startX = area.cx - totalW / 2 + btnW / 2;
-    const cmdY = this.turnLabel ? this.turnLabel.y : this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 85;
+    const cmdY = this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 90;
 
     this.commandButtons = [];
     const cmdColors = {

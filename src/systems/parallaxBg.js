@@ -152,35 +152,35 @@ function drawParallaxCloud(gfx, cx, cy, w, h, color, alpha, rng) {
 }
 
 function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY, rng) {
-  // 1. Paper-cutout shadow: offset 5px down-right at 35% alpha
+  // Paper-cutout shadow — bold offset so layers look stacked
   if (shadowColor) {
-    const shadow = points.map(p => ({ x: p.x + 5, y: p.y + 5 }));
-    fillShape(gfx, shadow, shadowColor, 0.35, closeBottom, bottomY + 5);
+    const shadow = points.map(p => ({ x: p.x + 8, y: p.y + 10 }));
+    fillShape(gfx, shadow, shadowColor, 0.55, closeBottom, bottomY + 10);
   }
 
   // Main fill
   fillShape(gfx, points, color, 1, closeBottom, bottomY);
 
-  // 2. Gradient depth: darker at the base (bottom 40%) via layered strips
+  // Gradient depth: darken the bottom half so hills have volume
   if (closeBottom && points.length > 2) {
     const minY = Math.min(...points.map(p => p.y));
     const totalH = bottomY - minY;
-    const gradientTop = minY + totalH * 0.6; // start darkening at 60% from top
-    const stripCount = 5;
+    const gradientTop = minY + totalH * 0.45;
+    const stripCount = 6;
     const stripH = (bottomY - gradientTop) / stripCount;
     const leftX = points[0].x;
     const rightX = points[points.length - 1].x;
     for (let s = 0; s < stripCount; s++) {
       const t = (s + 1) / stripCount;
       const stripY = gradientTop + s * stripH;
-      gfx.fillStyle(0x000000, 0.04 * t); // 0.04 -> 0.20 across strips
+      gfx.fillStyle(0x000000, 0.06 * t);
       gfx.fillRect(leftX, stripY, rightX - leftX, stripH);
     }
   }
 
-  // Edge highlight: lighter line along top edge simulates paper catching light
+  // Bright edge highlight along the ridge top
   if (points.length > 3) {
-    gfx.lineStyle(1.5, 0xffffff, 0.12);
+    gfx.lineStyle(2.5, 0xffffff, 0.25);
     gfx.beginPath();
     gfx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
@@ -189,17 +189,25 @@ function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY
     gfx.strokePath();
   }
 
-  // 3. Texture detail: small decorative circles (trees/rocks) on the hill surface
+  // Tree/foliage silhouettes along the ridge
   if (rng && points.length > 4) {
-    const detailCount = 3 + Math.floor(rng() * 3); // 3-5 elements
-    for (let d = 0; d < detailCount; d++) {
-      const idx = Math.floor(rng() * points.length);
-      const pt = points[idx];
-      const radius = 3 + rng() * 2; // 3-5px
-      // Place slightly below the hill edge so it sits on the surface
-      const dy = 6 + rng() * 14;
-      gfx.fillStyle(shadowColor || 0x000000, 0.10 + rng() * 0.05); // 10-15% alpha
-      gfx.fillCircle(pt.x, pt.y + dy, radius);
+    const step = Math.max(1, Math.floor(points.length / 18));
+    for (let i = 2; i < points.length - 2; i += step) {
+      const pt = points[i];
+      const skip = rng();
+      if (skip < 0.3) continue;
+      const treeH = 10 + rng() * 18;
+      const treeW = 6 + rng() * 8;
+      gfx.fillStyle(shadowColor || 0x000000, 0.25 + rng() * 0.15);
+      // Trunk
+      gfx.fillRect(pt.x - 1, pt.y - treeH + 4, 2, treeH);
+      // Canopy — 2-3 overlapping circles
+      const canopyN = 2 + Math.floor(rng() * 2);
+      for (let c = 0; c < canopyN; c++) {
+        const cx = pt.x + (rng() - 0.5) * treeW * 0.6;
+        const cy = pt.y - treeH + rng() * 6;
+        gfx.fillCircle(cx, cy, treeW * (0.4 + rng() * 0.3));
+      }
     }
   }
 }
@@ -237,13 +245,13 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   // 5. Clouds in the top 20% of the screen
   const cloudColor = pal.cloud || pal.skyGlow;
-  const cloudCount = 3 + Math.floor(rng() * 3); // 3-5 clouds
+  const cloudCount = 4 + Math.floor(rng() * 3);
   for (let ci = 0; ci < cloudCount; ci++) {
     const cx = width * (0.05 + rng() * 0.90);
-    const cy = height * (0.04 + rng() * 0.16); // top 20%
-    const cw = 50 + rng() * 70; // cloud width 50-120
-    const ch = 12 + rng() * 10; // cloud height 12-22
-    const cAlpha = 0.15 + rng() * 0.10; // 15-25% alpha
+    const cy = height * (0.04 + rng() * 0.18);
+    const cw = 80 + rng() * 120;
+    const ch = 18 + rng() * 14;
+    const cAlpha = 0.30 + rng() * 0.20;
     drawParallaxCloud(sky, cx, cy, cw, ch, cloudColor, cAlpha, rng);
   }
 
@@ -258,14 +266,14 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   for (let ring = 10; ring >= 1; ring--) {
     const r = glowR * (ring / 10);
-    const alpha = pal.glowAlpha * (1 - ring / 12) * 0.6;
+    const alpha = pal.glowAlpha * (1 - ring / 12) * 0.8;
     glow.fillStyle(pal.skyGlow, alpha);
     glow.fillCircle(glowCx, glowCy, r);
   }
-  glow.fillStyle(pal.glow, pal.glowAlpha * 0.5);
-  glow.fillCircle(glowCx, glowCy, glowR * 0.12);
-  glow.fillStyle(pal.glow, pal.glowAlpha * 0.25);
-  glow.fillCircle(glowCx, glowCy, glowR * 0.25);
+  glow.fillStyle(pal.glow, pal.glowAlpha * 0.7);
+  glow.fillCircle(glowCx, glowCy, glowR * 0.15);
+  glow.fillStyle(pal.glow, pal.glowAlpha * 0.4);
+  glow.fillCircle(glowCx, glowCy, glowR * 0.30);
   glow.setDepth(LAYER_CONFIG[1].depth);
   layers.push({ gfx: glow, baseX: 0, baseY: 0, ...LAYER_CONFIG[1], glowCx, glowCy });
 
@@ -322,30 +330,38 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
   ground.closePath();
   ground.fillPath();
 
-  // 4. Perspective gradient: 4 horizontal strips darkening toward bottom
+  // Perspective gradient: visible darkening toward bottom
   {
     const groundH = (height + 40) - groundY;
-    const stripCount = 4;
+    const stripCount = 5;
     const stripH = groundH / stripCount;
     for (let s = 0; s < stripCount; s++) {
       const t = (s + 1) / stripCount;
-      ground.fillStyle(0x000000, 0.04 * t); // 0.04 -> 0.16
+      ground.fillStyle(0x000000, 0.08 * t);
       ground.fillRect(-20 - perspectiveExpand, groundY + s * stripH, width + 40 + perspectiveExpand * 2, stripH);
     }
   }
 
-  // 4b. Tiny grass/detail lines at the front edge of the ground
+  // Grass tufts along the ground's front edge
   {
-    const grassCount = 8 + Math.floor(rng() * 5); // 8-12 blades
-    const grassColor = pal.trees || 0x000000;
+    const grassColor = pal.trees || 0x306020;
+    const grassCount = 20 + Math.floor(rng() * 10);
     for (let gi = 0; gi < grassCount; gi++) {
       const gx = rng() * width;
-      const grassH = 8 + rng() * 4; // 8-12px tall
-      ground.lineStyle(1, grassColor, 0.20);
-      ground.beginPath();
-      ground.moveTo(gx, groundY);
-      ground.lineTo(gx + (rng() - 0.5) * 3, groundY - grassH);
-      ground.strokePath();
+      const grassH = 10 + rng() * 12;
+      ground.fillStyle(grassColor, 0.35 + rng() * 0.2);
+      // 2-3 blades per tuft
+      const blades = 2 + Math.floor(rng() * 2);
+      for (let b = 0; b < blades; b++) {
+        const bx = gx + (rng() - 0.5) * 8;
+        const lean = (rng() - 0.5) * 6;
+        ground.beginPath();
+        ground.moveTo(bx - 1, groundY);
+        ground.lineTo(bx + lean, groundY - grassH * (0.7 + rng() * 0.3));
+        ground.lineTo(bx + 1, groundY);
+        ground.closePath();
+        ground.fillPath();
+      }
     }
   }
 
