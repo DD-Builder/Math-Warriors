@@ -284,7 +284,8 @@ export class BattleScene extends Phaser.Scene {
   drawBattleThemeDetails(bgH) {
     const g = this.add.graphics();
     const rng = makeRng(this.floor * 5555 + (this.battleVariant || 0) * 1111);
-    const gndY = bgH * 0.88;
+    const gndY = bgH * 0.565 + 10;
+    g.setDepth(2);
     const v = this.battleVariant || 0;
 
     if (this.floor === 1) {
@@ -726,17 +727,8 @@ export class BattleScene extends Phaser.Scene {
 
   buildHeroSprites() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    // Characters occupy the upper portion; UI lives in the bottom 340px.
-    const uiTop = area.bottom - 340;
-    const groundY = uiTop - 10;
-
-    // Ground strip — subtle separator between characters and UI
-    const groundGfx = this.add.graphics();
-    groundGfx.fillStyle(0x3a6818, 0.45);
-    groundGfx.fillRect(0, groundY, GAME_WIDTH, uiTop - groundY + 20);
-    groundGfx.fillStyle(0x4a8828, 0.3);
-    groundGfx.fillRect(0, groundY, GAME_WIDTH, 6);
-    groundGfx.setDepth(10);
+    const uiTop = area.bottom - 360;
+    const groundY = uiTop;
 
     const enemyCount = this.enemies.length;
     const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
@@ -789,8 +781,8 @@ export class BattleScene extends Phaser.Scene {
 
   buildEnemySprite() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 340;
-    const groundY = uiTop - 10;
+    const uiTop = area.bottom - 360;
+    const groundY = uiTop;
     const centerX = GAME_WIDTH * 0.76;
     const count = this.enemies.length;
 
@@ -828,7 +820,7 @@ export class BattleScene extends Phaser.Scene {
       body.setDepth(12);
 
       // Name/HP bars directly above the sprite head
-      const spriteHalfH = (640 * monsterScale) * 0.35;
+      const spriteHalfH = (640 * monsterScale) * 0.50;
       const nameY = y - spriteHalfH - 10;
       const hpY = y - spriteHalfH + 6;
       const hpTextY = y - spriteHalfH + 20;
@@ -892,8 +884,8 @@ export class BattleScene extends Phaser.Scene {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
     const ansH = 100;
-    const ansY = area.bottom - ansH / 2 - 12;
-    const eqY = ansY - ansH / 2 - 50;
+    const ansY = area.bottom - ansH / 2 - 10;
+    const eqY = ansY - ansH / 2 - 45;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -938,6 +930,7 @@ export class BattleScene extends Phaser.Scene {
     const noteH = 127;
     const noteCx = area.cx;
     const noteCy = eqY;
+    this.eqCenterY = eqY;
 
     PaperPanel(this, noteCx, noteCy, noteW, noteH, {
       color: 0xf5ead0, alpha: 0.92, radius: 18, shadowOff: 4, shadowAlpha: 0.2,
@@ -1204,7 +1197,7 @@ export class BattleScene extends Phaser.Scene {
     const gap = 14;
     const totalW = cmds.length * btnW + (cmds.length - 1) * gap;
     const startX = area.cx - totalW / 2 + btnW / 2;
-    const cmdY = this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 90;
+    const cmdY = this.eqCenterY || (this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 80);
 
     this.commandButtons = [];
     const cmdColors = {

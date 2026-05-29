@@ -18,6 +18,14 @@
 import { makeRng } from './rng.js';
 import { FLOOR_PALETTES } from './papercut.js';
 
+function blendColor(c1, c2, t) {
+  const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
+  const r2 = (c2 >> 16) & 0xff, g2 = (c2 >> 8) & 0xff, b2 = c2 & 0xff;
+  return (Math.round(r1 + (r2 - r1) * t) << 16)
+       | (Math.round(g1 + (g2 - g1) * t) << 8)
+       |  Math.round(b1 + (b2 - b1) * t);
+}
+
 // Layer depth configuration
 // parallax: 0.0 = static (sky), 1.0 = moves with camera (foreground)
 const LAYER_CONFIG = [
@@ -151,62 +159,75 @@ function drawParallaxCloud(gfx, cx, cy, w, h, color, alpha, rng) {
   }
 }
 
-function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY, rng) {
-  // Paper-cutout shadow — bold offset so layers look stacked
+function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY, rng, treeScale = 1.0) {
+  // Paper-cutout shadow
   if (shadowColor) {
-    const shadow = points.map(p => ({ x: p.x + 8, y: p.y + 10 }));
-    fillShape(gfx, shadow, shadowColor, 0.55, closeBottom, bottomY + 10);
+    const off = 10 + treeScale * 3;
+    const shadow = points.map(p => ({ x: p.x + off, y: p.y + off }));
+    fillShape(gfx, shadow, shadowColor, 0.70, closeBottom, bottomY + off);
   }
 
   // Main fill
   fillShape(gfx, points, color, 1, closeBottom, bottomY);
 
-  // Gradient depth: darken the bottom half so hills have volume
+  // Gradient depth — darken the lower half for volume
   if (closeBottom && points.length > 2) {
     const minY = Math.min(...points.map(p => p.y));
     const totalH = bottomY - minY;
-    const gradientTop = minY + totalH * 0.45;
-    const stripCount = 6;
-    const stripH = (bottomY - gradientTop) / stripCount;
+    const gradientTop = minY + totalH * 0.4;
+    const stripH = (bottomY - gradientTop) / 5;
     const leftX = points[0].x;
     const rightX = points[points.length - 1].x;
-    for (let s = 0; s < stripCount; s++) {
-      const t = (s + 1) / stripCount;
-      const stripY = gradientTop + s * stripH;
-      gfx.fillStyle(0x000000, 0.06 * t);
-      gfx.fillRect(leftX, stripY, rightX - leftX, stripH);
+    for (let s = 0; s < 5; s++) {
+      gfx.fillStyle(0x000000, 0.03 + 0.04 * (s + 1));
+      gfx.fillRect(leftX, gradientTop + s * stripH, rightX - leftX, stripH);
     }
   }
 
-  // Bright edge highlight along the ridge top
+  // Bright edge highlight along the ridge
   if (points.length > 3) {
-    gfx.lineStyle(2.5, 0xffffff, 0.25);
+    gfx.lineStyle(1.5 + treeScale, 0xffffff, 0.20 + treeScale * 0.05);
     gfx.beginPath();
     gfx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      gfx.lineTo(points[i].x, points[i].y);
-    }
+    for (let i = 1; i < points.length; i++) gfx.lineTo(points[i].x, points[i].y);
     gfx.strokePath();
   }
 
-  // Tree/foliage silhouettes along the ridge
+  // Trees/foliage along the ridgeline — scaled by distance
   if (rng && points.length > 4) {
-    const step = Math.max(1, Math.floor(points.length / 18));
-    for (let i = 2; i < points.length - 2; i += step) {
+    const treeCount = Math.floor(10 + treeScale * 8);
+    const step = Math.max(1, Math.floor(points.length / treeCount));
+    for (let i = 1; i < points.length - 1; i += step) {
+      if (rng() < 0.2) continue;
       const pt = points[i];
-      const skip = rng();
-      if (skip < 0.3) continue;
-      const treeH = 10 + rng() * 18;
-      const treeW = 6 + rng() * 8;
-      gfx.fillStyle(shadowColor || 0x000000, 0.25 + rng() * 0.15);
-      // Trunk
-      gfx.fillRect(pt.x - 1, pt.y - treeH + 4, 2, treeH);
-      // Canopy — 2-3 overlapping circles
-      const canopyN = 2 + Math.floor(rng() * 2);
-      for (let c = 0; c < canopyN; c++) {
-        const cx = pt.x + (rng() - 0.5) * treeW * 0.6;
-        const cy = pt.y - treeH + rng() * 6;
-        gfx.fillCircle(cx, cy, treeW * (0.4 + rng() * 0.3));
+      const h = (18 + rng() * 28) * treeScale;
+      const w = (8 + rng() * 12) * treeScale;
+      const darkC = shadowColor || 0x000000;
+      const alpha = 0.50 + rng() * 0.25;
+
+      if (rng() > 0.4) {
+        // Round deciduous tree
+        gfx.fillStyle(darkC, alpha * 0.8);
+        gfx.fillRect(pt.x - treeScale, pt.y - h * 0.4, treeScale * 2, h * 0.4);
+        gfx.fillStyle(darkC, alpha);
+        gfx.fillCircle(pt.x, pt.y - h * 0.55, w * 0.5);
+        gfx.fillCircle(pt.x - w * 0.25, pt.y - h * 0.4, w * 0.4);
+        gfx.fillCircle(pt.x + w * 0.25, pt.y - h * 0.4, w * 0.4);
+      } else {
+        // Conifer / pine tree
+        gfx.fillStyle(darkC, alpha * 0.8);
+        gfx.fillRect(pt.x - treeScale * 0.5, pt.y - h * 0.3, treeScale, h * 0.35);
+        gfx.fillStyle(darkC, alpha);
+        for (let tier = 0; tier < 3; tier++) {
+          const ty = pt.y - h * (0.3 + tier * 0.22);
+          const tw = w * (0.6 - tier * 0.12);
+          gfx.beginPath();
+          gfx.moveTo(pt.x - tw, ty);
+          gfx.lineTo(pt.x, ty - h * 0.22);
+          gfx.lineTo(pt.x + tw, ty);
+          gfx.closePath();
+          gfx.fillPath();
+        }
       }
     }
   }
@@ -286,7 +307,7 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
     const config = LAYER_CONFIG[layerIdx];
     const hillGfx = scene.add.graphics();
 
-    const baseY = height * (0.38 + li * 0.12);
+    const baseY = height * (0.25 + li * 0.10);
     const peakH = height * layerDef.peakH * (1.1 + li * 0.1);
     let pts;
 
@@ -298,7 +319,11 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
       pts = hillGen(-40, width + 40, baseY, peakH, layerDef.peaks, rng, 3 + li * 2);
     }
 
-    drawShadowedLayer(hillGfx, pts, layerDef.color, layerDef.shadow, true, height, rng);
+    const atmosphericHaze = [0.40, 0.18, 0.0];
+    const treeScaleByLayer = [0.5, 1.0, 1.8];
+    const layerColor = blendColor(layerDef.color, pal.sky, atmosphericHaze[li]);
+    const layerShadow = blendColor(layerDef.shadow, pal.sky, atmosphericHaze[li] * 0.6);
+    drawShadowedLayer(hillGfx, pts, layerColor, layerShadow, true, height, rng, treeScaleByLayer[li]);
 
     // Variant-specific detail on near hills
     if (li === hillLayers.length - 1 && variant > 0) {
@@ -317,11 +342,14 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   // --- Layer 5: Ground plane (perspective trapezoid) ---
   const ground = scene.add.graphics();
-  const groundY = height * 0.72;
+  const groundY = height * 0.565;
   const perspectiveExpand = 60;
 
-  // Trapezoid: wider at bottom for perspective
-  ground.fillStyle(pal.ground, 1);
+  // Base: warm brown earth (not green like the hills)
+  const earthColor = blendColor(pal.ground, 0x806830, 0.55);
+  const earthDark = blendColor(earthColor, 0x000000, 0.15);
+
+  ground.fillStyle(earthColor, 1);
   ground.beginPath();
   ground.moveTo(-20, groundY);
   ground.lineTo(width + 20, groundY);
@@ -330,81 +358,73 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
   ground.closePath();
   ground.fillPath();
 
-  // Perspective gradient: visible darkening toward bottom
+  // Perspective gradient
   {
     const groundH = (height + 40) - groundY;
-    const stripCount = 5;
-    const stripH = groundH / stripCount;
-    for (let s = 0; s < stripCount; s++) {
-      const t = (s + 1) / stripCount;
-      ground.fillStyle(0x000000, 0.08 * t);
-      ground.fillRect(-20 - perspectiveExpand, groundY + s * stripH, width + 40 + perspectiveExpand * 2, stripH);
+    for (let s = 0; s < 5; s++) {
+      const t = (s + 1) / 5;
+      ground.fillStyle(0x000000, 0.06 * t);
+      ground.fillRect(-80, groundY + s * groundH / 5, width + 160, groundH / 5);
     }
+  }
+
+  // Dirt path across center where characters stand
+  {
+    const pathY = groundY + 5;
+    const pathH = 50;
+    ground.fillStyle(blendColor(earthColor, 0xc0a870, 0.35), 0.7);
+    ground.beginPath();
+    ground.moveTo(width * 0.02, pathY + pathH);
+    ground.lineTo(width * 0.05, pathY);
+    ground.lineTo(width * 0.95, pathY);
+    ground.lineTo(width * 0.98, pathY + pathH);
+    ground.closePath();
+    ground.fillPath();
+    // Lighter center stripe
+    ground.fillStyle(blendColor(earthColor, 0xd8c890, 0.3), 0.4);
+    ground.fillRect(width * 0.1, pathY + 8, width * 0.8, pathH - 20);
+  }
+
+  // Green grass patches on the brown earth
+  for (let gp = 0; gp < 14 + Math.floor(rng() * 6); gp++) {
+    const gpx = rng() * width;
+    const gpy = groundY + 20 + rng() * (height * 0.3);
+    const gpw = 35 + rng() * 55;
+    const gph = 10 + rng() * 14;
+    ground.fillStyle(pal.ground, 0.35 + rng() * 0.25);
+    ground.fillEllipse(gpx, gpy, gpw, gph);
+  }
+
+  // Scattered rocks
+  for (let ri = 0; ri < 6 + Math.floor(rng() * 4); ri++) {
+    const rx = rng() * width;
+    const ry = groundY + 15 + rng() * 80;
+    const rs = 8 + rng() * 14;
+    ground.fillStyle(blendColor(earthDark, 0x908070, 0.4), 0.5 + rng() * 0.2);
+    ground.fillEllipse(rx, ry, rs, rs * 0.65);
+    ground.fillStyle(0xffffff, 0.08);
+    ground.fillEllipse(rx - rs * 0.15, ry - rs * 0.1, rs * 0.5, rs * 0.35);
   }
 
   // Grass tufts along the ground's front edge
   {
     const grassColor = pal.trees || 0x306020;
-    const grassCount = 20 + Math.floor(rng() * 10);
+    const grassCount = 25 + Math.floor(rng() * 10);
     for (let gi = 0; gi < grassCount; gi++) {
       const gx = rng() * width;
-      const grassH = 10 + rng() * 12;
+      const grassH = 14 + rng() * 16;
       ground.fillStyle(grassColor, 0.35 + rng() * 0.2);
-      // 2-3 blades per tuft
       const blades = 2 + Math.floor(rng() * 2);
       for (let b = 0; b < blades; b++) {
         const bx = gx + (rng() - 0.5) * 8;
         const lean = (rng() - 0.5) * 6;
         ground.beginPath();
-        ground.moveTo(bx - 1, groundY);
+        ground.moveTo(bx - 1.5, groundY);
         ground.lineTo(bx + lean, groundY - grassH * (0.7 + rng() * 0.3));
-        ground.lineTo(bx + 1, groundY);
+        ground.lineTo(bx + 1.5, groundY);
         ground.closePath();
         ground.fillPath();
       }
-    }
-  }
-
-  // Ground texture (floor-specific)
-  if (floorId === 1) {
-    // Grass texture strips
-    for (let gi = 0; gi < 6; gi++) {
-      const gy = groundY + 8 + gi * 18;
-      ground.fillStyle(pal.trees, 0.12 + gi * 0.02);
-      ground.fillRect(-20, gy, width + 40, 4);
-    }
-  } else if (floorId === 2) {
-    // Sand strip at shore
-    ground.fillStyle(0xd0b880, 0.7);
-    ground.fillRect(-20, groundY - 2, width + 40, 10);
-    // Wave foam
-    for (let wi = 0; wi < 15; wi++) {
-      ground.fillStyle(0xe0f0f8, 0.4);
-      ground.fillCircle(rng() * width, groundY + 3, 3 + rng() * 4);
-    }
-  } else if (floorId === 3) {
-    // Cloud platform edge
-    for (let ci = 0; ci < 10; ci++) {
-      ground.fillStyle(0xd8e8f0, 0.5);
-      ground.fillCircle(rng() * width, groundY + 2, 25 + rng() * 15);
-    }
-  } else if (floorId === 4) {
-    // Volcanic rock texture + lava glow from below
-    const rockPts = generateVolcanicPeakPoints(-20, width + 40, groundY, 8, 12, rng, 1);
-    fillShape(ground, rockPts, 0x3a2010, 1, true, height);
-    ground.fillStyle(0xff4010, 0.06);
-    ground.fillRect(-20, groundY + 10, width + 40, height - groundY);
-  } else if (floorId === 5) {
-    // Ice surface with cracks
-    ground.fillStyle(0xd0e8f0, 0.3);
-    ground.fillRect(-20, groundY, width + 40, 6);
-    for (let ic = 0; ic < 5; ic++) {
-      const icx = rng() * width;
-      ground.lineStyle(1, 0xa0c8e0, 0.3);
-      ground.beginPath();
-      ground.moveTo(icx, groundY + 2);
-      ground.lineTo(icx + (rng() - 0.5) * 40, groundY + 15 + rng() * 20);
-      ground.strokePath();
     }
   }
 
@@ -415,44 +435,42 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
   const fg = scene.add.graphics();
 
   if (floorId === 1) {
-    // Garden: lush grass tufts, wildflowers, vine tendrils at both sides
     for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -10 : width - 80;
-      const spread = 100;
-      // Dense grass tuft cluster
-      for (let g = 0; g < 14; g++) {
+      const baseX = side === 0 ? -40 : width - 110;
+      const spread = 150;
+      // Large bush silhouettes
+      for (let b = 0; b < 4; b++) {
+        const bx = baseX + rng() * spread;
+        const by = groundY + 30 + rng() * 120;
+        const bw = 50 + rng() * 60;
+        const bh = 40 + rng() * 60;
+        fg.fillStyle(pal.trees, 0.60 + rng() * 0.25);
+        fg.fillEllipse(bx, by, bw, bh);
+        fg.fillStyle(pal.treesL || pal.trees, 0.25 + rng() * 0.15);
+        fg.fillEllipse(bx - bw * 0.1, by - bh * 0.15, bw * 0.6, bh * 0.6);
+      }
+      // Tall grass/leaf fronds
+      for (let g = 0; g < 12; g++) {
         const gx = baseX + rng() * spread;
-        const gy = height - 50 - rng() * 100;
-        const gh = 15 + rng() * 40;
-        const gw = 2 + rng() * 3;
-        fg.fillStyle(pal.trees, 0.4 + rng() * 0.3);
-        fg.fillTriangle(gx - gw, gy + gh, gx + gw, gy + gh, gx + (rng() - 0.5) * 4, gy);
+        const gy = groundY - 10 + rng() * 60;
+        const gh = 35 + rng() * 50;
+        fg.fillStyle(pal.trees, 0.45 + rng() * 0.25);
+        fg.beginPath();
+        fg.moveTo(gx - 5, gy + gh);
+        fg.lineTo(gx + (rng() - 0.5) * 10, gy);
+        fg.lineTo(gx + 5, gy + gh);
+        fg.closePath();
+        fg.fillPath();
       }
-      // Flowers with stems
-      for (let f = 0; f < 6; f++) {
-        const fx = baseX + 10 + rng() * (spread - 20);
-        const fy = height - 70 - rng() * 80;
-        const stemH = 10 + rng() * 15;
-        fg.lineStyle(1, pal.trees, 0.4);
-        fg.beginPath(); fg.moveTo(fx, fy + stemH); fg.lineTo(fx, fy); fg.strokePath();
-        fg.fillStyle(pal.accent, 0.5 + rng() * 0.3);
-        fg.fillCircle(fx, fy, 3 + rng() * 4);
-        fg.fillStyle(0xffffff, 0.2);
-        fg.fillCircle(fx - 1, fy - 1, 1.5);
+      // Accent flowers
+      for (let f = 0; f < 5; f++) {
+        const fx = baseX + 30 + rng() * (spread - 60);
+        const fy = groundY + rng() * 80;
+        fg.fillStyle(pal.accent, 0.55 + rng() * 0.3);
+        fg.fillCircle(fx, fy, 6 + rng() * 6);
+        fg.fillStyle(0xf0e060, 0.5);
+        fg.fillCircle(fx, fy, 3);
       }
-      // Vine tendril curving up the edge
-      fg.lineStyle(2, pal.trees, 0.25);
-      fg.beginPath();
-      const vineX = side === 0 ? 8 : width - 8;
-      fg.moveTo(vineX, height);
-      for (let v = 0; v < 6; v++) {
-        const vy = height - (v + 1) * 25 - rng() * 15;
-        const vx = vineX + (rng() - 0.5) * 20;
-        fg.lineTo(vx, vy);
-        fg.fillStyle(pal.trees, 0.2);
-        fg.fillCircle(vx + (rng() - 0.5) * 8, vy, 3 + rng() * 3);
-      }
-      fg.strokePath();
     }
   } else if (floorId === 2) {
     // Tidepool: coral branches, seaweed fronds, sea foam at bottom
