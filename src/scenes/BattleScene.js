@@ -64,6 +64,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   init(data) {
+    this._answerProcessing = false;
+
     // Party: use provided or default to one of each class
     if (data?.party && data.party.length === 3) {
       this.party = data.party.map((h) => ({ ...h }));
