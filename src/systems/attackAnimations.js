@@ -442,6 +442,7 @@ function playBunnyFight(scene, heroSprite, enemyX, enemyY, result, cb) {
 function playBunnyMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
   const origSX = heroSprite.body.scaleX;
   const origSY = heroSprite.body.scaleY;
+  const origY = heroSprite.y;
 
   // 0-100ms: Dash to enemy
   scene.tweens.add({
@@ -466,12 +467,12 @@ function playBunnyMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
           // 300-500ms: Backflip away
           scene.tweens.add({
             targets: heroSprite.body,
-            x: heroSprite.x + 60, y: heroSprite.y - 80,
+            x: heroSprite.x + 60, y: origY - 80,
             duration: 100, ease: 'Quad.out',
             onComplete: () => {
               scene.tweens.add({
                 targets: heroSprite.body,
-                x: heroSprite.x, y: heroSprite.y,
+                x: heroSprite.x, y: origY,
                 duration: 100, ease: 'Quad.in',
                 onComplete: () => {
                   // 500-650ms: Afterimages converge

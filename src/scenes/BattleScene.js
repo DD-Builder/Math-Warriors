@@ -1795,22 +1795,26 @@ export class BattleScene extends Phaser.Scene {
           const before = target.hp;
           target.hp = Math.min(target.maxHp, target.hp + healAmt);
           const healed = target.hp - before;
-          this.showToast(`${target.name} healed ${healed} HP!`, '#60ff60');
-          this.updateAllHeroHp();
-          const hs = this.heroSprites.find(s => s.hero === target);
-          if (hs) {
-            const floatText = this.add.text(hs.x, hs.y - 40, `+${healed}`, {
-              fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-              fontSize: '28px', color: '#60ff60',
-              stroke: '#1a0e04', strokeThickness: 4,
-            }).setOrigin(0.5).setDepth(30);
-            this.tweens.add({ targets: floatText, y: hs.y - 100, alpha: 0, duration: 900, ease: 'Cubic.out', onComplete: () => floatText.destroy() });
-            for (let i = 0; i < 10; i++) {
-              const px = hs.x + (Math.random() - 0.5) * 60;
-              const py = hs.y + 20;
-              const sp = this.add.circle(px, py, 3 + Math.random() * 3, 0x60ff60, 0.7).setDepth(30);
-              this.tweens.add({ targets: sp, y: py - 60 - Math.random() * 40, alpha: 0, duration: 600 + Math.random() * 400, ease: 'Sine.out', onComplete: () => sp.destroy() });
+          if (healed > 0) {
+            this.showToast(`${target.name} healed ${healed} HP!`, '#60ff60');
+            this.updateAllHeroHp();
+            const hs = this.heroSprites.find(s => s.hero === target);
+            if (hs) {
+              const floatText = this.add.text(hs.x, hs.y - 40, `+${healed}`, {
+                fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+                fontSize: '28px', color: '#60ff60',
+                stroke: '#1a0e04', strokeThickness: 4,
+              }).setOrigin(0.5).setDepth(30);
+              this.tweens.add({ targets: floatText, y: hs.y - 100, alpha: 0, duration: 900, ease: 'Cubic.out', onComplete: () => floatText.destroy() });
+              for (let i = 0; i < 10; i++) {
+                const px = hs.x + (Math.random() - 0.5) * 60;
+                const py = hs.y + 20;
+                const sp = this.add.circle(px, py, 3 + Math.random() * 3, 0x60ff60, 0.7).setDepth(30);
+                this.tweens.add({ targets: sp, y: py - 60 - Math.random() * 40, alpha: 0, duration: 600 + Math.random() * 400, ease: 'Sine.out', onComplete: () => sp.destroy() });
+              }
             }
+          } else {
+            this.showToast(`${target.name} is at full HP!`, '#80c0ff');
           }
         }
         const advanceDelay = 750;
