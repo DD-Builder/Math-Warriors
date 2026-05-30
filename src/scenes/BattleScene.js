@@ -285,7 +285,7 @@ export class BattleScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.setDepth(2);
     const rng = makeRng(this.floor * 5555 + (this.battleVariant || 0) * 1111);
-    const gndY = bgH * 0.565 + 10;
+    const gndY = bgH * 0.62 + 10;
     const v = this.battleVariant || 0;
 
     const drawTree = (x, y, h, trunkC, canopyC) => {
@@ -481,7 +481,7 @@ export class BattleScene extends Phaser.Scene {
 
   buildHeroSprites() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 360;
+    const uiTop = area.bottom - 290;
     const groundY = uiTop;
 
     const enemyCount = this.enemies.length;
@@ -491,7 +491,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.heroSprites = this.party.map((hero, i) => {
       const x = leftAnchor + i * spacing;
-      const y = groundY - 100;
+      const y = groundY - 90;
 
       const body = drawHeroSprite(this, x, y, hero, { scale: heroScale });
       body.setDepth(12);
@@ -535,7 +535,7 @@ export class BattleScene extends Phaser.Scene {
 
   buildEnemySprite() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 360;
+    const uiTop = area.bottom - 290;
     const groundY = uiTop;
     const centerX = GAME_WIDTH * 0.76;
     const count = this.enemies.length;

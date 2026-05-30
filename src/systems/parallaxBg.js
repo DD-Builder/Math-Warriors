@@ -323,7 +323,7 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
     const config = LAYER_CONFIG[layerIdx];
     const hillGfx = scene.add.graphics();
 
-    const baseY = height * (0.25 + li * 0.10);
+    const baseY = height * (0.28 + li * 0.12);
     const peakH = height * layerDef.peakH * (1.1 + li * 0.1);
     let pts;
 
@@ -369,7 +369,7 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   // --- Layer 5: Ground plane (perspective trapezoid) ---
   const ground = scene.add.graphics();
-  const groundY = height * 0.565;
+  const groundY = height * 0.62;
   const perspectiveExpand = 60;
 
   // Base: warm brown earth (not green like the hills)
