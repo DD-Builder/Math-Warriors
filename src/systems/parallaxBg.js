@@ -276,6 +276,22 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
     drawParallaxCloud(sky, cx, cy, cw, ch, cloudColor, cAlpha, rng);
   }
 
+  // Bird silhouettes in sky
+  const birdCount = 3 + Math.floor(rng() * 3);
+  for (let bi = 0; bi < birdCount; bi++) {
+    const bx = width * (0.15 + rng() * 0.7);
+    const by = height * (0.08 + rng() * 0.18);
+    const bSize = 6 + rng() * 8;
+    sky.lineStyle(1.5, 0x2a3040, 0.35 + rng() * 0.15);
+    sky.beginPath();
+    sky.moveTo(bx - bSize, by + bSize * 0.3);
+    sky.lineTo(bx - bSize * 0.2, by);
+    sky.lineTo(bx, by + bSize * 0.15);
+    sky.lineTo(bx + bSize * 0.2, by);
+    sky.lineTo(bx + bSize, by + bSize * 0.3);
+    sky.strokePath();
+  }
+
   sky.setDepth(LAYER_CONFIG[0].depth);
   layers.push({ gfx: sky, baseX: 0, baseY: 0, ...LAYER_CONFIG[0] });
 
@@ -319,20 +335,31 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
       pts = hillGen(-40, width + 40, baseY, peakH, layerDef.peaks, rng, 3 + li * 2);
     }
 
-    const atmosphericHaze = [0.40, 0.18, 0.0];
+    const atmosphericHaze = [0.45, 0.20, 0.0];
     const treeScaleByLayer = [0.5, 1.0, 1.8];
     const layerColor = blendColor(layerDef.color, pal.sky, atmosphericHaze[li]);
     const layerShadow = blendColor(layerDef.shadow, pal.sky, atmosphericHaze[li] * 0.6);
     drawShadowedLayer(hillGfx, pts, layerColor, layerShadow, true, height, rng, treeScaleByLayer[li]);
 
-    // Variant-specific detail on near hills
-    if (li === hillLayers.length - 1 && variant > 0) {
-      const detailColor = pal.accent;
-      for (let d = 0; d < 5 + variant * 3; d++) {
-        const dx = rng() * width;
-        const matchPt = pts[Math.floor(rng() * pts.length)];
-        hillGfx.fillStyle(detailColor, 0.4 + rng() * 0.3);
-        hillGfx.fillCircle(dx, matchPt ? matchPt.y + 5 : baseY + 5, 3 + rng() * 5);
+    // Surface detail: small bushes on the hill face (more on near hills)
+    const bushCount = 2 + li * 3;
+    for (let d = 0; d < bushCount; d++) {
+      const dx = rng() * width;
+      const ptIdx = Math.floor(rng() * pts.length);
+      const dy = (pts[ptIdx]?.y ?? baseY) + 15 + rng() * 40;
+      const dSize = (8 + rng() * 10) * treeScaleByLayer[li];
+      hillGfx.fillStyle(layerShadow, 0.30 + rng() * 0.15);
+      hillGfx.fillEllipse(dx, dy, dSize, dSize * 0.55);
+    }
+    // Accent flowers on near hills only
+    if (li >= 1) {
+      const flowerCount = 3 + li * 2 + (variant || 0) * 2;
+      for (let f = 0; f < flowerCount; f++) {
+        const fx = rng() * width;
+        const fPt = pts[Math.floor(rng() * pts.length)];
+        const fy = (fPt?.y ?? baseY) + 10 + rng() * 25;
+        hillGfx.fillStyle(pal.accent, 0.35 + rng() * 0.25);
+        hillGfx.fillCircle(fx, fy, 3 + rng() * 3 * treeScaleByLayer[li]);
       }
     }
 
@@ -436,40 +463,82 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   if (floorId === 1) {
     for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -40 : width - 110;
+      const baseX = side === 0 ? -20 : width - 130;
       const spread = 150;
-      // Large bush silhouettes
-      for (let b = 0; b < 4; b++) {
-        const bx = baseX + rng() * spread;
-        const by = groundY + 30 + rng() * 120;
-        const bw = 50 + rng() * 60;
-        const bh = 40 + rng() * 60;
-        fg.fillStyle(pal.trees, 0.60 + rng() * 0.25);
-        fg.fillEllipse(bx, by, bw, bh);
-        fg.fillStyle(pal.treesL || pal.trees, 0.25 + rng() * 0.15);
-        fg.fillEllipse(bx - bw * 0.1, by - bh * 0.15, bw * 0.6, bh * 0.6);
-      }
-      // Tall grass/leaf fronds
-      for (let g = 0; g < 12; g++) {
-        const gx = baseX + rng() * spread;
-        const gy = groundY - 10 + rng() * 60;
-        const gh = 35 + rng() * 50;
-        fg.fillStyle(pal.trees, 0.45 + rng() * 0.25);
+
+      // Large tree silhouette — trunk + branches + canopy clusters
+      const treeX = baseX + 40 + rng() * 50;
+      const treeBase = groundY + 40;
+      const trunkH = 180 + rng() * 60;
+      const trunkW = 14 + rng() * 6;
+      // Trunk
+      fg.fillStyle(pal.trees, 0.75);
+      fg.beginPath();
+      fg.moveTo(treeX - trunkW * 0.7, treeBase);
+      fg.lineTo(treeX - trunkW * 0.3, treeBase - trunkH);
+      fg.lineTo(treeX + trunkW * 0.3, treeBase - trunkH);
+      fg.lineTo(treeX + trunkW * 0.7, treeBase);
+      fg.closePath();
+      fg.fillPath();
+      // Main branches
+      for (let br = 0; br < 4; br++) {
+        const brY = treeBase - trunkH * (0.4 + br * 0.15);
+        const brDir = (br % 2 === 0 ? -1 : 1) * (side === 0 ? 1 : -1);
+        const brLen = 40 + rng() * 35;
+        fg.lineStyle(3 + rng() * 2, pal.trees, 0.7);
         fg.beginPath();
-        fg.moveTo(gx - 5, gy + gh);
-        fg.lineTo(gx + (rng() - 0.5) * 10, gy);
-        fg.lineTo(gx + 5, gy + gh);
+        fg.moveTo(treeX, brY);
+        fg.lineTo(treeX + brDir * brLen, brY - 15 - rng() * 20);
+        fg.strokePath();
+        // Leaf cluster at branch tip
+        fg.fillStyle(pal.trees, 0.65 + rng() * 0.15);
+        const lcx = treeX + brDir * brLen;
+        const lcy = brY - 20 - rng() * 15;
+        const lcr = 22 + rng() * 15;
+        fg.fillCircle(lcx, lcy, lcr);
+        fg.fillCircle(lcx + (rng() - 0.5) * lcr, lcy - lcr * 0.4, lcr * 0.7);
+      }
+      // Top canopy
+      fg.fillStyle(pal.trees, 0.70);
+      fg.fillCircle(treeX, treeBase - trunkH - 15, 35 + rng() * 15);
+      fg.fillCircle(treeX - 15, treeBase - trunkH + 5, 28 + rng() * 10);
+      fg.fillCircle(treeX + 15, treeBase - trunkH + 5, 28 + rng() * 10);
+
+      // Understory bushes
+      for (let b = 0; b < 3; b++) {
+        const bx = baseX + 20 + rng() * (spread - 20);
+        const by = groundY + 20 + rng() * 80;
+        const bw = 45 + rng() * 40;
+        fg.fillStyle(pal.trees, 0.55 + rng() * 0.2);
+        fg.fillEllipse(bx, by, bw, bw * 0.55);
+        fg.fillStyle(pal.treesL || pal.trees, 0.2);
+        fg.fillEllipse(bx - bw * 0.1, by - bw * 0.1, bw * 0.5, bw * 0.35);
+      }
+
+      // Tall grass fronds
+      for (let gi = 0; gi < 10; gi++) {
+        const gx = baseX + rng() * spread;
+        const gh = 30 + rng() * 50;
+        fg.fillStyle(pal.trees, 0.40 + rng() * 0.25);
+        fg.beginPath();
+        fg.moveTo(gx - 4, groundY + 30);
+        fg.lineTo(gx + (rng() - 0.5) * 8, groundY + 30 - gh);
+        fg.lineTo(gx + 4, groundY + 30);
         fg.closePath();
         fg.fillPath();
       }
-      // Accent flowers
+
+      // Accent flowers with stems
       for (let f = 0; f < 5; f++) {
-        const fx = baseX + 30 + rng() * (spread - 60);
-        const fy = groundY + rng() * 80;
-        fg.fillStyle(pal.accent, 0.55 + rng() * 0.3);
-        fg.fillCircle(fx, fy, 6 + rng() * 6);
-        fg.fillStyle(0xf0e060, 0.5);
-        fg.fillCircle(fx, fy, 3);
+        const fx = baseX + 25 + rng() * (spread - 40);
+        const fy = groundY + 10 + rng() * 60;
+        const fh = 15 + rng() * 20;
+        fg.lineStyle(1.5, 0x408028, 0.4);
+        fg.beginPath(); fg.moveTo(fx, fy); fg.lineTo(fx + (rng() - 0.5) * 4, fy - fh); fg.strokePath();
+        fg.fillStyle(pal.accent, 0.6 + rng() * 0.25);
+        fg.fillCircle(fx + (rng() - 0.5) * 3, fy - fh, 5 + rng() * 5);
+        fg.fillStyle(0xf0e060, 0.45);
+        fg.fillCircle(fx, fy - fh, 2.5);
       }
     }
   } else if (floorId === 2) {
