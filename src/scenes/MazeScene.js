@@ -11,7 +11,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, LV_setTransformed, LV_setTile } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile } from '../ui/levelEngine.js';
 import { generateRatedQuestion } from '../systems/math.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
@@ -955,6 +955,7 @@ export class MazeScene extends Phaser.Scene {
         consumed: false,
       };
       this.objects.push(newObj);
+      addObject({ type: phase2.type, tx: p.x, ty: p.y, id: newObj.id, alive: true, open: false, hidden: false, visible: true });
     }
     this.showFloatText(this.playerX, this.playerY - 1, `${phase2.label}s appeared!`, '#f0c040');
     this.saveMazeState();
@@ -975,6 +976,9 @@ export class MazeScene extends Phaser.Scene {
 
 
   showMathDoorPrompt(question, doorObj) {
+    if (this._mathDoorActive) return;
+    this._mathDoorActive = true;
+    let answered = false;
     const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
     const opSymbol = question.op === '*' ? '×' : question.op;
     const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, `${question.a} ${opSymbol} ${question.b} = ?`, {
@@ -999,6 +1003,8 @@ export class MazeScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(82).setScrollFactor(0);
       elements.push(bg, label);
       bg.on('pointerdown', () => {
+        if (answered) return;
+        answered = true;
         if (isCorrect) {
           doorObj.open = true;
           markDoorOpen(doorObj.id);
@@ -1007,7 +1013,8 @@ export class MazeScene extends Phaser.Scene {
         } else {
           this.showToast('Try again!', '#e04040');
         }
-        elements.forEach(el => el.destroy());
+        elements.forEach(el => { if (el.scene) el.destroy(); });
+        this._mathDoorActive = false;
       });
     }
   }
@@ -1046,7 +1053,7 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   update(time) {
-    if (this.dialogue?.active) return;
+    if (this.dialogue?.active || this._mathDoorActive) return;
     const keys = {};
     if (this.cursors.left.isDown || this.wasd.A.isDown || this._touchDir === 'left') keys.ArrowLeft = true;
     if (this.cursors.right.isDown || this.wasd.D.isDown || this._touchDir === 'right') keys.ArrowRight = true;
@@ -1242,7 +1249,7 @@ export class MazeScene extends Phaser.Scene {
         } else {
           this.showFloatText(obj.x, obj.y, ch.allDoneMsg, '#f0d040');
           const egs = getGameState();
-          if (egs) egs.fairies = this.challengeProgress;
+          if (egs) { egs.fairies = this.challengeProgress; setGameState(egs); }
           this.showChallengeEffect(obj.type);
           this.transformFloor();
           const p1Key = `floor${this.floorId}_phase1_done`;

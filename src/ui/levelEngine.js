@@ -1736,3 +1736,7 @@ export function markDoorOpen(id) {
     if (_objs[oi].id === id) { _objs[oi].open = true; return; }
   }
 }
+
+export function addObject(obj) {
+  _objs.push(obj);
+}
