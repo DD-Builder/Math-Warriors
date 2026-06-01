@@ -504,7 +504,7 @@ export class BattleScene extends Phaser.Scene {
       const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
 
       const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
-      const body = createAnimatedHero(this, x, y, hero, { scale: heroScale * depthScale, floorId: this.floor });
+      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
       body.setDepth(12);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
