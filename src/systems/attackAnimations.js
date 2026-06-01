@@ -26,11 +26,11 @@ export function playFightAnimation(scene, heroSprite, targetSprite, cls, op, res
   const enemyY = targetSprite.y;
 
   if (cls === 'knight') {
-    playKnightFight(scene, heroSprite, enemyX, enemyY, result, callbacks);
+    playKnightFight(scene, heroSprite, targetSprite, enemyX, enemyY, result, callbacks);
   } else if (cls === 'wizard') {
-    playWizardFight(scene, heroSprite, enemyX, enemyY, op, result, callbacks);
+    playWizardFight(scene, heroSprite, targetSprite, enemyX, enemyY, op, result, callbacks);
   } else if (cls === 'bunny') {
-    playBunnyFight(scene, heroSprite, enemyX, enemyY, result, callbacks);
+    playBunnyFight(scene, heroSprite, targetSprite, enemyX, enemyY, result, callbacks);
   }
 }
 
@@ -50,11 +50,11 @@ export function playMagicAnimation(scene, heroSprite, targetSprite, cls, op, res
   const enemyY = targetSprite.y;
 
   if (cls === 'knight') {
-    playKnightMagic(scene, heroSprite, enemyX, enemyY, result, callbacks);
+    playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result, callbacks);
   } else if (cls === 'wizard') {
-    playWizardMagic(scene, heroSprite, enemyX, enemyY, op, result, callbacks);
+    playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, result, callbacks);
   } else if (cls === 'bunny') {
-    playBunnyMagic(scene, heroSprite, enemyX, enemyY, result, callbacks);
+    playBunnyMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result, callbacks);
   }
 }
 
@@ -87,10 +87,27 @@ export function playFizzleAnimation(scene, heroSprite) {
 function hitPause(scene, targetSprite, duration = 80) {
   if (!targetSprite || !targetSprite.body) return;
   const body = targetSprite.body;
-  const origTint = body.tintTopLeft;
   body.setTint(0xffffff);
   scene.time.delayedCall(duration, () => {
     body.clearTint();
+  });
+}
+
+function screenShake(scene, intensity = 0.008, duration = 120) {
+  if (scene.cameras && scene.cameras.main) {
+    scene.cameras.main.shake(duration, intensity);
+  }
+}
+
+function enemyRecoil(scene, targetSprite, magnitude = 6) {
+  if (!targetSprite || !targetSprite.body) return;
+  const body = targetSprite.body;
+  const origX = body.x;
+  body.setTint(0xff4444);
+  scene.tweens.add({
+    targets: body, x: origX + magnitude, duration: 40,
+    yoyo: true, repeat: 2, ease: 'Sine.inOut',
+    onComplete: () => { body.x = origX; body.clearTint(); },
   });
 }
 
@@ -135,7 +152,7 @@ function sparkBurst(scene, x, y, count, colors, gravity = false) {
 // KNIGHT
 // ================================================================
 
-function playKnightFight(scene, heroSprite, enemyX, enemyY, result, cb) {
+function playKnightFight(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
   const origSX = heroSprite.body.scaleX;
   const origSY = heroSprite.body.scaleY;
 
@@ -146,8 +163,10 @@ function playKnightFight(scene, heroSprite, enemyX, enemyY, result, cb) {
     ease: 'Back.out',
     onComplete: () => {
       hitPause(scene, { body: heroSprite.body }, 80);
+      screenShake(scene, 0.008, 120);
+      enemyRecoil(scene, targetSprite);
       impactRing(scene, enemyX, enemyY, 0xf0d040);
-      sparkBurst(scene, enemyX, enemyY, 16, [0xfff8c0, 0xf0d040], true);
+      sparkBurst(scene, enemyX, enemyY, 24, [0xfff8c0, 0xf0d040, 0xffe060], true);
       // Slash arc
       const slash = scene.add.graphics();
       slash.setDepth(20);
@@ -176,7 +195,7 @@ function playKnightFight(scene, heroSprite, enemyX, enemyY, result, cb) {
   });
 }
 
-function playKnightMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
+function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
   const origSX = heroSprite.body.scaleX;
   const origSY = heroSprite.body.scaleY;
 
@@ -215,6 +234,8 @@ function playKnightMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
         // 400-500ms: IMPACT
         heroSprite.body.clearTint();
         hitPause(scene, { body: heroSprite.body }, 80);
+        screenShake(scene, 0.015, 200);
+        enemyRecoil(scene, targetSprite, 10);
 
         // Golden flash
         const flash = scene.add.rectangle(720, 540, 1500, 1100, 0xf0d040, 0.25);
@@ -257,7 +278,7 @@ function playKnightMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
 // WIZARD
 // ================================================================
 
-function playWizardFight(scene, heroSprite, enemyX, enemyY, op, result, cb) {
+function playWizardFight(scene, heroSprite, targetSprite, enemyX, enemyY, op, result, cb) {
   const origSX = heroSprite.body.scaleX;
   const origSY = heroSprite.body.scaleY;
 
@@ -297,8 +318,11 @@ function playWizardFight(scene, heroSprite, enemyX, enemyY, op, result, cb) {
   }
 
   hitPause(scene, { body: heroSprite.body }, 60);
-  impactRing(scene, enemyX, enemyY, beamColor, 40);
-  sparkBurst(scene, enemyX, enemyY, 14, particleColors[op] || [beamColor]);
+  screenShake(scene, 0.01, 150);
+  enemyRecoil(scene, targetSprite, 8);
+  impactRing(scene, enemyX, enemyY, beamColor, 60);
+  impactRing(scene, enemyX, enemyY, 0xffffff, 90);
+  sparkBurst(scene, enemyX, enemyY, 30, particleColors[op] || [beamColor]);
 
   scene.tweens.add({ targets: beam, alpha: 0, duration: 400, onComplete: () => beam.destroy() });
 
@@ -306,7 +330,7 @@ function playWizardFight(scene, heroSprite, enemyX, enemyY, op, result, cb) {
   scene.time.delayedCall(300, () => { if (cb.onComplete) cb.onComplete(); });
 }
 
-function playWizardMagic(scene, heroSprite, enemyX, enemyY, op, result, cb) {
+function playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, result, cb) {
   const origSX = heroSprite.body.scaleX;
   const origSY = heroSprite.body.scaleY;
 
@@ -368,8 +392,11 @@ function playWizardMagic(scene, heroSprite, enemyX, enemyY, op, result, cb) {
     scene.tweens.add({ targets: flash, alpha: 0, duration: 200, onComplete: () => flash.destroy() });
 
     // Big burst
-    sparkBurst(scene, enemyX, enemyY, 40, elem.particles, true);
-    impactRing(scene, enemyX, enemyY, elem.main, 100);
+    screenShake(scene, 0.02, 250);
+    enemyRecoil(scene, targetSprite, 12);
+    sparkBurst(scene, enemyX, enemyY, 50, elem.particles, true);
+    impactRing(scene, enemyX, enemyY, elem.main, 150);
+    impactRing(scene, enemyX, enemyY, 0xffffff, 200);
 
     if (cb.onHit) cb.onHit();
   });
@@ -386,7 +413,7 @@ function playWizardMagic(scene, heroSprite, enemyX, enemyY, op, result, cb) {
 // BUNNY
 // ================================================================
 
-function playBunnyFight(scene, heroSprite, enemyX, enemyY, result, cb) {
+function playBunnyFight(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
   const origSX = heroSprite.body.scaleX;
   const origSY = heroSprite.body.scaleY;
   const origY = heroSprite.y;
@@ -439,7 +466,7 @@ function playBunnyFight(scene, heroSprite, enemyX, enemyY, result, cb) {
   });
 }
 
-function playBunnyMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
+function playBunnyMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
   const origSX = heroSprite.body.scaleX;
   const origSY = heroSprite.body.scaleY;
   const origY = heroSprite.y;
@@ -490,8 +517,10 @@ function playBunnyMagic(scene, heroSprite, enemyX, enemyY, result, cb) {
                       flash.setDepth(21);
                       scene.tweens.add({ targets: flash, alpha: 0, duration: 150, onComplete: () => flash.destroy() });
 
-                      sparkBurst(scene, enemyX, enemyY, 24, [0xe86898, 0xf090b0, 0xff80c0], true);
-                      impactRing(scene, enemyX, enemyY, 0xe86898, 80);
+                      screenShake(scene, 0.015, 180);
+                      enemyRecoil(scene, targetSprite, 8);
+                      sparkBurst(scene, enemyX, enemyY, 40, [0xe86898, 0xf090b0, 0xff80c0], true);
+                      impactRing(scene, enemyX, enemyY, 0xe86898, 120);
 
                       if (cb.onHit) cb.onHit();
 
