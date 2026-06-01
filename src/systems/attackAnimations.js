@@ -353,6 +353,7 @@ function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result
         }
 
         // 500-700ms: Shockwave ring + particles
+        scene.cameras.main.shake(180, 0.012);
         impactRing(scene, enemyX, enemyY, 0xf0d040, 120);
         sparkBurst(scene, enemyX, enemyY, 32, [0xf0d040, 0xfff8c0, 0xf0a020], true);
 
