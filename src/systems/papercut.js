@@ -607,20 +607,65 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
     gfx.fillCircle(ax, ay, ar);
   }
 
-  // Vignette frame (dark edges, like looking into a diorama box)
-  const vigW = 80;
-  // Top
-  gfx.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.9, 0.9, 0, 0);
-  gfx.fillRect(0, 0, width, vigW);
-  // Bottom
-  gfx.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.6, 0.6);
-  gfx.fillRect(0, height - vigW, width, vigW);
-  // Left
-  gfx.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.8, 0, 0.8, 0);
-  gfx.fillRect(0, 0, vigW, height);
-  // Right
-  gfx.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.8, 0, 0.8);
-  gfx.fillRect(width - vigW, 0, vigW, height);
+  // Diorama frame — torn paper edges with arch, like looking into a stage box
+  const frameGfx = scene.add.graphics().setDepth(15);
+  const frameColor = 0x1a0e04;
+  const frameW = 50;
+  const archCx = width * 0.5, archCy = height * 0.1;
+  const archRx = width * 0.54, archRy = height * 0.55;
+
+  // Left frame with torn inner edge
+  frameGfx.fillStyle(frameColor, 0.92);
+  frameGfx.beginPath();
+  frameGfx.moveTo(0, 0);
+  frameGfx.lineTo(frameW, 0);
+  for (let py = 0; py <= height; py += 8) {
+    const wobble = (rng() - 0.5) * 16;
+    frameGfx.lineTo(frameW + wobble, py);
+  }
+  frameGfx.lineTo(0, height);
+  frameGfx.closePath();
+  frameGfx.fillPath();
+
+  // Right frame with torn inner edge
+  frameGfx.beginPath();
+  frameGfx.moveTo(width, 0);
+  frameGfx.lineTo(width - frameW, 0);
+  for (let py = 0; py <= height; py += 8) {
+    const wobble = (rng() - 0.5) * 16;
+    frameGfx.lineTo(width - frameW + wobble, py);
+  }
+  frameGfx.lineTo(width, height);
+  frameGfx.closePath();
+  frameGfx.fillPath();
+
+  // Top arch frame
+  frameGfx.beginPath();
+  frameGfx.moveTo(0, 0);
+  frameGfx.lineTo(width, 0);
+  frameGfx.lineTo(width, frameW + 20);
+  for (let px = width; px >= 0; px -= 6) {
+    const t = px / width;
+    const archY = archCy + Math.sin(t * Math.PI) * frameW * 0.6;
+    const wobble = (rng() - 0.5) * 8;
+    frameGfx.lineTo(px, archY + wobble);
+  }
+  frameGfx.lineTo(0, frameW + 20);
+  frameGfx.closePath();
+  frameGfx.fillPath();
+
+  // Bottom frame
+  frameGfx.beginPath();
+  frameGfx.moveTo(0, height);
+  frameGfx.lineTo(width, height);
+  frameGfx.lineTo(width, height - frameW);
+  for (let px = width; px >= 0; px -= 8) {
+    const wobble = (rng() - 0.5) * 12;
+    frameGfx.lineTo(px, height - frameW + wobble);
+  }
+  frameGfx.lineTo(0, height - frameW);
+  frameGfx.closePath();
+  frameGfx.fillPath();
 
   return gfx;
 }

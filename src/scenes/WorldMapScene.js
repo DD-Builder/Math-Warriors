@@ -282,7 +282,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   buildPaths() {
-    const pathGfx = this.add.graphics();
+    const pathGfx = this.add.graphics().setDepth(-1);
     for (let i = 0; i < this.nodePositions.length - 1; i++) {
       const from = this.nodePositions[i];
       const to = this.nodePositions[i + 1];

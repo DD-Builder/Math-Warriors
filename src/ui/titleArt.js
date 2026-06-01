@@ -313,10 +313,12 @@ function drawWord(scene, word, cx, cy, letterH, mainColor, shadowColor, holeColo
 
 
 /**
- * Draw the MATH WARRIORS title as clean, crisp Phaser text objects.
+ * Draw the MATH WARRIORS title using the hand-cut papercut letter system.
  *
- * Uses the Fredoka One font loaded by the page. "MATH" is big bold
- * blue, "WARRIORS" is big bold red, both with white stroke outlines.
+ * Each letter is rendered as chunky perturbed polygons with layered
+ * shadows, giving the organic "cut paper" look that matches the game's
+ * visual theme. Falls back to text objects for any letters not defined
+ * in LETTERS.
  *
  * @param {Phaser.Scene} scene
  * @param {number} cx - center X
@@ -324,47 +326,17 @@ function drawWord(scene, word, cx, cy, letterH, mainColor, shadowColor, holeColo
  * @param {number} scale - 1.0 = default size
  */
 export function drawPapercutTitle(scene, cx, cy, scale = 1) {
-  const mathSize = Math.round(130 * scale);
-  const warSize = Math.round(100 * scale);
-  const lineGap = mathSize * 0.3;
+  const mathH = Math.round(120 * scale);
+  const warH = Math.round(90 * scale);
+  const lineGap = mathH * 0.35;
 
-  // MATH — bold blue with dark outline and shadow
-  const mathShadow = scene.add.text(cx + 4, cy - lineGap + 4, 'MATH', {
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-    fontSize: `${mathSize}px`,
-    color: '#1a3060',
-    letterSpacing: 8,
-  }).setOrigin(0.5).setAlpha(0.4);
+  // MATH — blue papercut letters with dark shadow
+  const mathGfx = drawWord(scene, 'MATH', cx, cy - lineGap, mathH,
+    0x4888e0, 0x1a3060, 0x000000, 7001);
 
-  const mathText = scene.add.text(cx, cy - lineGap, 'MATH', {
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-    fontSize: `${mathSize}px`,
-    color: '#4888e0',
-    stroke: '#1a3060',
-    strokeThickness: Math.round(6 * scale),
-    letterSpacing: 8,
-  }).setOrigin(0.5);
-
-  // WARRIORS — bold red with dark outline and shadow
-  const warShadow = scene.add.text(cx + 4, cy + lineGap + warSize * 0.15 + 4, 'WARRIORS', {
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-    fontSize: `${warSize}px`,
-    color: '#601818',
-    letterSpacing: 6,
-  }).setOrigin(0.5).setAlpha(0.4);
-
-  const warText = scene.add.text(cx, cy + lineGap + warSize * 0.15, 'WARRIORS', {
-    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-    fontSize: `${warSize}px`,
-    color: '#e85050',
-    stroke: '#601818',
-    strokeThickness: Math.round(5 * scale),
-    letterSpacing: 6,
-  }).setOrigin(0.5);
-
-  // Gentle floating animation
-  scene.tweens.add({ targets: [mathText, mathShadow], y: '-=4', duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-  scene.tweens.add({ targets: [warText, warShadow], y: '+=3', duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: 400 });
+  // WARRIORS — red papercut letters with dark shadow
+  const warGfx = drawWord(scene, 'WARRIORS', cx, cy + lineGap + warH * 0.15, warH,
+    0xe85050, 0x601818, 0x000000, 7002);
 }
 
 

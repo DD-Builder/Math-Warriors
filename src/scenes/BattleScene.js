@@ -490,10 +490,14 @@ export class BattleScene extends Phaser.Scene {
     const leftAnchor = GAME_WIDTH * 0.08 + spacing / 2;
 
     this.heroSprites = this.party.map((hero, i) => {
-      const x = leftAnchor + i * spacing;
-      const y = groundY - 90;
+      const xStagger = (1 - i) * 15;  // hero 0: +15, hero 1: 0, hero 2: -15
+      const x = leftAnchor + i * spacing + xStagger;
+      const stagger = 30;
+      const baseY = groundY - 90;
+      const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
 
-      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale });
+      const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
+      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
       body.setDepth(12);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
@@ -710,17 +714,17 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.ans.setOrigin(0.5, 0.5);
     this.eqLines.stars.setOrigin(1, 0);
 
-    // Turn label — above the math panel
-    const turnY = eqY - noteH / 2 - 26;
-    PaperPanel(this, area.cx, turnY, 520, 38, {
-      color: 0xf5ead0, alpha: 0.90, radius: 12, shadowOff: 2, shadowAlpha: 0.15,
+    // Turn label — above the math panel, full width with larger font
+    const turnY = eqY - noteH / 2 - 30;
+    PaperPanel(this, area.cx, turnY, area.w - 40, 48, {
+      color: 0xf5ead0, alpha: 0.92, radius: 14, shadowOff: 3, shadowAlpha: 0.18,
     });
     this.turnLabel = this.add.text(area.cx, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '19px',
+      fontSize: '28px',
       color: '#3a2410',
       stroke: '#f5ead0',
-      strokeThickness: 2,
+      strokeThickness: 3,
       letterSpacing: 1,
     }).setOrigin(0.5);
 
@@ -946,18 +950,18 @@ export class BattleScene extends Phaser.Scene {
   buildCommandMenu() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const cmds = this.availableCommands;
-    const btnW = 130;
-    const btnH = 70;
-    const gap = 14;
+    const btnW = 160;
+    const btnH = 75;
+    const gap = 22;
     const totalW = cmds.length * btnW + (cmds.length - 1) * gap;
     const startX = area.cx - totalW / 2 + btnW / 2;
     const cmdY = this.eqCenterY || (this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 80);
 
     this.commandButtons = [];
     const cmdColors = {
-      [COMMANDS.FIGHT]: 0x3888d8,
-      [COMMANDS.MAGIC]: 0x7848b8,
-      [COMMANDS.GUARD]: 0x48a848,
+      [COMMANDS.FIGHT]: 0x3080d0,
+      [COMMANDS.MAGIC]: 0x8040c0,
+      [COMMANDS.GUARD]: 0x308830,
     };
     const cmdIcons = {
       [COMMANDS.FIGHT]: '⚔️',
@@ -976,7 +980,7 @@ export class BattleScene extends Phaser.Scene {
       const btn = PaperButton(this, x, cmdY, `${cmdIcons[cmd]} ${cmdLabels[cmd]}`, {
         w: btnW, h: btnH,
         color: cmdColors[cmd],
-        fontSize: 18,
+        fontSize: 20,
         onClick: () => {
           if (this.phase !== 'command') return;
           audio.play('ui/click');
@@ -992,27 +996,79 @@ export class BattleScene extends Phaser.Scene {
   }
 
   setCommandMenuVisible(visible) {
-    for (const btn of this.commandButtons) {
+    for (let idx = 0; idx < this.commandButtons.length; idx++) {
+      const btn = this.commandButtons[idx];
       if (btn.bg) btn.bg.setVisible(visible);
       if (btn.shadow) btn.shadow.setVisible(visible);
       if (btn.label) btn.label.setVisible(visible);
       if (btn.zone) btn.zone.setVisible(visible);
+      // Subtle bounce animation when showing
+      if (visible) {
+        const elements = [btn.bg, btn.shadow, btn.label, btn.zone].filter(Boolean);
+        for (const el of elements) {
+          el.setScale(0.7);
+          el.setAlpha(0);
+        }
+        this.tweens.add({
+          targets: elements,
+          scaleX: 1, scaleY: 1, alpha: 1,
+          duration: 250,
+          ease: 'Back.out',
+          delay: idx * 60,
+        });
+      }
     }
   }
 
   setCommandMenuForClass(allowedCmds) {
+    let bounceIdx = 0;
     for (const btn of this.commandButtons) {
       const allowed = allowedCmds.includes(btn.cmd);
       if (btn.bg) btn.bg.setVisible(allowed);
       if (btn.shadow) btn.shadow.setVisible(allowed);
       if (btn.label) btn.label.setVisible(allowed);
       if (btn.zone) btn.zone.setVisible(allowed);
+      // Subtle bounce animation when showing
+      if (allowed) {
+        const elements = [btn.bg, btn.shadow, btn.label, btn.zone].filter(Boolean);
+        for (const el of elements) {
+          el.setScale(0.7);
+          el.setAlpha(0);
+        }
+        this.tweens.add({
+          targets: elements,
+          scaleX: 1, scaleY: 1, alpha: 1,
+          duration: 250,
+          ease: 'Back.out',
+          delay: bounceIdx * 60,
+        });
+        bounceIdx++;
+      }
     }
   }
 
   selectCommand(cmd) {
     this.selectedCommand = cmd;
-    this.setCommandMenuVisible(false);
+
+    // Animate command buttons sliding/fading out
+    const cmdElements = [];
+    for (const btn of this.commandButtons) {
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (el && el.visible) cmdElements.push(el);
+      }
+    }
+    if (cmdElements.length > 0) {
+      this.tweens.add({
+        targets: cmdElements,
+        alpha: 0,
+        y: '+=20',
+        duration: 150,
+        ease: 'Cubic.in',
+        onComplete: () => this.setCommandMenuVisible(false),
+      });
+    } else {
+      this.setCommandMenuVisible(false);
+    }
 
     const hero = this.party[this.currentTurn.heroIndex];
     const config = getCommandConfig(cmd);
@@ -1060,7 +1116,33 @@ export class BattleScene extends Phaser.Scene {
       this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
       this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
     }
+
+    // Animate equation panel + answer buttons sliding/fading in
+    const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
+    const ansElements = [];
+    for (const btn of this.answerButtons) {
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (el) ansElements.push(el);
+      }
+    }
+    const fadeInTargets = [...eqElements, ...ansElements];
+    // Record target y positions, then offset for slide-in
+    const originalYs = fadeInTargets.map(el => el.y);
+    for (let fi = 0; fi < fadeInTargets.length; fi++) {
+      fadeInTargets[fi].setAlpha(0);
+      fadeInTargets[fi].y = originalYs[fi] + 20;
+    }
     this.setAnswerButtonsVisible(true);
+    for (let fi = 0; fi < fadeInTargets.length; fi++) {
+      this.tweens.add({
+        targets: fadeInTargets[fi],
+        alpha: 1,
+        y: originalYs[fi],
+        duration: 150,
+        ease: 'Cubic.out',
+        delay: 100,
+      });
+    }
 
     // Boss timer starts AFTER command selection
     if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
