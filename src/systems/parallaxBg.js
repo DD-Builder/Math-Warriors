@@ -625,15 +625,19 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
       const sw = 4 + rng() * 8;
       fg.fillStyle(0x2a1808, 0.5 + rng() * 0.2);
       fg.fillTriangle(sx - sw, 0, sx + sw, 0, sx + (rng() - 0.5) * 4, sh);
-      // Drip detail
+      // Drip detail — pixelated square instead of circle
       fg.fillStyle(0x3a2010, 0.3);
-      fg.fillCircle(sx, sh + 2, 2);
+      fg.fillRect(sx - 2, sh, 4, 4);
     }
-    // Lava glow gradient at bottom
-    for (let lg = 0; lg < 4; lg++) {
-      const ga = 0.12 * (1 - lg / 4);
-      fg.fillStyle(0xe04010, ga);
-      fg.fillRect(-20, height - 15 - lg * 12, width + 40, 15);
+    // Pixelated lava: square blocks in 8px grid instead of smooth gradient
+    const lavaColors = [0xe04010, 0xf06020, 0xd03008, 0xf08020];
+    for (let lx = 0; lx < width; lx += 8) {
+      const lavaH = 1 + Math.floor(rng() * 4); // 1-4 blocks tall
+      for (let ly = 0; ly < lavaH; ly++) {
+        const ci = Math.floor(rng() * lavaColors.length);
+        fg.fillStyle(lavaColors[ci], 0.15 + rng() * 0.15);
+        fg.fillRect(lx, height - 8 - ly * 8, 8, 8);
+      }
     }
     // Rock formations at sides
     for (let side = 0; side < 2; side++) {
@@ -675,6 +679,15 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
     // Frost edge glow at bottom
     fg.fillStyle(0xc0e0f0, 0.08);
     fg.fillRect(-20, height - 30, width + 40, 35);
+    // Cinematic: star field — tiny dots in the sky area
+    for (let si = 0; si < 18; si++) {
+      const sx = rng() * width;
+      const sy = rng() * groundY * 0.5; // above the hill layers
+      const sr = 1 + rng(); // 1-2px
+      const sa = 0.3 + rng() * 0.4; // alpha 0.3-0.7
+      fg.fillStyle(0xffffff, sa);
+      fg.fillCircle(sx, sy, sr);
+    }
   } else {
     // Floors 6-9: generic mystical framing
     for (let side = 0; side < 2; side++) {
