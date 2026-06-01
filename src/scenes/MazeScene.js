@@ -268,6 +268,7 @@ export class MazeScene extends Phaser.Scene {
     this.levelImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     this.buildHUD();
+    this.startMazeParticles();
 
     this.dialogue = new DialogueOverlay(this);
 
@@ -584,32 +585,28 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   buildPlayer() {
-    // Each party member gets their own container. The leader is at the
-    // current tile; followers trail behind at previous positions.
+    // Only the leader (party[0]) is shown on the maze.
     const ts = this.tileSize;
-    const spriteScale = ts / 140 * 0.85;
+    const spriteScale = ts / 140 * 1.1;
     const startSx = this.originX + this.playerX * ts + ts / 2;
     const startSy = this.originY + this.playerY * ts + ts / 2;
 
-    // Position trail — followers walk where the leader just was.
-    // Initialize all at the starting position.
+    // Position trail — kept for internal tracking but only leader is rendered.
     this.posTrail = [];
     for (let i = 0; i < this.party.length; i++) {
       this.posTrail.push({ x: this.playerX, y: this.playerY });
     }
 
     this.followerSprites = [];
-    // Draw followers first (behind), leader last (on top)
-    for (let i = this.party.length - 1; i >= 0; i--) {
-      const hero = this.party[i];
-      if (!hero) continue;
-      const sx = this.originX + this.posTrail[i].x * ts + ts / 2;
-      const sy = this.originY + this.posTrail[i].y * ts + ts / 2;
+    // Only create a sprite for the leader (index 0)
+    const hero = this.party[0];
+    if (hero) {
+      const sx = this.originX + this.posTrail[0].x * ts + ts / 2;
+      const sy = this.originY + this.posTrail[0].y * ts + ts / 2;
       const container = this.add.container(sx, sy);
-      const sc = i === 0 ? spriteScale : spriteScale * 0.8;
-      const gfx = drawHeroSprite(this, 0, 0, hero, { scale: sc });
+      const gfx = drawHeroSprite(this, 0, 0, hero, { scale: spriteScale });
       container.add(gfx);
-      this.followerSprites[i] = container;
+      this.followerSprites[0] = container;
     }
     // The leader's container is what the camera follows
     this.playerSprite = this.followerSprites[0];
@@ -1382,6 +1379,48 @@ export class MazeScene extends Phaser.Scene {
           duration: 300,
           delay: 500,
           onComplete: () => savedText.destroy(),
+        });
+      },
+    });
+  }
+
+  // ================================================================
+  // ENVIRONMENTAL PARTICLES
+  // ================================================================
+
+  startMazeParticles() {
+    const particleConfig = {
+      1: { colors: [0x4a8830, 0x68a848, 0xf0c040], size: [3, 5], speed: 0.3, name: 'leaf' },
+      2: { colors: [0x40a8d0, 0x60c8e8, 0x80d8f0], size: [2, 4], speed: 0.5, name: 'bubble' },
+      3: { colors: [0xd0dce8, 0xe8f0f8, 0xffffff], size: [4, 8], speed: 0.15, name: 'wisp' },
+      4: { colors: [0xf08020, 0xe04808, 0xf0c040], size: [2, 4], speed: 0.6, name: 'ember' },
+      5: { colors: [0xc8e0f0, 0xe0f0ff, 0xffffff], size: [2, 4], speed: 0.2, name: 'snow' },
+    };
+    const config = particleConfig[this.floorId] || particleConfig[1];
+
+    this.time.addEvent({
+      delay: 600 + Math.random() * 400,
+      loop: true,
+      callback: () => {
+        if (this.scene.isPaused() || !this.scene.isActive()) return;
+        const color = config.colors[Math.floor(Math.random() * config.colors.length)];
+        const size = config.size[0] + Math.random() * (config.size[1] - config.size[0]);
+        const startX = Math.random() * GAME_WIDTH;
+        const startY = -10;
+        const p = this.add.circle(startX, startY, size, color, 0.4 + Math.random() * 0.3);
+        p.setDepth(50);
+
+        const drift = (Math.random() - 0.5) * 100;
+        const duration = 3000 + Math.random() * 2000;
+
+        this.tweens.add({
+          targets: p,
+          y: GAME_HEIGHT + 20,
+          x: startX + drift,
+          alpha: 0,
+          duration,
+          ease: 'Sine.inOut',
+          onComplete: () => p.destroy(),
         });
       },
     });

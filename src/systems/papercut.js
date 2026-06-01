@@ -217,6 +217,7 @@ export const FLOOR_PALETTES = {
     cloud:   0xf0f8ff,
     glow:    0xfff0a0,
     glowAlpha: 0.5,
+    fog:     0x1a3810,
   },
   1: { // Garden — bright sunny day, lush greens, warm light
     sky:     0x68b8e8,
@@ -234,6 +235,7 @@ export const FLOOR_PALETTES = {
     cloud:   0xf0f8ff,
     glow:    0xfff0a0,  // warm sun
     glowAlpha: 0.55,
+    fog:     0x1a3810,
   },
   2: { // Tidepool — bright ocean, turquoise water, coral reefs
     sky:     0x2878c0,
@@ -251,6 +253,7 @@ export const FLOOR_PALETTES = {
     cloud:   0xd0e8f8,
     glow:    0x88d8f8,
     glowAlpha: 0.45,
+    fog:     0x0c2038,
   },
   3: { // Cloud — bright sky, fluffy white, golden sun
     sky:     0x88c8f8,
@@ -268,6 +271,7 @@ export const FLOOR_PALETTES = {
     cloud:   0xffffff,
     glow:    0xfff080,
     glowAlpha: 0.55,
+    fog:     0x404858,
   },
   4: { // Ember — warm sunset, orange glow, wider contrast between layers
     sky:     0x4a1818,
@@ -285,6 +289,7 @@ export const FLOOR_PALETTES = {
     cloud:   0x804020,
     glow:    0xff6820,
     glowAlpha: 0.55,
+    fog:     0x2a0c04,
   },
   5: { // Frozen Peak — icy blue mountains
     sky:     0x88c8f0,
@@ -302,6 +307,7 @@ export const FLOOR_PALETTES = {
     cloud:   0xf0f8ff,
     glow:    0xc0e8ff,
     glowAlpha: 0.45,
+    fog:     0x182838,
   },
   6: { // Crystal Caverns — deep purple, prismatic
     sky:     0x281850,
@@ -319,6 +325,7 @@ export const FLOOR_PALETTES = {
     cloud:   0x584080,
     glow:    0xc098f0,
     glowAlpha: 0.5,
+    fog:     0x1a0828,
   },
   7: { // Market Square — warm golden sunset
     sky:     0xd8a858,
@@ -336,6 +343,7 @@ export const FLOOR_PALETTES = {
     cloud:   0xf8e8c0,
     glow:    0xf8d060,
     glowAlpha: 0.5,
+    fog:     0x1a1408,
   },
   8: { // Infinity Library — dark amber, candlelit
     sky:     0x3a2010,
@@ -353,6 +361,7 @@ export const FLOOR_PALETTES = {
     cloud:   0x604830,
     glow:    0xd8a040,
     glowAlpha: 0.45,
+    fog:     0x0a0810,
   },
   9: { // The Mending Room — vibrant magical twilight, deep purple + bright gold
     sky:     0x382060,
@@ -370,6 +379,7 @@ export const FLOOR_PALETTES = {
     cloud:   0x6850a0,
     glow:    0xe0a8ff,
     glowAlpha: 0.55,
+    fog:     0x100818,
   },
 };
 

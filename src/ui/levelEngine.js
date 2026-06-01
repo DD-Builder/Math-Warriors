@@ -11,6 +11,7 @@
  */
 
 import { mkRng } from './legacyRenderer.js';
+import { FLOOR_PALETTES } from '../systems/papercut.js';
 
 // ─── PALETTE (exact copy from reference) ────────────────────────
 
@@ -107,6 +108,28 @@ var FLOOR_PALS = {
 };
 
 var _floorTheme = 1;
+
+// ─── FOG COLOR (derived from floor palette) ─────────────────────
+
+var _fogR = 8, _fogG = 4, _fogB = 2;
+var _fogColor = 'rgb(8,4,2)';
+var _fogColorMinimap = '#080402';
+var _fogColorMinimapBg = '#080402';
+
+function _updateFogColor() {
+  var fogHex = (FLOOR_PALETTES[_floorTheme] && FLOOR_PALETTES[_floorTheme].fog) || 0x080402;
+  _fogR = (fogHex >> 16) & 0xff;
+  _fogG = (fogHex >> 8) & 0xff;
+  _fogB = fogHex & 0xff;
+  _fogColor = 'rgb(' + _fogR + ',' + _fogG + ',' + _fogB + ')';
+  // Minimap fog (slightly lighter for unrevealed tiles)
+  var mmR = Math.min(255, _fogR + 6);
+  var mmG = Math.min(255, _fogG + 4);
+  var mmB = Math.min(255, _fogB + 2);
+  _fogColorMinimap = 'rgb(' + mmR + ',' + mmG + ',' + mmB + ')';
+  // Minimap background (same as base fog)
+  _fogColorMinimapBg = _fogColor;
+}
 
 // ─── TILE CONSTANTS ─────────────────────────────────────────────
 
@@ -1107,9 +1130,9 @@ function LV_drawMinimap() {
   // Size to fit the map (max dimension determines cell size)
   var maxDim = Math.max(_COLS, _ROWS);
   var cs = mc.width / maxDim;
-  mg.fillStyle = '#080402'; mg.fillRect(0, 0, mc.width, mc.height);
+  mg.fillStyle = _fogColorMinimapBg; mg.fillRect(0, 0, mc.width, mc.height);
   for (var my = 0; my < _ROWS; my++) for (var mx = 0; mx < _COLS; mx++) {
-    if (!_fog[my][mx]) { mg.fillStyle = '#0e0804'; mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5); continue; }
+    if (!_fog[my][mx]) { mg.fillStyle = _fogColorMinimap; mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5); continue; }
     var t2 = _map[my][mx];
     mg.fillStyle = t2 === LV_TW ? '#2a5c1e' : t2 === LV_TP ? '#a89870' : t2 === LV_TQ ? '#2a5060' : '#3c2010';
     mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5);
@@ -1138,14 +1161,14 @@ function LV_draw(t) {
   var ts = LV_TILE * _SCALE;
   var camX = _W / 2 - _party.x * _SCALE, camY = _H / 2 - _party.y * _SCALE;
   // Background
-  _G.fillStyle = '#1a0c06'; _G.fillRect(0, 0, _W, _H);
+  _G.fillStyle = _fogColor; _G.fillRect(0, 0, _W, _H);
   var sx0 = Math.max(0, Math.floor(-camX / ts) - 1), sy0 = Math.max(0, Math.floor(-camY / ts) - 1);
   var sx1 = Math.min(_COLS, sx0 + Math.ceil(_W / ts) + 3), sy1 = Math.min(_ROWS, sy0 + Math.ceil(_H / ts) + 3);
   // Tiles
   for (var ty2 = sy0; ty2 < sy1; ty2++) for (var tx2 = sx0; tx2 < sx1; tx2++) {
     var scx = camX + tx2 * ts, scy = camY + ty2 * ts;
     if (scx + ts < 0 || scx > _W || scy + ts < 0 || scy > _H) continue;
-    if (!_fog[ty2][tx2]) { _G.fillStyle = '#080402'; _G.fillRect(scx, scy, ts + 1, ts + 1); continue; }
+    if (!_fog[ty2][tx2]) { _G.fillStyle = _fogColor; _G.fillRect(scx, scy, ts + 1, ts + 1); continue; }
     var tt2 = _map[ty2][tx2];
     _drawTile(tt2, scx, scy, ts, tx2, ty2, t);
   }
@@ -1229,13 +1252,13 @@ function LV_draw(t) {
     if (_fog[fy2][fx2]) continue;
     var fsx = camX + fx2 * ts, fsy = camY + fy2 * ts;
     if (fsx + ts < 0 || fsx > _W || fsy + ts < 0 || fsy > _H) continue;
-    _G.fillStyle = 'rgba(8,4,2,0.94)'; _G.fillRect(fsx, fsy, ts + 1, ts + 1);
+    _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.94)'; _G.fillRect(fsx, fsy, ts + 1, ts + 1);
   }
   // Fog edge softening
   for (var fy3 = sy0; fy3 < sy1; fy3++) for (var fx3 = sx0; fx3 < sx1; fx3++) {
     if (!_fog[fy3][fx3]) continue;
     var hasUnrev = (fy3 > 0 && !_fog[fy3 - 1][fx3]) || (fy3 < _ROWS - 1 && !_fog[fy3 + 1][fx3]) || (fx3 > 0 && !_fog[fy3][fx3 - 1]) || (fx3 < _COLS - 1 && !_fog[fy3][fx3 + 1]);
-    if (hasUnrev) { _G.fillStyle = 'rgba(8,4,2,0.35)'; _G.fillRect(camX + fx3 * ts, camY + fy3 * ts, ts + 1, ts + 1); }
+    if (hasUnrev) { _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.35)'; _G.fillRect(camX + fx3 * ts, camY + fy3 * ts, ts + 1, ts + 1); }
   }
   // Vignette
   var vig = _G.createRadialGradient(_W / 2, _H / 2, Math.min(_W, _H) * 0.2, _W / 2, _H / 2, Math.min(_W, _H) * 0.72);
@@ -1507,6 +1530,7 @@ export function markVisible(id) {
 
 export function setFloorTheme(floorId) {
   _floorTheme = floorId;
+  _updateFogColor();
 }
 
 export { LV_PAL, LV_TILE };
