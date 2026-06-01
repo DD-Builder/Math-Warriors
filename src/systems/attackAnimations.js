@@ -81,7 +81,7 @@ export function playFizzleAnimation(scene, heroSprite) {
 }
 
 // ================================================================
-// HIT-PAUSE EFFECT
+// SHARED HELPERS
 // ================================================================
 
 function hitPause(scene, targetSprite, duration = 80) {
@@ -89,25 +89,7 @@ function hitPause(scene, targetSprite, duration = 80) {
   const body = targetSprite.body;
   body.setTint(0xffffff);
   scene.time.delayedCall(duration, () => {
-    body.clearTint();
-  });
-}
-
-function screenShake(scene, intensity = 0.008, duration = 120) {
-  if (scene.cameras && scene.cameras.main) {
-    scene.cameras.main.shake(duration, intensity);
-  }
-}
-
-function enemyRecoil(scene, targetSprite, magnitude = 6) {
-  if (!targetSprite || !targetSprite.body) return;
-  const body = targetSprite.body;
-  const origX = body.x;
-  body.setTint(0xff4444);
-  scene.tweens.add({
-    targets: body, x: origX + magnitude, duration: 40,
-    yoyo: true, repeat: 2, ease: 'Sine.inOut',
-    onComplete: () => { body.x = origX; body.clearTint(); },
+    if (body && body.clearTint) body.clearTint();
   });
 }
 
@@ -148,14 +130,82 @@ function sparkBurst(scene, x, y, count, colors, gravity = false) {
   }
 }
 
+/**
+ * Universal enemy hit reaction — red tint, knockback shake, floating damage number.
+ * Called on every attack type at the moment of impact.
+ */
+function enemyHitReaction(scene, targetSprite, damage) {
+  if (!targetSprite || !targetSprite.body) return;
+  const enemy = targetSprite.body;
+  const ex = targetSprite.x;
+  const ey = targetSprite.y;
+
+  // 1. Red tint — clear after 150ms
+  if (enemy.setTint) enemy.setTint(0xff4444);
+  scene.time.delayedCall(150, () => {
+    if (enemy && enemy.clearTint) enemy.clearTint();
+  });
+
+  // 2. Knockback shake
+  scene.tweens.add({
+    targets: enemy,
+    x: ex + 5,
+    duration: 40,
+    yoyo: true,
+    repeat: 2,
+    onComplete: () => { if (enemy) enemy.x = ex; },
+  });
+
+  // 3. Floating damage number
+  if (typeof damage === 'number' && damage > 0) {
+    const dmgText = scene.add.text(ex, ey - 30, `-${damage}`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '28px',
+      fontStyle: 'bold',
+      color: '#ff4444',
+      stroke: '#000000',
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(30);
+    scene.tweens.add({
+      targets: dmgText,
+      y: ey - 90,
+      alpha: 0,
+      duration: 600,
+      ease: 'Cubic.out',
+      onComplete: () => dmgText.destroy(),
+    });
+  }
+}
+
+/**
+ * Draw a bezier slash arc and return the graphics object.
+ */
+function drawSlashArc(scene, enemyX, enemyY, lineWidth, color, alpha, offsetX, offsetY) {
+  const slash = scene.add.graphics();
+  slash.setDepth(20);
+  slash.lineStyle(lineWidth, color, alpha);
+  slash.beginPath();
+  const startX = enemyX - 40 + offsetX;
+  const startY = enemyY - 50 + offsetY;
+  slash.moveTo(startX, startY);
+  const cp1x = enemyX + 30 + offsetX, cp1y = enemyY - 30 + offsetY;
+  const cp2x = enemyX + 20 + offsetX, cp2y = enemyY + 40 + offsetY;
+  const endX = enemyX - 30 + offsetX, endY = enemyY + 50 + offsetY;
+  for (let t = 1; t <= 12; t++) {
+    const p = t / 12, ip = 1 - p;
+    const sx = ip * ip * ip * startX + 3 * ip * ip * p * cp1x + 3 * ip * p * p * cp2x + p * p * p * endX;
+    const sy = ip * ip * ip * startY + 3 * ip * ip * p * cp1y + 3 * ip * p * p * cp2y + p * p * p * endY;
+    slash.lineTo(sx, sy);
+  }
+  slash.strokePath();
+  return slash;
+}
+
 // ================================================================
-// KNIGHT
+// KNIGHT FIGHT — dramatic melee slash
 // ================================================================
 
 function playKnightFight(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
-  const origSX = heroSprite.body.scaleX;
-  const origSY = heroSprite.body.scaleY;
-
   scene.tweens.add({
     targets: heroSprite.body,
     x: enemyX - 80,
@@ -163,27 +213,71 @@ function playKnightFight(scene, heroSprite, targetSprite, enemyX, enemyY, result
     ease: 'Back.out',
     onComplete: () => {
       hitPause(scene, { body: heroSprite.body }, 80);
-      screenShake(scene, 0.008, 120);
-      enemyRecoil(scene, targetSprite);
+
+      // Screen shake on impact
+      scene.cameras.main.shake(120, 0.008);
+
+      // Bright white flash overlay on the enemy
+      const whiteFlash = scene.add.rectangle(enemyX, enemyY, 100, 120, 0xffffff, 0.5);
+      whiteFlash.setDepth(21);
+      scene.tweens.add({ targets: whiteFlash, alpha: 0, duration: 100, onComplete: () => whiteFlash.destroy() });
+
+      // Impact ring
       impactRing(scene, enemyX, enemyY, 0xf0d040);
-      sparkBurst(scene, enemyX, enemyY, 24, [0xfff8c0, 0xf0d040, 0xffe060], true);
-      // Slash arc
-      const slash = scene.add.graphics();
-      slash.setDepth(20);
-      slash.lineStyle(5, 0xf0e8c0, 0.95);
-      slash.beginPath();
-      slash.moveTo(enemyX - 40, enemyY - 50);
+
+      // 30+ larger sparks (4-6px radius)
+      for (let i = 0; i < 32; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 20 + Math.random() * 40;
+        const size = 4 + Math.random() * 2;
+        const sparkColor = Math.random() > 0.5 ? 0xfff8c0 : 0xf0d040;
+        const sp = scene.add.circle(enemyX, enemyY, size, sparkColor);
+        sp.setDepth(20);
+        scene.tweens.add({
+          targets: sp,
+          x: enemyX + Math.cos(angle) * dist,
+          y: enemyY + Math.sin(angle) * dist + 15,
+          alpha: 0, scale: 0.3,
+          duration: 350 + Math.random() * 200,
+          ease: 'Cubic.out',
+          onComplete: () => sp.destroy(),
+        });
+      }
+
+      // 3 overlapping slash arcs (small, medium, large) staggered 30ms
+      const slash1 = drawSlashArc(scene, enemyX, enemyY, 4, 0xf0e8c0, 0.95, 0, 0);
+      scene.tweens.add({ targets: slash1, alpha: 0, duration: 300, onComplete: () => slash1.destroy() });
+
+      scene.time.delayedCall(30, () => {
+        const slash2 = drawSlashArc(scene, enemyX, enemyY, 5, 0xffe880, 0.85, 5, -3);
+        scene.tweens.add({ targets: slash2, alpha: 0, duration: 300, onComplete: () => slash2.destroy() });
+      });
+
+      scene.time.delayedCall(60, () => {
+        const slash3 = drawSlashArc(scene, enemyX, enemyY, 6, 0xffd040, 0.75, -5, 5);
+        scene.tweens.add({ targets: slash3, alpha: 0, duration: 300, onComplete: () => slash3.destroy() });
+      });
+
+      // Weapon trail glow — thick golden line along the arc path
+      const glow = scene.add.graphics();
+      glow.setDepth(20);
+      glow.lineStyle(8, 0xf0d040, 0.6);
+      glow.beginPath();
+      glow.moveTo(enemyX - 40, enemyY - 50);
       const cp1x = enemyX + 30, cp1y = enemyY - 30;
       const cp2x = enemyX + 20, cp2y = enemyY + 40;
-      const endX = enemyX - 30, endY = enemyY + 50;
+      const gEndX = enemyX - 30, gEndY = enemyY + 50;
       for (let t = 1; t <= 12; t++) {
         const p = t / 12, ip = 1 - p;
-        const sx = ip*ip*ip*(enemyX-40) + 3*ip*ip*p*cp1x + 3*ip*p*p*cp2x + p*p*p*endX;
-        const sy = ip*ip*ip*(enemyY-50) + 3*ip*ip*p*cp1y + 3*ip*p*p*cp2y + p*p*p*endY;
-        slash.lineTo(sx, sy);
+        const sx = ip * ip * ip * (enemyX - 40) + 3 * ip * ip * p * cp1x + 3 * ip * p * p * cp2x + p * p * p * gEndX;
+        const sy = ip * ip * ip * (enemyY - 50) + 3 * ip * ip * p * cp1y + 3 * ip * p * p * cp2y + p * p * p * gEndY;
+        glow.lineTo(sx, sy);
       }
-      slash.strokePath();
-      scene.tweens.add({ targets: slash, alpha: 0, duration: 300, onComplete: () => slash.destroy() });
+      glow.strokePath();
+      scene.tweens.add({ targets: glow, alpha: 0, duration: 250, onComplete: () => glow.destroy() });
+
+      // Enemy hit reaction (red tint, knockback, damage number)
+      enemyHitReaction(scene, targetSprite, result.modifiedDamage);
 
       if (cb.onHit) cb.onHit();
       scene.tweens.add({
@@ -194,6 +288,10 @@ function playKnightFight(scene, heroSprite, targetSprite, enemyX, enemyY, result
     },
   });
 }
+
+// ================================================================
+// KNIGHT MAGIC — charged power strike
+// ================================================================
 
 function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
   const origSX = heroSprite.body.scaleX;
@@ -234,8 +332,6 @@ function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result
         // 400-500ms: IMPACT
         heroSprite.body.clearTint();
         hitPause(scene, { body: heroSprite.body }, 80);
-        screenShake(scene, 0.015, 200);
-        enemyRecoil(scene, targetSprite, 10);
 
         // Golden flash
         const flash = scene.add.rectangle(720, 540, 1500, 1100, 0xf0d040, 0.25);
@@ -260,6 +356,9 @@ function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result
         impactRing(scene, enemyX, enemyY, 0xf0d040, 120);
         sparkBurst(scene, enemyX, enemyY, 32, [0xf0d040, 0xfff8c0, 0xf0a020], true);
 
+        // Enemy hit reaction
+        enemyHitReaction(scene, targetSprite, result.modifiedDamage);
+
         if (cb.onHit) cb.onHit();
 
         // 700-900ms: Return
@@ -275,75 +374,160 @@ function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result
 }
 
 // ================================================================
-// WIZARD
+// WIZARD FIGHT — elemental beam with charge phase
 // ================================================================
 
 function playWizardFight(scene, heroSprite, targetSprite, enemyX, enemyY, op, result, cb) {
-  const origSX = heroSprite.body.scaleX;
-  const origSY = heroSprite.body.scaleY;
-
   const beamStartX = heroSprite.x + 60;
   const beamStartY = heroSprite.y - 40;
   const beamColors = { '+': 0xff6020, '-': 0xf0e020, '*': 0x40c0f0, '/': 0x8040c0 };
   const beamColor = beamColors[op] || 0xff6020;
+  const beamEdgeColors = { '+': 0xff8040, '-': 0xfff080, '*': 0x80e0ff, '/': 0xc080f0 };
+  const beamEdgeColor = beamEdgeColors[op] || 0xff8040;
   const particleColors = {
-    '+': [0xff8020, 0xff6020],
-    '-': [0xf0e020, 0xffe060],
-    '*': [0x80e0ff, 0x40c0f0],
-    '/': [0xc080f0, 0x8040c0],
+    '+': [0xff8020, 0xff6020, 0xffa040],
+    '-': [0xf0e020, 0xffe060, 0xffffff],
+    '*': [0x80e0ff, 0x40c0f0, 0xa0e8ff],
+    '/': [0xc080f0, 0x8040c0, 0x6020a0],
   };
+  const screenTintColors = { '+': 0xff4020, '-': 0xf0e020, '*': 0x40c0f0, '/': 0x6020a0 };
+  const screenTintColor = screenTintColors[op] || 0xff4020;
 
-  const beam = scene.add.graphics();
-  beam.setDepth(20);
-  const angle = Math.atan2(enemyY - beamStartY, enemyX - beamStartX);
-  const dist = Math.sqrt((enemyX - beamStartX) ** 2 + (enemyY - beamStartY) ** 2);
-  beam.fillStyle(beamColor, 0.8);
-  beam.save();
-  beam.translateCanvas(beamStartX, beamStartY);
-  beam.rotateCanvas(angle);
-  beam.fillRect(0, -10, dist, 20);
-  beam.restore();
+  // CHARGE PHASE (200ms): growing circle of light at wizard position
+  const chargeCircle = scene.add.circle(heroSprite.x, heroSprite.y - 20, 10, beamColor, 0.5);
+  chargeCircle.setDepth(20);
+  scene.tweens.add({
+    targets: chargeCircle,
+    radius: 40,
+    alpha: 0.8,
+    duration: 200,
+    ease: 'Cubic.out',
+    onComplete: () => {
+      scene.tweens.add({ targets: chargeCircle, alpha: 0, scale: 0.3, duration: 150, onComplete: () => chargeCircle.destroy() });
+    },
+  });
 
-  // Trail particles
-  for (let i = 0; i < 15; i++) {
-    const t = Math.random();
-    const px = beamStartX + (enemyX - beamStartX) * t;
-    const py = beamStartY + (enemyY - beamStartY) * t + (Math.random() - 0.5) * 20;
-    const fp = scene.add.circle(px, py, 3 + Math.random() * 4, beamColor, 0.6);
-    fp.setDepth(20);
-    scene.tweens.add({
-      targets: fp, y: py - 15 - Math.random() * 15, alpha: 0, scale: 0.3,
-      duration: 200 + Math.random() * 150, onComplete: () => fp.destroy(),
-    });
-  }
+  // Fire beam after charge
+  scene.time.delayedCall(200, () => {
+    const beam = scene.add.graphics();
+    beam.setDepth(20);
+    const angle = Math.atan2(enemyY - beamStartY, enemyX - beamStartX);
+    const dist = Math.sqrt((enemyX - beamStartX) ** 2 + (enemyY - beamStartY) ** 2);
 
-  hitPause(scene, { body: heroSprite.body }, 60);
-  screenShake(scene, 0.01, 150);
-  enemyRecoil(scene, targetSprite, 8);
-  impactRing(scene, enemyX, enemyY, beamColor, 60);
-  impactRing(scene, enemyX, enemyY, 0xffffff, 90);
-  sparkBurst(scene, enemyX, enemyY, 30, particleColors[op] || [beamColor]);
+    // WIDE beam (25px) with bright white core and colored edges
+    beam.save();
+    beam.translateCanvas(beamStartX, beamStartY);
+    beam.rotateCanvas(angle);
+    beam.fillStyle(beamEdgeColor, 0.5);
+    beam.fillRect(0, -14, dist, 28);
+    beam.fillStyle(beamColor, 0.85);
+    beam.fillRect(0, -10, dist, 20);
+    beam.fillStyle(0xffffff, 0.7);
+    beam.fillRect(0, -4, dist, 8);
+    beam.restore();
 
-  scene.tweens.add({ targets: beam, alpha: 0, duration: 400, onComplete: () => beam.destroy() });
+    // Element-specific trail particles
+    const trailCount = op === '-' ? 10 : 20;
+    for (let i = 0; i < trailCount; i++) {
+      const t = Math.random();
+      const px = beamStartX + (enemyX - beamStartX) * t;
+      const py = beamStartY + (enemyY - beamStartY) * t + (Math.random() - 0.5) * 30;
+      const fp = scene.add.circle(px, py, 3 + Math.random() * 5, beamColor, 0.7);
+      fp.setDepth(20);
+      const yDrift = op === '+' ? py - 20 - Math.random() * 20 : py + (Math.random() - 0.5) * 30;
+      scene.tweens.add({
+        targets: fp, y: yDrift, alpha: 0, scale: 0.3,
+        duration: 200 + Math.random() * 200, onComplete: () => fp.destroy(),
+      });
+    }
 
-  if (cb.onHit) cb.onHit();
-  scene.time.delayedCall(300, () => { if (cb.onComplete) cb.onComplete(); });
+    // Lightning: jagged bolt overlay
+    if (op === '-') {
+      const bolt = scene.add.graphics();
+      bolt.setDepth(21);
+      bolt.lineStyle(3, 0xffffff, 0.9);
+      bolt.beginPath();
+      bolt.moveTo(beamStartX, beamStartY);
+      const segs = 6 + Math.floor(Math.random() * 3);
+      for (let i = 1; i <= segs; i++) {
+        const st = i / segs;
+        const lx = beamStartX + (enemyX - beamStartX) * st;
+        const ly = beamStartY + (enemyY - beamStartY) * st;
+        const offsetY = (i < segs) ? (Math.random() - 0.5) * 50 : 0;
+        bolt.lineTo(lx, ly + offsetY);
+      }
+      bolt.strokePath();
+      scene.tweens.add({ targets: bolt, alpha: 0, duration: 200, onComplete: () => bolt.destroy() });
+
+      // White flash for lightning
+      const lFlash = scene.add.rectangle(720, 540, 1500, 1100, 0xffffff, 0.35);
+      lFlash.setDepth(21);
+      scene.tweens.add({ targets: lFlash, alpha: 0, duration: 80, onComplete: () => lFlash.destroy() });
+    }
+
+    // Void: inward-pulling particles
+    if (op === '/') {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const d = 50 + Math.random() * 30;
+        const dp = scene.add.circle(enemyX + Math.cos(a) * d, enemyY + Math.sin(a) * d, 4, 0x4020a0, 0.8);
+        dp.setDepth(20);
+        scene.tweens.add({
+          targets: dp, x: enemyX, y: enemyY, alpha: 0, scale: 0.2,
+          duration: 300, onComplete: () => dp.destroy(),
+        });
+      }
+    }
+
+    // Ice: crystalline particle burst
+    if (op === '*') {
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2;
+        const d = 25 + Math.random() * 20;
+        const iceP = scene.add.circle(enemyX, enemyY, 3 + Math.random() * 3, 0xa0e8ff, 0.8);
+        iceP.setDepth(20);
+        scene.tweens.add({
+          targets: iceP, x: enemyX + Math.cos(a) * d, y: enemyY + Math.sin(a) * d,
+          alpha: 0, duration: 300, onComplete: () => iceP.destroy(),
+        });
+      }
+    }
+
+    hitPause(scene, { body: heroSprite.body }, 60);
+
+    // 3 expanding impact rings staggered 50ms
+    impactRing(scene, enemyX, enemyY, beamColor, 40);
+    scene.time.delayedCall(50, () => impactRing(scene, enemyX, enemyY, beamColor, 80));
+    scene.time.delayedCall(100, () => impactRing(scene, enemyX, enemyY, beamColor, 120));
+
+    // Screen tint matching element
+    const tint = scene.add.rectangle(720, 540, 1500, 1100, screenTintColor, 0.15);
+    tint.setDepth(21);
+    scene.tweens.add({ targets: tint, alpha: 0, duration: 200, onComplete: () => tint.destroy() });
+
+    // Screen shake
+    scene.cameras.main.shake(150, 0.01);
+
+    // 35+ particle explosion at enemy
+    sparkBurst(scene, enemyX, enemyY, 36, particleColors[op] || [beamColor], true);
+
+    // Enemy hit reaction (red tint, knockback, damage number)
+    enemyHitReaction(scene, targetSprite, result.modifiedDamage);
+
+    scene.tweens.add({ targets: beam, alpha: 0, duration: 400, onComplete: () => beam.destroy() });
+
+    if (cb.onHit) cb.onHit();
+    scene.time.delayedCall(300, () => { if (cb.onComplete) cb.onComplete(); });
+  });
 }
+
+// ================================================================
+// WIZARD MAGIC — spectacular elemental spell
+// ================================================================
 
 function playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, result, cb) {
   const origSX = heroSprite.body.scaleX;
   const origSY = heroSprite.body.scaleY;
-
-  // 0-150ms: Arms raise, magic circle at feet
-  const circle = scene.add.graphics();
-  circle.setDepth(20);
-  circle.lineStyle(2, 0xc080f0, 0.5);
-  circle.strokeCircle(heroSprite.x, heroSprite.y + 20, 40);
-
-  const rotTween = scene.tweens.add({
-    targets: circle, rotation: Math.PI * 2,
-    duration: 800, repeat: 0, ease: 'Linear',
-  });
 
   // Element colors
   const elemColors = {
@@ -354,28 +538,49 @@ function playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, re
   };
   const elem = elemColors[op] || elemColors['+'];
 
-  // 150-350ms: Massive elemental effect
+  // 0-150ms: LARGER magic circle (70px radius) with counter-rotating second ring
+  const circle1 = scene.add.graphics();
+  circle1.setDepth(20);
+  circle1.lineStyle(2, elem.main, 0.6);
+  circle1.strokeCircle(heroSprite.x, heroSprite.y + 20, 70);
+  circle1.lineStyle(1, elem.main, 0.3);
+  circle1.strokeCircle(heroSprite.x, heroSprite.y + 20, 55);
+
+  const circle2 = scene.add.graphics();
+  circle2.setDepth(20);
+  circle2.lineStyle(2, elem.particles[1], 0.5);
+  circle2.strokeCircle(heroSprite.x, heroSprite.y + 20, 80);
+
+  const rotTween1 = scene.tweens.add({
+    targets: circle1, rotation: Math.PI * 2,
+    duration: 800, repeat: 0, ease: 'Linear',
+  });
+  const rotTween2 = scene.tweens.add({
+    targets: circle2, rotation: -Math.PI * 2,
+    duration: 800, repeat: 0, ease: 'Linear',
+  });
+
+  // 150-350ms: Massive particle stream — 50 particles (up from 30)
   scene.time.delayedCall(150, () => {
-    // Large particle stream from wizard to enemy
-    for (let i = 0; i < 30; i++) {
-      const delay = i * 6;
+    for (let i = 0; i < 50; i++) {
+      const delay = i * 4;
       scene.time.delayedCall(delay, () => {
-        const t = i / 30;
+        const t = i / 50;
         const px = heroSprite.x + (enemyX - heroSprite.x) * t;
         const py = heroSprite.y - 20 + (enemyY - heroSprite.y) * t;
-        const spread = 30;
+        const spread = 35;
         const p = scene.add.circle(
           px + (Math.random() - 0.5) * spread,
           py + (Math.random() - 0.5) * spread,
-          3 + Math.random() * 4,
+          4 + Math.random() * 5,
           elem.particles[Math.floor(Math.random() * 3)],
-          0.7,
+          0.75,
         );
         p.setDepth(20);
         scene.tweens.add({
           targets: p,
-          x: px + (Math.random() - 0.5) * 20,
-          y: py - 10 - Math.random() * 15,
+          x: px + (Math.random() - 0.5) * 25,
+          y: py - 12 - Math.random() * 18,
           alpha: 0, scale: 0.2,
           duration: 300 + Math.random() * 200,
           onComplete: () => p.destroy(),
@@ -386,36 +591,76 @@ function playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, re
 
   // 350-550ms: DETONATION at enemy
   scene.time.delayedCall(350, () => {
-    // Full-screen element flash
-    const flash = scene.add.rectangle(720, 540, 1500, 1100, elem.flash, 0.2);
+    // Full-screen flash — BRIGHTER (0.25 alpha, 250ms)
+    const flash = scene.add.rectangle(720, 540, 1500, 1100, elem.flash, 0.25);
     flash.setDepth(21);
-    scene.tweens.add({ targets: flash, alpha: 0, duration: 200, onComplete: () => flash.destroy() });
+    scene.tweens.add({ targets: flash, alpha: 0, duration: 250, onComplete: () => flash.destroy() });
 
-    // Big burst
-    screenShake(scene, 0.02, 250);
-    enemyRecoil(scene, targetSprite, 12);
-    sparkBurst(scene, enemyX, enemyY, 50, elem.particles, true);
-    impactRing(scene, enemyX, enemyY, elem.main, 150);
-    impactRing(scene, enemyX, enemyY, 0xffffff, 200);
+    // Screen shake
+    scene.cameras.main.shake(200, 0.015);
+
+    // Impact ring — 200px (up from 100px)
+    impactRing(scene, enemyX, enemyY, elem.main, 200);
+
+    // 50+ burst particles (up from 40)
+    sparkBurst(scene, enemyX, enemyY, 52, elem.particles, true);
+
+    // Enemy knockback — brief y-offset pushed back 15px
+    if (targetSprite && targetSprite.body) {
+      const origEY = targetSprite.body.y;
+      scene.tweens.add({
+        targets: targetSprite.body,
+        y: origEY - 15,
+        duration: 100,
+        yoyo: true,
+        ease: 'Sine.out',
+        onComplete: () => { if (targetSprite.body) targetSprite.body.y = origEY; },
+      });
+    }
+
+    // Enemy hit reaction
+    enemyHitReaction(scene, targetSprite, result.modifiedDamage);
 
     if (cb.onHit) cb.onHit();
   });
 
-  // 550-900ms: Aftermath
+  // 550-900ms: Aftermath — lingering sparkles
   scene.time.delayedCall(550, () => {
-    scene.tweens.add({ targets: circle, alpha: 0, duration: 200, onComplete: () => { rotTween.stop(); circle.destroy(); } });
+    scene.tweens.add({
+      targets: circle1, alpha: 0, duration: 200,
+      onComplete: () => { rotTween1.stop(); circle1.destroy(); },
+    });
+    scene.tweens.add({
+      targets: circle2, alpha: 0, duration: 200,
+      onComplete: () => { rotTween2.stop(); circle2.destroy(); },
+    });
+
+    // 6-8 lingering sparkles drifting downward over 800ms
+    for (let i = 0; i < 8; i++) {
+      const sx = enemyX + (Math.random() - 0.5) * 60;
+      const sy = enemyY - 20 + (Math.random() - 0.5) * 30;
+      const sparkle = scene.add.circle(sx, sy, 2 + Math.random() * 2, elem.particles[Math.floor(Math.random() * 3)], 0.6);
+      sparkle.setDepth(20);
+      scene.tweens.add({
+        targets: sparkle,
+        y: sy + 40 + Math.random() * 30,
+        alpha: 0,
+        duration: 800,
+        delay: i * 50,
+        ease: 'Sine.out',
+        onComplete: () => sparkle.destroy(),
+      });
+    }
   });
 
   scene.time.delayedCall(900, () => { if (cb.onComplete) cb.onComplete(); });
 }
 
 // ================================================================
-// BUNNY
+// BUNNY FIGHT — multi-hit martial arts combo
 // ================================================================
 
 function playBunnyFight(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
-  const origSX = heroSprite.body.scaleX;
-  const origSY = heroSprite.body.scaleY;
   const origY = heroSprite.y;
   const hitCount = result.hitCount || 2;
 
@@ -440,6 +685,22 @@ function playBunnyFight(scene, heroSprite, targetSprite, enemyX, enemyY, result,
 
         const offsets = [[-30, 0], [30, 0], [0, -20]];
         const off = offsets[hitIndex % 3];
+        const isLastHit = hitIndex === hitCount - 1;
+
+        // Speed lines during each dash (3-4 horizontal lines behind the bunny)
+        for (let sl = 0; sl < 4; sl++) {
+          const lineY = origY + off[1] + (Math.random() - 0.5) * 30;
+          const lineX = heroSprite.body.x - 10 - sl * 12;
+          const speedLine = scene.add.graphics();
+          speedLine.setDepth(19);
+          speedLine.lineStyle(1.5, 0xffffff, 0.4);
+          speedLine.beginPath();
+          speedLine.moveTo(lineX, lineY);
+          speedLine.lineTo(lineX - 25 - Math.random() * 15, lineY);
+          speedLine.strokePath();
+          scene.tweens.add({ targets: speedLine, alpha: 0, duration: 100, onComplete: () => speedLine.destroy() });
+        }
+
         scene.tweens.add({
           targets: heroSprite.body,
           x: enemyX + off[0], y: origY + off[1],
@@ -450,11 +711,39 @@ function playBunnyFight(scene, heroSprite, targetSprite, enemyX, enemyY, result,
             ghost.setDepth(19);
             scene.tweens.add({ targets: ghost, alpha: 0, scale: 0.5, duration: 200, onComplete: () => ghost.destroy() });
 
-            // Pink shockwave per hit
-            impactRing(scene, enemyX, enemyY, 0xe86898, 30);
-            sparkBurst(scene, enemyX, enemyY, 10, [0xe86898, 0xf090b0]);
+            // Per-hit impact burst (pink circle expanding and fading)
+            const burst = scene.add.circle(enemyX, enemyY, 5, 0xe86898, 0.7);
+            burst.setDepth(20);
+            scene.tweens.add({
+              targets: burst, radius: isLastHit ? 35 : 20, alpha: 0,
+              duration: 100, ease: 'Cubic.out',
+              onComplete: () => burst.destroy(),
+            });
+
+            // White flash on enemy per hit
+            const hitFlashRect = scene.add.rectangle(enemyX, enemyY, 80, 100, 0xffffff, 0.3);
+            hitFlashRect.setDepth(21);
+            scene.tweens.add({ targets: hitFlashRect, alpha: 0, duration: 60, onComplete: () => hitFlashRect.destroy() });
+
+            // More sparks per hit: 18 (last hit 25)
+            const sparkCount = isLastHit ? 25 : 18;
+            sparkBurst(scene, enemyX, enemyY, sparkCount, [0xe86898, 0xf090b0, 0xff80c0]);
+
+            // Impact ring per hit (last hit bigger)
+            impactRing(scene, enemyX, enemyY, 0xe86898, isLastHit ? 50 : 30);
+
+            // Final hit emphasis
+            if (isLastHit) {
+              scene.cameras.main.shake(100, 0.006);
+              impactRing(scene, enemyX, enemyY, 0xff80c0, 70);
+            }
 
             if (hitIndex === 0 && cb.onHit) cb.onHit();
+
+            // Enemy hit reaction on first hit
+            if (hitIndex === 0) {
+              enemyHitReaction(scene, targetSprite, result.modifiedDamage);
+            }
 
             hitIndex++;
             scene.time.delayedCall(60, doHit);
@@ -466,9 +755,11 @@ function playBunnyFight(scene, heroSprite, targetSprite, enemyX, enemyY, result,
   });
 }
 
+// ================================================================
+// BUNNY MAGIC — rapid 5-hit combo with afterimage convergence
+// ================================================================
+
 function playBunnyMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
-  const origSX = heroSprite.body.scaleX;
-  const origSY = heroSprite.body.scaleY;
   const origY = heroSprite.y;
 
   // 0-100ms: Dash to enemy
@@ -502,8 +793,22 @@ function playBunnyMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result,
                 x: heroSprite.x, y: origY,
                 duration: 100, ease: 'Quad.in',
                 onComplete: () => {
-                  // 500-650ms: Afterimages converge
+                  // 500-650ms: Trail lines + afterimages converge
                   scene.time.delayedCall(100, () => {
+                    // Trail lines connecting afterimage positions
+                    if (afterimages.length >= 2) {
+                      const trailGfx = scene.add.graphics();
+                      trailGfx.setDepth(19);
+                      trailGfx.lineStyle(1.5, 0xe86898, 0.3);
+                      trailGfx.beginPath();
+                      trailGfx.moveTo(afterimages[0].x, afterimages[0].y);
+                      for (let ai = 1; ai < afterimages.length; ai++) {
+                        trailGfx.lineTo(afterimages[ai].x, afterimages[ai].y);
+                      }
+                      trailGfx.strokePath();
+                      scene.tweens.add({ targets: trailGfx, alpha: 0, duration: 200, onComplete: () => trailGfx.destroy() });
+                    }
+
                     for (const ai of afterimages) {
                       scene.tweens.add({
                         targets: ai, x: enemyX, y: enemyY, alpha: 0.8,
@@ -513,14 +818,22 @@ function playBunnyMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result,
                     }
                     // 650-750ms: Convergence explosion
                     scene.time.delayedCall(120, () => {
-                      const flash = scene.add.rectangle(720, 540, 1500, 1100, 0xe86898, 0.15);
+                      // Flash BRIGHTER (0.25 alpha)
+                      const flash = scene.add.rectangle(720, 540, 1500, 1100, 0xe86898, 0.25);
                       flash.setDepth(21);
                       scene.tweens.add({ targets: flash, alpha: 0, duration: 150, onComplete: () => flash.destroy() });
 
-                      screenShake(scene, 0.015, 180);
-                      enemyRecoil(scene, targetSprite, 8);
-                      sparkBurst(scene, enemyX, enemyY, 40, [0xe86898, 0xf090b0, 0xff80c0], true);
+                      // 45 particles (up from 24)
+                      sparkBurst(scene, enemyX, enemyY, 45, [0xe86898, 0xf090b0, 0xff80c0], true);
+
+                      // Impact ring — 120px (up from 80px)
                       impactRing(scene, enemyX, enemyY, 0xe86898, 120);
+
+                      // Screen shake on final explosion
+                      scene.cameras.main.shake(120, 0.008);
+
+                      // Enemy hit reaction
+                      enemyHitReaction(scene, targetSprite, result.modifiedDamage);
 
                       if (cb.onHit) cb.onHit();
 
@@ -543,8 +856,8 @@ function playBunnyMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result,
           x: pos.x, y: pos.y - 20,
           duration: 35, ease: 'Linear',
           onComplete: () => {
-            // Afterimage at this position
-            const ghost = scene.add.circle(pos.x, pos.y - 20, 18, 0xe86898, 0.3);
+            // Afterimage — larger and more visible (radius 22, alpha 0.5)
+            const ghost = scene.add.circle(pos.x, pos.y - 20, 22, 0xe86898, 0.5);
             ghost.setDepth(19);
             afterimages.push(ghost);
 
