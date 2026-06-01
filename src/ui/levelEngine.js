@@ -1262,9 +1262,16 @@ function LV_drawExit(sx, sy, ts, t) {
 
 function LV_drawPartyMember(px, py, ts, idx, moving, t) {
   var bob = moving ? Math.sin(t * 8 + idx * 1.2) * ts * 0.055 : 0;
+  var tilt = moving ? Math.sin(t * 8 + idx * 1.2) * 0.035 : 0;
+  var stepStretch = moving ? 1 + Math.abs(Math.sin(t * 8)) * 0.02 : 1;
   if (_heroCanvases && _heroCanvases[idx]) {
     var hcv = _heroCanvases[idx]; var hsc = ts * 1.1 / hcv.width; var hw = hcv.width * hsc, hh = hcv.height * hsc;
-    _G.drawImage(hcv, px - hw / 2, py - hh * 0.82 + bob, hw, hh);
+    _G.save();
+    _G.translate(px, py - hh * 0.82 + bob + hh / 2);
+    _G.rotate(tilt);
+    _G.scale(1, stepStretch);
+    _G.drawImage(hcv, -hw / 2, -hh / 2, hw, hh);
+    _G.restore();
     return;
   }
   // Fallback generic sprite

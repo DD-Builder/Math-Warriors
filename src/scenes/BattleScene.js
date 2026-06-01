@@ -33,7 +33,7 @@ import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePap
 import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
 import { playFightAnimation, playMagicAnimation, playFizzleAnimation } from '../systems/attackAnimations.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { makeRng } from '../systems/rng.js';
 import { computeLevel, levelBonuses } from '../data/heroes.js';
@@ -497,7 +497,7 @@ export class BattleScene extends Phaser.Scene {
       const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
 
       const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
-      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
+      const body = createAnimatedHero(this, x, y, hero, { scale: heroScale * depthScale });
       body.setDepth(12);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
@@ -1757,6 +1757,10 @@ export class BattleScene extends Phaser.Scene {
         // MAGIC: spectacular animation (900ms) via the new animation system
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
+        // Trigger body-part attack animation
+        if (heroSprite.body && heroSprite.body.playAttack) {
+          heroSprite.body.playAttack('magic');
+        }
         playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, {
           onHit: () => {
             this.hitFlash();
@@ -1770,6 +1774,11 @@ export class BattleScene extends Phaser.Scene {
         // FIGHT: class-specific attack animation via the animation system
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
+        // Trigger body-part attack animation based on class
+        if (heroSprite.body && heroSprite.body.playAttack) {
+          const attackType = cls === 'wizard' ? 'magic' : cls === 'bunny' ? 'punch' : 'slash';
+          heroSprite.body.playAttack(attackType);
+        }
         playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
           onHit: () => {
             this.hitFlash();

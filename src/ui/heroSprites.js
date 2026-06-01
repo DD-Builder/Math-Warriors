@@ -11,7 +11,7 @@
  *   const image = drawHeroSprite(scene, x, y, hero, { scale: 1 });
  */
 
-import { createHeroCanvas } from './legacyRenderer.js';
+import { createHeroCanvas, createHeroPartCanvas } from './legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 
 // Lookup table: hero.id → art data (draw function, cardBg, topExt, botExt)
@@ -76,4 +76,143 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
 export function getHeroCardBg(heroId) {
   const art = ART_LOOKUP[heroId];
   return art ? art.cardBg : '#181828';
+}
+
+// ─── BODY PART SEED RANGES ─────────────────────────────────────
+const BODY_PARTS = {
+  legs:   [1, 2, 10, 11, 20, 21],
+  torso:  [30, 31, 32, 33, 34, 35, 36, 37, 38, 39],
+  armL:   [50, 51, 61, 62, 63],
+  armR:   [52, 53, 54, 60, 64, 65],
+  weapon: [80, 81, 82, 83, 84, 85, 86, 87, 88, 89],
+  head:   [90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
+};
+
+/**
+ * Create an animated hero sprite composed of separate body-part layers.
+ * Returns a Phaser Container with .parts, .startWalk(), .stopWalk(),
+ * and .playAttack(type) methods.
+ *
+ * Falls back to drawHeroSprite() if hero art is not found.
+ */
+export function createAnimatedHero(scene, x, y, hero, opts = {}) {
+  const scale = opts.scale ?? 1;
+  const art = ART_LOOKUP[hero.id];
+  if (!art || !art.draw) return drawHeroSprite(scene, x, y, hero, opts);
+
+  const w = HERO_W, h = HERO_H;
+  const container = scene.add.container(x, y);
+
+  const partOrder = ['legs', 'torso', 'armL', 'armR', 'weapon', 'head'];
+  const parts = {};
+
+  for (let i = 0; i < partOrder.length; i++) {
+    const partName = partOrder[i];
+    const seeds = BODY_PARTS[partName];
+    const key = `hero-${hero.id}-${partName}`;
+
+    if (!scene.textures.exists(key)) {
+      const cv = createHeroPartCanvas(w, h, art.draw, art.topExt, art.botExt, seeds);
+      scene.textures.addCanvas(key, cv);
+    }
+
+    const img = scene.add.image(0, 0, key);
+    img.setScale(scale);
+    img.setOrigin(0.5, 0.5);
+    img.setDepth(i);
+    container.add(img);
+    parts[partName] = img;
+  }
+
+  // Make container work as a drop-in replacement for hs.body
+  container.body = container;
+
+  // Animation state
+  container.parts = parts;
+  container.animState = 'idle';
+
+  // Walk animation method
+  container.startWalk = function () {
+    if (this.animState === 'walk') return;
+    this.animState = 'walk';
+
+    // Legs bob up and down
+    if (parts.legs) {
+      scene.tweens.add({
+        targets: parts.legs, y: 3, duration: 200,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      });
+    }
+    // Arms counter-swing
+    if (parts.armL) {
+      scene.tweens.add({
+        targets: parts.armL, y: -2, x: -1, duration: 200,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      });
+    }
+    if (parts.armR) {
+      scene.tweens.add({
+        targets: parts.armR, y: 2, x: 1, duration: 200,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: 100,
+      });
+    }
+    // Torso slight bob
+    if (parts.torso) {
+      scene.tweens.add({
+        targets: parts.torso, y: -1.5, duration: 200,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: 50,
+      });
+    }
+    // Head slight bob
+    if (parts.head) {
+      scene.tweens.add({
+        targets: parts.head, y: -2, duration: 200,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: 50,
+      });
+    }
+  };
+
+  container.stopWalk = function () {
+    if (this.animState !== 'walk') return;
+    this.animState = 'idle';
+    // Stop all part tweens and reset positions
+    Object.values(parts).forEach(part => {
+      scene.tweens.killTweensOf(part);
+      part.x = 0;
+      part.y = 0;
+    });
+  };
+
+  // Attack animation method (for battle)
+  container.playAttack = function (type) {
+    // type: 'slash', 'magic', 'punch'
+    const arm = parts.armR || parts.armL;
+    const weapon = parts.weapon;
+
+    if (type === 'slash' && weapon) {
+      // Weapon + arm swing forward
+      scene.tweens.add({
+        targets: [arm, weapon].filter(Boolean),
+        x: 15, y: -10, duration: 100,
+        yoyo: true, ease: 'Back.out',
+      });
+    } else if (type === 'magic') {
+      // Arms raise
+      const arms = [parts.armL, parts.armR].filter(Boolean);
+      scene.tweens.add({
+        targets: arms, y: -8, duration: 150,
+        yoyo: true, ease: 'Quad.out',
+      });
+    } else if (type === 'punch') {
+      // Quick jab
+      if (arm) {
+        scene.tweens.add({
+          targets: arm, x: 10, duration: 80,
+          yoyo: true, repeat: 2, ease: 'Sine.inOut',
+        });
+      }
+    }
+  };
+
+  return container;
 }
