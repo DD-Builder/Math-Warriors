@@ -137,23 +137,23 @@ export class WorldMapScene extends Phaser.Scene {
   createFloorNode(x, y, info, locked, complete) {
     const radius = 56;
 
-    this.add.circle(x + 4, y + 6, radius, 0x000000, 0.3);
+    this.add.circle(x + 4, y + 6, radius, 0x000000, 0.3).setDepth(10);
 
     const nodeColor = locked ? 0x8a8070 : info.color;
-    const ring = this.add.circle(x, y, radius, nodeColor);
+    const ring = this.add.circle(x, y, radius, nodeColor).setDepth(10);
     ring.setStrokeStyle(4, locked ? 0x5a5040 : 0xfff8e0);
 
-    const inner = this.add.circle(x, y, radius - 6, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1);
+    const inner = this.add.circle(x, y, radius - 6, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1).setDepth(10);
 
     const numX = x - radius * 0.7;
     const numY = y - radius * 0.7;
     this.add.circle(numX, numY, 16, locked ? 0x5a5040 : 0xd07818)
-      .setStrokeStyle(2, 0xfff8e0);
+      .setStrokeStyle(2, 0xfff8e0).setDepth(11);
     this.add.text(numX, numY, `${info.id}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: '#fff8e0',
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(11);
 
     if (locked) {
       this.drawPaperPadlock(x, y, 24);
@@ -282,7 +282,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   buildPaths() {
-    const pathGfx = this.add.graphics().setDepth(-1);
+    const pathGfx = this.add.graphics().setDepth(5);
     for (let i = 0; i < this.nodePositions.length - 1; i++) {
       const from = this.nodePositions[i];
       const to = this.nodePositions[i + 1];
