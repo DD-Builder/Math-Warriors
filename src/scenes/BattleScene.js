@@ -648,9 +648,9 @@ export class BattleScene extends Phaser.Scene {
     // lives in a tight bottom strip.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    const ansH = 100;
-    const ansY = area.bottom - ansH / 2 - 10;
-    const eqY = ansY - ansH / 2 - 45;
+    const ansH = 80;
+    const ansY = area.bottom - ansH / 2 - 6;
+    const eqY = ansY - ansH / 2 - 30;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -692,7 +692,7 @@ export class BattleScene extends Phaser.Scene {
     this.refreshPotionButton();
 
     const noteW = 345;
-    const noteH = 127;
+    const noteH = 110;
     const noteCx = area.cx;
     const noteCy = eqY;
     this.eqCenterY = eqY;
@@ -722,8 +722,8 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.stars.setOrigin(1, 0);
 
     // Turn label — above the math panel, full width with larger font
-    const turnY = eqY - noteH / 2 - 30;
-    PaperPanel(this, area.cx, turnY, area.w - 40, 48, {
+    const turnY = eqY - noteH / 2 - 36;
+    PaperPanel(this, area.cx, turnY, area.w - 40, 42, {
       color: 0xf5ead0, alpha: 0.92, radius: 14, shadowOff: 3, shadowAlpha: 0.18,
     });
     this.turnLabel = this.add.text(area.cx, turnY, '', {
