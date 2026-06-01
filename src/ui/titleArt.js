@@ -325,18 +325,40 @@ function drawWord(scene, word, cx, cy, letterH, mainColor, shadowColor, holeColo
  * @param {number} cy - center Y between MATH and WARRIORS lines
  * @param {number} scale - 1.0 = default size
  */
-export function drawPapercutTitle(scene, cx, cy, scale = 1) {
-  const mathH = Math.round(120 * scale);
-  const warH = Math.round(90 * scale);
-  const lineGap = mathH * 0.35;
+export function drawPapercutTitle(scene, cx, cy) {
+  // Paper backing panel behind title
+  const panelW = 700, panelH = 280;
+  const panel = scene.add.graphics().setDepth(8);
+  panel.fillStyle(0xfaf4e8, 0.35);
+  panel.fillRoundedRect(cx - panelW/2, cy - panelH/2 - 20, panelW, panelH, 24);
 
-  // MATH — blue papercut letters with dark shadow
-  const mathGfx = drawWord(scene, 'MATH', cx, cy - lineGap, mathH,
-    0x4888e0, 0x1a3060, 0x000000, 7001);
+  // "MATH" — big bold blue
+  const math = scene.add.text(cx, cy - 70, 'MATH', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: '96px',
+    fontStyle: 'bold',
+    color: '#4080d8',
+    stroke: '#1a3060',
+    strokeThickness: 8,
+    shadow: { offsetX: 4, offsetY: 6, color: 'rgba(20,10,4,0.4)', blur: 8, fill: true },
+  }).setOrigin(0.5).setDepth(9);
 
-  // WARRIORS — red papercut letters with dark shadow
-  const warGfx = drawWord(scene, 'WARRIORS', cx, cy + lineGap + warH * 0.15, warH,
-    0xe85050, 0x601818, 0x000000, 7002);
+  // "WARRIORS" — big bold red
+  const warriors = scene.add.text(cx, cy + 30, 'WARRIORS', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: '80px',
+    fontStyle: 'bold',
+    color: '#e05050',
+    stroke: '#601818',
+    strokeThickness: 7,
+    shadow: { offsetX: 4, offsetY: 6, color: 'rgba(20,10,4,0.4)', blur: 8, fill: true },
+  }).setOrigin(0.5).setDepth(9);
+
+  // Gentle float animation
+  scene.tweens.add({ targets: math, y: math.y - 4, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+  scene.tweens.add({ targets: warriors, y: warriors.y + 3, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: 300 });
+
+  return { math, warriors, panel };
 }
 
 

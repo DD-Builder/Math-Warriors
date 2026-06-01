@@ -169,13 +169,16 @@ export class MazeScene extends Phaser.Scene {
     fadeInScene(this, 250, pal.sky);
     audio.playMusic(`music/floor-${this.floorId}`);
 
-    // Pre-render hero canvases for the level engine party display
+    // Pre-render hero canvas for the level engine — leader only (index 0).
+    // Passing canvases for all party members caused extra followers to render.
     const allArt = [...KNIGHTS, ...WIZARDS, ...BUNNIES];
-    const heroCanvases = this.party.map(h => {
-      const art = allArt.find(a => a.id === h.id);
-      if (art && art.draw) return createHeroCanvas(80, 110, null, art.draw, art.topExt, art.botExt);
-      return null;
-    });
+    const leader = this.party[0];
+    const leaderArt = leader ? allArt.find(a => a.id === leader.id) : null;
+    const heroCanvases = [
+      leaderArt && leaderArt.draw
+        ? createHeroCanvas(80, 110, null, leaderArt.draw, leaderArt.topExt, leaderArt.botExt)
+        : null,
+    ];
 
     // Convert floor objects to level engine format
     const challengeType = this.floor.challenge?.type || 'fairy';

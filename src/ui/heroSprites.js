@@ -116,6 +116,15 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
 
     if (!scene.textures.exists(key)) {
       const cv = createHeroPartCanvas(w, h, art.draw, art.topExt, art.botExt, seeds);
+      // Check if canvas has any visible content — skip empty body parts
+      // (e.g. a hero with no weapon would produce an empty weapon canvas)
+      const checkCtx = cv.getContext('2d');
+      const imgData = checkCtx.getImageData(0, 0, cv.width, cv.height);
+      let hasContent = false;
+      for (let p = 3; p < imgData.data.length; p += 4) {
+        if (imgData.data[p] > 0) { hasContent = true; break; }
+      }
+      if (!hasContent) continue; // Skip empty body parts
       applySpriteFilter(cv, floorId);
       scene.textures.addCanvas(key, cv);
     }

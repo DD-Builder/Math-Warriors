@@ -258,24 +258,5 @@ function cinematicFilter(canvas) {
  * @returns {Phaser.GameObjects.Graphics|null} The overlay graphics object, or null
  */
 export function applyFloorOverlay(scene, floorId, width, height) {
-  const config = getFloorOverlayConfig(floorId);
-  if (!config) return null;
-
-  const gfx = scene.add.graphics().setDepth(18);
-
-  if (config.paperTexture) {
-    // Floor 3: subtle paper grain texture overlay
-    gfx.fillStyle(0xf8f0e0, 0.08);
-    gfx.fillRect(0, 0, width, height);
-  }
-
-  if (config.vignette) {
-    // Floor 5: extra dark vignette on left and right edges
-    const vigAlpha = config.vignette;
-    gfx.fillStyle(0x000000, vigAlpha);
-    gfx.fillRect(0, 0, 100, height);
-    gfx.fillRect(width - 100, 0, 100, height);
-  }
-
-  return gfx;
+  return null; // Disabled until per-floor overlays are properly tested
 }

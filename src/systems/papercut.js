@@ -728,12 +728,26 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
     gfx.fillCircle(ax, ay, ar);
   }
 
-  // Diorama frame — torn paper edges with arch, like looking into a stage box
+  return gfx;
+}
+
+/**
+ * Draw a torn-paper diorama frame around the edges of the scene.
+ * This should only be used on the battle scene, not on every scene.
+ *
+ * @param {Phaser.Scene} scene
+ * @param {number} width
+ * @param {number} height
+ * @param {number} [seed=42]
+ * @returns {Phaser.GameObjects.Graphics}
+ */
+export function drawDioramaFrame(scene, width, height, seed = 42) {
+  const rng = makeRng(seed + 9999);
+
   const frameGfx = scene.add.graphics().setDepth(15);
   const frameColor = 0x1a0e04;
   const frameW = 50;
   const archCx = width * 0.5, archCy = height * 0.1;
-  const archRx = width * 0.54, archRy = height * 0.55;
 
   // Left frame with torn inner edge
   frameGfx.fillStyle(frameColor, 0.92);
@@ -788,5 +802,5 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
   frameGfx.closePath();
   frameGfx.fillPath();
 
-  return gfx;
+  return frameGfx;
 }
