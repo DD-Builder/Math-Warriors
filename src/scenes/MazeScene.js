@@ -4,14 +4,15 @@ import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, getHeroById, ALL_HEROES } from '../data/heroes.js';
-import { spawnEnemy, pickEnemyForFloor } from '../data/enemies.js';
+import { spawnEnemy, pickEnemyForFloor, FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markActivated, markVisible, setFloorTheme } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, LV_setTransformed, LV_setTile } from '../ui/levelEngine.js';
+import { generateRatedQuestion } from '../systems/math.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
@@ -86,6 +87,7 @@ export class MazeScene extends Phaser.Scene {
       this.encountersFought = mazeState.encountersFought || 0;
       this.midExploreShown = mazeState.midExploreShown || false;
       this.fairyTalkShown = mazeState.fairyTalkShown || false;
+      this.mazeTransformed = mazeState.mazeTransformed || false;
     } else {
       // Fresh entry: reset state
       this.playerX = this.floor.startX;
@@ -99,6 +101,7 @@ export class MazeScene extends Phaser.Scene {
       this.encountersFought = 0;
       this.midExploreShown = false;
       this.fairyTalkShown = false;
+      this.mazeTransformed = false;
 
       // Hand-placed objects (chests, potions, boss, exit) keep their
       // designated positions. Encounter (monster) tiles get randomized
@@ -187,22 +190,26 @@ export class MazeScene extends Phaser.Scene {
       else if (o.type === 'geoshard') engineType = 'geoshard';
       else if (o.type === 'token') engineType = 'token';
       else if (o.type === 'page') engineType = 'page';
+      else if (o.type === 'mathdoor') engineType = 'mathdoor';
+      else if (o.type === 'fountain') engineType = 'fountain';
       return {
         type: engineType,
         tx: o.x, ty: o.y,
         id: o.id,
         alive: !o.consumed,
-        open: !!o.consumed,
+        open: o.type === 'mathdoor' ? !!o.open : !!o.consumed,
         hidden: o.type === 'encounter',
         visible: o.type === 'exit' ? this.hasKey : true,
         kind: 'sprout',
         respawnAt: 0,
         loot: (o.type === challengeType || o.type === 'fairy') ? 'fairy' : undefined,
         fairyCol: '#88aaff',
+        uses: o.uses ?? undefined,
       };
     });
 
     setFloorTheme(this.floorId);
+    LV_setTransformed(this.mazeTransformed);
     initLevel(GAME_WIDTH, GAME_HEIGHT, this.floor.tiles, engineObjs, heroCanvases, this.playerX, this.playerY);
 
     // Restore state if returning from battle
@@ -966,6 +973,45 @@ export class MazeScene extends Phaser.Scene {
     });
   }
 
+
+  showMathDoorPrompt(question, doorObj) {
+    const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
+    const opSymbol = question.op === '*' ? '×' : question.op;
+    const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, `${question.a} ${opSymbol} ${question.b} = ?`, {
+      fontFamily: '"Fredoka One", sans-serif',
+      fontSize: '48px', color: '#f0e8d0',
+      stroke: '#1a0e04', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(81).setScrollFactor(0);
+    const btnW = 180, btnH = 70, gap = 20;
+    const totalW = 4 * btnW + 3 * gap;
+    const startX = GAME_WIDTH/2 - totalW/2 + btnW/2;
+    const btnY = GAME_HEIGHT * 0.55;
+    const elements = [overlay, qText];
+    for (let i = 0; i < 4; i++) {
+      const x = startX + i * (btnW + gap);
+      const isCorrect = i === question.correctIndex;
+      const ansText = String(question.choices[i]);
+      const bg = this.add.rectangle(x, btnY, btnW, btnH, 0x3888d8, 0.9).setDepth(81).setScrollFactor(0).setInteractive({ useHandCursor: true });
+      const label = this.add.text(x, btnY, ansText, {
+        fontFamily: '"Fredoka One", sans-serif',
+        fontSize: '32px', color: '#ffffff',
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(82).setScrollFactor(0);
+      elements.push(bg, label);
+      bg.on('pointerdown', () => {
+        if (isCorrect) {
+          doorObj.open = true;
+          markDoorOpen(doorObj.id);
+          this.showToast('Door opened!', '#40c040');
+          audio.play('world/chest');
+        } else {
+          this.showToast('Try again!', '#e04040');
+        }
+        elements.forEach(el => el.destroy());
+      });
+    }
+  }
+
   // ================================================================
   // TAP-TO-MOVE (touch input for iPad)
   // ================================================================
@@ -1048,9 +1094,16 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   checkObjectAt(x, y) {
+    // Secret wall reveal
+    if (revealSecret(x, y)) {
+      this.showToast('Secret passage!', '#f0d060');
+      audio.play('world/chest');
+    }
+
     for (let i = 0; i < this.objects.length; i++) {
       const obj = this.objects[i];
       if (obj.consumed || obj.activated) continue;
+      if (obj.type === 'mathdoor' && obj.open) continue;
       if (obj.x !== x || obj.y !== y) continue;
       this.triggerObject(i);
       break;
@@ -1061,6 +1114,44 @@ export class MazeScene extends Phaser.Scene {
     const obj = this.objects[index];
 
     switch (obj.type) {
+      case 'mathdoor': {
+        if (obj.open) return;
+        const operator = FLOOR_OPERATORS[this.floorId] || '+';
+        const question = generateRatedQuestion({
+          operator,
+          grade: this.save.grade || 3,
+          streak: 0,
+          floor: this.floorId,
+          targetStars: [2, 3],
+        });
+        this.showMathDoorPrompt(question, obj);
+        return;
+      }
+      case 'fountain': {
+        if (!obj.uses || obj.uses <= 0) {
+          this.showToast('The fountain is depleted...', '#808080');
+          return;
+        }
+        let totalHealed = 0;
+        for (const hero of this.party) {
+          const healed = hero.maxHp - hero.hp;
+          hero.hp = hero.maxHp;
+          totalHealed += healed;
+        }
+        obj.uses--;
+        updateObjectUses(obj.id, obj.uses);
+        if (totalHealed > 0) {
+          this.showToast(`Party healed! (${obj.uses} uses left)`, '#40c0e0');
+          audio.play('world/chest');
+        } else {
+          this.showToast(`Already at full HP! (${obj.uses} uses left)`, '#40c0e0');
+        }
+        this.save.party = this.party.map(h => ({ id: h.id, name: h.name, hp: h.hp, maxHp: h.maxHp }));
+        writeSave(this.save, this.slot);
+        this.updateHud();
+        this.saveMazeState();
+        return;
+      }
       case 'chest': {
         const gold = obj.loot?.gold ?? 10;
         this.save.gold += gold;
@@ -1153,6 +1244,7 @@ export class MazeScene extends Phaser.Scene {
           const egs = getGameState();
           if (egs) egs.fairies = this.challengeProgress;
           this.showChallengeEffect(obj.type);
+          this.transformFloor();
           const p1Key = `floor${this.floorId}_phase1_done`;
           if (ch.phase2 && !this.phase2Active) {
             this.spawnPhase2Items(ch.phase2);
@@ -1300,6 +1392,40 @@ export class MazeScene extends Phaser.Scene {
     }});
   }
 
+  transformFloor() {
+    // 1. Screen flash
+    const flash = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0.5);
+    flash.setDepth(100).setScrollFactor(0);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 800, onComplete: () => flash.destroy() });
+
+    // 2. Celebration particles burst from center
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2;
+      const dist = 100 + Math.random() * 200;
+      const color = [0x40c040, 0xf0c040, 0x60a0e0][Math.floor(Math.random() * 3)];
+      const p = this.add.circle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 4 + Math.random() * 4, color, 0.8);
+      p.setDepth(101).setScrollFactor(0);
+      this.tweens.add({
+        targets: p,
+        x: GAME_WIDTH / 2 + Math.cos(angle) * dist,
+        y: GAME_HEIGHT / 2 + Math.sin(angle) * dist,
+        alpha: 0, scale: 0.3,
+        duration: 800 + Math.random() * 400,
+        onComplete: () => p.destroy(),
+      });
+    }
+
+    // 3. Toast message
+    this.showToast('The maze transforms!', '#f0c040');
+
+    // 4. Tell level engine to render transformed state
+    LV_setTransformed(true);
+
+    // 5. Save transformed state
+    this.mazeTransformed = true;
+    this.saveMazeState();
+  }
+
   startBattle(isBoss, enemyId) {
     this.saveMazeState();
 
@@ -1349,6 +1475,7 @@ export class MazeScene extends Phaser.Scene {
       encountersFought: this.encountersFought || 0,
       midExploreShown: this.midExploreShown || false,
       fairyTalkShown: this.fairyTalkShown || false,
+      mazeTransformed: this.mazeTransformed || false,
     };
     this.registry.set(mazeStateKey(this.floorId), state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
