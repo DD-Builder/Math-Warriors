@@ -11,7 +11,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed } from '../ui/levelEngine.js';
 import { generateRatedQuestion } from '../systems/math.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
@@ -88,6 +88,7 @@ export class MazeScene extends Phaser.Scene {
       this.midExploreShown = mazeState.midExploreShown || false;
       this.fairyTalkShown = mazeState.fairyTalkShown || false;
       this.mazeTransformed = mazeState.mazeTransformed || false;
+      this.revealedSecrets = mazeState.revealedSecrets || [];
     } else {
       // Fresh entry: reset state
       this.playerX = this.floor.startX;
@@ -102,6 +103,7 @@ export class MazeScene extends Phaser.Scene {
       this.midExploreShown = false;
       this.fairyTalkShown = false;
       this.mazeTransformed = false;
+      this.revealedSecrets = [];
 
       // Hand-placed objects (chests, potions, boss, exit) keep their
       // designated positions. Encounter (monster) tiles get randomized
@@ -212,6 +214,12 @@ export class MazeScene extends Phaser.Scene {
     LV_setTransformed(this.mazeTransformed);
     initLevel(GAME_WIDTH, GAME_HEIGHT, this.floor.tiles, engineObjs, heroCanvases, this.playerX, this.playerY);
 
+    if (this.revealedSecrets) {
+      for (const s of this.revealedSecrets) {
+        revealSecret(s.tx, s.ty);
+      }
+    }
+
     // Restore state if returning from battle
     if (!this.freshEntry && this.fog) {
       // Build activated map from phase 2 items
@@ -301,26 +309,6 @@ export class MazeScene extends Phaser.Scene {
   // TILE RENDERING
   // ================================================================
 
-  buildTiles() {
-    this.tileSprites = [];
-    const ts = this.tileSize;
-
-    for (let y = 0; y < this.floor.height; y++) {
-      const row = [];
-      for (let x = 0; x < this.floor.width; x++) {
-        const t = this.floor.tiles[y][x];
-        const sx = this.originX + x * ts + ts / 2;
-        const sy = this.originY + y * ts + ts / 2;
-
-        const texKey = getTileTextureKey(this, this.floorId, t, x, y, ts);
-        const img = this.add.image(sx, sy, texKey);
-        img.setDisplaySize(ts, ts);
-        row.push(img);
-      }
-      this.tileSprites.push(row);
-    }
-  }
-
   addTileDecor(sx, sy, ts, rng, pal) {
     const type = rng();
     const ox = (rng() - 0.5) * ts * 0.5;
@@ -342,30 +330,6 @@ export class MazeScene extends Phaser.Scene {
       const fc = flowerColors[Math.floor(rng() * flowerColors.length)];
       this.add.circle(sx + ox, sy + oy, 3, fc, 0.7);
       this.add.circle(sx + ox, sy + oy, 1.5, 0xf0f080, 0.8);
-    }
-  }
-
-  buildEnvironment() {
-    const ts = this.tileSize;
-    const rng = makeRng(this.floorId * 7777);
-    const fid = this.floorId;
-
-    for (let y = 0; y < this.floor.height; y++) {
-      for (let x = 0; x < this.floor.width; x++) {
-        const t = this.floor.tiles[y][x];
-        if (t !== TILE.WALL) continue;
-        const sx = this.originX + x * ts + ts / 2;
-        const sy = this.originY + y * ts + ts / 2;
-        const r = rng();
-        if (r > 0.6) continue;
-
-        const g = this.add.graphics();
-        if (fid === 1) this.drawGardenWall(g, sx, sy, ts, rng);
-        else if (fid === 2) this.drawTidepoolWall(g, sx, sy, ts, rng);
-        else if (fid === 3) this.drawCloudWall(g, sx, sy, ts, rng);
-        else if (fid === 4) this.drawEmberWall(g, sx, sy, ts, rng);
-        else if (fid === 5) this.drawArcaneWall(g, sx, sy, ts, rng);
-      }
     }
   }
 
@@ -449,18 +413,6 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
   // OBJECT SPRITES
   // ================================================================
-
-  buildObjects() {
-    this.objectSprites = [];
-    for (const obj of this.objects) {
-      if (obj.consumed) {
-        this.objectSprites.push(null);
-        continue;
-      }
-      const sprite = this.createObjectSprite(obj);
-      this.objectSprites.push(sprite);
-    }
-  }
 
   createObjectSprite(obj) {
     const sx = this.originX + obj.x * this.tileSize + this.tileSize / 2;
@@ -585,60 +537,6 @@ export class MazeScene extends Phaser.Scene {
 
     group.add([bg, icon]);
     return group;
-  }
-
-  // ================================================================
-  // PLAYER SPRITE
-  // ================================================================
-
-  buildPlayer() {
-    // Only the leader (party[0]) is shown on the maze.
-    const ts = this.tileSize;
-    const spriteScale = ts / 140 * 1.1;
-    const startSx = this.originX + this.playerX * ts + ts / 2;
-    const startSy = this.originY + this.playerY * ts + ts / 2;
-
-    // Position trail — kept for internal tracking but only leader is rendered.
-    this.posTrail = [];
-    for (let i = 0; i < this.party.length; i++) {
-      this.posTrail.push({ x: this.playerX, y: this.playerY });
-    }
-
-    this.followerSprites = [];
-    // Only create a sprite for the leader (index 0)
-    const hero = this.party[0];
-    if (hero) {
-      const sx = this.originX + this.posTrail[0].x * ts + ts / 2;
-      const sy = this.originY + this.posTrail[0].y * ts + ts / 2;
-      const container = this.add.container(sx, sy);
-      const gfx = drawHeroSprite(this, 0, 0, hero, { scale: spriteScale });
-      container.add(gfx);
-      this.followerSprites[0] = container;
-    }
-    // The leader's container is what the camera follows
-    this.playerSprite = this.followerSprites[0];
-  }
-
-  // ================================================================
-  // FOG OF WAR
-  // ================================================================
-
-  buildFogOverlay() {
-    this.fogSprites = [];
-    for (let y = 0; y < this.floor.height; y++) {
-      const row = [];
-      for (let x = 0; x < this.floor.width; x++) {
-        const sx = this.originX + x * this.tileSize + this.tileSize / 2;
-        const sy = this.originY + y * this.tileSize + this.tileSize / 2;
-        const fog = this.add.rectangle(sx, sy, this.tileSize + 1, this.tileSize + 1, 0x000000, 0.92);
-        fog.setVisible(!this.fog[y][x]);
-        row.push(fog);
-      }
-      this.fogSprites.push(row);
-    }
-  }
-
-  revealFog() {
   }
 
   // ================================================================
@@ -935,7 +833,7 @@ export class MazeScene extends Phaser.Scene {
     const candidates = [];
     for (let y = 0; y < this.floor.height; y++) {
       for (let x = 0; x < this.floor.width; x++) {
-        if (this.floor.tiles[y][x] === 0) continue;
+        if (this.floor.tiles[y][x] === TILE.WALL) continue;
         if (occupied.has(`${x},${y}`)) continue;
         if (Math.abs(x - this.playerX) + Math.abs(y - this.playerY) < 3) continue;
         candidates.push({ x, y });
@@ -1010,42 +908,30 @@ export class MazeScene extends Phaser.Scene {
           markDoorOpen(doorObj.id);
           this.showToast('Door opened!', '#40c040');
           audio.play('world/chest');
+          elements.forEach(el => { if (el.scene) el.destroy(); });
+          this._mathDoorActive = false;
+          this._touchDir = null;
         } else {
           this.showToast('Try again!', '#e04040');
+          elements.forEach(el => { if (el.scene) el.destroy(); });
+          this._mathDoorActive = false;
+          this._touchDir = null;
+          this.time.delayedCall(600, () => {
+            if (!doorObj.open) {
+              const op = FLOOR_OPERATORS[this.floorId] || '+';
+              const newQ = generateRatedQuestion({
+                operator: op,
+                grade: this.save.grade || 3,
+                streak: 0,
+                floor: this.floorId,
+                targetStars: [2, 3],
+              });
+              this.showMathDoorPrompt(newQ, doorObj);
+            }
+          });
         }
-        elements.forEach(el => { if (el.scene) el.destroy(); });
-        this._mathDoorActive = false;
       });
     }
-  }
-
-  // ================================================================
-  // TAP-TO-MOVE (touch input for iPad)
-  // ================================================================
-
-  /**
-   * Tapping a tile adjacent to the player moves them one step in
-   * that direction. Tapping further-away tiles is ignored — we only
-   * support 1-tile-at-a-time movement so the player feels the maze
-   * the same way they would with arrow keys.
-   */
-  setupTapToMove() {
-    this.input.on('pointerdown', (pointer) => {
-      // Convert pointer screen coords to tile coords using the maze
-      // tile origin and size.
-      if (this.moving) return;
-      // Convert screen pointer to world coords (accounting for camera scroll)
-      const worldX = pointer.x + this.cameras.main.scrollX;
-      const worldY = pointer.y + this.cameras.main.scrollY;
-      const tileX = Math.floor((worldX - this.originX) / this.tileSize);
-      const tileY = Math.floor((worldY - this.originY) / this.tileSize);
-      // Only adjacent (4-directional) tiles count as movement requests
-      const dx = tileX - this.playerX;
-      const dy = tileY - this.playerY;
-      if (Math.abs(dx) + Math.abs(dy) === 1) {
-        this.tryMove({ dx, dy });
-      }
-    });
   }
 
   // ================================================================
@@ -1103,6 +989,8 @@ export class MazeScene extends Phaser.Scene {
   checkObjectAt(x, y) {
     // Secret wall reveal
     if (revealSecret(x, y)) {
+      if (!this.revealedSecrets) this.revealedSecrets = [];
+      this.revealedSecrets.push({ tx: x, ty: y });
       this.showToast('Secret passage!', '#f0d060');
       audio.play('world/chest');
     }
@@ -1483,6 +1371,7 @@ export class MazeScene extends Phaser.Scene {
       midExploreShown: this.midExploreShown || false,
       fairyTalkShown: this.fairyTalkShown || false,
       mazeTransformed: this.mazeTransformed || false,
+      revealedSecrets: this.revealedSecrets || [],
     };
     this.registry.set(mazeStateKey(this.floorId), state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
@@ -1558,6 +1447,8 @@ export class MazeScene extends Phaser.Scene {
         });
       },
     });
+
+    this.events.once('shutdown', () => { this.time.removeAllEvents(); });
   }
 
   // ================================================================

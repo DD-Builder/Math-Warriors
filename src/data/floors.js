@@ -12,16 +12,20 @@
  * Objects declare their tile position and type. Types:
  *
  *   chest      - gives gold on interact
- *   fairy      - fairy chest — freeing all 3 reveals the golden chest
- *   golden     - golden treasure chest — only appears after all fairies freed
- *   encounter  - triggers a random battle when stepped on, then removes itself
- *   boss       - boss battle, guards the golden chest area
- *   exit       - appears after boss defeat; tapping it returns to world map
  *   potion     - pickup, +1 potion
  *   gold       - pickup, +gold
+ *   fairy      - fairy chest — freeing all 3 reveals the golden chest
+ *   golden     - golden treasure chest — only appears after all fairies freed
+ *   encounter  - triggers a random battle when stepped on (randomized position)
+ *   boss       - boss battle, guards the golden chest area
+ *   exit       - appears after boss defeat; returns to world map
+ *   mathdoor   - math-locked gate; solve math problem to open
+ *   fountain   - healing fountain; restores party HP (limited uses)
  *
- * Floor 1 has a bespoke layout; floors 2-5 currently reuse the same
- * shape with a different palette and will get their own maps later.
+ * Floor-specific challenge items (3 per floor):
+ *   fairy, valve, beacon, vent, crystal, geoshard, token, page, fragment
+ *
+ * Tile codes: 0=wall, 1=floor, 2=path, 3=water, 4=secret
  */
 
 export const TILE = {
@@ -81,10 +85,10 @@ const FLOOR_2_TILES = [
   [W,F,F,F,W,F,F,F,W,F,P,P,P,P,W,W,W,W,W,W,W,W],
   [W,F,W,F,F,F,W,F,F,P,P,W,P,P,W,W,W,W,W,W,W,W],
   [W,F,W,W,F,F,F,F,P,P,W,P,W,P,P,W,W,W,W,W,W,W],
-  [W,F,F,F,F,F,W,P,P,W,P,P,W,W,P,W,W,W,W,W,W,W],
+  [W,F,F,F,F,F,S,P,P,W,P,P,W,W,P,W,W,W,W,W,W,W],
   [W,W,F,W,F,F,P,P,W,P,P,W,W,P,P,P,W,W,W,W,W,W],
   [W,F,F,F,F,P,P,W,P,P,W,W,P,P,W,P,P,W,W,W,W,W],
-  [W,W,W,F,P,P,W,P,P,W,P,W,W,P,W,W,P,W,W,W,W,W],
+  [W,W,W,F,P,P,S,P,P,W,P,W,W,P,W,W,P,W,W,W,W,W],
   [W,W,W,P,P,W,P,P,W,P,P,W,W,P,P,W,P,P,Q,Q,W,W],
   [W,W,W,W,P,P,P,W,P,P,W,P,W,W,P,P,Q,Q,Q,W,Q,W],
   [W,W,W,W,W,P,P,P,W,W,P,P,P,W,P,Q,Q,W,Q,Q,Q,W],
@@ -116,7 +120,7 @@ const FLOOR_3_TILES = [
   [W,F,F,F,W,F,F,F,W,F,F,F,F,F,F,W,W,W,W,W,W,W,W,W,W],
   [W,F,W,F,F,F,W,F,F,F,F,W,F,F,F,F,W,W,W,W,W,W,W,W,W],
   [W,F,W,W,F,F,F,F,F,F,W,F,F,W,F,F,F,W,W,W,W,W,W,W,W],
-  [W,F,F,F,F,F,W,F,F,W,F,F,W,F,F,F,F,F,W,W,W,W,W,W,W],
+  [W,F,F,F,F,F,S,F,F,W,F,F,W,F,F,F,F,F,W,W,W,W,W,W,W],
   [W,W,F,W,F,F,F,F,W,F,F,W,F,F,W,F,F,F,F,W,W,W,W,W,W],
   [W,F,F,F,F,F,F,W,F,F,F,F,F,W,F,F,F,F,F,F,W,W,W,W,W],
   [W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,F,W,F,F,F,F,W,W,W,W],
@@ -125,7 +129,7 @@ const FLOOR_3_TILES = [
   [W,W,W,W,W,F,F,F,F,F,W,F,F,F,F,W,F,F,F,W,F,F,F,F,W],
   [W,W,W,W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,W,F,F,F,Q,F,W],
   [W,W,W,W,W,W,W,F,F,F,F,F,W,F,F,F,W,F,F,F,W,F,F,F,W],
-  [W,W,W,W,W,W,W,W,F,F,F,W,F,F,F,F,F,F,W,F,F,F,W,F,W],
+  [W,W,W,W,W,W,W,W,F,F,F,W,F,F,F,F,F,F,S,F,F,F,W,F,W],
   [W,W,W,W,W,W,W,W,W,F,F,F,F,F,W,F,F,W,F,F,F,W,F,F,W],
   [W,W,W,W,W,W,W,W,W,W,F,F,F,W,F,F,F,F,F,W,F,F,F,F,W],
   [W,W,W,W,W,W,W,W,W,W,F,F,W,F,F,F,W,F,F,F,F,F,W,F,W],
@@ -153,13 +157,13 @@ const FLOOR_4_TILES = [
   [W,F,W,F,F,F,F,W,Q,W,F,F,F,W,Q,W,F,F,F,W,F,F,F,F,F,W,F,F,W],
   [W,F,W,F,W,W,W,W,Q,W,W,W,W,W,Q,W,W,W,W,W,F,W,W,W,W,W,F,W,W],
   [W,F,F,F,F,F,F,F,Q,F,F,F,F,F,Q,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W],
+  [W,W,W,W,W,W,W,W,W,S,W,W,W,F,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,F,W],
   [W,F,W,F,F,F,W,F,F,F,W,F,F,F,W,F,W,F,F,F,W,F,F,F,W,F,W,F,W],
   [W,F,W,F,W,W,W,F,W,W,W,F,W,F,W,F,W,F,W,W,W,F,W,F,W,F,W,F,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,W,F,F,F,F,F,F,F,F,F,W,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W],
+  [W,W,W,W,W,W,W,W,W,W,W,F,S,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W],
   [W,F,F,F,F,F,W,F,F,F,F,F,W,F,F,F,W,F,F,F,F,F,W,F,F,F,W,F,W],
@@ -198,7 +202,7 @@ const FLOOR_5_TILES = [
   [W,F,W,F,F,F,F,F,W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W,F,F,F,W,F,F,F,W],
   [W,F,W,F,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W],
+  [W,W,W,W,W,W,W,F,S,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,W,W,F,W],
   [W,F,W,F,F,F,F,F,W,F,W,F,F,F,W,F,W,F,F,F,W,F,F,F,W,F,W,F,F,F,W,F,W],
@@ -208,7 +212,7 @@ const FLOOR_5_TILES = [
   [W,F,F,F,F,Q,F,F,F,F,W,F,F,F,F,F,F,F,F,F,W,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,W,W,F,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W],
+  [W,W,W,W,W,W,W,W,W,F,S,W,W,W,W,W,W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,F,W],
   [W,F,F,F,W,F,F,F,F,F,W,F,F,F,F,F,F,F,W,F,F,F,F,F,W,F,F,F,W,F,W,F,W],
@@ -283,10 +287,6 @@ export const FLOORS = [
       { type: 'encounter', x: 7,  y: 17 },
       { type: 'encounter', x: 4,  y: 8 },
       { type: 'encounter', x: 17, y: 8 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
       { type: 'boss',      x: 9,  y: 2, enemyId: 'briarking' },
       { type: 'exit',      x: 9,  y: 1 },
     ],
@@ -326,10 +326,6 @@ export const FLOORS = [
       { type: 'encounter', x: 13, y: 19 },
       { type: 'encounter', x: 18, y: 21 },
       { type: 'encounter', x: 20, y: 26 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
     ],
   },
   {
@@ -368,11 +364,6 @@ export const FLOORS = [
       { type: 'encounter', x: 20, y: 24 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
     ],
   },
   {
@@ -406,11 +397,6 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 13 },
       { type: 'encounter', x: 3,  y: 7 },
       { type: 'encounter', x: 25, y: 25 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
       { type: 'boss',      x: 13, y: 1, enemyId: 'pyroclast' },
       { type: 'exit',      x: 14, y: 1 },
     ],
@@ -442,10 +428,6 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 28 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
     ],
   },
   {
@@ -473,10 +455,9 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 28 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
+      { type: 'mathdoor',  x: 14, y: 14, id: 'f6door1' },
+      { type: 'mathdoor',  x: 17, y: 22, id: 'f6door2' },
+      { type: 'fountain',  x: 11, y: 19, id: 'f6fountain1', uses: 3 },
     ],
   },
   {
@@ -506,10 +487,8 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 28 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
+      { type: 'mathdoor',  x: 16, y: 17, id: 'f7door1' },
+      { type: 'fountain',  x: 13, y: 13, id: 'f7fountain1', uses: 3 },
     ],
   },
   {
@@ -538,10 +517,8 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 28 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
+      { type: 'mathdoor',  x: 12, y: 8, id: 'f8door1' },
+      { type: 'fountain',  x: 19, y: 19, id: 'f8fountain1', uses: 3 },
     ],
   },
   {
@@ -574,11 +551,8 @@ export const FLOORS = [
       { type: 'encounter', x: 16, y: 17 },
       { type: 'encounter', x: 3,  y: 37 },
       { type: 'encounter', x: 29, y: 7 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
+      { type: 'mathdoor',  x: 17, y: 16, id: 'f9door1' },
+      { type: 'fountain',  x: 9,  y: 23, id: 'f9fountain1', uses: 3 },
     ],
   },
 ];

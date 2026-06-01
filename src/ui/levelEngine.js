@@ -1390,25 +1390,8 @@ function LV_draw(t) {
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
   }
-  // Party (back to front)
+  // Party — draw leader only
   var moving = (_party.vx !== 0 || _party.vy !== 0);
-  var tr1 = _party.trail[Math.min(_party.trail.length - 1, _party.trailLen - 1)];
-  var tr2 = _party.trail[Math.min(_party.trail.length - 1, _party.trailLen * 2 - 1)];
-  var sp1x = tr1.x, sp1y = tr1.y, sp2x = tr2.x, sp2y = tr2.y;
-  if (!moving) {
-    var fOff = LV_TILE * 0.72;
-    if (_party.facing === 'down' || _party.facing === 'up') {
-      var fydir = _party.facing === 'down' ? -1 : 1;
-      sp1y = _party.y + fydir * fOff; sp2y = _party.y + fydir * fOff * 2;
-      sp1x = _party.x - ts * 0.18 / _SCALE; sp2x = _party.x + ts * 0.18 / _SCALE;
-    } else {
-      var fxdir = _party.facing === 'right' ? -1 : 1;
-      sp1x = _party.x + fxdir * fOff; sp2x = _party.x + fxdir * fOff * 2;
-      sp1y = _party.y - ts * 0.1 / _SCALE; sp2y = _party.y + ts * 0.1 / _SCALE;
-    }
-  }
-  LV_drawPartyMember(camX + sp2x * _SCALE, camY + sp2y * _SCALE, ts, 2, moving, t);
-  LV_drawPartyMember(camX + sp1x * _SCALE, camY + sp1y * _SCALE, ts, 1, moving, t);
   LV_drawPartyMember(camX + _party.x * _SCALE, camY + _party.y * _SCALE, ts, 0, moving, t);
   // Fog overlay
   for (var fy2 = sy0; fy2 < sy1; fy2++) for (var fx2 = sx0; fx2 < sx1; fx2++) {
@@ -1465,8 +1448,6 @@ function LV_update(keys) {
     else _party.facing = dy > 0 ? 'down' : 'up';
   }
   _party.vx = dx; _party.vy = dy;
-  _party.trail.unshift({ x: _party.x, y: _party.y });
-  if (_party.trail.length > _party.trailLen * 2 + 2) _party.trail.pop();
   LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 3);
   _party.animT++;
 }
@@ -1738,5 +1719,6 @@ export function markDoorOpen(id) {
 }
 
 export function addObject(obj) {
+  if (!obj || !obj.type) return;
   _objs.push(obj);
 }
