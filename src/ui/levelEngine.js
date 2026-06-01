@@ -1509,14 +1509,9 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
     y: (startY + 0.5) * LV_TILE,
     vx: 0, vy: 0,
     speed: 2.8,
-    trail: [],
-    trailLen: 20,
     facing: 'down',
     animT: 0
   };
-  for (var ti = 0; ti < _party.trailLen * 2 + 2; ti++) {
-    _party.trail.push({ x: _party.x, y: _party.y });
-  }
 
   // Reveal starting area
   LV_revealFog(startX, startY, 3);
@@ -1605,10 +1600,6 @@ export function setGameState(gs) {
     _party.x = gs.partyX;
     _party.y = gs.partyY;
     _party.facing = gs.partyFacing || 'down';
-    _party.trail = [];
-    for (var ti = 0; ti < _party.trailLen * 2 + 2; ti++) {
-      _party.trail.push({ x: _party.x, y: _party.y });
-    }
   }
   if (gs.objects) {
     for (var oi = 0; oi < _objs.length; oi++) {
