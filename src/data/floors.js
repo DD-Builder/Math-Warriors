@@ -315,6 +315,8 @@ export const FLOORS = [
       { type: 'gold',      x: 13, y: 21 },
       // Potions
       { type: 'potion',    x: 9,  y: 10 },
+      { type: 'mathdoor',  x: 9,  y: 5, id: 'f2door1' },
+      { type: 'fountain',  x: 14, y: 14, id: 'f2fountain1', uses: 3 },
       // Encounters spread across zones
       { type: 'encounter', x: 1,  y: 5 },
       { type: 'encounter', x: 6,  y: 3 },
@@ -354,6 +356,8 @@ export const FLOORS = [
       { type: 'gold',      x: 16, y: 17 },
       // Potions
       { type: 'potion',    x: 10, y: 10 },
+      { type: 'mathdoor',  x: 12, y: 8, id: 'f3door1' },
+      { type: 'fountain',  x: 15, y: 18, id: 'f3fountain1', uses: 3 },
       // Encounters spread across all zones (calm, storm, sunset)
       { type: 'encounter', x: 3,  y: 6 },
       { type: 'encounter', x: 7,  y: 7 },
@@ -387,6 +391,9 @@ export const FLOORS = [
       { type: 'chest',     x: 23, y: 25, loot: { gold: 30 } },
       { type: 'potion',    x: 14, y: 17 },
       { type: 'potion',    x: 7,  y: 31 },
+      { type: 'mathdoor',  x: 13, y: 6, id: 'f4door1' },
+      { type: 'mathdoor',  x: 15, y: 24, id: 'f4door2' },
+      { type: 'fountain',  x: 1,  y: 17, id: 'f4fountain1', uses: 3 },
       { type: 'gold',      x: 21, y: 5 },
       { type: 'gold',      x: 3,  y: 21 },
       { type: 'gold',      x: 25, y: 33 },
@@ -420,6 +427,8 @@ export const FLOORS = [
       { type: 'golden',    x: 12, y: 1 },
       { type: 'boss',      x: 12, y: 3, enemyId: 'absolutezero' },
       { type: 'exit',      x: 12, y: 1 },
+      { type: 'mathdoor',  x: 10, y: 15, id: 'f5door1' },
+      { type: 'fountain',  x: 8,  y: 25, id: 'f5fountain1', uses: 3 },
       { type: 'chest',     x: 3, y: 10, loot: { gold: 30 } },
       { type: 'chest',     x: 21, y: 22, loot: { gold: 30 } },
       { type: 'potion',    x: 15, y: 12 },
