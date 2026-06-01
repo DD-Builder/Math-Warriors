@@ -575,6 +575,15 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
       fg.fillStyle(0xe0f0f8, 0.15 + rng() * 0.15);
       fg.fillCircle(rng() * width, height - 10 - rng() * 20, 4 + rng() * 6);
     }
+    // Claymation: clay bubbles on ground plane
+    for (let cb = 0; cb < 7; cb++) {
+      const bx = rng() * width;
+      const by = groundY + 10 + rng() * 60;
+      const br = 10 + rng() * 10; // 10-20px
+      const darkerGround = blendColor(pal.ground, 0x000000, 0.2);
+      fg.fillStyle(darkerGround, 0.35 + rng() * 0.15);
+      fg.fillCircle(bx, by, br);
+    }
   } else if (floorId === 3) {
     // Cloud: wispy cloud tendrils at edges, golden light rays from top
     for (let side = 0; side < 2; side++) {
@@ -592,6 +601,21 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
       const rx = width * 0.3 + rng() * width * 0.4;
       fg.fillStyle(pal.glow, 0.04 + rng() * 0.03);
       fg.fillTriangle(rx - 3, 0, rx + 3, 0, rx + (rng() - 0.5) * 60, height * 0.7);
+    }
+    // Watercolor: paint drips from cloud formations
+    for (let side = 0; side < 2; side++) {
+      const dripBaseX = side === 0 ? rng() * width * 0.3 : width * 0.7 + rng() * width * 0.3;
+      const dripCount = 2 + Math.floor(rng() * 2); // 2-3 drips
+      for (let d = 0; d < dripCount; d++) {
+        const dx = dripBaseX + (rng() - 0.5) * 30;
+        const dy = height * 0.3 + rng() * height * 0.15;
+        const dripLen = 40 + rng() * 60;
+        fg.lineStyle(1, pal.cloud, 0.1);
+        fg.beginPath();
+        fg.moveTo(dx, dy);
+        fg.lineTo(dx + (rng() - 0.5) * 3, dy + dripLen);
+        fg.strokePath();
+      }
     }
   } else if (floorId === 4) {
     // Ember: stalactites at top, lava glow at bottom, rock formations at sides

@@ -9,6 +9,7 @@
 import { createMonsterCanvas } from './legacyRenderer.js';
 import { FLOOR1_MONSTERS, FLOOR2_MONSTERS, FLOOR3_MONSTERS, FLOOR4_MONSTERS, FLOOR5_MONSTERS, BOSSES } from '../data/monsterArt.js';
 import { makeRng } from '../systems/rng.js';
+import { applySpriteFilter } from '../systems/renderingFilters.js';
 
 const ART_LOOKUP = {};
 [FLOOR1_MONSTERS, FLOOR2_MONSTERS, FLOOR3_MONSTERS, FLOOR4_MONSTERS, FLOOR5_MONSTERS, BOSSES].forEach(group => {
@@ -29,13 +30,15 @@ function getMonsterCanvas(id) {
 
 export function drawMonsterSprite(scene, x, y, enemy, opts = {}) {
   const scale = opts.scale ?? 1;
+  const floorId = opts.floorId || 1;
   const id = enemy.id;
-  const textureKey = 'monster-' + id;
+  const textureKey = `monster-${id}-f${floorId}`;
 
   // Try reference art first
   if (!scene.textures.exists(textureKey)) {
     const cv = getMonsterCanvas(id);
     if (cv) {
+      applySpriteFilter(cv, floorId);
       scene.textures.addCanvas(textureKey, cv);
     } else {
       // Fallback to old Phaser Graphics draw

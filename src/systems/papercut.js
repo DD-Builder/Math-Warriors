@@ -410,16 +410,29 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
   const cx = width * 0.5;
   const cy = height * 0.35;
   const glowR = Math.min(width, height) * 0.7;
-  for (let ring = 8; ring >= 1; ring--) {
-    const r = glowR * (ring / 8);
-    const alpha = pal.glowAlpha * (1 - ring / 10) * 0.7;
-    gfx.fillStyle(pal.skyGlow, alpha);
-    gfx.fillCircle(cx, cy, r);
+  // Floor 2 matte finish: reduce glow intensity by 0.5
+  const effectiveGlowAlpha = floorId === 2 ? pal.glowAlpha * 0.5 : pal.glowAlpha;
+
+  if (floorId === 4) {
+    // Floor 4 pixel art: color banding — only 4 rings with hard alpha steps
+    const bandAlphas = [0.3, 0.2, 0.1, 0.0];
+    for (let ring = 3; ring >= 0; ring--) {
+      const r = glowR * ((ring + 1) / 4);
+      gfx.fillStyle(pal.skyGlow, bandAlphas[ring]);
+      gfx.fillCircle(cx, cy, r);
+    }
+  } else {
+    for (let ring = 8; ring >= 1; ring--) {
+      const r = glowR * (ring / 8);
+      const alpha = effectiveGlowAlpha * (1 - ring / 10) * 0.7;
+      gfx.fillStyle(pal.skyGlow, alpha);
+      gfx.fillCircle(cx, cy, r);
+    }
   }
   // Hot center
-  gfx.fillStyle(pal.glow, pal.glowAlpha * 0.6);
+  gfx.fillStyle(pal.glow, effectiveGlowAlpha * 0.6);
   gfx.fillCircle(cx, cy, glowR * 0.15);
-  gfx.fillStyle(pal.glow, pal.glowAlpha * 0.3);
+  gfx.fillStyle(pal.glow, effectiveGlowAlpha * 0.3);
   gfx.fillCircle(cx, cy, glowR * 0.3);
 
   // Clouds (behind hills)
@@ -451,11 +464,11 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
         rng
       );
     } else if (floorId === 4) {
-      // Ember: jagged volcanic peaks
+      // Ember: jagged volcanic peaks — hard edges (wobble=0) for pixel art feel
       pts = generateVolcanicPeakPoints(
         -20, width + 20, layerBaseY,
         height * layer.peakH, layer.peaks,
-        rng, 2 + li
+        rng, 0
       );
     } else if (floorId === 5) {
       // Arcane: geometric crystal formations
@@ -472,7 +485,49 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
         rng, 3 + li * 2
       );
     }
-    drawPaperLayer(gfx, pts, layer.color, layer.shadow, shadowOx, shadowOy, true, height);
+    // Floor 5 silhouette enhancement: darken foremost layer by multiplying color by 0.6
+    const layerColor = (floorId === 5 && li === pal.layers.length - 1)
+      ? (((((layer.color >> 16) & 0xff) * 0.6) << 16) |
+         ((((layer.color >> 8) & 0xff) * 0.6) << 8) |
+         (((layer.color & 0xff) * 0.6)))
+      : layer.color;
+    drawPaperLayer(gfx, pts, layerColor, layer.shadow, shadowOx, shadowOy, true, height);
+
+    // Floor 2 claymation: fingerprint dents on each wave layer
+    if (floorId === 2) {
+      const dentCount = 5 + Math.floor(rng() * 6); // 5-10 dents
+      for (let di = 0; di < dentCount; di++) {
+        const dx = pts[0].x + rng() * (pts[pts.length - 1].x - pts[0].x);
+        const dy = layerBaseY + rng() * (height - layerBaseY) * 0.3 + 5;
+        const dr = 3 + rng() * 2; // 3-5px radius
+        gfx.fillStyle(0x000000, 0.15);
+        gfx.fillCircle(dx, dy, dr);
+      }
+      // Floor 2 claymation: clay edge texture — irregular dark stroke at top of wave
+      const edgeColor = (((layer.color >> 16) & 0xff) * 0.7) << 16 |
+                        (((layer.color >> 8) & 0xff) * 0.7) << 8 |
+                        ((layer.color & 0xff) * 0.7);
+      gfx.lineStyle(2, edgeColor, 0.6);
+      gfx.beginPath();
+      for (let ei = 0; ei < pts.length; ei++) {
+        const wobbleX = (rng() - 0.5) * 2;
+        const wobbleY = (rng() - 0.5) * 2;
+        if (ei === 0) gfx.moveTo(pts[ei].x + wobbleX, pts[ei].y + wobbleY);
+        else gfx.lineTo(pts[ei].x + wobbleX, pts[ei].y + wobbleY);
+      }
+      gfx.strokePath();
+    }
+
+    // Floor 3 watercolor/sketch: pencil outline stroke along each cloud/hill layer
+    if (floorId === 3) {
+      gfx.lineStyle(1.5, 0x404040, 0.25);
+      gfx.beginPath();
+      for (let pi = 0; pi < pts.length; pi++) {
+        if (pi === 0) gfx.moveTo(pts[pi].x, pts[pi].y);
+        else gfx.lineTo(pts[pi].x, pts[pi].y);
+      }
+      gfx.strokePath();
+    }
 
     // Floor-specific layer effects
     if (floorId === 4 && li === pal.layers.length - 1) {
@@ -488,6 +543,72 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
           gfx.fillCircle(pts[ci].x, pts[ci].y, 8 + rng() * 6);
         }
       }
+    }
+  }
+
+  // Floor 3 watercolor/sketch: watercolor washes — large semi-transparent pastel circles
+  if (floorId === 3) {
+    const washColors = [0xf0c0c0, 0xc0d8f0, 0xd0f0c0, 0xf0e0c0];
+    for (let wi = 0; wi < 4; wi++) {
+      const wx = rng() * width;
+      const wy = rng() * height * 0.8;
+      const wr = 80 + rng() * 70; // radius 80-150px
+      const wa = 0.06 + rng() * 0.04; // alpha 0.06-0.1
+      gfx.fillStyle(washColors[wi % washColors.length], wa);
+      gfx.fillCircle(wx, wy, wr);
+    }
+    // Floor 3 watercolor/sketch: paper texture — faint warm cream overlay
+    gfx.fillStyle(0xf8f0e0, 0.05);
+    gfx.fillRect(0, 0, width, height);
+  }
+
+  // Floor 4 pixel art: grid overlay
+  if (floorId === 4) {
+    gfx.lineStyle(0.5, 0x000000, 0.06);
+    // Vertical lines
+    for (let gx = 0; gx < width; gx += 8) {
+      gfx.beginPath();
+      gfx.moveTo(gx, 0);
+      gfx.lineTo(gx, height);
+      gfx.strokePath();
+    }
+    // Horizontal lines
+    for (let gy = 0; gy < height; gy += 8) {
+      gfx.beginPath();
+      gfx.moveTo(0, gy);
+      gfx.lineTo(width, gy);
+      gfx.strokePath();
+    }
+  }
+
+  // Floor 5 cinematic: crescent moon
+  if (floorId === 5) {
+    const moonX = width * 0.7;
+    const moonY = height * 0.12;
+    const moonR = 40;
+    // White moon circle
+    gfx.fillStyle(0xffffff, 0.85);
+    gfx.fillCircle(moonX, moonY, moonR);
+    // Sky-colored circle overlapping to create crescent
+    gfx.fillStyle(pal.sky, 1);
+    gfx.fillCircle(moonX + moonR * 0.45, moonY - moonR * 0.15, moonR * 0.85);
+
+    // Floor 5 cinematic: light rays from central glow
+    const rayCx = width * 0.5;
+    const rayCy = height * 0.35;
+    const rayLen = height * 0.6;
+    const rayCount = 5;
+    for (let ri = 0; ri < rayCount; ri++) {
+      const angle = -Math.PI * 0.4 + (ri / (rayCount - 1)) * Math.PI * 0.8;
+      const tipX = rayCx + Math.sin(angle) * rayLen;
+      const tipY = rayCy + Math.cos(angle) * rayLen;
+      const halfW = 8 + rng() * 6;
+      gfx.fillStyle(0xffffff, 0.05);
+      gfx.fillTriangle(
+        rayCx - Math.cos(angle) * halfW, rayCy + Math.sin(angle) * halfW,
+        rayCx + Math.cos(angle) * halfW, rayCy - Math.sin(angle) * halfW,
+        tipX, tipY
+      );
     }
   }
 

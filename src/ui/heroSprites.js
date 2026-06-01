@@ -13,6 +13,7 @@
 
 import { createHeroCanvas, createHeroPartCanvas } from './legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
+import { applySpriteFilter } from '../systems/renderingFilters.js';
 
 // Lookup table: hero.id → art data (draw function, cardBg, topExt, botExt)
 const ART_LOOKUP = {};
@@ -106,13 +107,16 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const partOrder = ['legs', 'torso', 'armL', 'armR', 'weapon', 'head'];
   const parts = {};
 
+  const floorId = opts.floorId || 1;
+
   for (let i = 0; i < partOrder.length; i++) {
     const partName = partOrder[i];
     const seeds = BODY_PARTS[partName];
-    const key = `hero-${hero.id}-${partName}`;
+    const key = `hero-${hero.id}-${partName}-f${floorId}`;
 
     if (!scene.textures.exists(key)) {
       const cv = createHeroPartCanvas(w, h, art.draw, art.topExt, art.botExt, seeds);
+      applySpriteFilter(cv, floorId);
       scene.textures.addCanvas(key, cv);
     }
 

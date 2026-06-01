@@ -35,6 +35,7 @@ import { playFightAnimation, playMagicAnimation, playFizzleAnimation } from '../
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
+import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { makeRng } from '../systems/rng.js';
 import { computeLevel, levelBonuses } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
@@ -253,6 +254,9 @@ export class BattleScene extends Phaser.Scene {
       this, this.floor, this.battleVariant, GAME_WIDTH, bgHeight,
     );
     startAtmosphericParticles(this, this.parallaxState);
+
+    // Per-floor visual overlay (paper texture, vignette, etc.)
+    this.floorOverlay = applyFloorOverlay(this, this.floor, GAME_WIDTH, GAME_HEIGHT);
 
     // Environmental responsiveness — subtle mood shifts based on performance
     this.envState = createEnvironmentState(this, this.parallaxState);
@@ -497,7 +501,7 @@ export class BattleScene extends Phaser.Scene {
       const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
 
       const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
-      const body = createAnimatedHero(this, x, y, hero, { scale: heroScale * depthScale });
+      const body = createAnimatedHero(this, x, y, hero, { scale: heroScale * depthScale, floorId: this.floor });
       body.setDepth(12);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
@@ -574,7 +578,7 @@ export class BattleScene extends Phaser.Scene {
       const y = groundY - monsterDisplayH * 0.50 + positions[ei].dy;
       const w = 200, h = 220;
 
-      const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
+      const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
       body.setDepth(12);
 
       // Name/HP bars directly above the sprite head
