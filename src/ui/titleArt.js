@@ -828,6 +828,71 @@ export function drawFloatingPetals(scene, width, height, rng, depth = 9) {
 // ================================================================
 // SCATTER DECOR (backward compat for other scenes)
 // ================================================================
+// MATH ELEMENTS — numbers and symbols woven into nature
+// ================================================================
+
+export function drawMathElements(scene, width, height, rng, depth = 6) {
+  const gfx = scene.add.graphics().setDepth(depth);
+
+  // Equation stones — small rounded rocks with math expressions
+  const stones = [
+    { x: width * 0.18, y: height * 0.78, text: '2+3' },
+    { x: width * 0.75, y: height * 0.82, text: '7×4' },
+    { x: width * 0.45, y: height * 0.85, text: '12−5' },
+  ];
+  for (const s of stones) {
+    const sw = 48 + rng() * 16, sh = 24 + rng() * 8;
+    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillRoundedRect(s.x - sw/2 + 3, s.y - sh/2 + 4, sw, sh, 8);
+    gfx.fillStyle(0x8a9880, 1);
+    gfx.fillRoundedRect(s.x - sw/2, s.y - sh/2, sw, sh, 8);
+    gfx.fillStyle(0xa0b898, 1);
+    gfx.fillRoundedRect(s.x - sw/2 + 2, s.y - sh/2 + 2, sw - 4, sh - 6, 6);
+    scene.add.text(s.x, s.y - 1, s.text, {
+      fontFamily: '"Fredoka One", sans-serif', fontSize: '13px',
+      color: '#3a4a38', stroke: '#c0d0b8', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(depth + 1);
+  }
+
+  // Number flowers — flowers with a digit/symbol in the center
+  const numFlowers = [
+    { x: width * 0.28, y: height * 0.73, sym: '3', color: PAL.flowerPink },
+    { x: width * 0.62, y: height * 0.76, sym: '+', color: PAL.flowerOrange },
+    { x: width * 0.82, y: height * 0.71, sym: '7', color: PAL.flowerBlue },
+    { x: width * 0.12, y: height * 0.75, sym: '×', color: PAL.flowerMagenta },
+  ];
+  for (const nf of numFlowers) {
+    const sz = 14;
+    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillCircle(nf.x + 2, nf.y + 3, sz + 2);
+    for (let p = 0; p < 5; p++) {
+      const a = (p / 5) * Math.PI * 2 - Math.PI / 2;
+      gfx.fillStyle(nf.color, 0.9);
+      gfx.fillCircle(nf.x + Math.cos(a) * sz * 0.7, nf.y + Math.sin(a) * sz * 0.7, sz * 0.55);
+    }
+    gfx.fillStyle(PAL.flowerCenter, 1);
+    gfx.fillCircle(nf.x, nf.y, sz * 0.35);
+    scene.add.text(nf.x, nf.y, nf.sym, {
+      fontFamily: '"Fredoka One", sans-serif', fontSize: '11px', fontStyle: 'bold',
+      color: '#5a3010',
+    }).setOrigin(0.5).setDepth(depth + 1);
+  }
+
+  // Geometric crystal — gem shape with pattern
+  const cx = width * 0.55, cy = height * 0.80;
+  gfx.fillStyle(0x000000, 0.25);
+  gfx.fillTriangle(cx + 3, cy - 16 + 4, cx - 14 + 3, cy + 10 + 4, cx + 14 + 3, cy + 10 + 4);
+  gfx.fillStyle(0x60c8e0, 0.85);
+  gfx.fillTriangle(cx, cy - 16, cx - 14, cy + 10, cx + 14, cy + 10);
+  gfx.fillStyle(0x80e0f0, 0.6);
+  gfx.fillTriangle(cx, cy - 8, cx - 7, cy + 6, cx + 7, cy + 6);
+  gfx.lineStyle(1, 0x40a0b8, 0.5);
+  gfx.strokeTriangle(cx, cy - 16, cx - 14, cy + 10, cx + 14, cy + 10);
+
+  return gfx;
+}
+
+// ================================================================
 
 /**
  * Scatter decorative papercut elements around a scene — clouds, flowers,

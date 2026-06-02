@@ -11,6 +11,7 @@ import {
   drawDioramaHills,
   drawTrees,
   drawFlowers,
+  drawMathElements,
   drawButterflies,
   drawBirds,
   drawFloatingPetals,
@@ -60,6 +61,7 @@ export class TitleScene extends Phaser.Scene {
     // LAYER 8: Flowers along the foreground
     // ============================================================
     drawFlowers(this, W, H, rng, 6);
+    drawMathElements(this, W, H, rng, 7);
 
     // ============================================================
     // LAYER 9: Inner frame depth layers (inside the frame opening)
