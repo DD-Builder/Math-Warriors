@@ -33,66 +33,56 @@ export class TitleScene extends Phaser.Scene {
     C.fillStyle = grd;
     C.fillRect(0, 0, W, H);
 
-    // ── 2. DARK TEAL — full top coverage, NO white triangle ─────
-    // Extends far down so no background peeks through
+    // ── 2. DARK TEAL — full sky backdrop, simple clean arc ──────
     paperLayer(C, W, H, rng, [
       [0, 0], [W, 0],
-      [W, H * 0.30],
-      [W * 0.80, H * 0.40],
-      [W * 0.55, H * 0.50],
-      [W * 0.50, H * 0.52],
-      [W * 0.45, H * 0.50],
-      [W * 0.20, H * 0.40],
-      [0, H * 0.30],
-    ], '#0e2e30', 18);
+      [W, H * 0.35],
+      [W * 0.75, H * 0.42],
+      [W * 0.50, H * 0.46],
+      [W * 0.25, H * 0.42],
+      [0, H * 0.35],
+    ], '#0e2e30', 16);
 
-    // ── 3. MEDIUM TEAL — reveals dark layer underneath ─────────
+    // ── 3. TEAL-GREEN — second sky layer, slightly brighter ───
     paperLayer(C, W, H, rng, [
       [0, 0], [W, 0],
-      [W, H * 0.22],
-      [W * 0.82, H * 0.32],
-      [W * 0.60, H * 0.42],
-      [W * 0.50, H * 0.44],
-      [W * 0.40, H * 0.42],
-      [W * 0.18, H * 0.32],
-      [0, H * 0.22],
-    ], '#164840', 16);
+      [W, H * 0.28],
+      [W * 0.78, H * 0.35],
+      [W * 0.50, H * 0.38],
+      [W * 0.22, H * 0.35],
+      [0, H * 0.28],
+    ], '#1a5048', 14);
 
-    // ── 4. TEAL-GREEN side swoops (left) ──────────────────────
+    // ── 4. BRIGHT TEAL — third sky layer, warmest ───────────────
     paperLayer(C, W, H, rng, [
-      [0, 0], [W * 0.30, 0],
-      [W * 0.25, H * 0.15],
-      [W * 0.12, H * 0.35],
-      [0, H * 0.48],
-    ], '#1a5448', 12);
+      [0, 0], [W, 0],
+      [W, H * 0.20],
+      [W * 0.80, H * 0.26],
+      [W * 0.50, H * 0.30],
+      [W * 0.20, H * 0.26],
+      [0, H * 0.20],
+    ], '#287860', 12);
 
-    // ── 5. TEAL-GREEN side swoops (right) ─────────────────────
-    paperLayer(C, W, H, rng, [
-      [W, 0], [W * 0.70, 0],
-      [W * 0.75, H * 0.15],
-      [W * 0.88, H * 0.35],
-      [W, H * 0.48],
-    ], '#1e6858', 12);
-
-    // ── HILLS — each a distinctly different color ───────────────
-    hillLayer(C, W, H, H * 0.48, 100, 3, '#1e6038', rng, 22);  // deep forest
-    hillLayer(C, W, H, H * 0.57, 75, 4, '#2e8848', rng, 20);   // emerald
-    hillLayer(C, W, H, H * 0.66, 55, 5, '#48a050', rng, 18);   // grass green
-    hillLayer(C, W, H, H * 0.74, 40, 5, '#60b858', rng, 16);   // spring green
-    hillLayer(C, W, H, H * 0.82, 30, 6, '#80d060', rng, 14);   // lime
-    hillLayer(C, W, H, H * 0.90, 20, 7, '#98e070', rng, 12);   // pale lime
+    // ── HILLS — dramatically different colors per layer ─────────
+    hillLayer(C, W, H, H * 0.42, 110, 3, '#1a5030', rng, 24);  // dark forest
+    hillLayer(C, W, H, H * 0.52, 80, 4, '#287848', rng, 22);   // deep green
+    hillLayer(C, W, H, H * 0.60, 60, 4, '#38a050', rng, 20);   // emerald
+    hillLayer(C, W, H, H * 0.68, 50, 5, '#58c058', rng, 18);   // bright green
+    hillLayer(C, W, H, H * 0.76, 40, 6, '#78d860', rng, 16);   // lime
+    hillLayer(C, W, H, H * 0.84, 30, 7, '#98e870', rng, 14);   // yellow-green
+    hillLayer(C, W, H, H * 0.92, 20, 8, '#b0f080', rng, 12);   // pale chartreuse
 
     // ── TREES — varied sizes, colors, positions, all grounded ──
-    // Cream/white tree on right — trunk base at hill level
-    drawTree(C, W * 0.76, H * 0.72, H * 0.40, '#ece0c8', '#c8d8a8', rng, true);
-    // Left side — varied dark trees
-    drawTree(C, W * 0.05, H * 0.60, H * 0.22, '#1a4828', '#288838', rng, false);
-    drawTree(C, W * 0.14, H * 0.64, H * 0.18, '#1e5030', '#389048', rng, false);
-    drawTree(C, W * 0.24, H * 0.67, H * 0.15, '#245838', '#48a850', rng, false);
-    drawTree(C, W * 0.33, H * 0.70, H * 0.12, '#2a6040', '#50b058', rng, false);
-    // Right side — a couple more
-    drawTree(C, W * 0.88, H * 0.70, H * 0.16, '#1e5030', '#389048', rng, false);
-    drawTree(C, W * 0.95, H * 0.66, H * 0.20, '#1a4828', '#308840', rng, false);
+    // Cream/white tree on right — trunk base firmly on the ground
+    drawTree(C, W * 0.76, H * 0.82, H * 0.45, '#ece0c8', '#a8c888', rng, true);
+    // Left side — varied trees, all grounded
+    drawTree(C, W * 0.04, H * 0.68, H * 0.24, '#1a4828', '#288838', rng, false);
+    drawTree(C, W * 0.13, H * 0.72, H * 0.20, '#1e5030', '#389048', rng, false);
+    drawTree(C, W * 0.23, H * 0.74, H * 0.16, '#245838', '#48a850', rng, false);
+    drawTree(C, W * 0.35, H * 0.76, H * 0.13, '#2a6040', '#50b058', rng, false);
+    // Right side
+    drawTree(C, W * 0.88, H * 0.76, H * 0.18, '#1e5030', '#389048', rng, false);
+    drawTree(C, W * 0.96, H * 0.72, H * 0.22, '#1a4828', '#308840', rng, false);
 
     // ── FLOWERS ───────────────────────────────────────────────
     const fCols = ['#f06888', '#f0a040', '#88c0e0', '#e060a0', '#f08060', '#b080d0', '#f0e0f0', '#f0c060'];
