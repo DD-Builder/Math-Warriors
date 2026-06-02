@@ -12,7 +12,7 @@ export class TitleScene extends Phaser.Scene {
   create() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const W = GAME_WIDTH, H = GAME_HEIGHT;
-    const rng = makeRng(55);
+    const rng = makeRng(56);
 
     fadeInScene(this);
     audio.playMusic('music/title');
