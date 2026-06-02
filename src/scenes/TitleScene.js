@@ -80,19 +80,19 @@ export class TitleScene extends Phaser.Scene {
     blobShape(C, W * 0.12, H * 0.22, W * 0.15, H * 0.14, '#c85840', rng, 8);
 
     // ── 7. GREEN HILL LAYER 1 (darkest, farthest) ─────────────
-    hillLayer(C, W, H, H * 0.52, 100, 3, '#287038', rng, 14);
+    hillLayer(C, W, H, H * 0.52, 100, 3, '#287038', rng, 18);
 
     // ── 8. GREEN HILL LAYER 2 ─────────────────────────────────
-    hillLayer(C, W, H, H * 0.62, 70, 4, '#3c9040', rng, 12);
+    hillLayer(C, W, H, H * 0.62, 70, 4, '#3c9040', rng, 16);
 
     // ── 9. GREEN HILL LAYER 3 ─────────────────────────────────
-    hillLayer(C, W, H, H * 0.72, 50, 5, '#50a848', rng, 12);
+    hillLayer(C, W, H, H * 0.72, 50, 5, '#50a848', rng, 16);
 
     // ── 10. GREEN HILL LAYER 4 (brightest, closest) ───────────
-    hillLayer(C, W, H, H * 0.82, 35, 6, '#68c050', rng, 10);
+    hillLayer(C, W, H, H * 0.82, 35, 6, '#68c050', rng, 14);
 
     // ── 11. LIME GROUND ───────────────────────────────────────
-    hillLayer(C, W, H, H * 0.90, 20, 8, '#78d860', rng, 8);
+    hillLayer(C, W, H, H * 0.90, 20, 8, '#78d860', rng, 12);
 
     // ── TREES ─────────────────────────────────────────────────
     // Cream/white tree on right — trunk starts ON the hill
@@ -232,7 +232,7 @@ function paperLayer(C, W, H, rng, controlPts, color, shadowDist) {
     C.fill();
   }
 
-  C.fillStyle = 'rgba(0,0,0,0.55)';
+  C.fillStyle = 'rgba(0,0,0,0.75)';
   drawPath(6, shadowDist);
   C.fillStyle = color;
   drawPath(0, 0);
@@ -254,7 +254,7 @@ function blobShape(C, cx, cy, rx, ry, color, rng, shadowDist) {
     C.closePath();
     C.fill();
   }
-  C.fillStyle = 'rgba(0,0,0,0.5)';
+  C.fillStyle = 'rgba(0,0,0,0.7)';
   draw(5, shadowDist);
   C.fillStyle = color;
   draw(0, 0);
@@ -286,7 +286,7 @@ function hillLayer(C, W, H, baseY, amplitude, bumps, color, rng, shadowDist) {
     C.fill();
   }
 
-  C.fillStyle = 'rgba(0,0,0,0.5)';
+  C.fillStyle = 'rgba(0,0,0,0.7)';
   draw(5, shadowDist);
   C.fillStyle = color;
   draw(0, 0);
@@ -301,7 +301,7 @@ function drawTree(C, x, groundY, height, trunkColor, canopyColor, rng, isCream) 
   const trunkTop = groundY - trunkH;
 
   // Shadow
-  C.fillStyle = 'rgba(0,0,0,0.45)';
+  C.fillStyle = 'rgba(0,0,0,0.65)';
   C.fillRect(x - tw / 2 + 6, groundY - trunkH + 10, tw, trunkH);
   // Trunk
   C.fillStyle = trunkColor;
@@ -316,7 +316,7 @@ function drawTree(C, x, groundY, height, trunkColor, canopyColor, rng, isCream) 
     for (const b of brs) {
       const bx = x + Math.sin(b[0]) * height * b[1];
       const by = trunkTop + height * 0.08 - Math.cos(b[0]) * height * b[1];
-      C.strokeStyle = 'rgba(0,0,0,0.4)';
+      C.strokeStyle = 'rgba(0,0,0,0.6)';
       C.beginPath(); C.moveTo(x + 3, trunkTop + height * 0.08 + 6); C.lineTo(bx + 3, by + 6); C.stroke();
       C.strokeStyle = trunkColor;
       C.beginPath(); C.moveTo(x, trunkTop + height * 0.08); C.lineTo(bx, by); C.stroke();
@@ -330,7 +330,7 @@ function drawTree(C, x, groundY, height, trunkColor, canopyColor, rng, isCream) 
   const offsets = [[0, 0, 1.0], [-0.4, -0.3, 0.75], [0.4, -0.2, 0.7], [0, -0.5, 0.6]];
   for (const o of offsets) {
     const cx = x + o[0] * cr * 2, cy = canopyY + o[1] * cr * 2, r = cr * o[2];
-    C.fillStyle = 'rgba(0,0,0,0.4)';
+    C.fillStyle = 'rgba(0,0,0,0.6)';
     C.beginPath(); C.arc(cx + 3, cy + 6, r, 0, Math.PI * 2); C.fill();
     C.fillStyle = canopyColor;
     C.beginPath(); C.arc(cx, cy, r, 0, Math.PI * 2); C.fill();
