@@ -33,30 +33,30 @@ export class TitleScene extends Phaser.Scene {
     C.fillStyle = grd;
     C.fillRect(0, 0, W, H);
 
-    // ── 2. DARK TEAL — covers entire top, curves down at bottom ─
-    // This eliminates the empty white triangle in the center
+    // ── 2. DARK TEAL — full top coverage, NO white triangle ─────
+    // Extends far down so no background peeks through
     paperLayer(C, W, H, rng, [
       [0, 0], [W, 0],
-      [W, H * 0.15],
-      [W * 0.85, H * 0.25],
-      [W * 0.65, H * 0.38],
-      [W * 0.50, H * 0.42],
-      [W * 0.35, H * 0.38],
-      [W * 0.15, H * 0.25],
-      [0, H * 0.15],
-    ], '#0e2e30', 16);
+      [W, H * 0.30],
+      [W * 0.80, H * 0.40],
+      [W * 0.55, H * 0.50],
+      [W * 0.50, H * 0.52],
+      [W * 0.45, H * 0.50],
+      [W * 0.20, H * 0.40],
+      [0, H * 0.30],
+    ], '#0e2e30', 18);
 
-    // ── 3. MEDIUM TEAL — slightly shorter, reveals dark layer ──
+    // ── 3. MEDIUM TEAL — reveals dark layer underneath ─────────
     paperLayer(C, W, H, rng, [
       [0, 0], [W, 0],
-      [W, H * 0.10],
-      [W * 0.88, H * 0.18],
-      [W * 0.70, H * 0.30],
-      [W * 0.50, H * 0.34],
-      [W * 0.30, H * 0.30],
-      [W * 0.12, H * 0.18],
-      [0, H * 0.10],
-    ], '#164840', 14);
+      [W, H * 0.22],
+      [W * 0.82, H * 0.32],
+      [W * 0.60, H * 0.42],
+      [W * 0.50, H * 0.44],
+      [W * 0.40, H * 0.42],
+      [W * 0.18, H * 0.32],
+      [0, H * 0.22],
+    ], '#164840', 16);
 
     // ── 4. TEAL-GREEN side swoops (left) ──────────────────────
     paperLayer(C, W, H, rng, [
@@ -74,20 +74,13 @@ export class TitleScene extends Phaser.Scene {
       [W, H * 0.48],
     ], '#1e6858', 12);
 
-    // ── 7. GREEN HILL LAYER 1 (darkest, farthest) ─────────────
-    hillLayer(C, W, H, H * 0.52, 100, 3, '#287038', rng, 22);
-
-    // ── 8. GREEN HILL LAYER 2 ─────────────────────────────────
-    hillLayer(C, W, H, H * 0.62, 70, 4, '#3c9040', rng, 20);
-
-    // ── 9. GREEN HILL LAYER 3 ─────────────────────────────────
-    hillLayer(C, W, H, H * 0.72, 50, 5, '#50a848', rng, 18);
-
-    // ── 10. GREEN HILL LAYER 4 (brightest, closest) ───────────
-    hillLayer(C, W, H, H * 0.82, 35, 6, '#68c050', rng, 16);
-
-    // ── 11. LIME GROUND ───────────────────────────────────────
-    hillLayer(C, W, H, H * 0.90, 20, 8, '#78d860', rng, 14);
+    // ── HILLS — each a distinctly different color ───────────────
+    hillLayer(C, W, H, H * 0.48, 100, 3, '#1e6038', rng, 22);  // deep forest
+    hillLayer(C, W, H, H * 0.57, 75, 4, '#2e8848', rng, 20);   // emerald
+    hillLayer(C, W, H, H * 0.66, 55, 5, '#48a050', rng, 18);   // grass green
+    hillLayer(C, W, H, H * 0.74, 40, 5, '#60b858', rng, 16);   // spring green
+    hillLayer(C, W, H, H * 0.82, 30, 6, '#80d060', rng, 14);   // lime
+    hillLayer(C, W, H, H * 0.90, 20, 7, '#98e070', rng, 12);   // pale lime
 
     // ── TREES — varied sizes, colors, positions, all grounded ──
     // Cream/white tree on right — trunk base at hill level
