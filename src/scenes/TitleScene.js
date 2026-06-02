@@ -33,51 +33,45 @@ export class TitleScene extends Phaser.Scene {
     C.fillStyle = grd;
     C.fillRect(0, 0, W, H);
 
-    // ── 2. DARK TEAL LAYER 1 — upper-left region ──────────────
-    // Covers the top-left corner, curves smoothly toward center
+    // ── 2. DARK TEAL LAYER 1 — left side, wide coverage ───────
     paperLayer(C, W, H, rng, [
-      [0, 0], [W * 0.55, 0], // top edge
-      [W * 0.50, H * 0.08],  // start curving down-left
-      [W * 0.40, H * 0.25],
-      [W * 0.30, H * 0.50],
-      [W * 0.20, H * 0.65],
-      [W * 0.05, H * 0.75],
-      [0, H * 0.80],          // left edge
-    ], '#0e2e30', 10);
+      [0, 0], [W * 0.65, 0],
+      [W * 0.60, H * 0.12],
+      [W * 0.45, H * 0.28],
+      [W * 0.30, H * 0.42],
+      [W * 0.15, H * 0.55],
+      [0, H * 0.62],
+    ], '#0e2e30', 14);
 
-    // ── 3. DARK TEAL LAYER 2 — upper-right region ─────────────
+    // ── 3. DARK TEAL LAYER 2 — right side, wide coverage ─────
     paperLayer(C, W, H, rng, [
-      [W, 0], [W * 0.45, 0],
-      [W * 0.50, H * 0.06],
-      [W * 0.58, H * 0.20],
-      [W * 0.70, H * 0.42],
-      [W * 0.82, H * 0.58],
-      [W * 0.95, H * 0.70],
-      [W, H * 0.75],
-    ], '#143838', 10);
+      [W, 0], [W * 0.35, 0],
+      [W * 0.40, H * 0.10],
+      [W * 0.55, H * 0.25],
+      [W * 0.72, H * 0.40],
+      [W * 0.88, H * 0.52],
+      [W, H * 0.58],
+    ], '#143838', 14);
 
-    // ── 4. TEAL-GREEN LAYER — left side, slightly brighter ────
+    // ── 4. TEAL-GREEN LAYER — left accent ─────────────────────
     paperLayer(C, W, H, rng, [
-      [0, 0], [W * 0.35, 0],
-      [W * 0.32, H * 0.10],
-      [W * 0.25, H * 0.30],
-      [W * 0.15, H * 0.50],
-      [W * 0.08, H * 0.62],
-      [0, H * 0.68],
-    ], '#1a5448', 8);
+      [0, 0], [W * 0.40, 0],
+      [W * 0.35, H * 0.10],
+      [W * 0.22, H * 0.28],
+      [W * 0.10, H * 0.42],
+      [0, H * 0.50],
+    ], '#1a5448', 12);
 
-    // ── 5. BRIGHT TEAL LAYER — right side accent ──────────────
+    // ── 5. BRIGHT TEAL LAYER — right accent ───────────────────
     paperLayer(C, W, H, rng, [
-      [W, 0], [W * 0.65, 0],
-      [W * 0.68, H * 0.10],
-      [W * 0.75, H * 0.28],
-      [W * 0.85, H * 0.42],
-      [W * 0.93, H * 0.55],
-      [W, H * 0.60],
-    ], '#1e7868', 8);
+      [W, 0], [W * 0.60, 0],
+      [W * 0.65, H * 0.08],
+      [W * 0.78, H * 0.22],
+      [W * 0.90, H * 0.35],
+      [W, H * 0.42],
+    ], '#1e7868', 12);
 
-    // ── 6. CORAL/WARM ACCENT — blob on upper left ─────────────
-    blobShape(C, W * 0.12, H * 0.22, W * 0.15, H * 0.14, '#c85840', rng, 8);
+    // (coral blob removed — was formless and distracting)
 
     // ── 7. GREEN HILL LAYER 1 (darkest, farthest) ─────────────
     hillLayer(C, W, H, H * 0.52, 100, 3, '#287038', rng, 22);
@@ -95,12 +89,12 @@ export class TitleScene extends Phaser.Scene {
     hillLayer(C, W, H, H * 0.90, 20, 8, '#78d860', rng, 14);
 
     // ── TREES ─────────────────────────────────────────────────
-    // Cream/white tree on right — trunk starts ON the hill
-    drawTree(C, W * 0.75, H * 0.42, H * 0.38, '#ece0c8', '#d8d0b0', rng, true);
+    // Cream/white tree on right — ROOTED at the hill line (H*0.68)
+    drawTree(C, W * 0.78, H * 0.68, H * 0.42, '#ece0c8', '#d8d0b0', rng, true);
     // Dark green trees on left — rooted on hills
-    drawTree(C, W * 0.08, H * 0.52, H * 0.22, '#1a4828', '#288838', rng, false);
-    drawTree(C, W * 0.20, H * 0.56, H * 0.18, '#1e5030', '#308840', rng, false);
-    drawTree(C, W * 0.32, H * 0.60, H * 0.14, '#245838', '#389048', rng, false);
+    drawTree(C, W * 0.08, H * 0.58, H * 0.20, '#1a4828', '#288838', rng, false);
+    drawTree(C, W * 0.20, H * 0.62, H * 0.16, '#1e5030', '#308840', rng, false);
+    drawTree(C, W * 0.30, H * 0.66, H * 0.13, '#245838', '#389048', rng, false);
 
     // ── FLOWERS ───────────────────────────────────────────────
     const fCols = ['#f06888', '#f0a040', '#88c0e0', '#e060a0', '#f08060', '#b080d0', '#f0e0f0', '#f0c060'];
@@ -232,10 +226,14 @@ function paperLayer(C, W, H, rng, controlPts, color, shadowDist) {
     C.fill();
   }
 
-  C.fillStyle = 'rgba(0,0,0,0.85)';
-  drawPath(0, shadowDist);
+  C.save();
+  C.shadowColor = 'rgba(0,0,0,0.6)';
+  C.shadowBlur = shadowDist;
+  C.shadowOffsetX = 4;
+  C.shadowOffsetY = shadowDist;
   C.fillStyle = color;
   drawPath(0, 0);
+  C.restore();
 }
 
 /**
@@ -254,10 +252,14 @@ function blobShape(C, cx, cy, rx, ry, color, rng, shadowDist) {
     C.closePath();
     C.fill();
   }
-  C.fillStyle = 'rgba(0,0,0,0.85)';
-  draw(0, shadowDist);
+  C.save();
+  C.shadowColor = 'rgba(0,0,0,0.6)';
+  C.shadowBlur = shadowDist;
+  C.shadowOffsetX = 4;
+  C.shadowOffsetY = shadowDist;
   C.fillStyle = color;
   draw(0, 0);
+  C.restore();
 }
 
 /**
@@ -286,10 +288,14 @@ function hillLayer(C, W, H, baseY, amplitude, bumps, color, rng, shadowDist) {
     C.fill();
   }
 
-  C.fillStyle = 'rgba(0,0,0,0.85)';
-  draw(0, shadowDist);
+  C.save();
+  C.shadowColor = 'rgba(0,0,0,0.65)';
+  C.shadowBlur = shadowDist;
+  C.shadowOffsetX = 0;
+  C.shadowOffsetY = -Math.round(shadowDist * 0.6);
   C.fillStyle = color;
   draw(0, 0);
+  C.restore();
 }
 
 /**
