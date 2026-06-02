@@ -825,5 +825,118 @@ export function drawFloatingPetals(scene, width, height, rng, depth = 9) {
   }
 }
 
-// Re-export scatterPapercutDecor as no-op for backward compat if needed
-export function scatterPapercutDecor() {}
+// ================================================================
+// SCATTER DECOR (backward compat for other scenes)
+// ================================================================
+
+/**
+ * Scatter decorative papercut elements around a scene — clouds, flowers,
+ * butterflies, stars. Used by GradeSelectScene and other menu screens.
+ */
+export function scatterPapercutDecor(scene, gameW, gameH, opts = {}) {
+  const seed = opts.seed ?? 1;
+  const theme = opts.theme ?? 'garden';
+  const rng = makeRng(seed);
+  const ex = opts.excludeRect;
+
+  const isInExcluded = (x, y) => {
+    if (!ex) return false;
+    return Math.abs(x - ex.x) < ex.w / 2 && Math.abs(y - ex.y) < ex.h / 2;
+  };
+
+  // Clouds along the very top edge only
+  for (let i = 0; i < 4; i++) {
+    const x = (i + 0.5) * (gameW / 4) + (rng() - 0.5) * 100;
+    const y = 30 + rng() * 30;
+    if (isInExcluded(x, y)) continue;
+    _drawDecorCloud(scene, x, y, 80 + rng() * 50, 25 + rng() * 10);
+  }
+
+  if (theme === 'garden') {
+    for (let i = 0; i < 8; i++) {
+      const x = 40 + i * (gameW / 9) + (rng() - 0.5) * 30;
+      const y = gameH - 60 - rng() * 40;
+      if (isInExcluded(x, y)) continue;
+      _drawDecorFlower(scene, x, y, 14 + rng() * 6, rng);
+    }
+    const corners = [
+      { x: gameW * 0.10, y: gameH * 0.55 },
+      { x: gameW * 0.90, y: gameH * 0.55 },
+      { x: gameW * 0.15, y: gameH * 0.78 },
+    ];
+    for (const c of corners) {
+      if (isInExcluded(c.x, c.y)) continue;
+      _drawDecorButterfly(scene, c.x + (rng() - 0.5) * 40, c.y + (rng() - 0.5) * 40, 18 + rng() * 6, rng);
+    }
+  }
+
+  if (theme === 'night') {
+    for (let i = 0; i < 12; i++) {
+      const x = rng() * gameW;
+      const y = rng() * (gameH * 0.5);
+      if (isInExcluded(x, y)) continue;
+      _drawDecorStar(scene, x, y, 8 + rng() * 6);
+    }
+  }
+}
+
+function _drawDecorCloud(scene, cx, cy, w, _h) {
+  const gfx = scene.add.graphics();
+  const bumps = 6;
+  gfx.fillStyle(0x000000, 0.1);
+  for (let i = 0; i < bumps; i++) {
+    const t = i / (bumps - 1);
+    const bx = cx + (t - 0.5) * w + 3;
+    const r = w / 5 * (0.8 + Math.sin(t * Math.PI) * 0.5);
+    gfx.fillCircle(bx, cy + 4, r);
+  }
+  gfx.fillStyle(0xffffff, 0.95);
+  for (let i = 0; i < bumps; i++) {
+    const t = i / (bumps - 1);
+    const bx = cx + (t - 0.5) * w;
+    const r = w / 5 * (0.8 + Math.sin(t * Math.PI) * 0.5);
+    gfx.fillCircle(bx, cy, r);
+  }
+}
+
+function _drawDecorFlower(scene, cx, cy, size, rng) {
+  const gfx = scene.add.graphics();
+  const palette = [0xf06080, 0xf0c040, 0xf080c0, 0xff8080, 0xa0d8f0];
+  const color = palette[Math.floor(rng() * palette.length)];
+  gfx.fillStyle(0x388830, 1);
+  gfx.fillRect(cx - 2, cy - size * 0.2, 3, size * 1.2);
+  gfx.fillStyle(color, 1);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    gfx.fillCircle(cx + Math.cos(a) * size * 0.6, cy + Math.sin(a) * size * 0.6, size * 0.5);
+  }
+  gfx.fillStyle(0xfff080, 1);
+  gfx.fillCircle(cx, cy, size * 0.4);
+}
+
+function _drawDecorButterfly(scene, cx, cy, size, rng) {
+  const gfx = scene.add.graphics();
+  const colors = [0xf06888, 0xa050d0, 0x60c8e0, 0xf09030];
+  const c = colors[Math.floor(rng() * colors.length)];
+  gfx.fillStyle(0x3a2410, 1);
+  gfx.fillRoundedRect(cx - 2, cy - size * 0.4, 4, size * 0.8, 1);
+  gfx.fillStyle(c, 0.95);
+  gfx.fillCircle(cx - size * 0.5, cy - size * 0.2, size * 0.45);
+  gfx.fillCircle(cx + size * 0.5, cy - size * 0.2, size * 0.45);
+  gfx.fillCircle(cx - size * 0.4, cy + size * 0.2, size * 0.35);
+  gfx.fillCircle(cx + size * 0.4, cy + size * 0.2, size * 0.35);
+  gfx.fillStyle(0xffffff, 0.7);
+  gfx.fillCircle(cx - size * 0.5, cy - size * 0.2, size * 0.12);
+  gfx.fillCircle(cx + size * 0.5, cy - size * 0.2, size * 0.12);
+}
+
+function _drawDecorStar(scene, cx, cy, size) {
+  const gfx = scene.add.graphics();
+  gfx.fillStyle(0xfff8a0, 0.85);
+  gfx.fillTriangle(cx, cy - size, cx + size * 0.3, cy, cx - size * 0.3, cy);
+  gfx.fillTriangle(cx, cy + size, cx + size * 0.3, cy, cx - size * 0.3, cy);
+  gfx.fillTriangle(cx - size, cy, cx, cy - size * 0.3, cx, cy + size * 0.3);
+  gfx.fillTriangle(cx + size, cy, cx, cy - size * 0.3, cx, cy + size * 0.3);
+  gfx.fillStyle(0xffffff, 0.9);
+  gfx.fillCircle(cx, cy, size * 0.25);
+}
