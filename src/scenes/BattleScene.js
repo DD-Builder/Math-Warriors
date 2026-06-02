@@ -995,6 +995,7 @@ export class BattleScene extends Phaser.Scene {
         },
       });
       btn.cmd = cmd;
+      btn._origY = cmdY;
       this.setUIDepth(btn, 28);
       if (btn.label?.setDepth) btn.label.setDepth(29);
       this.commandButtons.push(btn);
@@ -1009,48 +1010,46 @@ export class BattleScene extends Phaser.Scene {
       if (btn.shadow) btn.shadow.setVisible(visible);
       if (btn.label) btn.label.setVisible(visible);
       if (btn.zone) btn.zone.setVisible(visible);
-      // Subtle bounce animation when showing
-      if (visible) {
-        const elements = [btn.bg, btn.shadow, btn.label, btn.zone].filter(Boolean);
-        for (const el of elements) {
-          el.setScale(0.7);
-          el.setAlpha(0);
-        }
-        this.tweens.add({
-          targets: elements,
-          scaleX: 1, scaleY: 1, alpha: 1,
-          duration: 250,
-          ease: 'Back.out',
-          delay: idx * 60,
-        });
-      }
     }
   }
 
   setCommandMenuForClass(allowedCmds) {
-    let bounceIdx = 0;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const btnW = 160, gap = 22;
+    const visible = this.commandButtons.filter(b => allowedCmds.includes(b.cmd));
+    const totalW = visible.length * btnW + (visible.length - 1) * gap;
+    const startX = area.cx - totalW / 2 + btnW / 2;
+    const cmdY = this.commandButtons[0]?._origY ?? this.eqCenterY;
+
     for (const btn of this.commandButtons) {
       const allowed = allowedCmds.includes(btn.cmd);
       if (btn.bg) btn.bg.setVisible(allowed);
       if (btn.shadow) btn.shadow.setVisible(allowed);
       if (btn.label) btn.label.setVisible(allowed);
       if (btn.zone) btn.zone.setVisible(allowed);
-      // Subtle bounce animation when showing
-      if (allowed) {
-        const elements = [btn.bg, btn.shadow, btn.label, btn.zone].filter(Boolean);
-        for (const el of elements) {
-          el.setScale(0.7);
-          el.setAlpha(0);
-        }
-        this.tweens.add({
-          targets: elements,
-          scaleX: 1, scaleY: 1, alpha: 1,
-          duration: 250,
-          ease: 'Back.out',
-          delay: bounceIdx * 60,
-        });
-        bounceIdx++;
+    }
+
+    let bounceIdx = 0;
+    for (const btn of visible) {
+      const newX = startX + bounceIdx * (btnW + gap);
+      const elements = [btn.bg, btn.shadow, btn.label, btn.zone].filter(Boolean);
+      for (const el of elements) {
+        el.x = newX + (el.x - (btn.bg?.x ?? el.x));
+        el.setScale(0.8);
+        el.setAlpha(0);
       }
+      if (btn.bg) btn.bg.x = newX;
+      if (btn.shadow) btn.shadow.x = newX + 5;
+      if (btn.label) btn.label.x = newX;
+      if (btn.zone) btn.zone.x = newX;
+      this.tweens.add({
+        targets: elements,
+        scaleX: 1, scaleY: 1, alpha: 1,
+        duration: 200,
+        ease: 'Back.out',
+        delay: bounceIdx * 50,
+      });
+      bounceIdx++;
     }
   }
 
@@ -1068,8 +1067,7 @@ export class BattleScene extends Phaser.Scene {
       this.tweens.add({
         targets: cmdElements,
         alpha: 0,
-        y: '+=20',
-        duration: 150,
+        duration: 120,
         ease: 'Cubic.in',
         onComplete: () => this.setCommandMenuVisible(false),
       });

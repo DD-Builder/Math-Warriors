@@ -539,18 +539,27 @@ function playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, re
   };
   const elem = elemColors[op] || elemColors['+'];
 
-  // 0-150ms: LARGER magic circle (70px radius) with counter-rotating second ring
+  // 0-150ms: Large magic circle with counter-rotating rings and inner glow
+  const mcx = heroSprite.x, mcy = heroSprite.y + 20;
+  const innerGlow = scene.add.circle(mcx, mcy, 50, elem.main, 0.2);
+  innerGlow.setDepth(19);
+  scene.tweens.add({ targets: innerGlow, radius: 90, alpha: 0.35, duration: 300, yoyo: true, onComplete: () => innerGlow.destroy() });
+
   const circle1 = scene.add.graphics();
   circle1.setDepth(20);
-  circle1.lineStyle(2, elem.main, 0.6);
-  circle1.strokeCircle(heroSprite.x, heroSprite.y + 20, 70);
-  circle1.lineStyle(1, elem.main, 0.3);
-  circle1.strokeCircle(heroSprite.x, heroSprite.y + 20, 55);
+  circle1.lineStyle(3, elem.main, 0.7);
+  circle1.strokeCircle(mcx, mcy, 80);
+  circle1.lineStyle(2, elem.main, 0.4);
+  circle1.strokeCircle(mcx, mcy, 60);
+  circle1.lineStyle(1, 0xffffff, 0.3);
+  circle1.strokeCircle(mcx, mcy, 40);
 
   const circle2 = scene.add.graphics();
   circle2.setDepth(20);
-  circle2.lineStyle(2, elem.particles[1], 0.5);
-  circle2.strokeCircle(heroSprite.x, heroSprite.y + 20, 80);
+  circle2.lineStyle(3, elem.particles[1], 0.6);
+  circle2.strokeCircle(mcx, mcy, 95);
+  circle2.lineStyle(1, elem.particles[0], 0.3);
+  circle2.strokeCircle(mcx, mcy, 105);
 
   const rotTween1 = scene.tweens.add({
     targets: circle1, rotation: Math.PI * 2,
@@ -561,21 +570,21 @@ function playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, re
     duration: 800, repeat: 0, ease: 'Linear',
   });
 
-  // 150-350ms: Massive particle stream — 50 particles (up from 30)
+  // 150-350ms: Massive particle stream — 65 particles
   scene.time.delayedCall(150, () => {
-    for (let i = 0; i < 50; i++) {
-      const delay = i * 4;
+    for (let i = 0; i < 65; i++) {
+      const delay = i * 3;
       scene.time.delayedCall(delay, () => {
-        const t = i / 50;
+        const t = i / 65;
         const px = heroSprite.x + (enemyX - heroSprite.x) * t;
         const py = heroSprite.y - 20 + (enemyY - heroSprite.y) * t;
-        const spread = 35;
+        const spread = 45;
         const p = scene.add.circle(
           px + (Math.random() - 0.5) * spread,
           py + (Math.random() - 0.5) * spread,
-          4 + Math.random() * 5,
+          5 + Math.random() * 7,
           elem.particles[Math.floor(Math.random() * 3)],
-          0.75,
+          0.8,
         );
         p.setDepth(20);
         scene.tweens.add({
@@ -592,19 +601,26 @@ function playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, re
 
   // 350-550ms: DETONATION at enemy
   scene.time.delayedCall(350, () => {
-    // Full-screen flash — BRIGHTER (0.25 alpha, 250ms)
-    const flash = scene.add.rectangle(720, 540, 1500, 1100, elem.flash, 0.25);
+    // Full-screen flash — BRIGHT
+    const flash = scene.add.rectangle(720, 540, 1500, 1100, elem.flash, 0.35);
     flash.setDepth(21);
-    scene.tweens.add({ targets: flash, alpha: 0, duration: 250, onComplete: () => flash.destroy() });
+    scene.tweens.add({ targets: flash, alpha: 0, duration: 300, onComplete: () => flash.destroy() });
 
-    // Screen shake
-    scene.cameras.main.shake(200, 0.015);
+    // Second white flash for extra punch
+    const whiteFlash = scene.add.rectangle(720, 540, 1500, 1100, 0xffffff, 0.2);
+    whiteFlash.setDepth(22);
+    scene.tweens.add({ targets: whiteFlash, alpha: 0, duration: 150, onComplete: () => whiteFlash.destroy() });
 
-    // Impact ring — 200px (up from 100px)
+    // Heavy screen shake
+    scene.cameras.main.shake(250, 0.02);
+
+    // Triple impact rings — massive
+    impactRing(scene, enemyX, enemyY, 0xffffff, 120);
     impactRing(scene, enemyX, enemyY, elem.main, 200);
+    scene.time.delayedCall(60, () => impactRing(scene, enemyX, enemyY, elem.main, 280));
 
-    // 50+ burst particles (up from 40)
-    sparkBurst(scene, enemyX, enemyY, 52, elem.particles, true);
+    // 70 burst particles
+    sparkBurst(scene, enemyX, enemyY, 70, elem.particles, true);
 
     // Enemy knockback — brief y-offset pushed back 15px
     if (targetSprite && targetSprite.body) {
