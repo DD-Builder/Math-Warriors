@@ -28,9 +28,14 @@ export class TitleScene extends Phaser.Scene {
     // 7 distinct paper layers, back to front.
     // ────────────────────────────────────────────────────────────
 
-    // BG: pale mint
+    // BG: pale mint — fills entire canvas to confirm it renders
     G.fillStyle = rgb(0xd0eacc);
     G.fillRect(0, 0, W, H);
+
+    // DEBUG: bright red X to prove canvas renders
+    G.strokeStyle = 'red'; G.lineWidth = 5;
+    G.beginPath(); G.moveTo(0,0); G.lineTo(W,H); G.stroke();
+    G.beginPath(); G.moveTo(W,0); G.lineTo(0,H); G.stroke();
 
     // Warm glow behind everything
     for (let i = 8; i >= 1; i--) {
@@ -94,8 +99,8 @@ export class TitleScene extends Phaser.Scene {
     creamBorder(G, W, H, 38, rng);
 
     // Register canvas
-    const key = 'title-bg';
-    if (this.textures.exists(key)) this.textures.remove(key);
+    // Register canvas — use unique key to avoid Phaser cache issues
+    const key = 'title-diorama-' + Math.random().toString(36).slice(2, 8);
     this.textures.addCanvas(key, cv);
     this.add.image(W / 2, H / 2, key).setDepth(0);
 
