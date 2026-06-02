@@ -8,10 +8,12 @@ import {
   drawDioramaFrame,
   drawInnerFrameLayers,
   drawCentralGlow,
-  drawDioramaHills,
+  drawFoliageLayers,
   drawTrees,
   drawFlowers,
-  drawMathElements,
+  drawEquationStones,
+  drawCrystal,
+  drawSparkles,
   drawButterflies,
   drawBirds,
   drawFloatingPetals,
@@ -48,20 +50,26 @@ export class TitleScene extends Phaser.Scene {
     drawCentralGlow(this, W, H, 1);
 
     // ============================================================
-    // LAYER 3-6: Hill layers (far to near)
+    // LAYER 3-7: Layered foliage (5 paper layers with thick shadows)
     // ============================================================
-    drawDioramaHills(this, W, H, rng, 3);
+    drawFoliageLayers(this, W, H, rng, 2);
 
     // ============================================================
-    // LAYER 7: Tree silhouettes on left and right
+    // LAYER 8: Trees — cream tree on right, dark trees on left
     // ============================================================
     drawTrees(this, W, H, rng, 5);
 
     // ============================================================
-    // LAYER 8: Flowers along the foreground
+    // LAYER 9: Flowers, number flowers, mushrooms along foreground
     // ============================================================
     drawFlowers(this, W, H, rng, 6);
-    drawMathElements(this, W, H, rng, 7);
+
+    // ============================================================
+    // LAYER 10: Math elements — equation stones, crystal, sparkles
+    // ============================================================
+    drawEquationStones(this, W, H, rng, 6);
+    drawCrystal(this, W, H, rng, 6);
+    drawSparkles(this, W, H, rng, 7);
 
     // ============================================================
     // LAYER 9: Inner frame depth layers (inside the frame opening)
@@ -94,6 +102,7 @@ export class TitleScene extends Phaser.Scene {
       stroke: '#5a3010',
       strokeThickness: 6,
       letterSpacing: 2,
+      shadow: { offsetX: 4, offsetY: 6, color: 'rgba(10,20,20,0.40)', blur: 6, fill: true },
     }).setOrigin(0.5).setDepth(15);
 
     // ============================================================
