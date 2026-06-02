@@ -33,45 +33,46 @@ export class TitleScene extends Phaser.Scene {
     C.fillStyle = grd;
     C.fillRect(0, 0, W, H);
 
-    // ── 2. DARK TEAL LAYER 1 — left side, wide coverage ───────
+    // ── 2. DARK TEAL — covers entire top, curves down at bottom ─
+    // This eliminates the empty white triangle in the center
     paperLayer(C, W, H, rng, [
-      [0, 0], [W * 0.65, 0],
-      [W * 0.60, H * 0.12],
-      [W * 0.45, H * 0.28],
-      [W * 0.30, H * 0.42],
-      [W * 0.15, H * 0.55],
-      [0, H * 0.62],
-    ], '#0e2e30', 14);
+      [0, 0], [W, 0],
+      [W, H * 0.15],
+      [W * 0.85, H * 0.25],
+      [W * 0.65, H * 0.38],
+      [W * 0.50, H * 0.42],
+      [W * 0.35, H * 0.38],
+      [W * 0.15, H * 0.25],
+      [0, H * 0.15],
+    ], '#0e2e30', 16);
 
-    // ── 3. DARK TEAL LAYER 2 — right side, wide coverage ─────
+    // ── 3. MEDIUM TEAL — slightly shorter, reveals dark layer ──
     paperLayer(C, W, H, rng, [
-      [W, 0], [W * 0.35, 0],
-      [W * 0.40, H * 0.10],
-      [W * 0.55, H * 0.25],
-      [W * 0.72, H * 0.40],
-      [W * 0.88, H * 0.52],
-      [W, H * 0.58],
-    ], '#143838', 14);
+      [0, 0], [W, 0],
+      [W, H * 0.10],
+      [W * 0.88, H * 0.18],
+      [W * 0.70, H * 0.30],
+      [W * 0.50, H * 0.34],
+      [W * 0.30, H * 0.30],
+      [W * 0.12, H * 0.18],
+      [0, H * 0.10],
+    ], '#164840', 14);
 
-    // ── 4. TEAL-GREEN LAYER — left accent ─────────────────────
+    // ── 4. TEAL-GREEN side swoops (left) ──────────────────────
     paperLayer(C, W, H, rng, [
-      [0, 0], [W * 0.40, 0],
-      [W * 0.35, H * 0.10],
-      [W * 0.22, H * 0.28],
-      [W * 0.10, H * 0.42],
-      [0, H * 0.50],
+      [0, 0], [W * 0.30, 0],
+      [W * 0.25, H * 0.15],
+      [W * 0.12, H * 0.35],
+      [0, H * 0.48],
     ], '#1a5448', 12);
 
-    // ── 5. BRIGHT TEAL LAYER — right accent ───────────────────
+    // ── 5. TEAL-GREEN side swoops (right) ─────────────────────
     paperLayer(C, W, H, rng, [
-      [W, 0], [W * 0.60, 0],
-      [W * 0.65, H * 0.08],
-      [W * 0.78, H * 0.22],
-      [W * 0.90, H * 0.35],
-      [W, H * 0.42],
-    ], '#1e7868', 12);
-
-    // (coral blob removed — was formless and distracting)
+      [W, 0], [W * 0.70, 0],
+      [W * 0.75, H * 0.15],
+      [W * 0.88, H * 0.35],
+      [W, H * 0.48],
+    ], '#1e6858', 12);
 
     // ── 7. GREEN HILL LAYER 1 (darkest, farthest) ─────────────
     hillLayer(C, W, H, H * 0.52, 100, 3, '#287038', rng, 22);
@@ -88,13 +89,17 @@ export class TitleScene extends Phaser.Scene {
     // ── 11. LIME GROUND ───────────────────────────────────────
     hillLayer(C, W, H, H * 0.90, 20, 8, '#78d860', rng, 14);
 
-    // ── TREES ─────────────────────────────────────────────────
-    // Cream/white tree on right — ROOTED at the hill line (H*0.68)
-    drawTree(C, W * 0.78, H * 0.68, H * 0.42, '#ece0c8', '#d8d0b0', rng, true);
-    // Dark green trees on left — rooted on hills
-    drawTree(C, W * 0.08, H * 0.58, H * 0.20, '#1a4828', '#288838', rng, false);
-    drawTree(C, W * 0.20, H * 0.62, H * 0.16, '#1e5030', '#308840', rng, false);
-    drawTree(C, W * 0.30, H * 0.66, H * 0.13, '#245838', '#389048', rng, false);
+    // ── TREES — varied sizes, colors, positions, all grounded ──
+    // Cream/white tree on right — trunk base at hill level
+    drawTree(C, W * 0.76, H * 0.72, H * 0.40, '#ece0c8', '#c8d8a8', rng, true);
+    // Left side — varied dark trees
+    drawTree(C, W * 0.05, H * 0.60, H * 0.22, '#1a4828', '#288838', rng, false);
+    drawTree(C, W * 0.14, H * 0.64, H * 0.18, '#1e5030', '#389048', rng, false);
+    drawTree(C, W * 0.24, H * 0.67, H * 0.15, '#245838', '#48a850', rng, false);
+    drawTree(C, W * 0.33, H * 0.70, H * 0.12, '#2a6040', '#50b058', rng, false);
+    // Right side — a couple more
+    drawTree(C, W * 0.88, H * 0.70, H * 0.16, '#1e5030', '#389048', rng, false);
+    drawTree(C, W * 0.95, H * 0.66, H * 0.20, '#1a4828', '#308840', rng, false);
 
     // ── FLOWERS ───────────────────────────────────────────────
     const fCols = ['#f06888', '#f0a040', '#88c0e0', '#e060a0', '#f08060', '#b080d0', '#f0e0f0', '#f0c060'];
@@ -265,7 +270,7 @@ function blobShape(C, cx, cy, rx, ry, color, rng, shadowDist) {
 /**
  * Draw a rolling hill layer with shadow.
  */
-function hillLayer(C, W, H, baseY, amplitude, bumps, color, rng, shadowDist) {
+function hillLayer(C, W, H, baseY, amplitude, bumps, color, rng, shadowH) {
   const pts = [];
   const steps = bumps * 14;
   for (let i = 0; i <= steps; i++) {
@@ -278,24 +283,28 @@ function hillLayer(C, W, H, baseY, amplitude, bumps, color, rng, shadowDist) {
     pts.push([x, y]);
   }
 
-  function draw(ox, oy) {
-    C.beginPath();
-    C.moveTo(pts[0][0] + ox, pts[0][1] + oy);
-    for (const p of pts) C.lineTo(p[0] + ox, p[1] + oy);
-    C.lineTo(W + 30 + ox, H + 20 + oy);
-    C.lineTo(-30 + ox, H + 20 + oy);
-    C.closePath();
-    C.fill();
+  // 1. Draw dark shadow strip along the TOP edge of this hill.
+  //    This sits ON the previous layer, creating visible depth.
+  C.fillStyle = 'rgba(0,0,0,0.8)';
+  C.beginPath();
+  C.moveTo(pts[0][0], pts[0][1]);
+  for (const p of pts) C.lineTo(p[0], p[1]);
+  // Shadow strip extends shadowH pixels below the hill edge
+  for (let i = pts.length - 1; i >= 0; i--) {
+    C.lineTo(pts[i][0], pts[i][1] + shadowH);
   }
+  C.closePath();
+  C.fill();
 
-  C.save();
-  C.shadowColor = 'rgba(0,0,0,0.65)';
-  C.shadowBlur = shadowDist;
-  C.shadowOffsetX = 0;
-  C.shadowOffsetY = -Math.round(shadowDist * 0.6);
+  // 2. Draw the hill fill on top of the shadow
   C.fillStyle = color;
-  draw(0, 0);
-  C.restore();
+  C.beginPath();
+  C.moveTo(pts[0][0], pts[0][1]);
+  for (const p of pts) C.lineTo(p[0], p[1]);
+  C.lineTo(W + 30, H + 20);
+  C.lineTo(-30, H + 20);
+  C.closePath();
+  C.fill();
 }
 
 /**
