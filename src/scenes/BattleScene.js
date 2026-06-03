@@ -26,7 +26,7 @@ import { markDailyChallengeComplete, getDailyChallenge } from '../systems/dailyC
 import { invokeAbility } from '../systems/abilities.js';
 import { getAbilitiesForClass } from '../systems/heroAbilities.js';
 import { getEquipmentById } from '../systems/equipment.js';
-import { drawPapercutBackground, drawDioramaFrame } from '../systems/papercut.js';
+import { drawPapercutBackground } from '../systems/papercut.js';
 import { createParallaxBackground, shiftParallaxLayers, startAtmosphericParticles, destroyParallaxBackground } from '../systems/parallaxBg.js';
 import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } from '../systems/envResponsive.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
@@ -259,7 +259,7 @@ export class BattleScene extends Phaser.Scene {
     this.floorOverlay = applyFloorOverlay(this, this.floor, GAME_WIDTH, GAME_HEIGHT);
 
     // Diorama frame — torn paper edges (battle scene only)
-    drawDioramaFrame(this, GAME_WIDTH, GAME_HEIGHT);
+    // diorama frame removed — was distracting
 
     // Environmental responsiveness — subtle mood shifts based on performance
     this.envState = createEnvironmentState(this, this.parallaxState);
