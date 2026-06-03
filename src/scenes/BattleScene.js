@@ -1021,35 +1021,33 @@ export class BattleScene extends Phaser.Scene {
     const startX = area.cx - totalW / 2 + btnW / 2;
     const cmdY = this.commandButtons[0]?._origY ?? this.eqCenterY;
 
+    // Hide ALL buttons first
     for (const btn of this.commandButtons) {
-      const allowed = allowedCmds.includes(btn.cmd);
-      if (btn.bg) btn.bg.setVisible(allowed);
-      if (btn.shadow) btn.shadow.setVisible(allowed);
-      if (btn.label) btn.label.setVisible(allowed);
-      if (btn.zone) btn.zone.setVisible(allowed);
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (el) { el.setVisible(false); el.setAlpha(0); }
+      }
     }
 
-    let bounceIdx = 0;
+    // Show and position only the allowed ones, centered
+    let idx = 0;
     for (const btn of visible) {
-      const newX = startX + bounceIdx * (btnW + gap);
-      const elements = [btn.bg, btn.shadow, btn.label, btn.zone].filter(Boolean);
-      for (const el of elements) {
-        el.x = newX + (el.x - (btn.bg?.x ?? el.x));
-        el.setScale(0.8);
+      const x = startX + idx * (btnW + gap);
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (!el) continue;
+        el.setVisible(true);
         el.setAlpha(0);
+        el.setScale(0.8);
       }
-      if (btn.bg) btn.bg.x = newX;
-      if (btn.shadow) btn.shadow.x = newX + 5;
-      if (btn.label) btn.label.x = newX;
-      if (btn.zone) btn.zone.x = newX;
+      if (btn.bg) btn.bg.x = x;
+      if (btn.shadow) btn.shadow.x = x + 5;
+      if (btn.label) btn.label.x = x;
+      if (btn.zone) btn.zone.x = x;
+      const els = [btn.bg, btn.shadow, btn.label, btn.zone].filter(Boolean);
       this.tweens.add({
-        targets: elements,
-        scaleX: 1, scaleY: 1, alpha: 1,
-        duration: 200,
-        ease: 'Back.out',
-        delay: bounceIdx * 50,
+        targets: els, scaleX: 1, scaleY: 1, alpha: 1,
+        duration: 200, ease: 'Back.out', delay: idx * 50,
       });
-      bounceIdx++;
+      idx++;
     }
   }
 
