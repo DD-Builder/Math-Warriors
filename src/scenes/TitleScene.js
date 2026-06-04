@@ -192,53 +192,48 @@ function dp(b, d) { for (const k of ['bg','shadow','label','zone']) if (b[k]) b[
  * Every piece gets its own drop shadow for depth.
  */
 function drawPaperLetters(C, W, H) {
-  // Each letter is drawn as a solid filled shape using font outlines,
-  // but rendered with a thick colored "edge" layer beneath it to simulate
-  // the visible thickness of a piece of cut paper.
-  //
-  // The key difference from regular text: the edge/thickness layer is a
-  // DIFFERENT, DARKER color drawn multiple times at small offsets to create
-  // a visible 3D slab effect. It's not just a shadow — it's the paper edge.
+  // Each LETTER is a different vibrant color with white outline
+  // and drop shadow — like colorful paper cutout letters.
 
-  C.textAlign = 'center';
-  C.textBaseline = 'middle';
+  const mathColors = ['#e85858', '#4888e0', '#f0a040', '#48b868'];
+  const warColors = ['#e85858', '#4888e0', '#f0a040', '#48b868', '#e060a0', '#4888e0', '#f0a040', '#48b868'];
 
-  function paperWord(word, cx, cy, fontSize, faceColor, edgeColor, shadowColor) {
+  function drawColorfulWord(word, cx, cy, fontSize, colors) {
     C.font = `900 ${fontSize}px "Fredoka One", sans-serif`;
+    C.textBaseline = 'middle';
+    C.textAlign = 'center';
 
-    // 1. Drop shadow (black, offset down)
-    C.fillStyle = shadowColor;
-    C.fillText(word, cx + 4, cy + 14);
+    const totalWidth = C.measureText(word).width;
+    let x = cx - totalWidth / 2;
 
-    // 2. Paper edge/thickness — draw the darker edge color at every
-    //    pixel offset from +10 down to +1, creating a solid colored slab
-    C.fillStyle = edgeColor;
-    for (let dy = 10; dy >= 1; dy--) {
-      C.fillText(word, cx + 1, cy + dy);
+    for (let i = 0; i < word.length; i++) {
+      const ch = word[i];
+      const charW = C.measureText(ch).width;
+      const charCx = x + charW / 2;
+      const color = colors[i % colors.length];
+
+      // Drop shadow
+      C.fillStyle = 'rgba(0,0,0,0.6)';
+      C.textAlign = 'center';
+      C.fillText(ch, charCx + 4, cy + 7);
+
+      // White outline
+      C.lineWidth = 10;
+      C.strokeStyle = '#ffffff';
+      C.lineJoin = 'round';
+      C.miterLimit = 2;
+      C.strokeText(ch, charCx, cy);
+
+      // Colored fill
+      C.fillStyle = color;
+      C.fillText(ch, charCx, cy);
+
+      x += charW;
     }
-
-    // 3. Face — the bright top surface of the paper
-    C.fillStyle = faceColor;
-    C.fillText(word, cx, cy);
-
-    // 4. Subtle highlight along the top edge
-    C.fillStyle = 'rgba(255,255,255,0.18)';
-    C.fillText(word, cx - 1, cy - 1);
   }
 
-  // "MATH" — blue paper
-  paperWord('MATH', W / 2, H * 0.14, 150,
-    '#4888e0',   // bright blue face
-    '#1a3060',   // dark navy edge
-    'rgba(0,0,0,0.7)'
-  );
-
-  // "WARRIORS" — red/coral paper
-  paperWord('WARRIORS', W / 2, H * 0.28, 120,
-    '#e85858',   // bright red face
-    '#601820',   // dark maroon edge
-    'rgba(0,0,0,0.7)'
-  );
+  drawColorfulWord('MATH', W / 2, H * 0.13, 150, mathColors);
+  drawColorfulWord('WARRIORS', W / 2, H * 0.27, 110, warColors);
 }
 
 /**
