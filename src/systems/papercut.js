@@ -731,6 +731,527 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
   return gfx;
 }
 
+// ================================================================
+// WORLD MAP DIORAMA SCENES
+// ================================================================
+
+/**
+ * Screen 1 — Cozy Village: warm blue sky, rolling green hills, cottages,
+ * winding path, fences, a pond, and chimney smoke.
+ */
+export function drawWorldMapVillage(scene, width, height, seed = 500) {
+  const rng = makeRng(seed);
+  const gfx = scene.add.graphics();
+  const shadowOx = 3;
+  const shadowOy = 6;
+
+  // --- Sky ---
+  gfx.fillStyle(0x68b8e8, 1);
+  gfx.fillRect(0, 0, width, height);
+
+  // Warm sun glow upper-center
+  const sunX = width * 0.5;
+  const sunY = height * 0.22;
+  for (let ring = 8; ring >= 1; ring--) {
+    const r = 300 * (ring / 8);
+    const alpha = 0.5 * (1 - ring / 10) * 0.7;
+    gfx.fillStyle(0xfff8d0, alpha);
+    gfx.fillCircle(sunX, sunY, r);
+  }
+  // Sun disc
+  gfx.fillStyle(0xfff0a0, 0.6);
+  gfx.fillCircle(sunX, sunY, 45);
+  gfx.fillStyle(0xfffde0, 0.4);
+  gfx.fillCircle(sunX, sunY, 30);
+
+  // --- Clouds ---
+  for (let i = 0; i < 5; i++) {
+    const cx = width * (0.08 + rng() * 0.84);
+    const cy = height * (0.06 + rng() * 0.16);
+    drawCloud(gfx, cx, cy, 70 + rng() * 80, 18 + rng() * 12, 0xf0f8ff, rng);
+  }
+
+  // --- Distant hills (back layer) ---
+  const hillColors = [
+    { color: 0x78c860, shadow: 0x48a038 },
+    { color: 0x68b850, shadow: 0x389830 },
+    { color: 0x58a840, shadow: 0x288828 },
+  ];
+  for (let li = 0; li < 3; li++) {
+    const baseY = height * (0.48 + li * 0.1);
+    const pts = generateHillPoints(-20, width + 20, baseY, height * (0.14 - li * 0.02), 3 + li, rng, 4);
+    drawPaperLayer(gfx, pts, hillColors[li].color, hillColors[li].shadow, shadowOx, shadowOy, true, height);
+  }
+
+  // --- Ground plane ---
+  const groundY = height * 0.78;
+  gfx.fillStyle(0x000000, 0.25);
+  gfx.fillRect(0, groundY + shadowOy, width, height - groundY);
+  const groundPts = generateHillPoints(-20, width + 20, groundY, height * 0.02, 8, rng, 2);
+  drawPaperLayer(gfx, groundPts, 0x58b040, undefined, 0, 0, true, height);
+
+  // --- Winding path ---
+  const pathPts = [];
+  const pathSteps = 40;
+  for (let i = 0; i <= pathSteps; i++) {
+    const t = i / pathSteps;
+    const px = width * (0.15 + t * 0.7);
+    const py = groundY + 10 + Math.sin(t * Math.PI * 2.5) * 25 + (rng() - 0.5) * 6;
+    pathPts.push({ x: px, y: py });
+  }
+  // Path shadow
+  gfx.lineStyle(22, 0x000000, 0.2);
+  gfx.beginPath();
+  gfx.moveTo(pathPts[0].x + 2, pathPts[0].y + 4);
+  for (let i = 1; i < pathPts.length; i++) gfx.lineTo(pathPts[i].x + 2, pathPts[i].y + 4);
+  gfx.strokePath();
+  // Path main
+  gfx.lineStyle(18, 0xc8a870, 1);
+  gfx.beginPath();
+  gfx.moveTo(pathPts[0].x, pathPts[0].y);
+  for (let i = 1; i < pathPts.length; i++) gfx.lineTo(pathPts[i].x, pathPts[i].y);
+  gfx.strokePath();
+  // Path center line (lighter)
+  gfx.lineStyle(6, 0xd8c090, 0.6);
+  gfx.beginPath();
+  gfx.moveTo(pathPts[0].x, pathPts[0].y);
+  for (let i = 1; i < pathPts.length; i++) gfx.lineTo(pathPts[i].x, pathPts[i].y);
+  gfx.strokePath();
+
+  // --- Houses ---
+  const houses = [
+    { x: width * 0.12, y: groundY - 10, w: 50, h: 40, roofH: 28, color: 0xf5e8d0, roof: 0xc06030 },
+    { x: width * 0.35, y: groundY - 40, w: 55, h: 44, roofH: 32, color: 0xfff0d8, roof: 0xd07838 },
+    { x: width * 0.62, y: groundY - 20, w: 46, h: 36, roofH: 26, color: 0xf0e0c8, roof: 0xb85828 },
+    { x: width * 0.88, y: groundY - 15, w: 52, h: 42, roofH: 30, color: 0xf8eed8, roof: 0xc86830 },
+  ];
+  for (const h of houses) {
+    // House shadow
+    gfx.fillStyle(0x000000, 0.25);
+    gfx.fillRect(h.x - h.w / 2 + 4, h.y - h.h + 5, h.w, h.h);
+    gfx.fillTriangle(h.x - h.w / 2 - 4 + 4, h.y - h.h + 5, h.x + 4, h.y - h.h - h.roofH + 5, h.x + h.w / 2 + 4 + 4, h.y - h.h + 5);
+
+    // Wall
+    gfx.fillStyle(h.color, 1);
+    gfx.fillRect(h.x - h.w / 2, h.y - h.h, h.w, h.h);
+    // Roof
+    gfx.fillStyle(h.roof, 1);
+    gfx.fillTriangle(h.x - h.w / 2 - 6, h.y - h.h, h.x, h.y - h.h - h.roofH, h.x + h.w / 2 + 6, h.y - h.h);
+    // Door
+    gfx.fillStyle(0x6a4020, 1);
+    gfx.fillRect(h.x - 5, h.y - 16, 10, 16);
+    // Windows
+    gfx.fillStyle(0x90c8e8, 0.9);
+    gfx.fillRect(h.x - h.w / 2 + 6, h.y - h.h + 10, 10, 10);
+    gfx.fillRect(h.x + h.w / 2 - 16, h.y - h.h + 10, 10, 10);
+    // Window frames
+    gfx.lineStyle(1.5, 0x4a3020, 0.8);
+    gfx.strokeRect(h.x - h.w / 2 + 6, h.y - h.h + 10, 10, 10);
+    gfx.strokeRect(h.x + h.w / 2 - 16, h.y - h.h + 10, 10, 10);
+    // Chimney
+    gfx.fillStyle(0x8a6040, 1);
+    gfx.fillRect(h.x + h.w / 4, h.y - h.h - h.roofH + 4, 8, h.roofH - 4);
+    // Chimney smoke
+    for (let s = 0; s < 3; s++) {
+      const sx = h.x + h.w / 4 + 4 + (rng() - 0.5) * 12;
+      const sy = h.y - h.h - h.roofH - 6 - s * 10;
+      gfx.fillStyle(0xd0d0d0, 0.3 - s * 0.08);
+      gfx.fillCircle(sx, sy, 5 + s * 2);
+    }
+  }
+
+  // --- Fences ---
+  const fenceSegments = [
+    { x1: width * 0.20, x2: width * 0.32, y: groundY - 4 },
+    { x1: width * 0.68, x2: width * 0.82, y: groundY - 8 },
+  ];
+  for (const f of fenceSegments) {
+    // Fence shadow
+    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillRect(f.x1 + 2, f.y + 3, f.x2 - f.x1, 4);
+    // Horizontal rails
+    gfx.fillStyle(0x8a6840, 1);
+    gfx.fillRect(f.x1, f.y, f.x2 - f.x1, 3);
+    gfx.fillRect(f.x1, f.y - 10, f.x2 - f.x1, 3);
+    // Vertical posts
+    const postCount = Math.floor((f.x2 - f.x1) / 20);
+    for (let p = 0; p <= postCount; p++) {
+      const px = f.x1 + (p / postCount) * (f.x2 - f.x1);
+      gfx.fillRect(px - 2, f.y - 14, 4, 18);
+    }
+  }
+
+  // --- Pond ---
+  const pondX = width * 0.50;
+  const pondY = groundY + 30;
+  gfx.fillStyle(0x000000, 0.2);
+  gfx.fillEllipse(pondX + 3, pondY + 4, 70, 24);
+  gfx.fillStyle(0x4898c8, 0.7);
+  gfx.fillEllipse(pondX, pondY, 70, 24);
+  gfx.fillStyle(0x80c8e8, 0.4);
+  gfx.fillEllipse(pondX - 8, pondY - 3, 30, 10);
+
+  // --- Trees on edges ---
+  const treePositions = [
+    { x: width * 0.04, y: groundY },
+    { x: width * 0.08, y: groundY + 5 },
+    { x: width * 0.92, y: groundY - 5 },
+    { x: width * 0.96, y: groundY },
+  ];
+  for (const tp of treePositions) {
+    const treeH = 50 + rng() * 40;
+    const treePts = generateTreePoints(tp.x, tp.y, treeH, rng);
+    // Shadow
+    drawPaperLayer(gfx, treePts.map(p => ({ x: p.x + 3, y: p.y + 5 })), 0x000000, undefined, 0, 0, false, 0);
+    // Tree
+    drawPaperLayer(gfx, treePts, 0x388828, undefined, 0, 0, false, 0);
+  }
+
+  // --- Flowers ---
+  for (let i = 0; i < 16; i++) {
+    const fx = width * (0.05 + rng() * 0.9);
+    const fy = groundY - rng() * 12 + 5;
+    const fr = 2 + rng() * 3;
+    const flowerColors = [0xf06888, 0xf0a848, 0xd040d0, 0xf0c040, 0xff7070];
+    gfx.fillStyle(flowerColors[Math.floor(rng() * flowerColors.length)], 0.8);
+    gfx.fillCircle(fx, fy, fr);
+  }
+
+  return gfx;
+}
+
+/**
+ * Screen 2 — Crystal Caves: deep purple/blue cavern, stalactites,
+ * glowing crystals, rocky floor.
+ */
+export function drawWorldMapCaves(scene, width, height, seed = 600) {
+  const rng = makeRng(seed);
+  const gfx = scene.add.graphics();
+  const shadowOx = 3;
+  const shadowOy = 6;
+
+  // --- Cavern background (deep purple gradient) ---
+  gfx.fillStyle(0x18102a, 1);
+  gfx.fillRect(0, 0, width, height);
+  // Lighter center glow
+  for (let ring = 6; ring >= 1; ring--) {
+    const r = 350 * (ring / 6);
+    const alpha = 0.25 * (1 - ring / 8);
+    gfx.fillStyle(0x2a1848, alpha);
+    gfx.fillCircle(width * 0.5, height * 0.45, r);
+  }
+
+  // --- Ceiling (dark rock at top) ---
+  const ceilPts = generateVolcanicPeakPoints(-20, width + 20, height * 0.08, height * 0.06, 6, rng, 3);
+  drawPaperLayer(gfx, ceilPts.map(p => ({ x: p.x, y: height * 0.15 - (p.y - height * 0.08) })),
+    0x0e0818, 0x000000, shadowOx, shadowOy, false, 0);
+  // Fill from top to ceiling line
+  gfx.fillStyle(0x0e0818, 1);
+  gfx.fillRect(0, 0, width, height * 0.06);
+
+  // --- Stalactites (hanging from top) ---
+  const stalactiteCount = 12;
+  for (let i = 0; i < stalactiteCount; i++) {
+    const sx = width * (0.05 + (i / stalactiteCount) * 0.9) + (rng() - 0.5) * 40;
+    const sBaseY = height * 0.03 + rng() * height * 0.04;
+    const sLen = 40 + rng() * 80;
+    const sW = 8 + rng() * 12;
+
+    // Shadow
+    gfx.fillStyle(0x000000, 0.3);
+    gfx.fillTriangle(sx - sW / 2 + 3, sBaseY + 4, sx + 3, sBaseY + sLen + 4, sx + sW / 2 + 3, sBaseY + 4);
+    // Stalactite body
+    gfx.fillStyle(0x2a1840, 1);
+    gfx.fillTriangle(sx - sW / 2, sBaseY, sx, sBaseY + sLen, sx + sW / 2, sBaseY);
+    // Highlight edge
+    gfx.fillStyle(0x3a2858, 0.6);
+    gfx.fillTriangle(sx - sW / 4, sBaseY, sx, sBaseY + sLen * 0.7, sx + sW / 8, sBaseY);
+  }
+
+  // --- Rock layers (cavern walls) ---
+  const rockLayers = [
+    { baseY: 0.52, peakH: 0.12, color: 0x1a1030, shadow: 0x0c0818, peaks: 4 },
+    { baseY: 0.60, peakH: 0.10, color: 0x221440, shadow: 0x140c28, peaks: 5 },
+    { baseY: 0.68, peakH: 0.08, color: 0x2a1850, shadow: 0x1a1038, peaks: 4 },
+  ];
+  for (const rl of rockLayers) {
+    const pts = generateVolcanicPeakPoints(-20, width + 20, height * rl.baseY, height * rl.peakH, rl.peaks, rng, 3);
+    drawPaperLayer(gfx, pts, rl.color, rl.shadow, shadowOx, shadowOy, true, height);
+  }
+
+  // --- Rocky ground floor ---
+  const groundY = height * 0.82;
+  const groundPts = generateVolcanicPeakPoints(-20, width + 20, groundY, height * 0.025, 10, rng, 2);
+  gfx.fillStyle(0x000000, 0.3);
+  gfx.fillRect(0, groundY + shadowOy, width, height - groundY);
+  drawPaperLayer(gfx, groundPts, 0x1a1030, undefined, 0, 0, true, height);
+
+  // --- Stalagmites (rising from floor) ---
+  for (let i = 0; i < 8; i++) {
+    const mx = width * (0.04 + rng() * 0.92);
+    const mLen = 25 + rng() * 45;
+    const mW = 10 + rng() * 14;
+    // Shadow
+    gfx.fillStyle(0x000000, 0.25);
+    gfx.fillTriangle(mx - mW / 2 + 2, groundY + 3, mx + 2, groundY - mLen + 3, mx + mW / 2 + 2, groundY + 3);
+    // Body
+    gfx.fillStyle(0x2a1848, 1);
+    gfx.fillTriangle(mx - mW / 2, groundY, mx, groundY - mLen, mx + mW / 2, groundY);
+  }
+
+  // --- Crystal clusters ---
+  const crystals = [
+    { x: width * 0.10, y: groundY - 15, h: 50, color: 0x40e8e8, glow: 0x40e8e8 },
+    { x: width * 0.25, y: height * 0.38, h: 35, color: 0xc060e0, glow: 0xc060e0 },
+    { x: width * 0.40, y: groundY - 20, h: 55, color: 0xe060a0, glow: 0xe060a0 },
+    { x: width * 0.55, y: height * 0.30, h: 30, color: 0x40e8e8, glow: 0x40e8e8 },
+    { x: width * 0.70, y: groundY - 10, h: 45, color: 0xc060e0, glow: 0xc060e0 },
+    { x: width * 0.85, y: groundY - 18, h: 52, color: 0x40e8e8, glow: 0x40e8e8 },
+    { x: width * 0.15, y: height * 0.22, h: 28, color: 0xe060a0, glow: 0xe060a0 },
+    { x: width * 0.78, y: height * 0.25, h: 32, color: 0xc060e0, glow: 0xc060e0 },
+  ];
+  for (const c of crystals) {
+    const cw = c.h * 0.3;
+    // Glow effect
+    gfx.fillStyle(c.glow, 0.12);
+    gfx.fillCircle(c.x, c.y - c.h * 0.4, c.h * 0.7);
+    gfx.fillStyle(c.glow, 0.06);
+    gfx.fillCircle(c.x, c.y - c.h * 0.4, c.h * 1.1);
+
+    // Draw 2-3 crystal shards per cluster
+    const shardCount = 2 + Math.floor(rng() * 2);
+    for (let s = 0; s < shardCount; s++) {
+      const ox = (s - shardCount / 2) * cw * 0.6;
+      const sh = c.h * (0.6 + rng() * 0.5);
+      const sw = cw * (0.5 + rng() * 0.3);
+      // Shadow
+      gfx.fillStyle(0x000000, 0.3);
+      gfx.fillTriangle(c.x + ox - sw / 2 + 2, c.y + 3, c.x + ox + 2, c.y - sh + 3, c.x + ox + sw / 2 + 2, c.y + 3);
+      // Crystal body (diamond shape)
+      gfx.fillStyle(c.color, 0.85);
+      gfx.fillTriangle(c.x + ox - sw / 2, c.y, c.x + ox, c.y - sh, c.x + ox + sw / 2, c.y);
+      // Highlight
+      gfx.fillStyle(0xffffff, 0.25);
+      gfx.fillTriangle(c.x + ox - sw / 4, c.y - sh * 0.2, c.x + ox, c.y - sh, c.x + ox + sw / 8, c.y - sh * 0.2);
+    }
+  }
+
+  // --- Ambient glow particles ---
+  for (let i = 0; i < 20; i++) {
+    const px = rng() * width;
+    const py = rng() * height * 0.85;
+    const pr = 1.5 + rng() * 2.5;
+    const sparkColors = [0x40e8e8, 0xc060e0, 0xe060a0, 0x80b0ff];
+    gfx.fillStyle(sparkColors[Math.floor(rng() * sparkColors.length)], 0.3 + rng() * 0.4);
+    gfx.fillCircle(px, py, pr);
+  }
+
+  return gfx;
+}
+
+/**
+ * Screen 3 — Magic Realm: dark twilight sky with stars, floating islands,
+ * magical portals, mystical trees.
+ */
+export function drawWorldMapMagicRealm(scene, width, height, seed = 700) {
+  const rng = makeRng(seed);
+  const gfx = scene.add.graphics();
+  const shadowOx = 3;
+  const shadowOy = 6;
+
+  // --- Twilight sky ---
+  gfx.fillStyle(0x180c30, 1);
+  gfx.fillRect(0, 0, width, height);
+  // Gradient: lighter purple near horizon
+  for (let band = 0; band < 6; band++) {
+    const bandY = height * (0.5 + band * 0.08);
+    const bandH = height * 0.1;
+    const alpha = 0.04 + band * 0.02;
+    gfx.fillStyle(0x2a1850, alpha);
+    gfx.fillRect(0, bandY, width, bandH);
+  }
+
+  // Central magical glow
+  for (let ring = 8; ring >= 1; ring--) {
+    const r = 280 * (ring / 8);
+    const alpha = 0.3 * (1 - ring / 10) * 0.6;
+    gfx.fillStyle(0x5030a0, alpha);
+    gfx.fillCircle(width * 0.5, height * 0.35, r);
+  }
+  gfx.fillStyle(0x7050c0, 0.15);
+  gfx.fillCircle(width * 0.5, height * 0.35, 80);
+
+  // --- Stars ---
+  for (let i = 0; i < 60; i++) {
+    const sx = rng() * width;
+    const sy = rng() * height * 0.55;
+    const sr = 0.8 + rng() * 2;
+    const starColors = [0xffffff, 0xfff8d0, 0xd0d8ff, 0xffe8a0];
+    gfx.fillStyle(starColors[Math.floor(rng() * starColors.length)], 0.5 + rng() * 0.5);
+    gfx.fillCircle(sx, sy, sr);
+  }
+  // A few brighter stars with small glow
+  for (let i = 0; i < 6; i++) {
+    const sx = rng() * width;
+    const sy = rng() * height * 0.4;
+    gfx.fillStyle(0xffffff, 0.15);
+    gfx.fillCircle(sx, sy, 6);
+    gfx.fillStyle(0xffffff, 0.7);
+    gfx.fillCircle(sx, sy, 1.5);
+  }
+
+  // --- Floating islands ---
+  const islands = [
+    { x: width * 0.12, y: height * 0.30, w: 100, h: 24 },
+    { x: width * 0.32, y: height * 0.50, w: 130, h: 28 },
+    { x: width * 0.55, y: height * 0.22, w: 110, h: 22 },
+    { x: width * 0.78, y: height * 0.40, w: 120, h: 26 },
+    { x: width * 0.90, y: height * 0.55, w: 90, h: 20 },
+  ];
+  for (const isl of islands) {
+    // Floating shadow beneath island
+    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillEllipse(isl.x + 4, isl.y + isl.h + 14, isl.w * 0.8, isl.h * 0.6);
+
+    // Island underside (dark rock)
+    gfx.fillStyle(0x1a1030, 0.9);
+    gfx.beginPath();
+    gfx.moveTo(isl.x - isl.w / 2 + 10, isl.y + 4);
+    gfx.lineTo(isl.x - isl.w / 4, isl.y + isl.h + 8 + rng() * 10);
+    gfx.lineTo(isl.x, isl.y + isl.h + 15 + rng() * 8);
+    gfx.lineTo(isl.x + isl.w / 4, isl.y + isl.h + 10 + rng() * 8);
+    gfx.lineTo(isl.x + isl.w / 2 - 10, isl.y + 4);
+    gfx.closePath();
+    gfx.fillPath();
+
+    // Island top surface (green)
+    const topPts = [];
+    const topSteps = 16;
+    for (let s = 0; s <= topSteps; s++) {
+      const t = s / topSteps;
+      const px = isl.x - isl.w / 2 + t * isl.w;
+      const py = isl.y - Math.sin(t * Math.PI) * isl.h * 0.5 + (rng() - 0.5) * 3;
+      topPts.push({ x: px, y: py });
+    }
+    // Shadow
+    drawPaperLayer(gfx, topPts.map(p => ({ x: p.x + shadowOx, y: p.y + shadowOy })),
+      0x000000, undefined, 0, 0, true, isl.y + 6);
+    // Surface
+    drawPaperLayer(gfx, topPts, 0x38a848, undefined, 0, 0, true, isl.y + 4);
+    // Lighter grass highlight
+    gfx.fillStyle(0x58c858, 0.5);
+    gfx.fillEllipse(isl.x, isl.y - isl.h * 0.15, isl.w * 0.6, isl.h * 0.4);
+
+    // Small mystical trees on some islands
+    if (rng() > 0.35) {
+      const tx = isl.x + (rng() - 0.5) * isl.w * 0.4;
+      const ty = isl.y - isl.h * 0.3;
+      const treeH = 20 + rng() * 18;
+      // Trunk
+      gfx.fillStyle(0x4a3020, 1);
+      gfx.fillRect(tx - 2, ty - treeH * 0.3, 4, treeH * 0.5);
+      // Glowing foliage
+      gfx.fillStyle(0x30c848, 0.15);
+      gfx.fillCircle(tx, ty - treeH * 0.5, treeH * 0.6);
+      gfx.fillStyle(0x40d858, 0.7);
+      gfx.fillCircle(tx, ty - treeH * 0.5, treeH * 0.35);
+      gfx.fillStyle(0x80ff90, 0.3);
+      gfx.fillCircle(tx - 3, ty - treeH * 0.55, treeH * 0.2);
+    }
+  }
+
+  // --- Main ground (floating mainland) ---
+  const groundY = height * 0.78;
+  // Rock underside
+  gfx.fillStyle(0x1a1030, 0.85);
+  gfx.beginPath();
+  gfx.moveTo(0, groundY + 10);
+  for (let px = 0; px <= width; px += 30) {
+    const dy = 20 + rng() * 40;
+    gfx.lineTo(px, groundY + 10 + dy);
+  }
+  gfx.lineTo(width, height);
+  gfx.lineTo(0, height);
+  gfx.closePath();
+  gfx.fillPath();
+
+  // Ground surface
+  gfx.fillStyle(0x000000, 0.3);
+  gfx.fillRect(0, groundY + shadowOy, width, 20);
+  const groundPts = generateHillPoints(-20, width + 20, groundY, height * 0.018, 7, rng, 3);
+  drawPaperLayer(gfx, groundPts, 0x2a6838, undefined, 0, 0, true, groundY + 10);
+  // Lighter grass
+  gfx.fillStyle(0x38a848, 0.4);
+  gfx.fillRect(0, groundY - 2, width, 6);
+
+  // --- Magical portals ---
+  const portals = [
+    { x: width * 0.20, y: height * 0.60, r: 30, color: 0xd0a030 },
+    { x: width * 0.75, y: height * 0.52, r: 35, color: 0x8050c0 },
+  ];
+  for (const p of portals) {
+    // Outer glow
+    gfx.fillStyle(p.color, 0.08);
+    gfx.fillCircle(p.x, p.y, p.r * 2.5);
+    gfx.fillStyle(p.color, 0.12);
+    gfx.fillCircle(p.x, p.y, p.r * 1.8);
+    // Concentric rings
+    gfx.lineStyle(3, p.color, 0.7);
+    gfx.strokeCircle(p.x, p.y, p.r);
+    gfx.lineStyle(2, p.color, 0.5);
+    gfx.strokeCircle(p.x, p.y, p.r * 0.7);
+    gfx.lineStyle(1.5, p.color, 0.3);
+    gfx.strokeCircle(p.x, p.y, p.r * 1.3);
+    // Center glow
+    gfx.fillStyle(p.color, 0.35);
+    gfx.fillCircle(p.x, p.y, p.r * 0.4);
+    gfx.fillStyle(0xffffff, 0.2);
+    gfx.fillCircle(p.x, p.y, p.r * 0.2);
+  }
+
+  // --- Mystical trees (ground level) ---
+  const mTrees = [
+    { x: width * 0.05, y: groundY },
+    { x: width * 0.42, y: groundY - 5 },
+    { x: width * 0.60, y: groundY - 3 },
+    { x: width * 0.95, y: groundY },
+  ];
+  for (const mt of mTrees) {
+    const treeH = 55 + rng() * 35;
+    // Trunk
+    gfx.fillStyle(0x2a1840, 1);
+    gfx.fillRect(mt.x - 4, mt.y - treeH * 0.7, 8, treeH * 0.7);
+    // Glowing foliage — outer glow
+    gfx.fillStyle(0x40c060, 0.1);
+    gfx.fillCircle(mt.x, mt.y - treeH * 0.75, treeH * 0.55);
+    // Foliage body
+    gfx.fillStyle(0x30a048, 0.8);
+    gfx.fillCircle(mt.x, mt.y - treeH * 0.75, treeH * 0.32);
+    gfx.fillStyle(0x50c868, 0.5);
+    gfx.fillCircle(mt.x - 5, mt.y - treeH * 0.8, treeH * 0.22);
+    gfx.fillCircle(mt.x + 8, mt.y - treeH * 0.7, treeH * 0.2);
+    // Glow particles around foliage
+    for (let g = 0; g < 4; g++) {
+      const gx = mt.x + (rng() - 0.5) * treeH * 0.7;
+      const gy = mt.y - treeH * 0.75 + (rng() - 0.5) * treeH * 0.5;
+      gfx.fillStyle(0x80ff90, 0.3 + rng() * 0.2);
+      gfx.fillCircle(gx, gy, 2 + rng() * 2);
+    }
+  }
+
+  // --- Magic particles throughout ---
+  for (let i = 0; i < 30; i++) {
+    const px = rng() * width;
+    const py = rng() * height * 0.85;
+    const pr = 1 + rng() * 2;
+    const particleColors = [0xf0c040, 0xc080ff, 0x80ff90, 0xff80c0, 0x80d0ff];
+    gfx.fillStyle(particleColors[Math.floor(rng() * particleColors.length)], 0.3 + rng() * 0.4);
+    gfx.fillCircle(px, py, pr);
+  }
+
+  return gfx;
+}
+
 /**
  * Draw a torn-paper diorama frame around the edges of the scene.
  * This should only be used on the battle scene, not on every scene.

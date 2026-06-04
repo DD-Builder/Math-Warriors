@@ -3,7 +3,7 @@ import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } fro
 import { loadSave, writeSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
 import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES, levelBonuses, getAvailableSupers, LEVEL_THRESHOLDS, getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
-import { drawPapercutBackground } from '../systems/papercut.js';
+import { drawPapercutBackground, drawWorldMapVillage, drawWorldMapCaves, drawWorldMapMagicRealm } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
@@ -26,8 +26,6 @@ const FLOOR_INFO = [
   { id: 8, name: 'INFINITY LIBRARY', tagline: 'Word Problems',  color: 0x604020 },
   { id: 9, name: 'MENDING ROOM',     tagline: 'All Operations', color: 0x8830b8 },
 ];
-
-const SCREEN_PALETTES = [1, 4, 9];
 
 export class WorldMapScene extends Phaser.Scene {
   constructor() {
@@ -79,10 +77,11 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   buildBackgrounds() {
+    const drawFns = [drawWorldMapVillage, drawWorldMapCaves, drawWorldMapMagicRealm];
     for (let s = 0; s < TOTAL_SCREENS; s++) {
       const offsetX = s * SCREEN_W;
       const before = this.children.list.length;
-      drawPapercutBackground(this, SCREEN_PALETTES[s], SCREEN_W, GAME_HEIGHT, 777 + s * 100);
+      drawFns[s](this, SCREEN_W, GAME_HEIGHT, 777 + s * 100);
       const after = this.children.list.length;
       for (let i = before; i < after; i++) {
         const obj = this.children.list[i];
