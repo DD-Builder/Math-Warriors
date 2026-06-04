@@ -192,48 +192,60 @@ function dp(b, d) { for (const k of ['bg','shadow','label','zone']) if (b[k]) b[
  * Every piece gets its own drop shadow for depth.
  */
 function drawPaperLetters(C, W, H) {
-  // Each LETTER is a different vibrant color with white outline
-  // and drop shadow — like colorful paper cutout letters.
+  // Each letter is a different color AND has visible paper thickness.
+  // The thickness is a darker shade drawn as a solid slab beneath the
+  // face color — same technique as the hill layers.
 
-  const mathColors = ['#e85858', '#4888e0', '#f0a040', '#48b868'];
-  const warColors = ['#e85858', '#4888e0', '#f0a040', '#48b868', '#e060a0', '#4888e0', '#f0a040', '#48b868'];
+  const mathFace = ['#e85858', '#4888e0', '#f0a040', '#48b868'];
+  const mathEdge = ['#981818', '#1a3870', '#a06010', '#1a6830'];
+  const warFace  = ['#48b868', '#e060a0', '#4888e0', '#f0a040', '#e85858', '#48b868', '#f0a040', '#4888e0'];
+  const warEdge  = ['#1a6830', '#801040', '#1a3870', '#a06010', '#981818', '#1a6830', '#a06010', '#1a3870'];
 
-  function drawColorfulWord(word, cx, cy, fontSize, colors) {
+  function drawPaperWord(word, cx, cy, fontSize, faceColors, edgeColors) {
     C.font = `900 ${fontSize}px "Fredoka One", sans-serif`;
     C.textBaseline = 'middle';
     C.textAlign = 'center';
 
     const totalWidth = C.measureText(word).width;
     let x = cx - totalWidth / 2;
+    const thickness = 8;
 
     for (let i = 0; i < word.length; i++) {
       const ch = word[i];
       const charW = C.measureText(ch).width;
       const charCx = x + charW / 2;
-      const color = colors[i % colors.length];
+      const face = faceColors[i % faceColors.length];
+      const edge = edgeColors[i % edgeColors.length];
 
-      // Drop shadow
-      C.fillStyle = 'rgba(0,0,0,0.6)';
       C.textAlign = 'center';
-      C.fillText(ch, charCx + 4, cy + 7);
 
-      // White outline
-      C.lineWidth = 10;
+      // 1. Black shadow beneath everything
+      C.fillStyle = 'rgba(0,0,0,0.7)';
+      C.fillText(ch, charCx + 3, cy + thickness + 6);
+
+      // 2. Paper edge/thickness — solid darker color slab
+      C.fillStyle = edge;
+      for (let dy = thickness; dy >= 1; dy--) {
+        C.fillText(ch, charCx + 1, cy + dy);
+      }
+
+      // 3. White border around the face
+      C.lineWidth = 6;
       C.strokeStyle = '#ffffff';
       C.lineJoin = 'round';
       C.miterLimit = 2;
       C.strokeText(ch, charCx, cy);
 
-      // Colored fill
-      C.fillStyle = color;
+      // 4. Bright face color
+      C.fillStyle = face;
       C.fillText(ch, charCx, cy);
 
       x += charW;
     }
   }
 
-  drawColorfulWord('MATH', W / 2, H * 0.13, 150, mathColors);
-  drawColorfulWord('WARRIORS', W / 2, H * 0.27, 110, warColors);
+  drawPaperWord('MATH', W / 2, H * 0.12, 155, mathFace, mathEdge);
+  drawPaperWord('WARRIORS', W / 2, H * 0.26, 112, warFace, warEdge);
 }
 
 /**
