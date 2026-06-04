@@ -192,140 +192,53 @@ function dp(b, d) { for (const k of ['bg','shadow','label','zone']) if (b[k]) b[
  * Every piece gets its own drop shadow for depth.
  */
 function drawPaperLetters(C, W, H) {
-  const mathY = H * 0.08;
-  const warY = H * 0.22;
-  const s = H * 0.001; // scale factor
+  // Each letter is drawn as a solid filled shape using font outlines,
+  // but rendered with a thick colored "edge" layer beneath it to simulate
+  // the visible thickness of a piece of cut paper.
+  //
+  // The key difference from regular text: the edge/thickness layer is a
+  // DIFFERENT, DARKER color drawn multiple times at small offsets to create
+  // a visible 3D slab effect. It's not just a shadow — it's the paper edge.
 
-  // Helper: draw one paper piece (shadow + fill + highlight)
-  function piece(x, y, w, h, color, shadowColor, angle) {
-    C.save();
-    C.translate(x + w / 2, y + h / 2);
-    if (angle) C.rotate(angle);
-    // Shadow
-    C.fillStyle = shadowColor || 'rgba(0,0,0,0.6)';
-    C.fillRect(-w / 2 + 3, -h / 2 + 6, w, h);
-    // Main fill
-    C.fillStyle = color;
-    C.fillRect(-w / 2, -h / 2, w, h);
-    // Top highlight
-    C.fillStyle = 'rgba(255,255,255,0.15)';
-    C.fillRect(-w / 2, -h / 2, w, h * 0.15);
-    C.restore();
+  C.textAlign = 'center';
+  C.textBaseline = 'middle';
+
+  function paperWord(word, cx, cy, fontSize, faceColor, edgeColor, shadowColor) {
+    C.font = `900 ${fontSize}px "Fredoka One", sans-serif`;
+
+    // 1. Drop shadow (black, offset down)
+    C.fillStyle = shadowColor;
+    C.fillText(word, cx + 4, cy + 14);
+
+    // 2. Paper edge/thickness — draw the darker edge color at every
+    //    pixel offset from +10 down to +1, creating a solid colored slab
+    C.fillStyle = edgeColor;
+    for (let dy = 10; dy >= 1; dy--) {
+      C.fillText(word, cx + 1, cy + dy);
+    }
+
+    // 3. Face — the bright top surface of the paper
+    C.fillStyle = faceColor;
+    C.fillText(word, cx, cy);
+
+    // 4. Subtle highlight along the top edge
+    C.fillStyle = 'rgba(255,255,255,0.18)';
+    C.fillText(word, cx - 1, cy - 1);
   }
 
-  // Helper: triangular paper piece
-  function tri(x1, y1, x2, y2, x3, y3, color) {
-    C.fillStyle = 'rgba(0,0,0,0.6)';
-    C.beginPath(); C.moveTo(x1+3,y1+6); C.lineTo(x2+3,y2+6); C.lineTo(x3+3,y3+6); C.fill();
-    C.fillStyle = color;
-    C.beginPath(); C.moveTo(x1,y1); C.lineTo(x2,y2); C.lineTo(x3,y3); C.fill();
-  }
+  // "MATH" — blue paper
+  paperWord('MATH', W / 2, H * 0.14, 150,
+    '#4888e0',   // bright blue face
+    '#1a3060',   // dark navy edge
+    'rgba(0,0,0,0.7)'
+  );
 
-  // Helper: circular paper piece
-  function circ(cx, cy, r, color) {
-    C.fillStyle = 'rgba(0,0,0,0.6)';
-    C.beginPath(); C.arc(cx+3, cy+6, r, 0, Math.PI*2); C.fill();
-    C.fillStyle = color;
-    C.beginPath(); C.arc(cx, cy, r, 0, Math.PI*2); C.fill();
-  }
-
-  // Color palette for "MATH" (blues/teals)
-  const blue1 = '#3878c8', blue2 = '#4888e0', blue3 = '#5898f0', blue4 = '#68a8f8';
-  // Color palette for "WARRIORS" (reds/corals)
-  const red1 = '#c03838', red2 = '#d84848', red3 = '#e85858', red4 = '#f07068';
-
-  const lw = 22; // letter stroke width
-  const lh = 110; // letter height
-  const gap = 12; // gap between letters
-
-  // ═══════════════════════════════════════════
-  // M - A - T - H
-  // ═══════════════════════════════════════════
-  const mathW = lw * 4 + lh * 0.6 * 2 + gap * 3; // approximate total width
-  let cx = W / 2 - mathW / 2;
-
-  // M: left vertical + right vertical + two diagonals
-  piece(cx, mathY, lw, lh, blue1, null, 0);
-  piece(cx + lw + lh * 0.25, mathY, lw, lh, blue1, null, 0);
-  piece(cx + lw * 0.3, mathY, lw * 0.8, lh * 0.6, blue2, null, 0.25);
-  piece(cx + lw + lh * 0.12, mathY, lw * 0.8, lh * 0.6, blue2, null, -0.25);
-  cx += lw * 2 + lh * 0.25 + gap + 15;
-
-  // A: two diagonals + horizontal bar
-  const aW = lh * 0.55;
-  piece(cx, mathY, lw, lh, blue3, null, 0.18);
-  piece(cx + aW - lw, mathY, lw, lh, blue3, null, -0.18);
-  piece(cx + lw * 0.3, mathY + lh * 0.5, aW - lw * 0.6, lw * 0.8, blue4, null, 0);
-  // A top triangle
-  tri(cx + aW * 0.5 - 8, mathY - 5, cx + aW * 0.5 + 8, mathY - 5, cx + aW * 0.5, mathY - 20, blue2);
-  cx += aW + gap + 5;
-
-  // T: horizontal top bar + vertical center
-  piece(cx, mathY, lh * 0.55, lw, blue1, null, 0);
-  piece(cx + lh * 0.55 / 2 - lw / 2, mathY + lw * 0.7, lw, lh - lw, blue2, null, 0);
-  cx += lh * 0.55 + gap + 5;
-
-  // H: left vertical + right vertical + horizontal bar
-  piece(cx, mathY, lw, lh, blue3, null, 0);
-  piece(cx + lh * 0.4, mathY, lw, lh, blue3, null, 0);
-  piece(cx + lw * 0.8, mathY + lh * 0.38, lh * 0.4 - lw * 0.6, lw * 0.8, blue4, null, 0);
-
-  // ═══════════════════════════════════════════
-  // W - A - R - R - I - O - R - S
-  // ═══════════════════════════════════════════
-  const wlw = 18; // slightly thinner for more letters
-  const wlh = 90;
-  const wgap = 8;
-  const warLetters = 8;
-  const warTotalW = warLetters * (wlh * 0.4) + (warLetters - 1) * wgap;
-  let wx = W / 2 - warTotalW / 2;
-  const letterW = wlh * 0.4;
-
-  // W: two diagonals down + two diagonals up
-  piece(wx, warY, wlw, wlh, red1, null, 0.15);
-  piece(wx + letterW * 0.25, warY, wlw * 0.7, wlh * 0.7, red2, null, -0.12);
-  piece(wx + letterW * 0.45, warY, wlw * 0.7, wlh * 0.7, red2, null, 0.12);
-  piece(wx + letterW - wlw, warY, wlw, wlh, red1, null, -0.15);
-  wx += letterW + wgap + 5;
-
-  // A
-  piece(wx, warY, wlw, wlh, red3, null, 0.15);
-  piece(wx + letterW - wlw, warY, wlw, wlh, red3, null, -0.15);
-  piece(wx + wlw * 0.5, warY + wlh * 0.48, letterW - wlw, wlw * 0.7, red4, null, 0);
-  wx += letterW + wgap;
-
-  // R: vertical + top bump + leg
-  piece(wx, warY, wlw, wlh, red1, null, 0);
-  circ(wx + wlw + 10, warY + wlh * 0.22, wlh * 0.18, red2);
-  piece(wx + wlw * 0.5, warY + wlh * 0.52, wlw * 0.9, wlh * 0.48, red3, null, 0.2);
-  wx += letterW + wgap;
-
-  // R (second)
-  piece(wx, warY, wlw, wlh, red1, null, 0);
-  circ(wx + wlw + 10, warY + wlh * 0.22, wlh * 0.18, red4);
-  piece(wx + wlw * 0.5, warY + wlh * 0.52, wlw * 0.9, wlh * 0.48, red2, null, 0.2);
-  wx += letterW + wgap;
-
-  // I: simple vertical
-  piece(wx + letterW / 2 - wlw / 2, warY, wlw, wlh, red3, null, 0);
-  // Dot on top
-  circ(wx + letterW / 2, warY - 8, wlw * 0.45, red1);
-  wx += letterW * 0.5 + wgap;
-
-  // O: circle
-  circ(wx + letterW * 0.5, warY + wlh * 0.45, wlh * 0.38, red2);
-  circ(wx + letterW * 0.5, warY + wlh * 0.45, wlh * 0.2, '#cee8c8'); // punch out center
-  wx += letterW + wgap + 5;
-
-  // R (third)
-  piece(wx, warY, wlw, wlh, red3, null, 0);
-  circ(wx + wlw + 10, warY + wlh * 0.22, wlh * 0.18, red1);
-  piece(wx + wlw * 0.5, warY + wlh * 0.52, wlw * 0.9, wlh * 0.48, red4, null, 0.2);
-  wx += letterW + wgap;
-
-  // S: two half-circles stacked
-  circ(wx + letterW * 0.45, warY + wlh * 0.25, wlh * 0.22, red2);
-  circ(wx + letterW * 0.55, warY + wlh * 0.65, wlh * 0.22, red4);
+  // "WARRIORS" — red/coral paper
+  paperWord('WARRIORS', W / 2, H * 0.28, 120,
+    '#e85858',   // bright red face
+    '#601820',   // dark maroon edge
+    'rgba(0,0,0,0.7)'
+  );
 }
 
 /**
