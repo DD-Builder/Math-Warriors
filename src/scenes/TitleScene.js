@@ -72,17 +72,30 @@ export class TitleScene extends Phaser.Scene {
     hillLayer(C, W, H, H * 0.84, 30, 7, '#98e870', rng, 14);   // yellow-green
     hillLayer(C, W, H, H * 0.92, 20, 8, '#b0f080', rng, 12);   // pale chartreuse
 
-    // ── TREES — varied sizes, colors, positions, all grounded ──
-    // Cream/white tree on right — trunk base firmly on the ground
-    drawTree(C, W * 0.76, H * 0.82, H * 0.45, '#ece0c8', '#a8c888', rng, true);
-    // Left side — varied trees, all grounded
-    drawTree(C, W * 0.04, H * 0.68, H * 0.24, '#1a4828', '#288838', rng, false);
-    drawTree(C, W * 0.13, H * 0.72, H * 0.20, '#1e5030', '#389048', rng, false);
-    drawTree(C, W * 0.23, H * 0.74, H * 0.16, '#245838', '#48a850', rng, false);
-    drawTree(C, W * 0.35, H * 0.76, H * 0.13, '#2a6040', '#50b058', rng, false);
-    // Right side
-    drawTree(C, W * 0.88, H * 0.76, H * 0.18, '#1e5030', '#389048', rng, false);
-    drawTree(C, W * 0.96, H * 0.72, H * 0.22, '#1a4828', '#308840', rng, false);
+    // ── TREES — 10 smaller trees with varied foliage colors ────
+    const treePalettes = [
+      ['#288838', '#48a848'],
+      ['#48a848', '#68c850'],
+      ['#e06888', '#f08098'],
+      ['#c8c040', '#d8d060'],
+      ['#88d860', '#a0e870'],
+      ['#68c850', '#88d860'],
+      ['#288838', '#68c850'],
+      ['#f08098', '#e06888'],
+      ['#d8d060', '#c8c040'],
+      ['#a0e870', '#48a848'],
+    ];
+    const treeSpots = [
+      [0.03, 0.70, 0.16], [0.11, 0.72, 0.13], [0.20, 0.74, 0.11],
+      [0.30, 0.76, 0.10], [0.42, 0.78, 0.12],
+      [0.58, 0.78, 0.11], [0.68, 0.76, 0.13], [0.78, 0.74, 0.10],
+      [0.88, 0.72, 0.15], [0.96, 0.70, 0.18],
+    ];
+    for (let i = 0; i < treeSpots.length; i++) {
+      const [tx, tgy, th] = treeSpots[i];
+      const pal = treePalettes[i % treePalettes.length];
+      drawTree(C, W * tx, H * tgy, H * th, '#5a3820', pal[0], rng, false);
+    }
 
     // ── FLOWERS ───────────────────────────────────────────────
     const fCols = ['#f06888', '#f0a040', '#88c0e0', '#e060a0', '#f08060', '#b080d0', '#f0e0f0', '#f0c060'];
@@ -109,6 +122,38 @@ export class TitleScene extends Phaser.Scene {
     // ── CREAM WAVY BORDER ─────────────────────────────────────
     drawWavyBorder(C, W, H, 35, '#ede4d4', rng);
 
+    // ── CANVAS TITLE TEXT — cut paper style ───────────────────
+    const ty = H * 0.17;
+    C.textAlign = 'center';
+    C.textBaseline = 'alphabetic';
+
+    // "MATH" — 130px, blue fill
+    C.font = '900 130px "Fredoka One", sans-serif';
+    C.fillStyle = 'rgba(0,0,0,0.5)';
+    C.fillText('MATH', W / 2 + 6, ty + 8);
+    C.fillStyle = '#4080d8';
+    C.fillText('MATH', W / 2, ty);
+    C.fillStyle = 'rgba(255,255,255,0.25)';
+    C.fillText('MATH', W / 2 - 1, ty - 1);
+
+    // "WARRIORS" — 105px, red fill
+    const wy = ty + 125;
+    C.font = '900 105px "Fredoka One", sans-serif';
+    C.fillStyle = 'rgba(0,0,0,0.5)';
+    C.fillText('WARRIORS', W / 2 + 6, wy + 8);
+    C.fillStyle = '#e05050';
+    C.fillText('WARRIORS', W / 2, wy);
+    C.fillStyle = 'rgba(255,255,255,0.25)';
+    C.fillText('WARRIORS', W / 2 - 1, wy - 1);
+
+    // Tagline
+    const tly = wy + 60;
+    C.font = '700 30px "Fredoka One", sans-serif';
+    C.fillStyle = 'rgba(0,0,0,0.4)';
+    C.fillText('An Educational Adventure', W / 2 + 3, tly + 4);
+    C.fillStyle = '#f0d060';
+    C.fillText('An Educational Adventure', W / 2, tly);
+
     // ── RENDER ─────────────────────────────────────────────────
     const key = 'title-' + Date.now();
     this.textures.addCanvas(key, cv);
@@ -116,8 +161,10 @@ export class TitleScene extends Phaser.Scene {
 
     // ── BUTTERFLIES ───────────────────────────────────────────
     for (let i = 0; i < 6; i++) {
-      const bx = W * (0.08 + rng() * 0.84);
-      const by = H * (0.10 + rng() * 0.55);
+      // Keep butterflies on the sides (avoid center 0.3–0.7) and in the middle vertical band
+      const side = rng() < 0.5 ? (0.04 + rng() * 0.22) : (0.74 + rng() * 0.22);
+      const bx = W * side;
+      const by = H * (0.35 + rng() * 0.30);
       const bs = 10 + rng() * 12;
       const bc = [0xf06888, 0xf0a040, 0xe8e8f0, 0xf08868, 0xe060a0, 0xffffff][Math.floor(rng() * 6)];
       const g = this.add.graphics().setDepth(8);
@@ -133,24 +180,6 @@ export class TitleScene extends Phaser.Scene {
       this.tweens.add({ targets: g, x: (rng()-0.5)*40, y: (rng()-0.5)*20,
         duration: 3000+rng()*3000, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     }
-
-    // ── TITLE TEXT ─────────────────────────────────────────────
-    const ty = H * 0.17;
-    this.add.text(area.cx, ty, 'MATH', {
-      fontFamily: '"Fredoka One","Baloo 2",sans-serif', fontSize: '120px',
-      fontStyle: 'bold', color: '#4080d8', stroke: '#1a3060', strokeThickness: 10,
-      shadow: { offsetX: 5, offsetY: 8, color: 'rgba(10,20,30,0.5)', blur: 12, fill: true },
-    }).setOrigin(0.5).setDepth(10);
-    this.add.text(area.cx, ty + 118, 'WARRIORS', {
-      fontFamily: '"Fredoka One","Baloo 2",sans-serif', fontSize: '96px',
-      fontStyle: 'bold', color: '#e05050', stroke: '#601818', strokeThickness: 9,
-      shadow: { offsetX: 5, offsetY: 8, color: 'rgba(10,20,30,0.5)', blur: 12, fill: true },
-    }).setOrigin(0.5).setDepth(10);
-    this.add.text(area.cx, ty + 218, 'An Educational Adventure', {
-      fontFamily: '"Fredoka One","Baloo 2",sans-serif', fontSize: '30px',
-      color: '#f0d060', stroke: '#5a3010', strokeThickness: 5,
-      shadow: { offsetX: 3, offsetY: 4, color: 'rgba(10,20,20,0.4)', blur: 5, fill: true },
-    }).setOrigin(0.5).setDepth(10);
 
     // ── BUTTONS ────────────────────────────────────────────────
     dp(PaperButton(this, area.cx, H * 0.62, 'PLAY', {
