@@ -494,7 +494,7 @@ export class BattleScene extends Phaser.Scene {
     const enemyCount = this.enemies.length;
     const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
     const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
-    const leftAnchor = GAME_WIDTH * 0.08 + spacing / 2;
+    const leftAnchor = GAME_WIDTH * 0.12 + spacing / 2;
 
     this.heroSprites = this.party.map((hero, i) => {
       const xStagger = (1 - i) * 15;  // hero 0: +15, hero 1: 0, hero 2: -15
@@ -1014,40 +1014,40 @@ export class BattleScene extends Phaser.Scene {
   }
 
   setCommandMenuForClass(allowedCmds) {
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const btnW = 160, gap = 22;
-    const visible = this.commandButtons.filter(b => allowedCmds.includes(b.cmd));
-    const totalW = visible.length * btnW + (visible.length - 1) * gap;
-    const startX = area.cx - totalW / 2 + btnW / 2;
-    const cmdY = this.commandButtons[0]?._origY ?? this.eqCenterY;
-
-    // Hide ALL buttons first
+    // Destroy old buttons completely and rebuild fresh
     for (const btn of this.commandButtons) {
       for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
-        if (el) { el.setVisible(false); el.setAlpha(0); }
+        if (el) el.destroy();
       }
     }
+    this.commandButtons = [];
 
-    // Show and position only the allowed ones, centered
-    let idx = 0;
-    for (const btn of visible) {
-      const x = startX + idx * (btnW + gap);
-      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
-        if (!el) continue;
-        el.setVisible(true);
-        el.setAlpha(0);
-        el.setScale(0.8);
-      }
-      if (btn.bg) btn.bg.x = x;
-      if (btn.shadow) btn.shadow.x = x + 5;
-      if (btn.label) btn.label.x = x;
-      if (btn.zone) btn.zone.x = x;
-      const els = [btn.bg, btn.shadow, btn.label, btn.zone].filter(Boolean);
-      this.tweens.add({
-        targets: els, scaleX: 1, scaleY: 1, alpha: 1,
-        duration: 200, ease: 'Back.out', delay: idx * 50,
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const btnW = 160, btnH = 75, gap = 22;
+    const cmdY = this.eqCenterY || (this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 80);
+    const totalW = allowedCmds.length * btnW + (allowedCmds.length - 1) * gap;
+    const startX = area.cx - totalW / 2 + btnW / 2;
+
+    const cmdColors = { [COMMANDS.FIGHT]: 0x3080d0, [COMMANDS.MAGIC]: 0x8040c0, [COMMANDS.GUARD]: 0x308830 };
+    const cmdIcons = { [COMMANDS.FIGHT]: '⚔️', [COMMANDS.MAGIC]: '✨', [COMMANDS.GUARD]: '🛡️' };
+    const cmdLabels = { [COMMANDS.FIGHT]: 'FIGHT', [COMMANDS.MAGIC]: 'MAGIC', [COMMANDS.GUARD]: 'GUARD' };
+
+    for (let i = 0; i < allowedCmds.length; i++) {
+      const cmd = allowedCmds[i];
+      const x = startX + i * (btnW + gap);
+      const btn = PaperButton(this, x, cmdY, `${cmdIcons[cmd]} ${cmdLabels[cmd]}`, {
+        w: btnW, h: btnH, color: cmdColors[cmd], fontSize: 20,
+        onClick: () => {
+          if (this.phase !== 'command') return;
+          audio.play('ui/click');
+          this.selectCommand(cmd);
+        },
       });
-      idx++;
+      btn.cmd = cmd;
+      btn._origY = cmdY;
+      this.setUIDepth(btn, 28);
+      if (btn.label?.setDepth) btn.label.setDepth(29);
+      this.commandButtons.push(btn);
     }
   }
 
