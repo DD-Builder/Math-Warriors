@@ -185,67 +185,103 @@ function dp(b, d) { for (const k of ['bg','shadow','label','zone']) if (b[k]) b[
 // DRAWING FUNCTIONS — all use plain Canvas 2D, source-over only
 // ════════════════════════════════════════════════════════════════
 
-/**
- * Draw "MATH WARRIORS" from individual paper pieces.
- * Each letter is built from rectangles, triangles, and circles
- * arranged to form the letter shape — like craft paper cutouts.
- * Every piece gets its own drop shadow for depth.
- */
 function drawPaperLetters(C, W, H) {
-  // Each letter is a different color AND has visible paper thickness.
-  // The thickness is a darker shade drawn as a solid slab beneath the
-  // face color — same technique as the hill layers.
+  const colors = [
+    '#e85858', '#4888e0', '#f0a040', '#48b868',
+    '#e060a0', '#8050c0', '#d07818', '#40a8a0',
+    '#e85858', '#4888e0', '#f0a040', '#48b868',
+  ];
 
-  const mathFace = ['#e85858', '#4888e0', '#f0a040', '#48b868'];
-  const mathEdge = ['#981818', '#1a3870', '#a06010', '#1a6830'];
-  const warFace  = ['#48b868', '#e060a0', '#4888e0', '#f0a040', '#e85858', '#48b868', '#f0a040', '#4888e0'];
-  const warEdge  = ['#1a6830', '#801040', '#1a3870', '#a06010', '#981818', '#1a6830', '#a06010', '#1a3870'];
+  let seed = 42;
+  function rand() { seed = (seed * 16807) % 2147483647; return (seed & 0xfffffff) / 0x10000000; }
 
-  function drawPaperWord(word, cx, cy, fontSize, faceColors, edgeColors) {
+  function drawPaperLetter(ch, cx, cy, fontSize, color) {
+    const pad = 40;
+    const tmpCv = document.createElement('canvas');
+    const sz = fontSize + pad * 2;
+    tmpCv.width = sz;
+    tmpCv.height = sz;
+    const tc = tmpCv.getContext('2d');
+
+    tc.font = `900 ${fontSize}px "Fredoka One", sans-serif`;
+    tc.textAlign = 'center';
+    tc.textBaseline = 'middle';
+    const lx = sz / 2, ly = sz / 2;
+
+    tc.fillStyle = color;
+    tc.fillText(ch, lx, ly);
+
+    // Paper texture: tiny speckles
+    tc.globalCompositeOperation = 'source-atop';
+    for (let i = 0; i < 150; i++) {
+      const bright = rand() > 0.5;
+      tc.fillStyle = bright
+        ? `rgba(255,255,255,${0.06 + rand() * 0.12})`
+        : `rgba(0,0,0,${0.03 + rand() * 0.07})`;
+      tc.fillRect(rand() * sz, rand() * sz, 1 + rand() * 2.5, 1 + rand() * 2.5);
+    }
+
+    // Fiber lines (paper grain)
+    for (let i = 0; i < 12; i++) {
+      tc.strokeStyle = `rgba(255,255,255,${0.05 + rand() * 0.07})`;
+      tc.lineWidth = 0.5;
+      tc.beginPath();
+      tc.moveTo(rand() * sz, rand() * sz);
+      tc.lineTo(rand() * sz, rand() * sz);
+      tc.stroke();
+    }
+
+    // Wobbly edge: nibble tiny chunks off the outline
+    tc.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 60; i++) {
+      tc.fillStyle = `rgba(0,0,0,${0.3 + rand() * 0.7})`;
+      tc.beginPath();
+      tc.arc(rand() * sz, rand() * sz, 0.3 + rand() * 1.2, 0, Math.PI * 2);
+      tc.fill();
+    }
+    tc.globalCompositeOperation = 'source-over';
+
+    // Each letter slightly rotated and offset
+    const angle = (rand() - 0.5) * 0.09;
+    const yOff = (rand() - 0.5) * 8;
+
+    C.save();
+    C.translate(cx, cy + yOff);
+    C.rotate(angle);
+
+    // Hard shadow (like physical paper on a surface)
+    C.shadowColor = 'rgba(0,0,0,0.55)';
+    C.shadowBlur = 3;
+    C.shadowOffsetX = 5;
+    C.shadowOffsetY = 7;
+    C.drawImage(tmpCv, -sz / 2, -sz / 2);
+
+    C.shadowColor = 'transparent';
+    C.shadowBlur = 0;
+    C.shadowOffsetX = 0;
+    C.shadowOffsetY = 0;
+    C.drawImage(tmpCv, -sz / 2, -sz / 2);
+
+    C.restore();
+  }
+
+  function drawPaperWord(word, centerX, centerY, fontSize, colorOffset) {
     C.font = `900 ${fontSize}px "Fredoka One", sans-serif`;
-    C.textBaseline = 'middle';
     C.textAlign = 'center';
-
+    C.textBaseline = 'middle';
     const totalWidth = C.measureText(word).width;
-    let x = cx - totalWidth / 2;
-    const thickness = 8;
+    let x = centerX - totalWidth / 2;
 
     for (let i = 0; i < word.length; i++) {
       const ch = word[i];
       const charW = C.measureText(ch).width;
-      const charCx = x + charW / 2;
-      const face = faceColors[i % faceColors.length];
-      const edge = edgeColors[i % edgeColors.length];
-
-      C.textAlign = 'center';
-
-      // 1. Black shadow beneath everything
-      C.fillStyle = 'rgba(0,0,0,0.7)';
-      C.fillText(ch, charCx + 3, cy + thickness + 6);
-
-      // 2. Paper edge/thickness — solid darker color slab
-      C.fillStyle = edge;
-      for (let dy = thickness; dy >= 1; dy--) {
-        C.fillText(ch, charCx + 1, cy + dy);
-      }
-
-      // 3. White border around the face
-      C.lineWidth = 6;
-      C.strokeStyle = '#ffffff';
-      C.lineJoin = 'round';
-      C.miterLimit = 2;
-      C.strokeText(ch, charCx, cy);
-
-      // 4. Bright face color
-      C.fillStyle = face;
-      C.fillText(ch, charCx, cy);
-
+      drawPaperLetter(ch, x + charW / 2, centerY, fontSize, colors[(i + colorOffset) % colors.length]);
       x += charW;
     }
   }
 
-  drawPaperWord('MATH', W / 2, H * 0.12, 155, mathFace, mathEdge);
-  drawPaperWord('WARRIORS', W / 2, H * 0.26, 112, warFace, warEdge);
+  drawPaperWord('MATH', W / 2, H * 0.13, 155, 0);
+  drawPaperWord('WARRIORS', W / 2, H * 0.27, 112, 4);
 }
 
 /**
