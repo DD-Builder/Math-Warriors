@@ -3,7 +3,7 @@ import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } fro
 import { loadSave, writeSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
 import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES, levelBonuses, getAvailableSupers, LEVEL_THRESHOLDS, getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
-import { drawPapercutBackground, drawWorldMapGarden, drawWorldMapCaves, drawWorldMapMagicRealm } from '../systems/papercut.js';
+import { drawPapercutBackground, drawWorldMapGarden, drawWorldMapCaves, drawWorldMapStarlitHighlands } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
@@ -77,7 +77,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   buildBackgrounds() {
-    const drawFns = [drawWorldMapGarden, drawWorldMapCaves, drawWorldMapMagicRealm];
+    const drawFns = [drawWorldMapGarden, drawWorldMapCaves, drawWorldMapStarlitHighlands];
     for (let s = 0; s < TOTAL_SCREENS; s++) {
       const offsetX = s * SCREEN_W;
       const before = this.children.list.length;
