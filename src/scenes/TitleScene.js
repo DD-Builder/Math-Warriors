@@ -122,35 +122,45 @@ export class TitleScene extends Phaser.Scene {
     // ── CREAM WAVY BORDER ─────────────────────────────────────
     drawWavyBorder(C, W, H, 35, '#ede4d4', rng);
 
-    // ── CANVAS TITLE TEXT — cut paper style ───────────────────
-    const ty = H * 0.17;
+    // ── CANVAS TITLE TEXT — papercut style with thick depth ─────
+    const ty = H * 0.18;
     C.textAlign = 'center';
     C.textBaseline = 'alphabetic';
 
-    // "MATH" — 130px, blue fill
-    C.font = '900 130px "Fredoka One", sans-serif';
-    C.fillStyle = 'rgba(0,0,0,0.5)';
-    C.fillText('MATH', W / 2 + 6, ty + 8);
-    C.fillStyle = '#4080d8';
+    // "MATH" — thick paper letters
+    C.font = '900 140px "Fredoka One", sans-serif';
+    // Layer 1: deep shadow (the gap beneath the paper)
+    C.fillStyle = 'rgba(0,0,0,0.7)';
+    C.fillText('MATH', W / 2 + 3, ty + 12);
+    // Layer 2: paper edge/thickness (darker shade of the letter color)
+    C.fillStyle = '#1a3060';
+    C.fillText('MATH', W / 2 + 2, ty + 8);
+    // Layer 3: main paper surface
+    C.fillStyle = '#4888e0';
     C.fillText('MATH', W / 2, ty);
-    C.fillStyle = 'rgba(255,255,255,0.25)';
-    C.fillText('MATH', W / 2 - 1, ty - 1);
+    // Layer 4: subtle top highlight (light catching the paper edge)
+    C.fillStyle = 'rgba(255,255,255,0.3)';
+    C.fillText('MATH', W / 2 - 1, ty - 2);
 
-    // "WARRIORS" — 105px, red fill
-    const wy = ty + 125;
-    C.font = '900 105px "Fredoka One", sans-serif';
-    C.fillStyle = 'rgba(0,0,0,0.5)';
-    C.fillText('WARRIORS', W / 2 + 6, wy + 8);
-    C.fillStyle = '#e05050';
+    // "WARRIORS" — same layered approach
+    const wy = ty + 130;
+    C.font = '900 112px "Fredoka One", sans-serif';
+    C.fillStyle = 'rgba(0,0,0,0.7)';
+    C.fillText('WARRIORS', W / 2 + 3, wy + 12);
+    C.fillStyle = '#601818';
+    C.fillText('WARRIORS', W / 2 + 2, wy + 8);
+    C.fillStyle = '#e05858';
     C.fillText('WARRIORS', W / 2, wy);
-    C.fillStyle = 'rgba(255,255,255,0.25)';
-    C.fillText('WARRIORS', W / 2 - 1, wy - 1);
+    C.fillStyle = 'rgba(255,255,255,0.3)';
+    C.fillText('WARRIORS', W / 2 - 1, wy - 2);
 
-    // Tagline
-    const tly = wy + 60;
-    C.font = '700 30px "Fredoka One", sans-serif';
-    C.fillStyle = 'rgba(0,0,0,0.4)';
-    C.fillText('An Educational Adventure', W / 2 + 3, tly + 4);
+    // Tagline — simpler but still with shadow
+    const tly = wy + 65;
+    C.font = '700 28px "Fredoka One", sans-serif';
+    C.fillStyle = 'rgba(0,0,0,0.5)';
+    C.fillText('An Educational Adventure', W / 2 + 2, tly + 5);
+    C.fillStyle = '#5a3010';
+    C.fillText('An Educational Adventure', W / 2 + 1, tly + 3);
     C.fillStyle = '#f0d060';
     C.fillText('An Educational Adventure', W / 2, tly);
 
