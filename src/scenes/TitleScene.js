@@ -122,47 +122,51 @@ export class TitleScene extends Phaser.Scene {
     // ── CREAM WAVY BORDER ─────────────────────────────────────
     drawWavyBorder(C, W, H, 35, '#ede4d4', rng);
 
-    // ── CANVAS TITLE TEXT — papercut style with thick depth ─────
+    // ── CANVAS TITLE TEXT — stacked layers for paper slab effect ──
     const ty = H * 0.18;
     C.textAlign = 'center';
     C.textBaseline = 'alphabetic';
 
-    // "MATH" — thick paper letters
+    // "MATH" — 6 stacked layers creating visible paper thickness
     C.font = '900 140px "Fredoka One", sans-serif';
-    // Layer 1: deep shadow (the gap beneath the paper)
-    C.fillStyle = 'rgba(0,0,0,0.7)';
-    C.fillText('MATH', W / 2 + 3, ty + 12);
-    // Layer 2: paper edge/thickness (darker shade of the letter color)
-    C.fillStyle = '#1a3060';
-    C.fillText('MATH', W / 2 + 2, ty + 8);
-    // Layer 3: main paper surface
-    C.fillStyle = '#4888e0';
-    C.fillText('MATH', W / 2, ty);
-    // Layer 4: subtle top highlight (light catching the paper edge)
-    C.fillStyle = 'rgba(255,255,255,0.3)';
-    C.fillText('MATH', W / 2 - 1, ty - 2);
+    // Bottom shadow (darkest, furthest offset)
+    C.fillStyle = '#000000'; C.fillText('MATH', W/2 + 2, ty + 18);
+    C.fillStyle = '#000000'; C.fillText('MATH', W/2 + 2, ty + 16);
+    // Paper edge layers (dark blue, stacked to show thickness)
+    C.fillStyle = '#122040'; C.fillText('MATH', W/2 + 1, ty + 14);
+    C.fillStyle = '#1a2c50'; C.fillText('MATH', W/2 + 1, ty + 12);
+    C.fillStyle = '#223860'; C.fillText('MATH', W/2, ty + 10);
+    C.fillStyle = '#2a4470'; C.fillText('MATH', W/2, ty + 8);
+    C.fillStyle = '#325080'; C.fillText('MATH', W/2, ty + 6);
+    C.fillStyle = '#3a5c90'; C.fillText('MATH', W/2, ty + 4);
+    C.fillStyle = '#4268a0'; C.fillText('MATH', W/2, ty + 2);
+    // Top surface (brightest)
+    C.fillStyle = '#4888e0'; C.fillText('MATH', W/2, ty);
+    // Highlight edge
+    C.fillStyle = 'rgba(255,255,255,0.2)'; C.fillText('MATH', W/2 - 1, ty - 1);
 
-    // "WARRIORS" — same layered approach
-    const wy = ty + 130;
+    // "WARRIORS" — same stacked approach
+    const wy = ty + 135;
     C.font = '900 112px "Fredoka One", sans-serif';
-    C.fillStyle = 'rgba(0,0,0,0.7)';
-    C.fillText('WARRIORS', W / 2 + 3, wy + 12);
-    C.fillStyle = '#601818';
-    C.fillText('WARRIORS', W / 2 + 2, wy + 8);
-    C.fillStyle = '#e05858';
-    C.fillText('WARRIORS', W / 2, wy);
-    C.fillStyle = 'rgba(255,255,255,0.3)';
-    C.fillText('WARRIORS', W / 2 - 1, wy - 2);
+    C.fillStyle = '#000000'; C.fillText('WARRIORS', W/2 + 2, wy + 18);
+    C.fillStyle = '#000000'; C.fillText('WARRIORS', W/2 + 2, wy + 16);
+    C.fillStyle = '#401010'; C.fillText('WARRIORS', W/2 + 1, wy + 14);
+    C.fillStyle = '#501818'; C.fillText('WARRIORS', W/2 + 1, wy + 12);
+    C.fillStyle = '#602020'; C.fillText('WARRIORS', W/2, wy + 10);
+    C.fillStyle = '#702828'; C.fillText('WARRIORS', W/2, wy + 8);
+    C.fillStyle = '#883030'; C.fillText('WARRIORS', W/2, wy + 6);
+    C.fillStyle = '#a03838'; C.fillText('WARRIORS', W/2, wy + 4);
+    C.fillStyle = '#c04848'; C.fillText('WARRIORS', W/2, wy + 2);
+    C.fillStyle = '#e05858'; C.fillText('WARRIORS', W/2, wy);
+    C.fillStyle = 'rgba(255,255,255,0.2)'; C.fillText('WARRIORS', W/2 - 1, wy - 1);
 
-    // Tagline — simpler but still with shadow
+    // Tagline
     const tly = wy + 65;
     C.font = '700 28px "Fredoka One", sans-serif';
-    C.fillStyle = 'rgba(0,0,0,0.5)';
-    C.fillText('An Educational Adventure', W / 2 + 2, tly + 5);
-    C.fillStyle = '#5a3010';
-    C.fillText('An Educational Adventure', W / 2 + 1, tly + 3);
-    C.fillStyle = '#f0d060';
-    C.fillText('An Educational Adventure', W / 2, tly);
+    C.fillStyle = '#000000'; C.fillText('An Educational Adventure', W/2 + 1, tly + 8);
+    C.fillStyle = '#3a2008'; C.fillText('An Educational Adventure', W/2, tly + 5);
+    C.fillStyle = '#5a3010'; C.fillText('An Educational Adventure', W/2, tly + 3);
+    C.fillStyle = '#f0d060'; C.fillText('An Educational Adventure', W/2, tly);
 
     // ── RENDER ─────────────────────────────────────────────────
     const key = 'title-' + Date.now();
