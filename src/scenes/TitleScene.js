@@ -343,7 +343,7 @@ function drawTree(C, x, groundY, height, trunkColor, canopyColor, rng, isCream) 
 
   // Shadow
   C.fillStyle = 'rgba(0,0,0,0.65)';
-  C.fillRect(x - tw / 2 + 6, groundY - trunkH + 10, tw, trunkH);
+  C.fillRect(x - tw / 2 + 6, groundY - trunkH - 10, tw, trunkH);
   // Trunk
   C.fillStyle = trunkColor;
   C.fillRect(x - tw / 2, groundY - trunkH, tw, trunkH);
