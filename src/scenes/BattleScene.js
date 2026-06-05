@@ -37,11 +37,27 @@ import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { makeRng } from '../systems/rng.js';
-import { computeLevel, levelBonuses } from '../data/heroes.js';
+import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { getHint } from '../systems/hints.js';
+import { recordBattle, getBondStatBonuses } from '../systems/bonds.js';
+import { getEvolutionStatBoosts } from '../systems/evolution.js';
+import {
+  createSignatureState,
+  onHeroDamageDealt,
+  onHeroDamageReceived,
+  onTurnStart,
+  onEnemyTurnStart,
+  checkLastStand,
+  applyBurnOnAttack,
+  getSplashDamage,
+  getEffectiveAtk,
+  getEffectiveDef,
+  checkPaladinGuard,
+  consumePaladinGuard,
+} from '../systems/signatureEffects.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -167,6 +183,27 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
+    // --- Apply evolution + bond stat boosts ---
+    const partyHeroIds = this.party.map(h => h.id);
+    for (let i = 0; i < this.party.length; i++) {
+      const hero = this.party[i];
+      // Evolution stat boosts
+      const evoBoosts = getEvolutionStatBoosts(this.save, hero.id);
+      hero.atk += evoBoosts.atk || 0;
+      hero.def += evoBoosts.def || 0;
+      hero.maxHp += evoBoosts.maxHp || 0;
+      hero.hp += evoBoosts.maxHp || 0;
+      // Bond stat bonuses
+      const bondBonus = getBondStatBonuses(this.save, hero.id, partyHeroIds);
+      hero.atk += bondBonus.atk || 0;
+      hero.def += bondBonus.def || 0;
+      hero.maxHp += bondBonus.hp || 0;
+      hero.hp += bondBonus.hp || 0;
+    }
+
+    // --- Signature effects state ---
+    this.signatureState = createSignatureState(this.party);
+
     // Hero ability cooldowns and state (Phase 3.1)
     this.abilityCooldowns = [{ cd: 0 }, { cd: 0 }, { cd: 0 }];
     this.shieldBashActive = false;
@@ -237,6 +274,12 @@ export class BattleScene extends Phaser.Scene {
 
     // Fade in
     fadeInScene(this);
+
+    // --- Battle cry: boss encounter ---
+    if (this.isBoss && this.party[0]) {
+      this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
+    }
+
     this.time.delayedCall(400, () => this.nextTurn());
   }
 
@@ -1111,6 +1154,9 @@ export class BattleScene extends Phaser.Scene {
     const cmdName = isBunnyHeal ? 'HEAL' : cmd === COMMANDS.MAGIC ? 'MAGIC' : 'FIGHT';
     this.turnLabel.setText(`${hero.name}: ${cmdName}! ${starStr}`);
 
+    // --- Battle cry: attack ---
+    this.showBattleCry(hero, 'attack');
+
     this.phase = 'question';
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
@@ -1241,6 +1287,9 @@ export class BattleScene extends Phaser.Scene {
     // Tick ability cooldowns and rally turns on each turn advance
     this.tickAbilityCooldowns();
     if (this.rallyTurns > 0) this.rallyTurns--;
+
+    // Signature: reset per-turn flags
+    onTurnStart(this.party, this.signatureState);
 
     this.updateHeroIndicators();
 
@@ -1451,6 +1500,52 @@ export class BattleScene extends Phaser.Scene {
       this.answerButtons[i].label.setText('');
     }
 
+    // --- Signature: poison/burn ticks at start of enemy turn ---
+    const dotTicks = onEnemyTurnStart(this.enemies, this.party, this.signatureState);
+    let dotDelay = 0;
+    for (const tick of dotTicks) {
+      const ei = tick.enemyIndex;
+      if (!this.enemies[ei] || this.enemies[ei].hp <= 0) continue;
+      this.time.delayedCall(dotDelay, () => {
+        const enemy = this.enemies[ei];
+        const sprite = this.enemySprites[ei];
+        enemy.hp = Math.max(0, enemy.hp - tick.damage);
+        this.updateEnemyHp(ei);
+        const color = tick.type === 'poison' ? '#80ff40' : '#ff8040';
+        const label = tick.type === 'poison' ? 'POISON' : 'BURN';
+        if (sprite) {
+          this.floatDamageNumber(sprite.x, sprite.y - 100, tick.damage, color, '-');
+        }
+        if (enemy.hp <= 0 && sprite) {
+          this.tweens.add({ targets: sprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+          if (sprite.name) this.tweens.add({ targets: sprite.name, alpha: 0, duration: 400 });
+          if (sprite.hpBarBg) this.tweens.add({ targets: sprite.hpBarBg, alpha: 0, duration: 400 });
+          if (sprite.hpBarFill) this.tweens.add({ targets: sprite.hpBarFill, alpha: 0, duration: 400 });
+          if (sprite.hpText) this.tweens.add({ targets: sprite.hpText, alpha: 0, duration: 300 });
+        }
+      });
+      dotDelay += 200;
+    }
+
+    // Check if DOTs killed all enemies
+    if (dotTicks.length > 0) {
+      this.time.delayedCall(dotDelay + 100, () => {
+        if (this.allEnemiesDead()) {
+          this.showVictory();
+          return;
+        }
+        this._doEnemyAttacks();
+      });
+      return;
+    }
+
+    this._doEnemyAttacks();
+  }
+
+  /** Internal: execute the enemy attack sequence after DOT ticks. */
+  _doEnemyAttacks() {
+    const aliveEnemies = this.enemies.filter(e => e.hp > 0);
+
     // Each alive enemy attacks once, spread across heroes
     const livingHeroes = this.party.filter(h => h && h.hp > 0);
     if (livingHeroes.length === 0) return this.showDefeat();
@@ -1485,6 +1580,27 @@ export class BattleScene extends Phaser.Scene {
 
       this.time.delayedCall(350, () => {
         const cls = target.class || 'knight';
+        const targetHeroIdx = this.party.indexOf(target);
+
+        // --- Signature: Paladin guard block ---
+        if (targetHeroIdx >= 0 && consumePaladinGuard(targetHeroIdx, this.signatureState)) {
+          const paladin = this.party.find(h => h && h.hp > 0 && h.signature && h.signature.effect === 'guardAlly');
+          this.showToast(`${paladin ? paladin.name : 'Paladin'} blocks for ${target.name}!`, '#60a0ff');
+          audio.play('battle/hit-hero');
+          this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
+          return;
+        }
+
+        // --- Signature: Shadow dodge ---
+        if (target.signature && target.signature.effect === 'dodge') {
+          if (Math.random() < target.signature.value) {
+            this.showToast(`${target.name} Dodged!`, '#e86898');
+            this.showBattleCry(target, 'attack'); // dodge counts as a reaction
+            audio.play('battle/hit-hero');
+            this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
+            return;
+          }
+        }
 
         // Bunny dodge — base 30% chance, Dodge Roll ability raises to 60%
         const dodgeChance = (cls === 'bunny') ? (this.dodgeActive ? 0.6 : 0.3) : 0;
@@ -1502,8 +1618,18 @@ export class BattleScene extends Phaser.Scene {
 
         let result = computeEnemyDamage(attacker, target, { momentum: this.momentum });
 
+        // --- Signature: apply incoming damage modifiers (Crusader aura, Boulder doubleDef) ---
+        const sigResult = onHeroDamageReceived(target, attacker, result.modifiedDamage, {
+          party: this.party,
+          battleState: this.signatureState,
+          heroIndex: targetHeroIdx,
+        });
+        if (sigResult.damage !== result.modifiedDamage) {
+          result.modifiedDamage = sigResult.damage;
+          result.newHp = Math.max(0, target.hp - result.modifiedDamage);
+        }
+
         // Guard reduction — lasts the FULL enemy round (not consumed per hit)
-        const targetHeroIdx = this.party.indexOf(target);
         if (targetHeroIdx >= 0 && this.guardActive[targetHeroIdx]) {
           result = applyGuardReduction(result, target.hp);
           this.showToast(`${target.name} GUARDS! Half damage!`, '#48a848');
@@ -1521,6 +1647,22 @@ export class BattleScene extends Phaser.Scene {
 
         applyDamageResult(target, result);
         if (result.modifiedDamage > 0) this.battleDamageTaken = true;
+
+        // --- Signature: lastStand check (Great Helm) ---
+        if (target.hp <= 0 && checkLastStand(target, targetHeroIdx, this.signatureState)) {
+          this.showToast(`${target.name}: LAST STAND!`, '#f0d040');
+        }
+
+        // --- Signature: Paladin guardAlly trigger (check low HP) ---
+        if (target.hp > 0) {
+          checkPaladinGuard(target, targetHeroIdx, this.party, this.signatureState);
+        }
+
+        // --- Battle cry: lowHp ---
+        if (target.hp > 0 && target.hp <= target.maxHp * 0.25) {
+          this.showBattleCry(target, 'lowHp');
+        }
+
         this.hitFlash();
         this.flashHero(target, result);
         this.updateHeroHp(target);
@@ -1667,7 +1809,9 @@ export class BattleScene extends Phaser.Scene {
       // Rally ability: +2 ATK for 3 turns (applied temporarily)
       let atkBonus = 0;
       if (this.rallyTurns > 0) atkBonus = 2;
-      const effectiveHero = { ...hero, atk: (hero.atk || 10) + atkBonus };
+      // Signature: effective ATK includes rageAtk (Berserker) + leaderAura (Duchess)
+      const sigAtk = getEffectiveAtk(hero, this.party);
+      const effectiveHero = { ...hero, atk: sigAtk + atkBonus };
 
       // Class-specific modifiers
       let classMult = 1;
@@ -1702,7 +1846,17 @@ export class BattleScene extends Phaser.Scene {
       });
       const baseDmg = commandResult.modifiedDamage;
       const totalDmg = Math.max(3, Math.round(baseDmg * classMult));
-      const modified = hitCount > 1 ? Math.max(3, Math.round(totalDmg / hitCount)) * hitCount : totalDmg;
+
+      // --- Signature: modify outgoing damage (hybridDamage, firstStrike, hardBonus) ---
+      const sigDmg = onHeroDamageDealt(hero, targetEnemy, totalDmg, {
+        party: this.party,
+        battleState: this.signatureState,
+        command: activeCommand,
+        streak: this.streak,
+        questionStars: stars,
+      });
+
+      const modified = hitCount > 1 ? Math.max(3, Math.round(sigDmg / hitCount)) * hitCount : sigDmg;
       const newHp = Math.max(0, targetEnemy.hp - modified);
       const result = {
         baseDamage: commandResult.baseDamage,
@@ -1713,6 +1867,25 @@ export class BattleScene extends Phaser.Scene {
         cls,
       };
       applyDamageResult(targetEnemy, result);
+
+      // --- Signature: Blaze burn on attack ---
+      applyBurnOnAttack(hero, targetIdx, this.signatureState);
+
+      // --- Signature: Nova splash streak ---
+      const splashes = getSplashDamage(hero, targetIdx, modified, this.enemies, this.streak);
+      for (const splash of splashes) {
+        const se = this.enemies[splash.enemyIndex];
+        if (se && se.hp > 0) {
+          se.hp = Math.max(0, se.hp - splash.damage);
+          this.updateEnemyHp(splash.enemyIndex);
+          const ss = this.enemySprites[splash.enemyIndex];
+          if (ss) this.floatDamageNumber(ss.x, ss.y - 80, splash.damage, '#f080ff', '-');
+        }
+      }
+
+      // --- Battle cry: correct answer ---
+      this.showBattleCry(hero, 'correctAnswer');
+
 
       // Boss half-HP reaction toast
       if (this.isBoss && !this.bossHalfHpShown && targetEnemy.hp > 0 && targetEnemy.hp <= targetEnemy.maxHp / 2) {
@@ -1803,6 +1976,9 @@ export class BattleScene extends Phaser.Scene {
       this.battleWrong++;
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar(true);
+
+      // --- Battle cry: wrong answer ---
+      this.showBattleCry(this.party[heroIdx], 'wrongAnswer');
 
       if (activeCommand === COMMANDS.MAGIC) {
         // MAGIC FIZZLE: no damage dealt, NO counter-attack. Safe failure.
@@ -2219,6 +2395,68 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
+   * Show a personality battle cry as floating italic text above a hero.
+   * Fades in and out over ~2 seconds. Uses the hero's displayColor.
+   *
+   * @param {object} hero - The hero object (must have .id)
+   * @param {string} cryType - One of: attack, correctAnswer, wrongAnswer, superMove, lowHp, victory, defeat
+   */
+  showBattleCry(hero, cryType) {
+    if (!hero) return;
+
+    // Low HP cry: only show once per battle
+    if (cryType === 'lowHp' && this.signatureState) {
+      const idx = this.party.indexOf(hero);
+      if (idx >= 0 && this.signatureState.lowHpCryShown[idx]) return;
+      if (idx >= 0) this.signatureState.lowHpCryShown[idx] = true;
+    }
+
+    const personality = hero.personality || getPersonality(hero.id);
+    if (!personality || !personality.battleCries) return;
+
+    const cry = personality.battleCries[cryType];
+    if (!cry) return;
+
+    // Find the hero sprite to position above
+    const idx = this.party.indexOf(hero);
+    const hs = idx >= 0 ? this.heroSprites[idx] : null;
+    if (!hs) return;
+
+    const colorNum = hero.displayColor || 0xffffff;
+    const colorHex = '#' + colorNum.toString(16).padStart(6, '0');
+
+    const text = this.add.text(hs.x, hs.y - 140, cry, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '16px',
+      fontStyle: 'italic',
+      color: colorHex,
+      stroke: '#000000',
+      strokeThickness: 3,
+      align: 'center',
+      wordWrap: { width: 200 },
+    }).setOrigin(0.5).setAlpha(0).setDepth(50);
+
+    this.tweens.add({
+      targets: text,
+      alpha: 1,
+      y: hs.y - 155,
+      duration: 300,
+      ease: 'Cubic.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: text,
+          alpha: 0,
+          y: hs.y - 170,
+          duration: 700,
+          delay: 1000,
+          ease: 'Cubic.in',
+          onComplete: () => text.destroy(),
+        });
+      },
+    });
+  }
+
+  /**
    * Show a HINT button that appears for 3 seconds after a wrong answer.
    * When tapped, displays a step-by-step hint in a cream panel overlay.
    */
@@ -2385,6 +2623,10 @@ export class BattleScene extends Phaser.Scene {
     confettiBurst(this, vArea.cx, vArea.cy - 100, 40);
     screenEdgeGlow(this, 0xf0c040, 600);
 
+    // --- Battle cry: victory (show for first alive hero) ---
+    const victoryHero = this.party.find(h => h && h.hp > 0);
+    if (victoryHero) this.showBattleCry(victoryHero, 'victory');
+
     // Hide equation panel, answer buttons, and ability buttons
     if (this.eqLines) {
       Object.values(this.eqLines).forEach(el => { if (el) el.setVisible(false); });
@@ -2491,6 +2733,10 @@ export class BattleScene extends Phaser.Scene {
       save.stats.totalGold = (save.stats.totalGold || 0) + dailyGold;
     }
 
+    // --- Record bonds after victory ---
+    const partyIds = this.party.filter(h => h).map(h => h.id);
+    const newBondRanks = recordBattle(save, partyIds);
+
     // Check achievements and queue toasts for newly unlocked ones
     const newAchievements = checkAchievements(save);
 
@@ -2557,6 +2803,14 @@ export class BattleScene extends Phaser.Scene {
         if (dailyStreak > 1) {
           rewardText += `  (${dailyStreak}-day streak!)`;
         }
+      }
+      // Show bond rank-ups
+      for (const br of newBondRanks) {
+        const h1 = this.party.find(h => h && h.id === br.heroId1);
+        const h2 = this.party.find(h => h && h.id === br.heroId2);
+        const n1 = h1 ? h1.name : br.heroId1;
+        const n2 = h2 ? h2.name : br.heroId2;
+        rewardText += `\n${n1} & ${n2}: Bond rank ${br.rank}!`;
       }
       this.endOverlay.rewardsText.setText(rewardText);
       this.endOverlay.setVisible(true);
@@ -2637,6 +2891,9 @@ export class BattleScene extends Phaser.Scene {
 
     audio.stopMusic();
     audio.play('battle/defeat');
+
+    // --- Battle cry: defeat (show for first hero) ---
+    if (this.party[0]) this.showBattleCry(this.party[0], 'defeat');
 
     // Full party heal — failure is a restart, not a punishment.
     // See DESIGN-PRINCIPLES.md principle 8.
@@ -2745,6 +3002,8 @@ export class BattleScene extends Phaser.Scene {
 
     audio.play('battle/correct');
     this.showToast(`${move ? move.name : 'SUPER'}! ${dmg} DMG!`, '#f0c040');
+    // --- Battle cry: super move ---
+    this.showBattleCry(hero, 'superMove');
 
     if (heroSprite?.body) {
       heroSprite.body.setTint(0xffff80);

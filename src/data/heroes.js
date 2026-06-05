@@ -989,6 +989,13 @@ export const BUNNIES = [
 
 export const ALL_HEROES = [...KNIGHTS, ...WIZARDS, ...BUNNIES];
 
+// Build a { heroId: evolutionData } lookup from the hero roster.
+// The evolution system imports this to avoid searching ALL_HEROES every time.
+export const HERO_EVOLUTIONS = {};
+ALL_HEROES.forEach(h => {
+  if (h.evolution) HERO_EVOLUTIONS[h.id] = h.evolution;
+});
+
 /** Look up a hero by id. Returns null if not found. */
 export function getHeroById(id) {
   return ALL_HEROES.find((h) => h.id === id) ?? null;
@@ -1020,6 +1027,7 @@ export function spawnHero(idOrHero) {
     atk: def.atk,
     def: def.def,
     signature: def.signature ?? null,
+    personality: def.personality ?? null,
   };
 }
 

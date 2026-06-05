@@ -14,6 +14,23 @@
 import { getHeroById, HERO_EVOLUTIONS } from '../data/heroes.js';
 import { getSkillMastery } from './mastery.js';
 
+// Map descriptive mastery names (used in evolution data) to skill IDs (used in mastery.js)
+const MASTERY_ID_MAP = {
+  addition: '+',
+  subtraction: '-',
+  multiplication: '*',
+  division: '/',
+  fractions: 'frac',
+  geometry: 'geo',
+  measurement: 'money',
+  time: 'word',
+  patterns: 'word',
+};
+
+function resolveMasteryId(mastery) {
+  return MASTERY_ID_MAP[mastery] || mastery;
+}
+
 // ------------------------------------------------------------------
 // STAGE QUERIES
 // ------------------------------------------------------------------
@@ -81,7 +98,7 @@ export function canEvolveStage3(save, heroId, heroLevel) {
 
   const paths = evoDef.stage3.paths.map(p => {
     const levelMet = heroLevel >= p.level;
-    const mastery = getSkillMastery(save, p.mastery);
+    const mastery = getSkillMastery(save, resolveMasteryId(p.mastery));
     const masteryMet = mastery.level === 'mastered';
     return {
       id: p.id,
@@ -117,8 +134,8 @@ export function evolveStage2(save, heroId) {
     stage: 2,
     name: evoDef.stage2.name,
     title: evoDef.stage2.title,
-    statBoosts: evoDef.stage2.statBoosts,
-    superMove: evoDef.stage2.superMove,
+    statBoosts: evoDef.stage2.statBoost,
+    superMove: evoDef.stage2.newSuper,
   };
 }
 
@@ -142,8 +159,8 @@ export function evolveStage3(save, heroId, pathId) {
     pathId,
     name: pathDef.name,
     title: pathDef.title,
-    statBoosts: pathDef.statBoosts,
-    superMove: pathDef.superMove,
+    statBoosts: pathDef.statBoost,
+    superMove: pathDef.newSuper,
   };
 }
 
@@ -207,7 +224,7 @@ export function getEvolutionStatBoosts(save, heroId) {
   const boosts = { atk: 0, def: 0, maxHp: 0 };
 
   // Stage 2 boosts
-  const s2 = evoDef.stage2.statBoosts;
+  const s2 = evoDef.stage2.statBoost;
   boosts.atk += s2.atk || 0;
   boosts.def += s2.def || 0;
   boosts.maxHp += s2.maxHp || 0;
@@ -217,7 +234,7 @@ export function getEvolutionStatBoosts(save, heroId) {
     const pathId = getEvolutionPath(save, heroId);
     const pathDef = evoDef.stage3.paths.find(p => p.id === pathId);
     if (pathDef) {
-      const s3 = pathDef.statBoosts;
+      const s3 = pathDef.statBoost;
       boosts.atk += s3.atk || 0;
       boosts.def += s3.def || 0;
       boosts.maxHp += s3.maxHp || 0;
