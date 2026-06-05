@@ -10,7 +10,7 @@ import { ALL_HEROES } from '../data/heroes.js';
 const LEGACY_KEY = 'mathwarriors.save';
 const SLOT_PREFIX = 'mathwarriors.save.';
 const META_KEY = 'mathwarriors.slots';
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 4;
 const MAX_SLOTS = 3;
 
 const STARTER_HEROES = ['knight-shadow', 'wizard-stargazer', 'bunny-pepper'];
@@ -55,6 +55,8 @@ export function makeDefaultSave() {
       { id: 8, unlocked: false, complete: false, bestStreak: 0 },
       { id: 9, unlocked: false, complete: false, bestStreak: 0 },
     ],
+    heroEvolution: {},
+    heroBonds: {},
     settings: {
       musicVolume: 0.8,
       sfxVolume: 1.0,
@@ -119,6 +121,16 @@ const MIGRATIONS = [
         }
       }
       return { ...save, unlockedHeroes: unlocked };
+    },
+  },
+  {
+    from: 3, to: 4,
+    migrate: (save) => {
+      return {
+        ...save,
+        heroEvolution: save.heroEvolution || {},
+        heroBonds: save.heroBonds || {},
+      };
     },
   },
 ];
@@ -186,6 +198,14 @@ function normalize(save) {
   // Ensure unlockedHeroes is present
   if (!Array.isArray(out.unlockedHeroes)) {
     out.unlockedHeroes = [...STARTER_HEROES];
+  }
+
+  // Ensure heroEvolution and heroBonds are objects
+  if (!out.heroEvolution || typeof out.heroEvolution !== 'object') {
+    out.heroEvolution = {};
+  }
+  if (!out.heroBonds || typeof out.heroBonds !== 'object') {
+    out.heroBonds = {};
   }
 
   out.version = CURRENT_VERSION;

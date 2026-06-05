@@ -357,8 +357,8 @@ describe('hero unlock system', () => {
     assert.equal(save.unlockedHeroes.length, 15);
   });
 
-  test('save version is 3', () => {
-    assert.equal(CURRENT_VERSION, 3);
+  test('save version is 4', () => {
+    assert.equal(CURRENT_VERSION, 4);
   });
 
   test('v2 save migrates to v3 with unlockedHeroes', () => {
@@ -385,7 +385,7 @@ describe('hero unlock system', () => {
     };
     storage.setItem(STORAGE_KEY, JSON.stringify(v2));
     const loaded = loadSave();
-    assert.equal(loaded.version, 3);
+    assert.equal(loaded.version, 4);
     assert.ok(Array.isArray(loaded.unlockedHeroes));
     // Starters + floor 1 unlocks + floor 2 unlocks
     assert.ok(loaded.unlockedHeroes.includes('knight-shadow'));

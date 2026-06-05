@@ -246,3 +246,142 @@ export function getHeroSkins(heroId) {
   return HERO_SKINS[heroId] || [{ id: 'default', name: 'Default', cost: 0 }];
 }
 
+// ------------------------------------------------------------------
+// HERO EVOLUTIONS — stage progression data per hero
+// ------------------------------------------------------------------
+// Each hero can evolve through 3 stages:
+//   Stage 1: Starting form (default)
+//   Stage 2: Warrior form (requires level + floor beaten)
+//   Stage 3: Master form (requires level + math domain mastery, branching choice)
+
+export const HERO_EVOLUTIONS = {
+  // --- KNIGHTS ---
+  'knight-shadow': {
+    stage2: { level: 5, floor: 3, name: 'Shadow Knight', title: 'Blade of Dusk', statBoosts: { atk: 2, def: 1, maxHp: 5 }, superMove: { name: 'Umbral Edge', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'shadow-assassin', name: 'Shadow Assassin', title: 'Phantom of the Abyss', level: 8, mastery: '*', statBoosts: { atk: 4, def: 1, maxHp: 5 }, superMove: { name: 'Phantom Blade', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'shadow-guardian', name: 'Shadow Guardian', title: 'Shield of Night', level: 8, mastery: '-', statBoosts: { atk: 2, def: 3, maxHp: 10 }, superMove: { name: 'Night Barrier', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
+    ] },
+  },
+  'knight-crusader': {
+    stage2: { level: 5, floor: 3, name: 'Holy Crusader', title: 'Champion of Light', statBoosts: { atk: 1, def: 2, maxHp: 5 }, superMove: { name: 'Sacred Charge', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'crusader-templar', name: 'Templar', title: 'Wrath of Heaven', level: 8, mastery: '+', statBoosts: { atk: 3, def: 2, maxHp: 8 }, superMove: { name: 'Holy Wrath', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'crusader-saint', name: 'Saint', title: 'Healer of Realms', level: 8, mastery: '-', statBoosts: { atk: 1, def: 4, maxHp: 12 }, superMove: { name: 'Blessed Light', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
+    ] },
+  },
+  'knight-paladin': {
+    stage2: { level: 5, floor: 4, name: 'Radiant Paladin', title: 'Light Incarnate', statBoosts: { atk: 1, def: 2, maxHp: 8 }, superMove: { name: 'Radiant Shield', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'paladin-sunlord', name: 'Sun Lord', title: 'Dawn Bringer', level: 8, mastery: 'geo', statBoosts: { atk: 3, def: 3, maxHp: 8 }, superMove: { name: 'Solar Flare', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'paladin-aegis', name: 'Aegis', title: 'The Unbreakable', level: 8, mastery: '+', statBoosts: { atk: 1, def: 5, maxHp: 15 }, superMove: { name: 'Aegis Wall', type: 'damage', multiplier: 3.0, unlockLevel: 8 } },
+    ] },
+  },
+  'knight-berserker': {
+    stage2: { level: 5, floor: 5, name: 'War Berserker', title: 'Fury Incarnate', statBoosts: { atk: 3, def: 0, maxHp: 5 }, superMove: { name: 'Blood Frenzy', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'berserker-warlord', name: 'Warlord', title: 'The Unstoppable', level: 8, mastery: '*', statBoosts: { atk: 5, def: 1, maxHp: 5 }, superMove: { name: 'Rampage', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
+      { id: 'berserker-ravager', name: 'Ravager', title: 'Storm of Steel', level: 8, mastery: '/', statBoosts: { atk: 4, def: 2, maxHp: 8 }, superMove: { name: 'Devastation', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+    ] },
+  },
+  'knight-greathelm': {
+    stage2: { level: 5, floor: 7, name: 'Grand Champion', title: 'Living Fortress', statBoosts: { atk: 1, def: 3, maxHp: 10 }, superMove: { name: 'Fortress Slam', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'greathelm-emperor', name: 'Emperor', title: 'Ruler of Steel', level: 8, mastery: 'money', statBoosts: { atk: 2, def: 5, maxHp: 15 }, superMove: { name: 'Imperial Decree', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'greathelm-colossus', name: 'Colossus', title: 'The Immovable', level: 8, mastery: 'geo', statBoosts: { atk: 3, def: 4, maxHp: 12 }, superMove: { name: 'Tectonic Crash', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+    ] },
+  },
+
+  // --- WIZARDS ---
+  'wizard-stargazer': {
+    stage2: { level: 5, floor: 3, name: 'Star Seer', title: 'Reader of Fates', statBoosts: { atk: 3, def: 0, maxHp: 5 }, superMove: { name: 'Constellation Beam', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'constellation-mage', name: 'Constellation Mage', title: 'Weaver of Stars', level: 8, mastery: '*', statBoosts: { atk: 5, def: 1, maxHp: 5 }, superMove: { name: 'Zodiac Storm', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
+      { id: 'nebula-witch', name: 'Nebula Witch', title: 'Mistress of Void', level: 8, mastery: 'frac', statBoosts: { atk: 4, def: 2, maxHp: 8 }, superMove: { name: 'Nebula Vortex', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+    ] },
+  },
+  'wizard-toadstool': {
+    stage2: { level: 5, floor: 3, name: 'Fungal Witch', title: 'Mistress of Spores', statBoosts: { atk: 2, def: 1, maxHp: 5 }, superMove: { name: 'Plague Cloud', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'toadstool-blight', name: 'Blight Queen', title: 'Rot Incarnate', level: 8, mastery: '-', statBoosts: { atk: 4, def: 2, maxHp: 8 }, superMove: { name: 'Pandemic', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'toadstool-bloom', name: 'Bloom Sage', title: 'Garden of Power', level: 8, mastery: '+', statBoosts: { atk: 3, def: 2, maxHp: 10 }, superMove: { name: 'Life Bloom', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
+    ] },
+  },
+  'wizard-spellblade': {
+    stage2: { level: 5, floor: 4, name: 'Arcane Knight', title: 'Sword and Sorcery', statBoosts: { atk: 2, def: 2, maxHp: 5 }, superMove: { name: 'Arcane Rush', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'spellblade-runic', name: 'Rune Lord', title: 'Master of Glyphs', level: 8, mastery: 'word', statBoosts: { atk: 4, def: 2, maxHp: 5 }, superMove: { name: 'Rune Barrage', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'spellblade-warder', name: 'Spell Warder', title: 'Arcane Fortress', level: 8, mastery: '/', statBoosts: { atk: 2, def: 4, maxHp: 10 }, superMove: { name: 'Ward Storm', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
+    ] },
+  },
+  'wizard-bookworm': {
+    stage2: { level: 5, floor: 5, name: 'Lore Master', title: 'Walking Library', statBoosts: { atk: 2, def: 1, maxHp: 8 }, superMove: { name: 'Tome Barrage', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'bookworm-archivist', name: 'Grand Archivist', title: 'Keeper of All Knowledge', level: 8, mastery: 'word', statBoosts: { atk: 4, def: 2, maxHp: 10 }, superMove: { name: 'Forbidden Text', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'bookworm-scribe', name: 'Fate Scribe', title: 'Writer of Destiny', level: 8, mastery: 'frac', statBoosts: { atk: 3, def: 3, maxHp: 8 }, superMove: { name: 'Rewrite Reality', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+    ] },
+  },
+  'wizard-grandmage': {
+    stage2: { level: 5, floor: 7, name: 'Archmage', title: 'Supreme Sorcerer', statBoosts: { atk: 3, def: 1, maxHp: 5 }, superMove: { name: 'Elemental Storm', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'grandmage-elder', name: 'Elder Sage', title: 'Timeless One', level: 8, mastery: '*', statBoosts: { atk: 5, def: 2, maxHp: 8 }, superMove: { name: 'Time Rift', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
+      { id: 'grandmage-chaos', name: 'Chaos Mage', title: 'Master of Entropy', level: 8, mastery: '/', statBoosts: { atk: 6, def: 0, maxHp: 5 }, superMove: { name: 'Chaos Nova', type: 'damage', multiplier: 4.0, unlockLevel: 8 } },
+    ] },
+  },
+
+  // --- BUNNIES ---
+  'bunny-pepper': {
+    stage2: { level: 5, floor: 3, name: 'Pepper Knight', title: 'Spicy Warrior', statBoosts: { atk: 3, def: 0, maxHp: 5 }, superMove: { name: 'Chili Rush', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'pepper-inferno', name: 'Inferno Pepper', title: 'Blazing Fury', level: 8, mastery: '+', statBoosts: { atk: 5, def: 0, maxHp: 5 }, superMove: { name: 'Pepper Firestorm', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
+      { id: 'pepper-ghost', name: 'Ghost Pepper', title: 'Unseen Heat', level: 8, mastery: '-', statBoosts: { atk: 4, def: 2, maxHp: 8 }, superMove: { name: 'Ghost Dash', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+    ] },
+  },
+  'bunny-nova': {
+    stage2: { level: 5, floor: 4, name: 'Supernova', title: 'Dazzling Force', statBoosts: { atk: 2, def: 1, maxHp: 5 }, superMove: { name: 'Photon Burst', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'nova-pulsar', name: 'Pulsar', title: 'Heartbeat of Stars', level: 8, mastery: '*', statBoosts: { atk: 4, def: 1, maxHp: 5 }, superMove: { name: 'Pulsar Wave', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'nova-quasar', name: 'Quasar', title: 'Cosmic Engine', level: 8, mastery: 'frac', statBoosts: { atk: 3, def: 2, maxHp: 10 }, superMove: { name: 'Quasar Beam', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+    ] },
+  },
+  'bunny-boulder': {
+    stage2: { level: 5, floor: 4, name: 'Granite Boulder', title: 'Living Mountain', statBoosts: { atk: 0, def: 3, maxHp: 10 }, superMove: { name: 'Earthquake', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'boulder-titan', name: 'Titan Boulder', title: 'World Shaker', level: 8, mastery: 'geo', statBoosts: { atk: 2, def: 4, maxHp: 15 }, superMove: { name: 'Continental Crush', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'boulder-diamond', name: 'Diamond Boulder', title: 'Unbreakable', level: 8, mastery: '*', statBoosts: { atk: 1, def: 5, maxHp: 12 }, superMove: { name: 'Diamond Storm', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
+    ] },
+  },
+  'bunny-blaze': {
+    stage2: { level: 5, floor: 6, name: 'Flame Dancer', title: 'Fire Spirit', statBoosts: { atk: 3, def: 0, maxHp: 5 }, superMove: { name: 'Fire Waltz', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'blaze-phoenix', name: 'Phoenix Blaze', title: 'Rebirth in Flames', level: 8, mastery: '+', statBoosts: { atk: 4, def: 1, maxHp: 10 }, superMove: { name: 'Phoenix Rise', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'blaze-dragon', name: 'Dragon Blaze', title: 'Dragonheart', level: 8, mastery: '/', statBoosts: { atk: 5, def: 1, maxHp: 5 }, superMove: { name: 'Dragon Breath', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
+    ] },
+  },
+  'bunny-duchess': {
+    stage2: { level: 5, floor: 8, name: 'Grand Duchess', title: 'Royal Commander', statBoosts: { atk: 1, def: 2, maxHp: 8 }, superMove: { name: 'Royal Decree', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
+    stage3: { paths: [
+      { id: 'duchess-empress', name: 'Empress', title: 'Ruler of All', level: 8, mastery: 'money', statBoosts: { atk: 3, def: 3, maxHp: 12 }, superMove: { name: 'Imperial Wrath', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+      { id: 'duchess-queen', name: 'Warrior Queen', title: 'Crown of Thorns', level: 8, mastery: 'word', statBoosts: { atk: 4, def: 2, maxHp: 10 }, superMove: { name: 'Queens Gambit', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
+    ] },
+  },
+};
+
+// ------------------------------------------------------------------
+// HERO BONDS — relationship combos between hero pairs
+// ------------------------------------------------------------------
+// Defines special combo attacks unlocked when bonded heroes fight together.
+
+export const HERO_BONDS = [
+  { heroes: ['knight-shadow', 'wizard-stargazer'], name: 'Starlit Shadow', description: 'Shadow and Stargazer combine darkness and starlight.', combo: { name: 'Eclipse Strike', type: 'damage', multiplier: 4.0 }, dialogues: { C: 'We make a good team.', B: 'I trust you at my side.', A: 'Together, we are unstoppable.', S: 'Our bond transcends the stars.' } },
+  { heroes: ['knight-shadow', 'bunny-pepper'], name: 'Spicy Shadows', description: 'Shadow and Pepper strike from the dark with fiery speed.', combo: { name: 'Phantom Pepper', type: 'damage', multiplier: 3.8 }, dialogues: { C: 'Keep up, slow poke!', B: 'Not bad for a knight.', A: 'We are the fastest duo alive!', S: 'Nobody sees us coming.' } },
+  { heroes: ['wizard-stargazer', 'bunny-pepper'], name: 'Cosmic Spice', description: 'Stargazer and Pepper rain stars and fire.', combo: { name: 'Meteor Pepper', type: 'damage', multiplier: 3.8 }, dialogues: { C: 'Stars and spice!', B: 'A blazing combination.', A: 'The sky burns for us!', S: 'We light up the universe.' } },
+  { heroes: ['knight-crusader', 'wizard-toadstool'], name: 'Holy Blight', description: 'Crusader and Toadstool mix holy light with toxic spores.', combo: { name: 'Sacred Plague', type: 'damage', multiplier: 3.8 }, dialogues: { C: 'An odd pairing.', B: 'Your potions are useful.', A: 'Light and shadow, perfectly balanced.', S: 'We heal and harm as one.' } },
+  { heroes: ['knight-paladin', 'bunny-boulder'], name: 'Stone Shield', description: 'Paladin and Boulder form an impenetrable wall.', combo: { name: 'Fortress Wall', type: 'damage', multiplier: 3.5 }, dialogues: { C: 'Stand firm!', B: 'Nothing gets past us.', A: 'We are the wall.', S: 'An unbreakable bond.' } },
+  { heroes: ['knight-berserker', 'bunny-blaze'], name: 'Fury Flames', description: 'Berserker and Blaze unleash pure destructive force.', combo: { name: 'Infernal Rage', type: 'damage', multiplier: 4.2 }, dialogues: { C: 'BURN IT ALL!', B: 'More fire! More fury!', A: 'Nothing survives our wrath!', S: 'We are the storm of destruction.' } },
+  { heroes: ['wizard-spellblade', 'bunny-nova'], name: 'Arcane Flash', description: 'Spellblade and Nova blend magic and light-speed strikes.', combo: { name: 'Prismatic Rush', type: 'damage', multiplier: 3.8 }, dialogues: { C: 'Fast and magical.', B: 'Your speed, my spells!', A: 'We dazzle and destroy.', S: 'Light-speed sorcery.' } },
+  { heroes: ['wizard-bookworm', 'knight-greathelm'], name: 'Knowledge Shield', description: 'Bookworm and Great Helm combine wisdom and fortitude.', combo: { name: 'Tome Fortress', type: 'damage', multiplier: 3.5 }, dialogues: { C: 'Read while I guard.', B: 'Knowledge is our armor.', A: 'Brains and brawn united.', S: 'The pen and the sword, perfected.' } },
+  { heroes: ['wizard-grandmage', 'bunny-duchess'], name: 'Royal Arcana', description: 'Grand Mage and Duchess command supreme magical authority.', combo: { name: 'Sovereign Spell', type: 'damage', multiplier: 4.0 }, dialogues: { C: 'Royalty meets mastery.', B: 'Power recognizes power.', A: 'We rule this battlefield.', S: 'The throne and the tower, eternal.' } },
+  { heroes: ['bunny-pepper', 'bunny-boulder'], name: 'Spice and Stone', description: 'Pepper dashes while Boulder smashes.', combo: { name: 'Pepper Quake', type: 'damage', multiplier: 3.5 }, dialogues: { C: 'Fast and heavy!', B: 'You smash, I dash!', A: 'An unstoppable combo.', S: 'Speed and strength, forever bonded.' } },
+];
+
