@@ -21,7 +21,8 @@ import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRati
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
-import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor, getActiveSlot } from '../systems/save.js';
+import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor, consumePendingRescues, getActiveSlot } from '../systems/save.js';
+import { getRescueDialogue } from '../data/dialogue.js';
 import { markDailyChallengeComplete, getDailyChallenge } from '../systems/dailyChallenge.js';
 import { invokeAbility } from '../systems/abilities.js';
 import { getAbilitiesForClass } from '../systems/heroAbilities.js';
@@ -2588,14 +2589,26 @@ export class BattleScene extends Phaser.Scene {
     const newHeroes = this.registry.get('newlyUnlockedHeroes');
     if (newHeroes && newHeroes.length > 0) {
       this.registry.remove('newlyUnlockedHeroes');
-      const lines = [];
-      for (const h of newHeroes) {
-        lines.push({ speaker: 'Elder Fairy', text: `The dark magic shatters! A new warrior emerges!`, wide: true });
-        lines.push({ speaker: h.name, text: `${h.trait}`, wide: true });
-        lines.push({ speaker: 'Elder Fairy', text: `${h.name} has joined your quest!`, wide: true });
+      // Use rescue dialogue if available, otherwise fall back to generic lines
+      const heroIds = newHeroes.map(h => h.id);
+      const rescueLines = getRescueDialogue(this.floor, heroIds);
+      let lines;
+      if (rescueLines.length > 0) {
+        lines = rescueLines;
+      } else {
+        lines = [];
+        for (const h of newHeroes) {
+          lines.push({ speaker: 'Elder Fairy', text: `The dark magic shatters! A new warrior emerges!`, wide: true });
+          lines.push({ speaker: h.name, text: `${h.trait}`, wide: true });
+          lines.push({ speaker: 'Elder Fairy', text: `${h.name} has joined your quest!`, wide: true });
+        }
       }
+      // Clear pending rescues from save since we are about to show them
+      consumePendingRescues(save);
+      writeSave(save, this.slot);
       transitionTo(this, SCENES.CUTSCENE, {
         lines,
+        floorId: this.floor,
         nextScene: SCENES.WORLD_MAP,
       });
     } else {

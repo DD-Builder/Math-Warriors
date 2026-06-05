@@ -1,0 +1,452 @@
+import Phaser from 'phaser';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { drawHeroSprite } from '../ui/heroSprites.js';
+import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
+import { audio } from '../systems/audio.js';
+import { fadeInScene, transitionTo } from '../ui/sceneHelpers.js';
+import { getHeroById, getPersonality } from '../data/heroes.js';
+
+/**
+ * EvolutionScene — the dramatic ceremony when a hero evolves.
+ *
+ * Receives data via scene.start(SCENES.EVOLUTION, { ... }):
+ *   heroId, heroName, evolvedName, evolvedTitle, stage,
+ *   statBoosts, newSuper, pathName, pathDescription, personality,
+ *   displayColor
+ *
+ * After the ceremony, returns to PartySelectScene.
+ */
+export class EvolutionScene extends Phaser.Scene {
+  constructor() {
+    super({ key: SCENES.EVOLUTION });
+  }
+
+  init(data) {
+    this.evoData = data;
+  }
+
+  create() {
+    const d = this.evoData;
+    const hero = getHeroById(d.heroId);
+    if (!hero) {
+      transitionTo(this, SCENES.PARTY_SELECT, undefined, 300);
+      return;
+    }
+
+    const isStage3 = d.stage === 3;
+    const cx = GAME_WIDTH / 2;
+    const cy = GAME_HEIGHT / 2;
+
+    // ---- Phase 0: Dark backdrop with sparkles ----
+    this.cameras.main.setBackgroundColor(0x0e0820);
+    this.cameras.main.fadeIn(400, 0, 0, 0);
+
+    // Dark indigo background gradient overlay
+    const bgGfx = this.add.graphics();
+    bgGfx.fillStyle(0x120828, 1);
+    bgGfx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // Subtle radial glow at center
+    const glowRadius = 400;
+    for (let i = 8; i >= 1; i--) {
+      bgGfx.fillStyle(0x201050, 0.04 * i);
+      bgGfx.fillCircle(cx, cy, glowRadius + i * 30);
+    }
+
+    // Ambient sparkles in the background
+    for (let i = 0; i < 40; i++) {
+      const sx = Math.random() * GAME_WIDTH;
+      const sy = Math.random() * GAME_HEIGHT;
+      const size = 1 + Math.random() * 2;
+      const sparkle = this.add.circle(sx, sy, size, 0xffffff, 0.2 + Math.random() * 0.3);
+      this.tweens.add({
+        targets: sparkle,
+        alpha: 0.05,
+        scale: 0.5,
+        duration: 1200 + Math.random() * 1500,
+        yoyo: true,
+        repeat: -1,
+        delay: Math.random() * 2000,
+      });
+    }
+
+    // ---- Phase 1: Hero appears (delay 0.3s) ----
+    const heroSpriteY = cy - 30;
+    const heroSprite = drawHeroSprite(this, cx, heroSpriteY, hero, { scale: 1 });
+    heroSprite.setAlpha(0);
+
+    const nameText = this.add.text(cx, heroSpriteY + 120, d.heroName.toUpperCase(), {
+      ...TEXT.heading(),
+      fontSize: '28px',
+      color: '#c0b090',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setAlpha(0);
+
+    const stageLabel = this.add.text(cx, heroSpriteY + 150, 'Stage 1', {
+      ...TEXT.body(),
+      fontSize: '16px',
+      color: '#8a7a60',
+    }).setOrigin(0.5).setAlpha(0);
+
+    this.tweens.add({
+      targets: [heroSprite, nameText, stageLabel],
+      alpha: 1,
+      duration: 600,
+      delay: 300,
+      ease: 'Sine.out',
+    });
+
+    // ---- Phase 2: Energy gathering (starts at 1s for stage2, 1s for stage3) ----
+    const gatherDelay = 1000;
+    const gatherDuration = isStage3 ? 2000 : 1500;
+    const particleCount = isStage3 ? 45 : 30;
+    const heroColor = hero.displayColor || 0x2e4e88;
+
+    this.time.delayedCall(gatherDelay, () => {
+      audio.play('ui/confirm');
+
+      // Pulsing glow on the hero
+      const heroGlow = this.add.circle(cx, heroSpriteY, 80, heroColor, 0);
+      this.tweens.add({
+        targets: heroGlow,
+        alpha: 0.3,
+        scaleX: 1.5,
+        scaleY: 1.5,
+        duration: gatherDuration,
+        ease: 'Sine.in',
+      });
+
+      // Energy particles flowing inward
+      const colors = [0xffffff, 0xf0d060, heroColor];
+      for (let i = 0; i < particleCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 350 + Math.random() * 200;
+        const startX = cx + Math.cos(angle) * dist;
+        const startY = cy + Math.sin(angle) * dist;
+        const size = 2 + Math.random() * 4;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+
+        const p = this.add.circle(startX, startY, size, color, 0.7 + Math.random() * 0.3);
+
+        this.tweens.add({
+          targets: p,
+          x: cx,
+          y: heroSpriteY,
+          alpha: 0,
+          scale: 0.3,
+          duration: gatherDuration * 0.6 + Math.random() * gatherDuration * 0.4,
+          delay: Math.random() * gatherDuration * 0.4,
+          ease: 'Cubic.easeIn',
+          onComplete: () => p.destroy(),
+        });
+      }
+    });
+
+    // ---- Phase 3: Flash ----
+    const flashDelay = gatherDelay + gatherDuration + 200;
+    const flashRect = this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0).setDepth(100);
+
+    const doFlash = (delay) => {
+      this.time.delayedCall(delay, () => {
+        audio.play('ui/confirm');
+        this.tweens.add({
+          targets: flashRect,
+          alpha: { from: 0, to: 1 },
+          duration: 200,
+          yoyo: true,
+          hold: 50,
+          ease: 'Quad.out',
+        });
+      });
+    };
+
+    doFlash(flashDelay);
+    if (isStage3) {
+      // Second flash for stage 3
+      doFlash(flashDelay + 400);
+    }
+
+    // ---- Phase 4: New form revealed ----
+    const revealDelay = flashDelay + (isStage3 ? 900 : 500);
+    const newScale = isStage3 ? 2 : 1.5;
+
+    this.time.delayedCall(revealDelay, () => {
+      // Hide old hero, show new one bigger
+      heroSprite.setAlpha(0);
+      nameText.setAlpha(0);
+      stageLabel.setAlpha(0);
+
+      // Brighten the background
+      const brightBg = this.add.graphics();
+      if (isStage3) {
+        // Use hero's display color as tint
+        brightBg.fillStyle(heroColor, 0.15);
+      } else {
+        brightBg.fillStyle(0x1a1040, 0.5);
+      }
+      brightBg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      brightBg.setAlpha(0);
+      this.tweens.add({
+        targets: brightBg,
+        alpha: 1,
+        duration: 600,
+        ease: 'Sine.out',
+      });
+
+      // FINAL FORM text for stage 3
+      if (isStage3) {
+        const finalFormText = this.add.text(cx, heroSpriteY - 150, 'FINAL FORM', {
+          ...TEXT.title(),
+          fontSize: '36px',
+          color: '#f0d060',
+          stroke: '#3a1a00',
+          strokeThickness: 5,
+        }).setOrigin(0.5).setAlpha(0);
+        this.tweens.add({
+          targets: finalFormText,
+          alpha: 1,
+          y: heroSpriteY - 160,
+          duration: 600,
+          ease: 'Back.out',
+        });
+        // Sparkle around FINAL FORM text
+        for (let i = 0; i < 10; i++) {
+          const sp = this.add.circle(
+            cx - 100 + Math.random() * 200,
+            heroSpriteY - 170 + Math.random() * 30,
+            2 + Math.random() * 3,
+            0xf0d060, 0.6
+          );
+          this.tweens.add({
+            targets: sp,
+            alpha: 0.1,
+            scale: 0.3,
+            duration: 600 + Math.random() * 600,
+            yoyo: true,
+            repeat: -1,
+            delay: Math.random() * 500,
+          });
+        }
+      }
+
+      // New hero sprite at larger scale
+      const newHeroSprite = drawHeroSprite(this, cx, heroSpriteY, hero, { scale: newScale });
+      newHeroSprite.setAlpha(0).setScale(newScale * 0.5);
+      this.tweens.add({
+        targets: newHeroSprite,
+        alpha: 1,
+        scaleX: newScale,
+        scaleY: newScale,
+        duration: 500,
+        ease: 'Back.out',
+      });
+
+      // New name and title
+      const newNameText = this.add.text(cx, heroSpriteY + 100 + (newScale - 1) * 40, d.evolvedName.toUpperCase(), {
+        ...TEXT.title(),
+        fontSize: '34px',
+        color: '#f0d060',
+        stroke: '#3a1a00',
+        strokeThickness: 5,
+      }).setOrigin(0.5).setAlpha(0);
+
+      const newTitleText = this.add.text(cx, heroSpriteY + 138 + (newScale - 1) * 40, d.evolvedTitle, {
+        ...TEXT.body(),
+        fontSize: '18px',
+        color: '#e0d0a0',
+        fontStyle: 'italic',
+      }).setOrigin(0.5).setAlpha(0);
+
+      this.tweens.add({
+        targets: [newNameText, newTitleText],
+        alpha: 1,
+        duration: 600,
+        delay: 200,
+        ease: 'Sine.out',
+      });
+
+      // Celebration particle burst outward
+      audio.play('battle/victory');
+      for (let i = 0; i < 40; i++) {
+        const angle = (i / 40) * Math.PI * 2;
+        const burstColor = [0xffffff, 0xf0d060, heroColor, 0xf09030][i % 4];
+        const bp = this.add.circle(cx, heroSpriteY, 3 + Math.random() * 3, burstColor, 0.8);
+        this.tweens.add({
+          targets: bp,
+          x: cx + Math.cos(angle) * (200 + Math.random() * 100),
+          y: heroSpriteY + Math.sin(angle) * (200 + Math.random() * 100),
+          alpha: 0,
+          scale: 0.2,
+          duration: 700 + Math.random() * 500,
+          ease: 'Quad.out',
+          onComplete: () => bp.destroy(),
+        });
+      }
+
+      // Path info for stage 3
+      if (isStage3 && d.pathName) {
+        const pathDelay = 600;
+        this.time.delayedCall(pathDelay, () => {
+          const pathText = this.add.text(cx, heroSpriteY + 180 + (newScale - 1) * 40,
+            `${d.heroName} chose the path of the ${d.pathName}!`, {
+            ...TEXT.body(),
+            fontSize: '16px',
+            color: '#c0a870',
+            wordWrap: { width: 500 },
+            align: 'center',
+          }).setOrigin(0.5).setAlpha(0);
+          this.tweens.add({
+            targets: pathText,
+            alpha: 1,
+            duration: 500,
+            ease: 'Sine.out',
+          });
+        });
+      }
+
+      // ---- Phase 5: Stat gains shown ----
+      const statDelay = isStage3 ? 1000 : 700;
+      const boosts = d.statBoosts || {};
+      const statEntries = [];
+      if (boosts.maxHp) statEntries.push({ label: `+${boosts.maxHp} HP`, color: '#60c060' });
+      if (boosts.atk) statEntries.push({ label: `+${boosts.atk} ATK`, color: '#f08040' });
+      if (boosts.def) statEntries.push({ label: `+${boosts.def} DEF`, color: '#4090e0' });
+
+      const statBaseY = cy + 180 + (isStage3 ? 40 : 0);
+      statEntries.forEach((entry, idx) => {
+        const fromLeft = idx % 2 === 0;
+        const startX = fromLeft ? -200 : GAME_WIDTH + 200;
+        const targetX = cx;
+        const targetY = statBaseY + idx * 36;
+
+        this.time.delayedCall(statDelay + idx * 300, () => {
+          audio.play('battle/correct');
+          const statText = this.add.text(startX, targetY, entry.label, {
+            ...TEXT.heading(),
+            fontSize: '26px',
+            color: entry.color,
+            stroke: '#000000',
+            strokeThickness: 4,
+          }).setOrigin(0.5).setAlpha(0);
+
+          this.tweens.add({
+            targets: statText,
+            x: targetX,
+            alpha: 1,
+            duration: 400,
+            ease: 'Back.out',
+          });
+
+          // Pop effect
+          this.tweens.add({
+            targets: statText,
+            scaleX: 1.2,
+            scaleY: 1.2,
+            duration: 100,
+            delay: 400,
+            yoyo: true,
+            ease: 'Quad.out',
+          });
+        });
+      });
+
+      // ---- Phase 6: New super move ----
+      const superDelay = statDelay + statEntries.length * 300 + 400;
+      if (d.newSuper && d.newSuper.name) {
+        this.time.delayedCall(superDelay, () => {
+          audio.play('battle/correct');
+          const superText = this.add.text(cx, statBaseY + statEntries.length * 36 + 20,
+            `NEW MOVE: ${d.newSuper.name}!`, {
+            ...TEXT.heading(),
+            fontSize: '24px',
+            color: '#f0d060',
+            stroke: '#3a1a00',
+            strokeThickness: 4,
+          }).setOrigin(0.5).setAlpha(0).setScale(0.5);
+
+          this.tweens.add({
+            targets: superText,
+            alpha: 1,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 500,
+            ease: 'Back.out',
+          });
+
+          // Golden sparkles around the new move text
+          for (let i = 0; i < 12; i++) {
+            const sp = this.add.circle(
+              cx - 120 + Math.random() * 240,
+              superText.y - 10 + Math.random() * 20,
+              2 + Math.random() * 2,
+              0xf0d060, 0.7
+            );
+            this.tweens.add({
+              targets: sp,
+              alpha: 0,
+              y: sp.y - 20 - Math.random() * 20,
+              duration: 600 + Math.random() * 400,
+              delay: Math.random() * 300,
+              onComplete: () => sp.destroy(),
+            });
+          }
+        });
+      }
+
+      // ---- Phase 7: Battle cry ----
+      const cryDelay = superDelay + (d.newSuper ? 700 : 200);
+      const personality = d.personality || getPersonality(d.heroId);
+      const victoryCry = personality?.battleCries?.victory;
+
+      if (victoryCry) {
+        this.time.delayedCall(cryDelay, () => {
+          const cryText = this.add.text(cx, statBaseY + statEntries.length * 36 + (d.newSuper ? 60 : 20),
+            victoryCry, {
+            ...TEXT.body(),
+            fontSize: '20px',
+            color: '#e0d0b0',
+            fontStyle: 'italic',
+            wordWrap: { width: 400 },
+            align: 'center',
+          }).setOrigin(0.5).setAlpha(0);
+
+          this.tweens.add({
+            targets: cryText,
+            alpha: 1,
+            duration: 400,
+            ease: 'Sine.out',
+          });
+        });
+      }
+
+      // ---- Phase 8: Continue button ----
+      const btnDelay = cryDelay + 600;
+      this.time.delayedCall(btnDelay, () => {
+        const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+        const btn = PaperButton(this, cx, area.bottom - 50, 'AMAZING!', {
+          w: 260, h: 64, color: 0xe84840, fontSize: 24, textColor: '#fff8e0',
+          onClick: () => {
+            audio.play('ui/confirm');
+            transitionTo(this, SCENES.PARTY_SELECT, {
+              returnFromEvolution: true,
+            }, 400);
+          },
+        });
+
+        // Fade in the button
+        [btn.bg, btn.shadow, btn.label, btn.zone].forEach(obj => {
+          if (obj) {
+            obj.setAlpha(0);
+            this.tweens.add({
+              targets: obj,
+              alpha: 1,
+              duration: 400,
+              ease: 'Sine.out',
+            });
+          }
+        });
+      });
+    });
+  }
+}

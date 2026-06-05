@@ -867,14 +867,18 @@ export class PartySelectScene extends Phaser.Scene {
           w: 260, h: 46, color: 0xe84840, fontSize: 16, textColor: '#fff8e0',
           onClick: () => {
             audio.play('ui/confirm');
-            evolveStage2(this.save, hero.id);
+            const result = evolveStage2(this.save, hero.id);
             writeSave(this.save, this.slot);
-            // Brief celebration flash
-            this.cameras.main.flash(400, 255, 220, 80);
-            // Refresh everything
-            this.rebuildHeroGrid();
-            this.updatePartyStrip();
-            refreshCallback();
+            transitionTo(this, SCENES.EVOLUTION, {
+              heroId: hero.id,
+              heroName: hero.name,
+              evolvedName: result.name,
+              evolvedTitle: result.title,
+              stage: 2,
+              statBoosts: result.statBoost,
+              newSuper: result.newSuper,
+              displayColor: hero.displayColor,
+            }, 300);
           },
         });
         evolveBtn.bg.setDepth(953); evolveBtn.shadow.setDepth(953);
@@ -953,12 +957,20 @@ export class PartySelectScene extends Phaser.Scene {
             w: 80, h: 28, color: 0xe84840, fontSize: 11, textColor: '#fff8e0',
             onClick: () => {
               audio.play('ui/confirm');
-              evolveStage3(this.save, hero.id, p.id);
+              const result = evolveStage3(this.save, hero.id, p.id);
               writeSave(this.save, this.slot);
-              this.cameras.main.flash(500, 255, 200, 60);
-              this.rebuildHeroGrid();
-              this.updatePartyStrip();
-              refreshCallback();
+              transitionTo(this, SCENES.EVOLUTION, {
+                heroId: hero.id,
+                heroName: hero.name,
+                evolvedName: result.name,
+                evolvedTitle: result.title,
+                stage: 3,
+                statBoosts: result.statBoost,
+                newSuper: result.newSuper,
+                pathName: p.name,
+                pathDescription: p.description,
+                displayColor: hero.displayColor,
+              }, 300);
             },
           });
           evolvePathBtn.bg.setDepth(953); evolvePathBtn.shadow.setDepth(953);

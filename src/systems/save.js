@@ -57,6 +57,7 @@ export function makeDefaultSave() {
     ],
     heroEvolution: {},
     heroBonds: {},
+    pendingRescueDialogue: [],
     settings: {
       musicVolume: 0.8,
       sfxVolume: 1.0,
@@ -207,6 +208,9 @@ function normalize(save) {
   if (!out.heroBonds || typeof out.heroBonds !== 'object') {
     out.heroBonds = {};
   }
+  if (!Array.isArray(out.pendingRescueDialogue)) {
+    out.pendingRescueDialogue = [];
+  }
 
   out.version = CURRENT_VERSION;
 
@@ -350,7 +354,26 @@ export function unlockHeroesForFloor(save, floorId) {
       newlyUnlocked.push(h);
     }
   }
+  // Track rescued hero IDs so the UI can display rescue dialogue
+  if (newlyUnlocked.length > 0) {
+    if (!Array.isArray(save.pendingRescueDialogue)) {
+      save.pendingRescueDialogue = [];
+    }
+    save.pendingRescueDialogue = newlyUnlocked.map(h => h.id);
+  }
   return newlyUnlocked;
+}
+
+/**
+ * Consume and return the pending rescue hero IDs, clearing them from save.
+ * Returns an array of hero ID strings, or empty array if none pending.
+ */
+export function consumePendingRescues(save) {
+  const pending = Array.isArray(save.pendingRescueDialogue)
+    ? [...save.pendingRescueDialogue]
+    : [];
+  save.pendingRescueDialogue = [];
+  return pending;
 }
 
 export function isHeroUnlocked(save, heroId) {

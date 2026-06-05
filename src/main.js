@@ -15,6 +15,7 @@ import { EndingScene } from './scenes/EndingScene.js';
 import { SaveSlotScene } from './scenes/SaveSlotScene.js';
 import { MasteryScene } from './scenes/MasteryScene.js';
 import { BossRushScene } from './scenes/BossRushScene.js';
+import { EvolutionScene } from './scenes/EvolutionScene.js';
 import { audio } from './systems/audio.js';
 import { loadSave } from './systems/save.js';
 
@@ -42,7 +43,7 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene],
+  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene, EvolutionScene],
 };
 
 const game = new Phaser.Game(config);
