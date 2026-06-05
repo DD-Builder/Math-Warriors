@@ -5,6 +5,12 @@
  * and to instantiate combat-ready heroes. Each class has its own base
  * stats; individual heroes tweak those bases by +/- a couple points so
  * every hero in a class feels distinct.
+ *
+ * Extended systems:
+ *   - Signature abilities  (unique passive/trigger per hero)
+ *   - Evolution stages     (3 tiers with branching stage-3 paths)
+ *   - Personalities        (type + battle cries)
+ *   - Hero bonds           (cross-hero combo attacks)
  */
 
 const CLASS_BASE = {
@@ -13,7 +19,7 @@ const CLASS_BASE = {
   bunny:  { maxHp: 45, atk: 16, def: 10 },
 };
 
-function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, superMoves = []) {
+function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, superMoves = [], signature = null, evolution = null, personality = null) {
   const base = CLASS_BASE[className];
   const rarity = unlockedAtFloor >= 5 ? 'legendary' : unlockedAtFloor >= 3 ? 'epic' : unlockedAtFloor >= 1 ? 'rare' : 'common';
   return {
@@ -29,6 +35,9 @@ function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, super
     displayColor: HERO_COLORS[className],
     unlockedAtFloor,
     superMoves,
+    signature,
+    evolution,
+    personality,
   };
 }
 
@@ -43,31 +52,313 @@ const HERO_COLORS = {
 // ------------------------------------------------------------------
 
 export const KNIGHTS = [
-  make('knight-shadow',   'Shadow',     'knight', 'Unseen. Unstoppable.',             { atk: 2, def: -1 }, 0, [
+  make('knight-shadow', 'Shadow', 'knight', 'Unseen. Unstoppable.', { atk: 2, def: -1 }, 0, [
     { name: 'Shadow Strike', type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Dark Cleave',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Void Slash',    type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('knight-crusader', 'Crusader',   'knight', 'Holy. Righteous. Relentless.',     { def: 2, maxHp: -3 }, 1, [
+  ],
+  // --- signature ---
+  {
+    name: 'Shadow Step',
+    description: 'Has a 30% chance to dodge any attack',
+    type: 'passive',
+    effect: 'dodge',
+    value: 0.3,
+  },
+  // --- evolution ---
+  {
+    stage1: { name: 'Shadow', title: 'Shadow Apprentice' },
+    stage2: {
+      name: 'Shadow Knight',
+      title: 'Shadow Knight',
+      level: 5,
+      floor: 2,
+      statBoost: { maxHp: 5, atk: 2, def: 1 },
+      newSuper: { name: 'Dark Cleave', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'shadow-paladin',
+          name: 'Shadow Paladin',
+          title: 'Shadow Paladin',
+          level: 8,
+          mastery: 'addition',
+          statBoost: { maxHp: 8, atk: 2, def: 4 },
+          newSuper: { name: 'Void Shield', type: 'damage', multiplier: 3.5 },
+          description: 'Defensive shadow warrior who shields allies in darkness',
+        },
+        {
+          id: 'shadow-assassin',
+          name: 'Shadow Assassin',
+          title: 'Shadow Assassin',
+          level: 8,
+          mastery: 'subtraction',
+          statBoost: { maxHp: 3, atk: 5, def: 1 },
+          newSuper: { name: 'Void Slash', type: 'damage', multiplier: 4 },
+          description: 'Offensive shadow warrior who strikes from the darkness',
+        },
+      ],
+    },
+  },
+  // --- personality ---
+  {
+    type: 'stoic',
+    battleCries: {
+      attack: '"..."',
+      correctAnswer: '"As expected."',
+      wrongAnswer: '"..."',
+      superMove: '"From the shadows!"',
+      lowHp: '"Not yet..."',
+      victory: '"It is done."',
+      defeat: '"..."',
+      bossEncounter: '"..."',
+    },
+  }),
+
+  make('knight-crusader', 'Crusader', 'knight', 'Holy. Righteous. Relentless.', { def: 2, maxHp: -3 }, 1, [
     { name: 'Holy Slam',       type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Radiant Smash',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Divine Judgment',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('knight-paladin',  'Paladin',    'knight', 'Light in darkness. Grace in battle.', { maxHp: 3 }, 3, [
+  ],
+  {
+    name: 'Holy Aura',
+    description: 'Party takes 15% less damage',
+    type: 'passive',
+    effect: 'partyDamageReduce',
+    value: 0.15,
+  },
+  {
+    stage1: { name: 'Crusader', title: 'Crusader Squire' },
+    stage2: {
+      name: 'Holy Crusader',
+      title: 'Holy Crusader',
+      level: 5,
+      floor: 2,
+      statBoost: { maxHp: 4, atk: 2, def: 2 },
+      newSuper: { name: 'Radiant Smash', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'crusader-templar',
+          name: 'Templar',
+          title: 'Holy Templar',
+          level: 8,
+          mastery: 'multiplication',
+          statBoost: { maxHp: 6, atk: 2, def: 5 },
+          newSuper: { name: 'Divine Barrier', type: 'damage', multiplier: 3.5 },
+          description: 'Unbreakable holy defender who shields the party',
+        },
+        {
+          id: 'crusader-inquisitor',
+          name: 'Inquisitor',
+          title: 'Grand Inquisitor',
+          level: 8,
+          mastery: 'division',
+          statBoost: { maxHp: 3, atk: 5, def: 2 },
+          newSuper: { name: 'Judgment Ray', type: 'damage', multiplier: 4 },
+          description: 'Righteous avenger who punishes foes with holy fire',
+        },
+      ],
+    },
+  },
+  {
+    type: 'noble',
+    battleCries: {
+      attack: '"For justice!"',
+      correctAnswer: '"Honor prevails!"',
+      wrongAnswer: '"I shall atone."',
+      superMove: '"By the light!"',
+      lowHp: '"Still standing!"',
+      victory: '"Justice is served."',
+      defeat: '"Not... in vain..."',
+      bossEncounter: '"Face judgment!"',
+    },
+  }),
+
+  make('knight-paladin', 'Paladin', 'knight', 'Light in darkness. Grace in battle.', { maxHp: 3 }, 3, [
     { name: 'Shield Bash',   type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Guardian Rush',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Light Nova',     type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('knight-berserker','Berserker',  'knight', 'Pure fury. Zero chill.',            { atk: 3, def: -3 }, 4, [
+  ],
+  {
+    name: "Guardian's Oath",
+    description: 'When an ally drops below 25% HP, Paladin auto-blocks the next hit for them',
+    type: 'trigger',
+    effect: 'guardAlly',
+    value: 0.25,
+  },
+  {
+    stage1: { name: 'Paladin', title: 'Paladin Initiate' },
+    stage2: {
+      name: 'Holy Paladin',
+      title: 'Holy Paladin',
+      level: 5,
+      floor: 3,
+      statBoost: { maxHp: 6, atk: 1, def: 3 },
+      newSuper: { name: 'Guardian Rush', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'paladin-champion',
+          name: 'Champion',
+          title: 'Radiant Champion',
+          level: 8,
+          mastery: 'addition',
+          statBoost: { maxHp: 10, atk: 1, def: 5 },
+          newSuper: { name: 'Aegis of Light', type: 'damage', multiplier: 3.5 },
+          description: 'Ultimate protector who can shield the entire party',
+        },
+        {
+          id: 'paladin-avenger',
+          name: 'Avenger',
+          title: 'Holy Avenger',
+          level: 8,
+          mastery: 'fractions',
+          statBoost: { maxHp: 5, atk: 4, def: 2 },
+          newSuper: { name: 'Smite', type: 'damage', multiplier: 4 },
+          description: 'Righteous warrior who turns defense into devastating offense',
+        },
+      ],
+    },
+  },
+  {
+    type: 'gentle',
+    battleCries: {
+      attack: '"Stay safe!"',
+      correctAnswer: '"Well done!"',
+      wrongAnswer: '"It is okay."',
+      superMove: '"I will protect!"',
+      lowHp: '"Keep going..."',
+      victory: '"Everyone safe?"',
+      defeat: '"I am sorry..."',
+      bossEncounter: '"Behind me!"',
+    },
+  }),
+
+  make('knight-berserker', 'Berserker', 'knight', 'Pure fury. Zero chill.', { atk: 3, def: -3 }, 4, [
     { name: 'Rage Blow',   type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Fury Storm',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Chaos Rend',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('knight-greathelm','Great Helm', 'knight', 'Noble. Steadfast. Legendary.',     { def: 3 }, 6, [
+  ],
+  {
+    name: 'Blood Rage',
+    description: 'ATK increases by +2 for every 10 HP lost',
+    type: 'passive',
+    effect: 'rageAtk',
+    value: 2,
+  },
+  {
+    stage1: { name: 'Berserker', title: 'Berserker Pup' },
+    stage2: {
+      name: 'War Berserker',
+      title: 'War Berserker',
+      level: 5,
+      floor: 4,
+      statBoost: { maxHp: 4, atk: 3, def: 1 },
+      newSuper: { name: 'Fury Storm', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'berserker-warlord',
+          name: 'Warlord',
+          title: 'Blood Warlord',
+          level: 8,
+          mastery: 'subtraction',
+          statBoost: { maxHp: 8, atk: 4, def: 2 },
+          newSuper: { name: 'Carnage', type: 'damage', multiplier: 4 },
+          description: 'Unstoppable force who gets stronger the longer the fight lasts',
+        },
+        {
+          id: 'berserker-ravager',
+          name: 'Ravager',
+          title: 'Chaos Ravager',
+          level: 8,
+          mastery: 'measurement',
+          statBoost: { maxHp: 2, atk: 6, def: 0 },
+          newSuper: { name: 'World Breaker', type: 'damage', multiplier: 4.5 },
+          description: 'Glass cannon who sacrifices everything for maximum damage',
+        },
+      ],
+    },
+  },
+  {
+    type: 'fierce',
+    battleCries: {
+      attack: '"SMASH!"',
+      correctAnswer: '"HA! Easy!"',
+      wrongAnswer: '"GRRR!"',
+      superMove: '"RAAAAGE!"',
+      lowHp: '"MORE! MORE!"',
+      victory: '"Who is next?!"',
+      defeat: '"Not... done..."',
+      bossEncounter: '"FINALLY!"',
+    },
+  }),
+
+  make('knight-greathelm', 'Great Helm', 'knight', 'Noble. Steadfast. Legendary.', { def: 3 }, 6, [
     { name: 'Iron Wall',     type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Steel Crush',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Titan Strike',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
+  ],
+  {
+    name: 'Unbreakable',
+    description: 'Cannot be knocked below 1 HP more than once per battle',
+    type: 'trigger',
+    effect: 'lastStand',
+    value: 1,
+  },
+  {
+    stage1: { name: 'Great Helm', title: 'Great Helm Cadet' },
+    stage2: {
+      name: 'Iron Helm',
+      title: 'Iron Helm',
+      level: 5,
+      floor: 5,
+      statBoost: { maxHp: 6, atk: 1, def: 4 },
+      newSuper: { name: 'Steel Crush', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'greathelm-fortress',
+          name: 'Fortress',
+          title: 'Living Fortress',
+          level: 8,
+          mastery: 'geometry',
+          statBoost: { maxHp: 12, atk: 0, def: 6 },
+          newSuper: { name: 'Eternal Bastion', type: 'damage', multiplier: 3.5 },
+          description: 'Immovable wall of armor who can absorb any attack',
+        },
+        {
+          id: 'greathelm-conqueror',
+          name: 'Conqueror',
+          title: 'Grand Conqueror',
+          level: 8,
+          mastery: 'multiplication',
+          statBoost: { maxHp: 6, atk: 4, def: 3 },
+          newSuper: { name: 'Empire Breaker', type: 'damage', multiplier: 4 },
+          description: 'Balanced legendary warrior who excels in all areas',
+        },
+      ],
+    },
+  },
+  {
+    type: 'regal',
+    battleCries: {
+      attack: '"Proceed."',
+      correctAnswer: '"Naturally."',
+      wrongAnswer: '"Hmm. Noted."',
+      superMove: '"Witness me."',
+      lowHp: '"Merely a scratch."',
+      victory: '"As it should be."',
+      defeat: '"Impossible..."',
+      bossEncounter: '"A worthy foe."',
+    },
+  }),
 ];
 
 // ------------------------------------------------------------------
@@ -75,31 +366,310 @@ export const KNIGHTS = [
 // ------------------------------------------------------------------
 
 export const WIZARDS = [
-  make('wizard-stargazer',  'Stargazer', 'wizard', 'The cosmos bends to her will.',   { atk: 2 }, 0, [
+  make('wizard-stargazer', 'Stargazer', 'wizard', 'The cosmos bends to her will.', { atk: 2 }, 0, [
     { name: 'Star Burst',   type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Cosmic Ray',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Galaxy Blast',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('wizard-toadstool',  'Toadstool', 'wizard', 'Brews chaos. Serves it hot.',    { atk: 1, def: 1 }, 1, [
+  ],
+  {
+    name: 'Star Reading',
+    description: 'Reveals one wrong answer choice per question',
+    type: 'passive',
+    effect: 'revealWrong',
+    value: 1,
+  },
+  {
+    stage1: { name: 'Stargazer', title: 'Star Pupil' },
+    stage2: {
+      name: 'Star Mage',
+      title: 'Star Mage',
+      level: 5,
+      floor: 2,
+      statBoost: { maxHp: 3, atk: 3, def: 1 },
+      newSuper: { name: 'Cosmic Ray', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'stargazer-oracle',
+          name: 'Star Oracle',
+          title: 'Celestial Oracle',
+          level: 8,
+          mastery: 'patterns',
+          statBoost: { maxHp: 5, atk: 3, def: 3 },
+          newSuper: { name: 'Constellation', type: 'damage', multiplier: 3.5 },
+          description: 'Cosmic seer who reveals enemy weaknesses and aids the party',
+        },
+        {
+          id: 'stargazer-supernova',
+          name: 'Supernova',
+          title: 'Supernova',
+          level: 8,
+          mastery: 'addition',
+          statBoost: { maxHp: 2, atk: 6, def: 1 },
+          newSuper: { name: 'Big Bang', type: 'damage', multiplier: 4.5 },
+          description: 'Explosive cosmic mage who unleashes devastating star power',
+        },
+      ],
+    },
+  },
+  {
+    type: 'dreamy',
+    battleCries: {
+      attack: '"Stars, guide me."',
+      correctAnswer: '"The stars knew."',
+      wrongAnswer: '"Hmm, curious..."',
+      superMove: '"Cosmic power!"',
+      lowHp: '"Fading light..."',
+      victory: '"Written in stars."',
+      defeat: '"The stars dim..."',
+      bossEncounter: '"I foresee... pain."',
+    },
+  }),
+
+  make('wizard-toadstool', 'Toadstool', 'wizard', 'Brews chaos. Serves it hot.', { atk: 1, def: 1 }, 1, [
     { name: 'Spore Cloud',    type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Mushroom Bomb',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Toxic Nova',     type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('wizard-spellblade', 'Spellblade','wizard', 'Magic fists. Still counts.',     { def: 3, atk: -1 }, 2, [
+  ],
+  {
+    name: 'Toxic Spores',
+    description: 'Enemies take 3 damage at start of each enemy turn',
+    type: 'passive',
+    effect: 'poison',
+    value: 3,
+  },
+  {
+    stage1: { name: 'Toadstool', title: 'Sprout' },
+    stage2: {
+      name: 'Fungal Mage',
+      title: 'Fungal Mage',
+      level: 5,
+      floor: 2,
+      statBoost: { maxHp: 4, atk: 2, def: 2 },
+      newSuper: { name: 'Mushroom Bomb', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'toadstool-plaguemaster',
+          name: 'Plague Master',
+          title: 'Plague Master',
+          level: 8,
+          mastery: 'subtraction',
+          statBoost: { maxHp: 4, atk: 4, def: 2 },
+          newSuper: { name: 'Pandemic', type: 'damage', multiplier: 4 },
+          description: 'Master of poison who deals damage over time to all enemies',
+        },
+        {
+          id: 'toadstool-mycologist',
+          name: 'Mycologist',
+          title: 'Grand Mycologist',
+          level: 8,
+          mastery: 'measurement',
+          statBoost: { maxHp: 8, atk: 2, def: 3 },
+          newSuper: { name: 'Healing Spores', type: 'damage', multiplier: 3.5 },
+          description: 'Supportive fungal mage who heals allies with restorative mushrooms',
+        },
+      ],
+    },
+  },
+  {
+    type: 'mischievous',
+    battleCries: {
+      attack: '"Hee hee hee!"',
+      correctAnswer: '"Ooh, smarty!"',
+      wrongAnswer: '"Oopsie daisy!"',
+      superMove: '"Taste my spores!"',
+      lowHp: '"Ow ow ow!"',
+      victory: '"Toad wins!"',
+      defeat: '"Bleh..."',
+      bossEncounter: '"Ooh, a big one!"',
+    },
+  }),
+
+  make('wizard-spellblade', 'Spellblade', 'wizard', 'Magic fists. Still counts.', { def: 3, atk: -1 }, 2, [
     { name: 'Magic Fist',    type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Arcane Slash',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Ether Blade',    type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('wizard-bookworm',   'Bookworm',  'wizard', 'Knows every spell. Uses them all.', { maxHp: 3 }, 4, [
+  ],
+  {
+    name: 'Spell Weave',
+    description: 'FIGHT and MAGIC commands both deal 1.5x damage',
+    type: 'passive',
+    effect: 'hybridDamage',
+    value: 1.5,
+  },
+  {
+    stage1: { name: 'Spellblade', title: 'Blade Initiate' },
+    stage2: {
+      name: 'Arcane Blade',
+      title: 'Arcane Blade',
+      level: 5,
+      floor: 3,
+      statBoost: { maxHp: 3, atk: 2, def: 3 },
+      newSuper: { name: 'Arcane Slash', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'spellblade-battlemage',
+          name: 'Battle Mage',
+          title: 'Battle Mage',
+          level: 8,
+          mastery: 'multiplication',
+          statBoost: { maxHp: 5, atk: 3, def: 4 },
+          newSuper: { name: 'Mystic Barrage', type: 'damage', multiplier: 3.5 },
+          description: 'Armored mage who balances magic and melee perfectly',
+        },
+        {
+          id: 'spellblade-sworddancer',
+          name: 'Sword Dancer',
+          title: 'Sword Dancer',
+          level: 8,
+          mastery: 'patterns',
+          statBoost: { maxHp: 2, atk: 5, def: 2 },
+          newSuper: { name: 'Blade Storm', type: 'damage', multiplier: 4 },
+          description: 'Lightning-fast attacker who weaves spells between strikes',
+        },
+      ],
+    },
+  },
+  {
+    type: 'confident',
+    battleCries: {
+      attack: '"Too easy."',
+      correctAnswer: '"Obviously."',
+      wrongAnswer: '"Whatever."',
+      superMove: '"Watch this."',
+      lowHp: '"Just warming up."',
+      victory: '"Was there doubt?"',
+      defeat: '"Lucky shot."',
+      bossEncounter: '"My kind of fight."',
+    },
+  }),
+
+  make('wizard-bookworm', 'Bookworm', 'wizard', 'Knows every spell. Uses them all.', { maxHp: 3 }, 4, [
     { name: 'Ink Splash',      type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Page Storm',      type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Knowledge Blast',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('wizard-grandmage',  'Grand Mage','wizard', 'Ancient power. Zero patience.',  { atk: 3, maxHp: -3 }, 6, [
+  ],
+  {
+    name: 'Speed Reader',
+    description: 'Math question timer extended by 5 seconds',
+    type: 'passive',
+    effect: 'timerBonus',
+    value: 5,
+  },
+  {
+    stage1: { name: 'Bookworm', title: 'Page Turner' },
+    stage2: {
+      name: 'Lore Keeper',
+      title: 'Lore Keeper',
+      level: 5,
+      floor: 4,
+      statBoost: { maxHp: 4, atk: 3, def: 1 },
+      newSuper: { name: 'Page Storm', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'bookworm-archivist',
+          name: 'Archivist',
+          title: 'Grand Archivist',
+          level: 8,
+          mastery: 'division',
+          statBoost: { maxHp: 6, atk: 2, def: 4 },
+          newSuper: { name: 'Tome of Ages', type: 'damage', multiplier: 3.5 },
+          description: 'Defensive scholar who uses ancient knowledge to protect allies',
+        },
+        {
+          id: 'bookworm-sage',
+          name: 'Sage',
+          title: 'Arcane Sage',
+          level: 8,
+          mastery: 'fractions',
+          statBoost: { maxHp: 3, atk: 5, def: 1 },
+          newSuper: { name: 'Forbidden Chapter', type: 'damage', multiplier: 4 },
+          description: 'Offensive scholar who channels forbidden knowledge into power',
+        },
+      ],
+    },
+  },
+  {
+    type: 'studious',
+    battleCries: {
+      attack: '"Per my research..."',
+      correctAnswer: '"Precisely right!"',
+      wrongAnswer: '"Recalculating..."',
+      superMove: '"Chapter eleven!"',
+      lowHp: '"Need more data..."',
+      victory: '"As I predicted."',
+      defeat: '"Back to study..."',
+      bossEncounter: '"Fascinating..."',
+    },
+  }),
+
+  make('wizard-grandmage', 'Grand Mage', 'wizard', 'Ancient power. Zero patience.', { atk: 3, maxHp: -3 }, 6, [
     { name: 'Fire Bolt',      type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Thunder Wave',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Meteor Rain',    type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
+  ],
+  {
+    name: 'Arcane Overflow',
+    description: 'Correct answers on hard (4-5 star) questions deal 3x damage',
+    type: 'trigger',
+    effect: 'hardBonus',
+    value: 3,
+  },
+  {
+    stage1: { name: 'Grand Mage', title: 'Apprentice Mage' },
+    stage2: {
+      name: 'Arch Mage',
+      title: 'Arch Mage',
+      level: 5,
+      floor: 5,
+      statBoost: { maxHp: 2, atk: 4, def: 1 },
+      newSuper: { name: 'Thunder Wave', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'grandmage-elementalist',
+          name: 'Elementalist',
+          title: 'Elemental Lord',
+          level: 8,
+          mastery: 'geometry',
+          statBoost: { maxHp: 4, atk: 5, def: 2 },
+          newSuper: { name: 'Elemental Cataclysm', type: 'damage', multiplier: 4.5 },
+          description: 'Master of all elements who can devastate entire enemy groups',
+        },
+        {
+          id: 'grandmage-chronomancer',
+          name: 'Chronomancer',
+          title: 'Chronomancer',
+          level: 8,
+          mastery: 'time',
+          statBoost: { maxHp: 5, atk: 3, def: 3 },
+          newSuper: { name: 'Time Fracture', type: 'damage', multiplier: 3.5 },
+          description: 'Time-bending mage who manipulates turn order and cooldowns',
+        },
+      ],
+    },
+  },
+  {
+    type: 'imperious',
+    battleCries: {
+      attack: '"Begone."',
+      correctAnswer: '"Child\'s play."',
+      wrongAnswer: '"Tch. Wasted."',
+      superMove: '"KNEEL."',
+      lowHp: '"Impossible!"',
+      victory: '"Beneath me."',
+      defeat: '"This means nothing."',
+      bossEncounter: '"You bore me."',
+    },
+  }),
 ];
 
 // ------------------------------------------------------------------
@@ -107,31 +677,310 @@ export const WIZARDS = [
 // ------------------------------------------------------------------
 
 export const BUNNIES = [
-  make('bunny-pepper',   'Pepper',   'bunny', 'Tiny. Fast. Absolutely feral.',           { atk: 3, def: -2 }, 0, [
+  make('bunny-pepper', 'Pepper', 'bunny', 'Tiny. Fast. Absolutely feral.', { atk: 3, def: -2 }, 0, [
     { name: 'Pepper Dash',     type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Spicy Rush',      type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Inferno Sprint',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('bunny-nova',     'Nova',     'bunny', 'She sparkles. Then she wins.',            { atk: 2, maxHp: -2 }, 2, [
+  ],
+  {
+    name: 'Pepper Dash',
+    description: 'Always acts first; +20% damage on first attack each battle',
+    type: 'passive',
+    effect: 'firstStrike',
+    value: 0.2,
+  },
+  {
+    stage1: { name: 'Pepper', title: 'Little Pepper' },
+    stage2: {
+      name: 'Spicy Pepper',
+      title: 'Spicy Pepper',
+      level: 5,
+      floor: 2,
+      statBoost: { maxHp: 3, atk: 3, def: 1 },
+      newSuper: { name: 'Spicy Rush', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'pepper-blazekick',
+          name: 'Blaze Kicker',
+          title: 'Blaze Kicker',
+          level: 8,
+          mastery: 'addition',
+          statBoost: { maxHp: 3, atk: 6, def: 1 },
+          newSuper: { name: 'Inferno Blitz', type: 'damage', multiplier: 4.5 },
+          description: 'Ultimate speed attacker who overwhelms enemies with rapid strikes',
+        },
+        {
+          id: 'pepper-scout',
+          name: 'Pepper Scout',
+          title: 'Shadow Scout',
+          level: 8,
+          mastery: 'subtraction',
+          statBoost: { maxHp: 5, atk: 3, def: 3 },
+          newSuper: { name: 'Ambush Rush', type: 'damage', multiplier: 3.5 },
+          description: 'Tactical striker who scouts enemies and sets up team combos',
+        },
+      ],
+    },
+  },
+  {
+    type: 'chaotic',
+    battleCries: {
+      attack: '"ZOOM ZOOM!"',
+      correctAnswer: '"YES YES YES!"',
+      wrongAnswer: '"Wait, what?!"',
+      superMove: '"CATCH MEEE!"',
+      lowHp: '"Ow! Hey! OW!"',
+      victory: '"I WON I WON!"',
+      defeat: '"No fair..."',
+      bossEncounter: '"Ooh big! BIG!"',
+    },
+  }),
+
+  make('bunny-nova', 'Nova', 'bunny', 'She sparkles. Then she wins.', { atk: 2, maxHp: -2 }, 2, [
     { name: 'Spark Jump',  type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Flash Leap',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Nova Burst',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('bunny-boulder',  'Boulder',  'bunny', 'Heaviest punch in the kingdom.',          { atk: -1, def: 3, maxHp: 3 }, 3, [
+  ],
+  {
+    name: 'Spark Chain',
+    description: 'Correct answer streaks of 3+ deal splash damage to all enemies',
+    type: 'trigger',
+    effect: 'splashStreak',
+    value: 3,
+  },
+  {
+    stage1: { name: 'Nova', title: 'Little Spark' },
+    stage2: {
+      name: 'Bright Nova',
+      title: 'Bright Nova',
+      level: 5,
+      floor: 3,
+      statBoost: { maxHp: 3, atk: 3, def: 1 },
+      newSuper: { name: 'Flash Leap', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'nova-pulsar',
+          name: 'Pulsar',
+          title: 'Pulsar',
+          level: 8,
+          mastery: 'multiplication',
+          statBoost: { maxHp: 2, atk: 5, def: 2 },
+          newSuper: { name: 'Radiant Pulse', type: 'damage', multiplier: 4 },
+          description: 'AoE specialist who damages all enemies with pulsing energy',
+        },
+        {
+          id: 'nova-prism',
+          name: 'Prism',
+          title: 'Prism Guardian',
+          level: 8,
+          mastery: 'geometry',
+          statBoost: { maxHp: 5, atk: 2, def: 4 },
+          newSuper: { name: 'Prismatic Shield', type: 'damage', multiplier: 3.5 },
+          description: 'Supportive sparkle warrior who buffs allies and debuffs enemies',
+        },
+      ],
+    },
+  },
+  {
+    type: 'cheerful',
+    battleCries: {
+      attack: '"Sparkle time!"',
+      correctAnswer: '"Yay, I got it!"',
+      wrongAnswer: '"Oops, almost!"',
+      superMove: '"Shine bright!"',
+      lowHp: '"Still sparkling!"',
+      victory: '"We did it!"',
+      defeat: '"Next time..."',
+      bossEncounter: '"Let\'s glow!"',
+    },
+  }),
+
+  make('bunny-boulder', 'Boulder', 'bunny', 'Heaviest punch in the kingdom.', { atk: -1, def: 3, maxHp: 3 }, 3, [
     { name: 'Rock Toss',      type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Quake Slam',     type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Mountain Drop',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('bunny-blaze',    'Blaze',    'bunny', 'Fire magic. Fire attitude.',              { atk: 2 }, 5, [
+  ],
+  {
+    name: 'Tough Hide',
+    description: 'DEF counts double against the first hit each turn',
+    type: 'passive',
+    effect: 'doubleDef',
+    value: 1,
+  },
+  {
+    stage1: { name: 'Boulder', title: 'Pebble' },
+    stage2: {
+      name: 'Stone Boulder',
+      title: 'Stone Boulder',
+      level: 5,
+      floor: 3,
+      statBoost: { maxHp: 5, atk: 1, def: 3 },
+      newSuper: { name: 'Quake Slam', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'boulder-colossus',
+          name: 'Colossus',
+          title: 'Colossus',
+          level: 8,
+          mastery: 'measurement',
+          statBoost: { maxHp: 10, atk: 1, def: 5 },
+          newSuper: { name: 'Continental Crush', type: 'damage', multiplier: 3.5 },
+          description: 'Massive stone warrior who is nearly impossible to bring down',
+        },
+        {
+          id: 'boulder-avalanche',
+          name: 'Avalanche',
+          title: 'Avalanche',
+          level: 8,
+          mastery: 'division',
+          statBoost: { maxHp: 5, atk: 4, def: 3 },
+          newSuper: { name: 'Landslide', type: 'damage', multiplier: 4 },
+          description: 'Offensive rock warrior who crushes enemies under rolling stone',
+        },
+      ],
+    },
+  },
+  {
+    type: 'calm',
+    battleCries: {
+      attack: '"Here goes."',
+      correctAnswer: '"Yep."',
+      wrongAnswer: '"Hmm. Oh well."',
+      superMove: '"Heads up."',
+      lowHp: '"Still good."',
+      victory: '"Cool."',
+      defeat: '"Dang."',
+      bossEncounter: '"Big guy, huh."',
+    },
+  }),
+
+  make('bunny-blaze', 'Blaze', 'bunny', 'Fire magic. Fire attitude.', { atk: 2 }, 5, [
     { name: 'Flame Hop',      type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Fire Dance',     type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Blaze Tornado',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
-  make('bunny-duchess',  'Duchess',  'bunny', 'Royal blood. Royal fury.',                { def: 2, maxHp: 2 }, 7, [
+  ],
+  {
+    name: 'Flame Trail',
+    description: 'After attacking, enemy takes 2 burn damage for 2 turns',
+    type: 'passive',
+    effect: 'burn',
+    value: 2,
+  },
+  {
+    stage1: { name: 'Blaze', title: 'Little Flame' },
+    stage2: {
+      name: 'Fire Blaze',
+      title: 'Fire Blaze',
+      level: 5,
+      floor: 5,
+      statBoost: { maxHp: 3, atk: 3, def: 1 },
+      newSuper: { name: 'Fire Dance', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'blaze-inferno',
+          name: 'Inferno',
+          title: 'Inferno',
+          level: 8,
+          mastery: 'fractions',
+          statBoost: { maxHp: 3, atk: 6, def: 1 },
+          newSuper: { name: 'Wildfire', type: 'damage', multiplier: 4.5 },
+          description: 'Uncontrollable fire warrior who burns everything in sight',
+        },
+        {
+          id: 'blaze-phoenix',
+          name: 'Phoenix',
+          title: 'Phoenix',
+          level: 8,
+          mastery: 'time',
+          statBoost: { maxHp: 6, atk: 3, def: 3 },
+          newSuper: { name: 'Rebirth Flame', type: 'damage', multiplier: 3.5 },
+          description: 'Resilient fire warrior who can revive from defeat once per battle',
+        },
+      ],
+    },
+  },
+  {
+    type: 'fierce',
+    battleCries: {
+      attack: '"Burn, baby!"',
+      correctAnswer: '"On fire!"',
+      wrongAnswer: '"Grr, whatever!"',
+      superMove: '"FEEL THE HEAT!"',
+      lowHp: '"Still burning!"',
+      victory: '"Too hot for you!"',
+      defeat: '"Flame... out..."',
+      bossEncounter: '"Let\'s heat up!"',
+    },
+  }),
+
+  make('bunny-duchess', 'Duchess', 'bunny', 'Royal blood. Royal fury.', { def: 2, maxHp: 2 }, 7, [
     { name: 'Royal Strike',    type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Crown Slam',      type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Sovereign Fury',  type: 'damage', multiplier: 3, unlockLevel: 7 },
-  ]),
+  ],
+  {
+    name: 'Royal Command',
+    description: 'Other party members gain +1 ATK/+1 DEF',
+    type: 'passive',
+    effect: 'leaderAura',
+    value: 1,
+  },
+  {
+    stage1: { name: 'Duchess', title: 'Young Duchess' },
+    stage2: {
+      name: 'Grand Duchess',
+      title: 'Grand Duchess',
+      level: 5,
+      floor: 6,
+      statBoost: { maxHp: 4, atk: 2, def: 3 },
+      newSuper: { name: 'Crown Slam', type: 'damage', multiplier: 2.5 },
+    },
+    stage3: {
+      paths: [
+        {
+          id: 'duchess-empress',
+          name: 'Empress',
+          title: 'Empress',
+          level: 8,
+          mastery: 'patterns',
+          statBoost: { maxHp: 6, atk: 3, def: 4 },
+          newSuper: { name: 'Imperial Decree', type: 'damage', multiplier: 4 },
+          description: 'Supreme leader who empowers the entire party with royal might',
+        },
+        {
+          id: 'duchess-warchief',
+          name: 'War Duchess',
+          title: 'War Duchess',
+          level: 8,
+          mastery: 'time',
+          statBoost: { maxHp: 4, atk: 5, def: 2 },
+          newSuper: { name: 'Royal Rampage', type: 'damage', multiplier: 4.5 },
+          description: 'Fierce royal warrior who leads the charge into battle',
+        },
+      ],
+    },
+  },
+  {
+    type: 'regal',
+    battleCries: {
+      attack: '"By royal decree!"',
+      correctAnswer: '"As expected."',
+      wrongAnswer: '"Unacceptable."',
+      superMove: '"Bow before me!"',
+      lowHp: '"How dare you!"',
+      victory: '"The crown prevails."',
+      defeat: '"Retreat... for now."',
+      bossEncounter: '"Kneel."',
+    },
+  }),
 ];
 
 // ------------------------------------------------------------------
@@ -170,6 +1019,7 @@ export function spawnHero(idOrHero) {
     hp: def.maxHp,
     atk: def.atk,
     def: def.def,
+    signature: def.signature ?? null,
   };
 }
 
@@ -247,141 +1097,138 @@ export function getHeroSkins(heroId) {
 }
 
 // ------------------------------------------------------------------
-// HERO EVOLUTIONS — stage progression data per hero
+// NEW LOOKUP HELPERS — signature, evolution, personality
 // ------------------------------------------------------------------
-// Each hero can evolve through 3 stages:
-//   Stage 1: Starting form (default)
-//   Stage 2: Warrior form (requires level + floor beaten)
-//   Stage 3: Master form (requires level + math domain mastery, branching choice)
 
-export const HERO_EVOLUTIONS = {
-  // --- KNIGHTS ---
-  'knight-shadow': {
-    stage2: { level: 5, floor: 3, name: 'Shadow Knight', title: 'Blade of Dusk', statBoosts: { atk: 2, def: 1, maxHp: 5 }, superMove: { name: 'Umbral Edge', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'shadow-assassin', name: 'Shadow Assassin', title: 'Phantom of the Abyss', level: 8, mastery: '*', statBoosts: { atk: 4, def: 1, maxHp: 5 }, superMove: { name: 'Phantom Blade', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'shadow-guardian', name: 'Shadow Guardian', title: 'Shield of Night', level: 8, mastery: '-', statBoosts: { atk: 2, def: 3, maxHp: 10 }, superMove: { name: 'Night Barrier', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
-    ] },
-  },
-  'knight-crusader': {
-    stage2: { level: 5, floor: 3, name: 'Holy Crusader', title: 'Champion of Light', statBoosts: { atk: 1, def: 2, maxHp: 5 }, superMove: { name: 'Sacred Charge', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'crusader-templar', name: 'Templar', title: 'Wrath of Heaven', level: 8, mastery: '+', statBoosts: { atk: 3, def: 2, maxHp: 8 }, superMove: { name: 'Holy Wrath', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'crusader-saint', name: 'Saint', title: 'Healer of Realms', level: 8, mastery: '-', statBoosts: { atk: 1, def: 4, maxHp: 12 }, superMove: { name: 'Blessed Light', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
-    ] },
-  },
-  'knight-paladin': {
-    stage2: { level: 5, floor: 4, name: 'Radiant Paladin', title: 'Light Incarnate', statBoosts: { atk: 1, def: 2, maxHp: 8 }, superMove: { name: 'Radiant Shield', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'paladin-sunlord', name: 'Sun Lord', title: 'Dawn Bringer', level: 8, mastery: 'geo', statBoosts: { atk: 3, def: 3, maxHp: 8 }, superMove: { name: 'Solar Flare', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'paladin-aegis', name: 'Aegis', title: 'The Unbreakable', level: 8, mastery: '+', statBoosts: { atk: 1, def: 5, maxHp: 15 }, superMove: { name: 'Aegis Wall', type: 'damage', multiplier: 3.0, unlockLevel: 8 } },
-    ] },
-  },
-  'knight-berserker': {
-    stage2: { level: 5, floor: 5, name: 'War Berserker', title: 'Fury Incarnate', statBoosts: { atk: 3, def: 0, maxHp: 5 }, superMove: { name: 'Blood Frenzy', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'berserker-warlord', name: 'Warlord', title: 'The Unstoppable', level: 8, mastery: '*', statBoosts: { atk: 5, def: 1, maxHp: 5 }, superMove: { name: 'Rampage', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
-      { id: 'berserker-ravager', name: 'Ravager', title: 'Storm of Steel', level: 8, mastery: '/', statBoosts: { atk: 4, def: 2, maxHp: 8 }, superMove: { name: 'Devastation', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-    ] },
-  },
-  'knight-greathelm': {
-    stage2: { level: 5, floor: 7, name: 'Grand Champion', title: 'Living Fortress', statBoosts: { atk: 1, def: 3, maxHp: 10 }, superMove: { name: 'Fortress Slam', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'greathelm-emperor', name: 'Emperor', title: 'Ruler of Steel', level: 8, mastery: 'money', statBoosts: { atk: 2, def: 5, maxHp: 15 }, superMove: { name: 'Imperial Decree', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'greathelm-colossus', name: 'Colossus', title: 'The Immovable', level: 8, mastery: 'geo', statBoosts: { atk: 3, def: 4, maxHp: 12 }, superMove: { name: 'Tectonic Crash', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-    ] },
-  },
+/** Get the signature ability data for a hero. Returns null if not found. */
+export function getHeroSignature(heroId) {
+  const hero = getHeroById(heroId);
+  return hero?.signature ?? null;
+}
 
-  // --- WIZARDS ---
-  'wizard-stargazer': {
-    stage2: { level: 5, floor: 3, name: 'Star Seer', title: 'Reader of Fates', statBoosts: { atk: 3, def: 0, maxHp: 5 }, superMove: { name: 'Constellation Beam', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'constellation-mage', name: 'Constellation Mage', title: 'Weaver of Stars', level: 8, mastery: '*', statBoosts: { atk: 5, def: 1, maxHp: 5 }, superMove: { name: 'Zodiac Storm', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
-      { id: 'nebula-witch', name: 'Nebula Witch', title: 'Mistress of Void', level: 8, mastery: 'frac', statBoosts: { atk: 4, def: 2, maxHp: 8 }, superMove: { name: 'Nebula Vortex', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-    ] },
-  },
-  'wizard-toadstool': {
-    stage2: { level: 5, floor: 3, name: 'Fungal Witch', title: 'Mistress of Spores', statBoosts: { atk: 2, def: 1, maxHp: 5 }, superMove: { name: 'Plague Cloud', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'toadstool-blight', name: 'Blight Queen', title: 'Rot Incarnate', level: 8, mastery: '-', statBoosts: { atk: 4, def: 2, maxHp: 8 }, superMove: { name: 'Pandemic', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'toadstool-bloom', name: 'Bloom Sage', title: 'Garden of Power', level: 8, mastery: '+', statBoosts: { atk: 3, def: 2, maxHp: 10 }, superMove: { name: 'Life Bloom', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
-    ] },
-  },
-  'wizard-spellblade': {
-    stage2: { level: 5, floor: 4, name: 'Arcane Knight', title: 'Sword and Sorcery', statBoosts: { atk: 2, def: 2, maxHp: 5 }, superMove: { name: 'Arcane Rush', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'spellblade-runic', name: 'Rune Lord', title: 'Master of Glyphs', level: 8, mastery: 'word', statBoosts: { atk: 4, def: 2, maxHp: 5 }, superMove: { name: 'Rune Barrage', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'spellblade-warder', name: 'Spell Warder', title: 'Arcane Fortress', level: 8, mastery: '/', statBoosts: { atk: 2, def: 4, maxHp: 10 }, superMove: { name: 'Ward Storm', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
-    ] },
-  },
-  'wizard-bookworm': {
-    stage2: { level: 5, floor: 5, name: 'Lore Master', title: 'Walking Library', statBoosts: { atk: 2, def: 1, maxHp: 8 }, superMove: { name: 'Tome Barrage', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'bookworm-archivist', name: 'Grand Archivist', title: 'Keeper of All Knowledge', level: 8, mastery: 'word', statBoosts: { atk: 4, def: 2, maxHp: 10 }, superMove: { name: 'Forbidden Text', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'bookworm-scribe', name: 'Fate Scribe', title: 'Writer of Destiny', level: 8, mastery: 'frac', statBoosts: { atk: 3, def: 3, maxHp: 8 }, superMove: { name: 'Rewrite Reality', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-    ] },
-  },
-  'wizard-grandmage': {
-    stage2: { level: 5, floor: 7, name: 'Archmage', title: 'Supreme Sorcerer', statBoosts: { atk: 3, def: 1, maxHp: 5 }, superMove: { name: 'Elemental Storm', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'grandmage-elder', name: 'Elder Sage', title: 'Timeless One', level: 8, mastery: '*', statBoosts: { atk: 5, def: 2, maxHp: 8 }, superMove: { name: 'Time Rift', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
-      { id: 'grandmage-chaos', name: 'Chaos Mage', title: 'Master of Entropy', level: 8, mastery: '/', statBoosts: { atk: 6, def: 0, maxHp: 5 }, superMove: { name: 'Chaos Nova', type: 'damage', multiplier: 4.0, unlockLevel: 8 } },
-    ] },
-  },
+/** Get the evolution data for a hero. Returns null if not found. */
+export function getEvolutionData(heroId) {
+  const hero = getHeroById(heroId);
+  return hero?.evolution ?? null;
+}
 
-  // --- BUNNIES ---
-  'bunny-pepper': {
-    stage2: { level: 5, floor: 3, name: 'Pepper Knight', title: 'Spicy Warrior', statBoosts: { atk: 3, def: 0, maxHp: 5 }, superMove: { name: 'Chili Rush', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'pepper-inferno', name: 'Inferno Pepper', title: 'Blazing Fury', level: 8, mastery: '+', statBoosts: { atk: 5, def: 0, maxHp: 5 }, superMove: { name: 'Pepper Firestorm', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
-      { id: 'pepper-ghost', name: 'Ghost Pepper', title: 'Unseen Heat', level: 8, mastery: '-', statBoosts: { atk: 4, def: 2, maxHp: 8 }, superMove: { name: 'Ghost Dash', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-    ] },
-  },
-  'bunny-nova': {
-    stage2: { level: 5, floor: 4, name: 'Supernova', title: 'Dazzling Force', statBoosts: { atk: 2, def: 1, maxHp: 5 }, superMove: { name: 'Photon Burst', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'nova-pulsar', name: 'Pulsar', title: 'Heartbeat of Stars', level: 8, mastery: '*', statBoosts: { atk: 4, def: 1, maxHp: 5 }, superMove: { name: 'Pulsar Wave', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'nova-quasar', name: 'Quasar', title: 'Cosmic Engine', level: 8, mastery: 'frac', statBoosts: { atk: 3, def: 2, maxHp: 10 }, superMove: { name: 'Quasar Beam', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-    ] },
-  },
-  'bunny-boulder': {
-    stage2: { level: 5, floor: 4, name: 'Granite Boulder', title: 'Living Mountain', statBoosts: { atk: 0, def: 3, maxHp: 10 }, superMove: { name: 'Earthquake', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'boulder-titan', name: 'Titan Boulder', title: 'World Shaker', level: 8, mastery: 'geo', statBoosts: { atk: 2, def: 4, maxHp: 15 }, superMove: { name: 'Continental Crush', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'boulder-diamond', name: 'Diamond Boulder', title: 'Unbreakable', level: 8, mastery: '*', statBoosts: { atk: 1, def: 5, maxHp: 12 }, superMove: { name: 'Diamond Storm', type: 'damage', multiplier: 3.2, unlockLevel: 8 } },
-    ] },
-  },
-  'bunny-blaze': {
-    stage2: { level: 5, floor: 6, name: 'Flame Dancer', title: 'Fire Spirit', statBoosts: { atk: 3, def: 0, maxHp: 5 }, superMove: { name: 'Fire Waltz', type: 'damage', multiplier: 3.0, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'blaze-phoenix', name: 'Phoenix Blaze', title: 'Rebirth in Flames', level: 8, mastery: '+', statBoosts: { atk: 4, def: 1, maxHp: 10 }, superMove: { name: 'Phoenix Rise', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'blaze-dragon', name: 'Dragon Blaze', title: 'Dragonheart', level: 8, mastery: '/', statBoosts: { atk: 5, def: 1, maxHp: 5 }, superMove: { name: 'Dragon Breath', type: 'damage', multiplier: 3.8, unlockLevel: 8 } },
-    ] },
-  },
-  'bunny-duchess': {
-    stage2: { level: 5, floor: 8, name: 'Grand Duchess', title: 'Royal Commander', statBoosts: { atk: 1, def: 2, maxHp: 8 }, superMove: { name: 'Royal Decree', type: 'damage', multiplier: 2.8, unlockLevel: 5 } },
-    stage3: { paths: [
-      { id: 'duchess-empress', name: 'Empress', title: 'Ruler of All', level: 8, mastery: 'money', statBoosts: { atk: 3, def: 3, maxHp: 12 }, superMove: { name: 'Imperial Wrath', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-      { id: 'duchess-queen', name: 'Warrior Queen', title: 'Crown of Thorns', level: 8, mastery: 'word', statBoosts: { atk: 4, def: 2, maxHp: 10 }, superMove: { name: 'Queens Gambit', type: 'damage', multiplier: 3.5, unlockLevel: 8 } },
-    ] },
-  },
-};
+/** Get the personality data for a hero. Returns null if not found. */
+export function getPersonality(heroId) {
+  const hero = getHeroById(heroId);
+  return hero?.personality ?? null;
+}
 
 // ------------------------------------------------------------------
-// HERO BONDS — relationship combos between hero pairs
+// HERO BONDS — cross-hero combo attacks
 // ------------------------------------------------------------------
-// Defines special combo attacks unlocked when bonded heroes fight together.
 
 export const HERO_BONDS = [
-  { heroes: ['knight-shadow', 'wizard-stargazer'], name: 'Starlit Shadow', description: 'Shadow and Stargazer combine darkness and starlight.', combo: { name: 'Eclipse Strike', type: 'damage', multiplier: 4.0 }, dialogues: { C: 'We make a good team.', B: 'I trust you at my side.', A: 'Together, we are unstoppable.', S: 'Our bond transcends the stars.' } },
-  { heroes: ['knight-shadow', 'bunny-pepper'], name: 'Spicy Shadows', description: 'Shadow and Pepper strike from the dark with fiery speed.', combo: { name: 'Phantom Pepper', type: 'damage', multiplier: 3.8 }, dialogues: { C: 'Keep up, slow poke!', B: 'Not bad for a knight.', A: 'We are the fastest duo alive!', S: 'Nobody sees us coming.' } },
-  { heroes: ['wizard-stargazer', 'bunny-pepper'], name: 'Cosmic Spice', description: 'Stargazer and Pepper rain stars and fire.', combo: { name: 'Meteor Pepper', type: 'damage', multiplier: 3.8 }, dialogues: { C: 'Stars and spice!', B: 'A blazing combination.', A: 'The sky burns for us!', S: 'We light up the universe.' } },
-  { heroes: ['knight-crusader', 'wizard-toadstool'], name: 'Holy Blight', description: 'Crusader and Toadstool mix holy light with toxic spores.', combo: { name: 'Sacred Plague', type: 'damage', multiplier: 3.8 }, dialogues: { C: 'An odd pairing.', B: 'Your potions are useful.', A: 'Light and shadow, perfectly balanced.', S: 'We heal and harm as one.' } },
-  { heroes: ['knight-paladin', 'bunny-boulder'], name: 'Stone Shield', description: 'Paladin and Boulder form an impenetrable wall.', combo: { name: 'Fortress Wall', type: 'damage', multiplier: 3.5 }, dialogues: { C: 'Stand firm!', B: 'Nothing gets past us.', A: 'We are the wall.', S: 'An unbreakable bond.' } },
-  { heroes: ['knight-berserker', 'bunny-blaze'], name: 'Fury Flames', description: 'Berserker and Blaze unleash pure destructive force.', combo: { name: 'Infernal Rage', type: 'damage', multiplier: 4.2 }, dialogues: { C: 'BURN IT ALL!', B: 'More fire! More fury!', A: 'Nothing survives our wrath!', S: 'We are the storm of destruction.' } },
-  { heroes: ['wizard-spellblade', 'bunny-nova'], name: 'Arcane Flash', description: 'Spellblade and Nova blend magic and light-speed strikes.', combo: { name: 'Prismatic Rush', type: 'damage', multiplier: 3.8 }, dialogues: { C: 'Fast and magical.', B: 'Your speed, my spells!', A: 'We dazzle and destroy.', S: 'Light-speed sorcery.' } },
-  { heroes: ['wizard-bookworm', 'knight-greathelm'], name: 'Knowledge Shield', description: 'Bookworm and Great Helm combine wisdom and fortitude.', combo: { name: 'Tome Fortress', type: 'damage', multiplier: 3.5 }, dialogues: { C: 'Read while I guard.', B: 'Knowledge is our armor.', A: 'Brains and brawn united.', S: 'The pen and the sword, perfected.' } },
-  { heroes: ['wizard-grandmage', 'bunny-duchess'], name: 'Royal Arcana', description: 'Grand Mage and Duchess command supreme magical authority.', combo: { name: 'Sovereign Spell', type: 'damage', multiplier: 4.0 }, dialogues: { C: 'Royalty meets mastery.', B: 'Power recognizes power.', A: 'We rule this battlefield.', S: 'The throne and the tower, eternal.' } },
-  { heroes: ['bunny-pepper', 'bunny-boulder'], name: 'Spice and Stone', description: 'Pepper dashes while Boulder smashes.', combo: { name: 'Pepper Quake', type: 'damage', multiplier: 3.5 }, dialogues: { C: 'Fast and heavy!', B: 'You smash, I dash!', A: 'An unstoppable combo.', S: 'Speed and strength, forever bonded.' } },
+  // --- Cross-class: Knight + Wizard ---
+  {
+    heroes: ['knight-shadow', 'wizard-stargazer'],
+    name: 'Eclipse',
+    description: 'Shadow cloaks Stargazer who fires a massive star beam from hiding',
+    multiplier: 4,
+    dialogueC: ['Shadow: "..."', 'Stargazer: "The stars see what shadows hide."'],
+    dialogueA: ['Shadow: "You see too much."', 'Stargazer: "And you hide too much. We balance."'],
+  },
+  {
+    heroes: ['knight-crusader', 'wizard-grandmage'],
+    name: 'Sacred Inferno',
+    description: 'Crusader channels holy light while Grand Mage ignites it into a divine firestorm',
+    multiplier: 4.5,
+    dialogueC: ['Crusader: "Lend me your flame."', 'Grand Mage: "Try not to waste it."'],
+    dialogueA: ['Crusader: "Your power serves justice."', 'Grand Mage: "Justice? I just like explosions."'],
+  },
+  {
+    heroes: ['knight-paladin', 'wizard-bookworm'],
+    name: 'Guiding Light',
+    description: 'Paladin raises a shield of light while Bookworm inscribes ancient runes on it',
+    multiplier: 3.5,
+    dialogueC: ['Paladin: "I will protect you."', 'Bookworm: "Um, thanks."'],
+    dialogueA: ['Paladin: "Your knowledge saves lives."', 'Bookworm: "And your shield saves mine!"'],
+  },
+  {
+    heroes: ['knight-berserker', 'wizard-spellblade'],
+    name: 'Chaos Edge',
+    description: 'Berserker charges while Spellblade enchants the attack with explosive magic',
+    multiplier: 4.5,
+    dialogueC: ['Berserker: "OUTTA MY WAY!"', 'Spellblade: "After you, big guy."'],
+    dialogueA: ['Berserker: "You fight good!"', 'Spellblade: "I know."'],
+  },
+  // --- Cross-class: Knight + Bunny ---
+  {
+    heroes: ['knight-greathelm', 'bunny-duchess'],
+    name: 'Royal Guard',
+    description: 'Great Helm kneels as Duchess leaps off the armor for a devastating aerial strike',
+    multiplier: 4,
+    dialogueC: ['Great Helm: "Your Highness."', 'Duchess: "You may rise."'],
+    dialogueA: ['Great Helm: "A worthy liege."', 'Duchess: "A worthy champion."'],
+  },
+  {
+    heroes: ['knight-shadow', 'bunny-pepper'],
+    name: 'Ghost Pepper',
+    description: 'Shadow vanishes and Pepper dashes through the confusion at blinding speed',
+    multiplier: 4,
+    dialogueC: ['Shadow: "Be quiet."', 'Pepper: "NEVER!"'],
+    dialogueA: ['Shadow: "You are... loud."', 'Pepper: "And YOU need to loosen up!"'],
+  },
+  {
+    heroes: ['knight-crusader', 'bunny-boulder'],
+    name: 'Holy Quake',
+    description: 'Crusader blesses the ground as Boulder slams it with a holy shockwave',
+    multiplier: 3.5,
+    dialogueC: ['Crusader: "Ready yourself!"', 'Boulder: "Yep."'],
+    dialogueA: ['Crusader: "Your strength is a gift!"', 'Boulder: "Cool. Thanks."'],
+  },
+  {
+    heroes: ['knight-paladin', 'bunny-nova'],
+    name: 'Radiant Spark',
+    description: 'Paladin channels a shield of light and Nova detonates it in a blinding flash',
+    multiplier: 3.5,
+    dialogueC: ['Paladin: "Stay close."', 'Nova: "Ooh, shiny!"'],
+    dialogueA: ['Paladin: "You light up the dark."', 'Nova: "Aww, you too!"'],
+  },
+  // --- Cross-class: Wizard + Bunny ---
+  {
+    heroes: ['wizard-toadstool', 'bunny-blaze'],
+    name: 'Blazing Spores',
+    description: 'Toadstool releases spores and Blaze ignites them in a chain of explosions',
+    multiplier: 4,
+    dialogueC: ['Toadstool: "Hee hee, catch!"', 'Blaze: "Burn, baby!"'],
+    dialogueA: ['Toadstool: "You make everything better!"', 'Blaze: "Everything is better on fire!"'],
+  },
+  {
+    heroes: ['wizard-stargazer', 'bunny-nova'],
+    name: 'Starfall',
+    description: 'Stargazer summons a meteor while Nova rides it down in a blazing descent',
+    multiplier: 4.5,
+    dialogueC: ['Stargazer: "A star descends."', 'Nova: "Wheee!"'],
+    dialogueA: ['Stargazer: "You shine so brightly."', 'Nova: "Right back at you!"'],
+  },
+  {
+    heroes: ['wizard-bookworm', 'bunny-pepper'],
+    name: 'Speed Study',
+    description: 'Bookworm launches enchanted pages that Pepper delivers at supersonic speed',
+    multiplier: 3.5,
+    dialogueC: ['Bookworm: "Hold still please."', 'Pepper: "CAN\'T! WON\'T!"'],
+    dialogueA: ['Bookworm: "Fascinating velocity."', 'Pepper: "Big words! Let\'s GO!"'],
+  },
+  // --- Personality contrast pairs ---
+  {
+    heroes: ['knight-paladin', 'knight-berserker'],
+    name: 'Order and Chaos',
+    description: 'Paladin and Berserker charge from opposite sides in a devastating pincer attack',
+    multiplier: 4,
+    dialogueC: ['Paladin: "Please be careful."', 'Berserker: "NO PROMISES!"'],
+    dialogueA: ['Paladin: "I believe in you."', 'Berserker: "...thanks."'],
+  },
+  {
+    heroes: ['wizard-grandmage', 'wizard-toadstool'],
+    name: 'Arcane Brew',
+    description: 'Grand Mage supercharges Toadstool\'s potions into an unstable magical explosion',
+    multiplier: 4,
+    dialogueC: ['Grand Mage: "Stand back, fungus."', 'Toadstool: "Ooh, grumpy!"'],
+    dialogueA: ['Grand Mage: "Your methods are... unorthodox."', 'Toadstool: "That means fun, right?"'],
+  },
 ];
-
