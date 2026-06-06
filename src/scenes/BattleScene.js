@@ -43,7 +43,7 @@ import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../syste
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { getHint } from '../systems/hints.js';
-import { recordBattle, getBondStatBonuses } from '../systems/bonds.js';
+import { recordBattle, getBondStatBonuses, getAvailableCombos } from '../systems/bonds.js';
 import { getEvolutionStatBoosts } from '../systems/evolution.js';
 import {
   createSignatureState,
@@ -150,6 +150,8 @@ export class BattleScene extends Phaser.Scene {
     this.heroStreaks = new Array(this.party.length).fill(0);
     this.superReady = new Array(this.party.length).fill(false);
     this.potionUsedThisBattle = false;
+    this.comboUsedThisBattle = false;
+    this.comboSkipHeroIndex = -1; // hero index whose turn to skip after combo
     this.turnSeq = buildTurnSequence(this.party.length);
     this.turnIdx = -1;
     this.phase = 'intro';
@@ -694,7 +696,7 @@ export class BattleScene extends Phaser.Scene {
 
     const ansH = 80;
     const ansY = area.bottom - ansH / 2 - 6;
-    const eqY = ansY - ansH / 2 - 30;
+    const eqY = ansY - ansH / 2 - 80;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -749,10 +751,10 @@ export class BattleScene extends Phaser.Scene {
     this.panelFx = createPanelDecorations(this, this.floor, noteCx, noteCy, noteW, noteH);
 
     this.eqLines = {
-      a:    this.add.text(noteCx + 20, noteCy - 34, '', this.eqLineStyle({ fontSize: '52px', color: '#3a2410' })),
-      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '52px', color: '#c06a10' })),
-      bar:  this.add.text(noteCx,      noteCy + 28, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '24px', color: '#8a7050' })),
-      ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '52px', color: '#d08020' })),
+      a:    this.add.text(noteCx + 20, noteCy - 30, '', this.eqLineStyle({ fontSize: '44px', color: '#3a2410' })),
+      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '44px', color: '#c06a10' })),
+      bar:  this.add.text(noteCx,      noteCy + 24, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '22px', color: '#8a7050' })),
+      ans:  this.add.text(noteCx,      noteCy + 42, '?', this.eqLineStyle({ fontSize: '44px', color: '#d08020' })),
       stars: this.add.text(noteCx + noteW / 2 - 10, noteCy - noteH / 2 + 8, '', {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '18px', color: '#8a5010', letterSpacing: 3,
@@ -766,7 +768,7 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.stars.setOrigin(1, 0);
 
     // Turn label — above the math panel, full width with larger font
-    const turnY = eqY - noteH / 2 - 36;
+    const turnY = eqY - noteH / 2 - 24;
     PaperPanel(this, area.cx, turnY, area.w - 40, 42, {
       color: 0xf5ead0, alpha: 0.92, radius: 14, shadowOff: 3, shadowAlpha: 0.18,
     });
@@ -1095,6 +1097,207 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  addComboButton() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const btnH = 75;
+    const cmdY = this.eqCenterY || (this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 80);
+    // Place combo button below the command row
+    const comboY = cmdY + btnH + 16;
+    const btn = PaperButton(this, area.cx, comboY, '⚡ COMBO', {
+      w: 200, h: btnH, color: 0xd4a820, fontSize: 20,
+      onClick: () => {
+        if (this.phase !== 'command') return;
+        audio.play('ui/click');
+        this.executeCombo();
+      },
+    });
+    btn._isCombo = true;
+    btn._origY = comboY;
+    this.setUIDepth(btn, 28);
+    if (btn.label?.setDepth) btn.label.setDepth(29);
+    this.commandButtons.push(btn);
+  }
+
+  executeCombo() {
+    if (this.phase !== 'command' || !this._availableCombo) return;
+    this.comboUsedThisBattle = true;
+
+    const combo = this._availableCombo;
+    const { hero1, hero2, name, multiplier } = combo;
+
+    // Hide command menu
+    this.setCommandMenuVisible(false);
+
+    // Generate a harder question (same as MAGIC — harder difficulty bias)
+    const config = getCommandConfig(COMMANDS.MAGIC);
+    this.currentQuestion = generateRatedQuestion({
+      operator: this.operator,
+      grade: this.grade,
+      streak: this.streak,
+      floor: this.floor,
+      targetStars: config.targetStars,
+    });
+
+    // Show combo name as turn label
+    const starStr = '★'.repeat(this.currentQuestion.stars) +
+                    '☆'.repeat(5 - this.currentQuestion.stars);
+    this.turnLabel.setText(`${hero1.name} & ${hero2.name}: ${name}! ${starStr}`);
+
+    this.phase = 'question';
+    this.selectedCommand = '_COMBO_';
+    this._comboData = { hero1, hero2, name, multiplier };
+    this.renderStackedEquation(this.currentQuestion);
+    showPanelFx(this, this.panelFx);
+
+    for (let i = 0; i < 4; i++) {
+      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
+      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
+    }
+
+    // Animate equation + answer buttons in
+    const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
+    const ansElements = [];
+    for (const btn of this.answerButtons) {
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (el) ansElements.push(el);
+      }
+    }
+    const fadeInTargets = [...eqElements, ...ansElements];
+    const originalYs = fadeInTargets.map(el => el.y);
+    for (let fi = 0; fi < fadeInTargets.length; fi++) {
+      fadeInTargets[fi].setAlpha(0);
+      fadeInTargets[fi].y = originalYs[fi] + 20;
+    }
+    this.setAnswerButtonsVisible(true);
+    for (let fi = 0; fi < fadeInTargets.length; fi++) {
+      this.tweens.add({
+        targets: fadeInTargets[fi],
+        alpha: 1,
+        y: originalYs[fi],
+        duration: 150,
+        ease: 'Cubic.out',
+        delay: 100,
+      });
+    }
+
+    this._consumedButtonIdx = -1;
+  }
+
+  /** Called from onAnswer when selectedCommand is _COMBO_ and the answer is correct */
+  applyComboAttack() {
+    const { hero1, hero2, name, multiplier } = this._comboData;
+    const targetIdx = this.currentTarget;
+    const targetEnemy = this.enemies[targetIdx] || this.enemy;
+    const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
+
+    // Combined ATK of both heroes
+    const combinedAtk = (hero1.atk || 10) + (hero2.atk || 10);
+    const totalDmg = Math.max(5, Math.round(combinedAtk * multiplier));
+
+    // Find hero sprite indices
+    const h1Idx = this.party.indexOf(hero1);
+    const h2Idx = this.party.indexOf(hero2);
+    const hs1 = this.heroSprites[h1Idx];
+    const hs2 = this.heroSprites[h2Idx];
+
+    // Mark the partner's turn to be skipped
+    const currentHeroIdx = this.currentTurn.heroIndex;
+    const partnerIdx = currentHeroIdx === h1Idx ? h2Idx : h1Idx;
+    this.comboSkipHeroIndex = partnerIdx;
+
+    // Show combo name in golden text at center
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const comboText = this.add.text(area.cx, area.cy - 60, name + '!', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '52px',
+      color: '#f0d040',
+      stroke: '#3a1a00',
+      strokeThickness: 6,
+    }).setOrigin(0.5).setDepth(50).setAlpha(0).setScale(0.5);
+
+    this.tweens.add({
+      targets: comboText,
+      alpha: 1,
+      scale: 1.2,
+      duration: 400,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: comboText,
+          alpha: 0,
+          scale: 1.5,
+          duration: 500,
+          delay: 600,
+          ease: 'Cubic.in',
+          onComplete: () => comboText.destroy(),
+        });
+      },
+    });
+
+    // Both heroes rush forward
+    const lungeX = targetSprite.body ? targetSprite.body.x - 80 : (hs1?.x || 300) + 200;
+    const origX1 = hs1?.body?.x;
+    const origX2 = hs2?.body?.x;
+
+    if (hs1?.body) {
+      hs1.body.setTint(0xffff80);
+      this.tweens.add({
+        targets: hs1.body, x: lungeX - 20, duration: 250, ease: 'Power2',
+        onComplete: () => {
+          hs1.body.clearTint();
+          this.tweens.add({ targets: hs1.body, x: origX1, duration: 200, ease: 'Power2' });
+        },
+      });
+    }
+    if (hs2?.body) {
+      hs2.body.setTint(0xffff80);
+      this.tweens.add({
+        targets: hs2.body, x: lungeX + 20, duration: 250, delay: 80, ease: 'Power2',
+        onComplete: () => {
+          hs2.body.clearTint();
+          this.tweens.add({ targets: hs2.body, x: origX2, duration: 200, ease: 'Power2' });
+        },
+      });
+    }
+
+    // Hit effects after a brief delay
+    this.time.delayedCall(350, () => {
+      // Screen shake + particle burst
+      this.cameras.main.shake(350, 0.025);
+      this.burstParticles(targetSprite.x, targetSprite.y, 0xf0d040);
+      this.burstParticles(targetSprite.x, targetSprite.y, 0xf08020);
+      this.hitFlash();
+
+      // Apply damage
+      targetEnemy.hp = Math.max(0, targetEnemy.hp - totalDmg);
+      this.updateEnemyHp(targetIdx);
+      this.floatDamageNumber(targetSprite.x, targetSprite.y - 100, totalDmg, '#f0d040', '+');
+      audio.play('battle/hit-enemy');
+
+      this.showToast(`${name}! ${totalDmg} DMG!`, '#f0d040');
+
+      // Check for kill
+      if (targetEnemy.hp <= 0) {
+        this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
+        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
+        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
+        if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 300 });
+        if (this.allEnemiesDead()) {
+          this.time.delayedCall(500, () => this.showVictory());
+          return;
+        }
+        const nextAlive = this.findNextAliveEnemy();
+        if (nextAlive >= 0) this.currentTarget = nextAlive;
+      }
+
+      this.time.delayedCall(500, () => {
+        this._answerProcessing = false;
+        this.nextTurn();
+      });
+    });
+  }
+
   selectCommand(cmd) {
     this.selectedCommand = cmd;
 
@@ -1294,6 +1497,13 @@ export class BattleScene extends Phaser.Scene {
 
     this.updateHeroIndicators();
 
+    // Skip hero turn if consumed by a combo attack
+    if (this.currentTurn.who === 'hero' && this.comboSkipHeroIndex === this.currentTurn.heroIndex) {
+      this.comboSkipHeroIndex = -1;
+      this.time.delayedCall(50, () => this.nextTurn());
+      return;
+    }
+
     if (this.currentTurn.who === 'hero') this.startHeroTurn();
     else this.startEnemyTurn();
   }
@@ -1318,6 +1528,23 @@ export class BattleScene extends Phaser.Scene {
     // Show command menu filtered by hero class, hide answer buttons
     const heroCmds = getClassCommands(hero.class || 'knight', this.grade);
     this.setCommandMenuForClass(heroCmds);
+
+    // Check for available combo attacks (bond B+ rank, both heroes alive, once per battle)
+    if (!this.comboUsedThisBattle) {
+      const partyHeroIds = this.party.map(h => h.id);
+      const combos = getAvailableCombos(this.save, partyHeroIds);
+      for (const combo of combos) {
+        const [h1Id, h2Id] = combo.heroes;
+        const h1 = this.party.find(h => h && h.id === h1Id && h.hp > 0);
+        const h2 = this.party.find(h => h && h.id === h2Id && h.hp > 0);
+        if (h1 && h2) {
+          this._availableCombo = { ...combo, hero1: h1, hero2: h2 };
+          this.addComboButton();
+          break; // only show one combo at a time
+        }
+      }
+    }
+
     this.setAnswerButtonsVisible(false);
     this.turnLabel.setText(`${hero.name}'s turn — choose a command!`);
 
@@ -1742,6 +1969,12 @@ export class BattleScene extends Phaser.Scene {
       } else {
         this.showToast('CORRECT!', COLORS_CSS.greenL);
         confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
+      }
+
+      // Combo attack: intercept before normal damage path
+      if (activeCommand === '_COMBO_' && this._comboData) {
+        this.applyComboAttack();
+        return;
       }
 
       // Target the current enemy
