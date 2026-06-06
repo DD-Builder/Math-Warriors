@@ -1349,6 +1349,7 @@ export class MazeScene extends Phaser.Scene {
       transitionTo(this, SCENES.CUTSCENE, {
         lines: DIALOGUE[bossKey],
         floorId: this.floorId,
+        trigger: 'boss',
         nextScene: SCENES.BATTLE,
         nextData: battleData,
       }, 300);

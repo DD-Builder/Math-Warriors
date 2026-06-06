@@ -176,6 +176,7 @@ export function getAvailableCombos(save, partyHeroIds) {
       name: bondDef.name,
       description: bondDef.description,
       combo: bondDef.combo,
+      multiplier: bondDef.multiplier || 3,
       rank,
     });
   }

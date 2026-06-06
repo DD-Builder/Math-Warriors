@@ -9,6 +9,7 @@ import { audio } from '../systems/audio.js';
 import { getHeroById } from '../data/heroes.js';
 import { getEnemyById } from '../data/enemies.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
+import { HERO_REACTIONS } from '../data/dialogue.js';
 
 /**
  * CutsceneScene — 3-panel graphic-novel dialogue.
@@ -31,7 +32,12 @@ export class CutsceneScene extends Phaser.Scene {
     this.floorId = data.floorId || 1;
     this.nextScene = data.nextScene || SCENES.WORLD_MAP;
     this.nextData = data.nextData || undefined;
+    this.cutsceneTrigger = data.trigger || 'intro';
     this.panels = this.buildPanels(this.rawLines);
+
+    // Append hero reaction panels based on active party
+    this.appendHeroReactions();
+
     this.panelIdx = 0;
     this.subIdx = 0;
     this.typing = false;
@@ -39,6 +45,32 @@ export class CutsceneScene extends Phaser.Scene {
     this.fullText = '';
     this.timer = null;
     this.save = loadSave(getActiveSlot(this));
+  }
+
+  /**
+   * Check if any heroes in the current party have reactions for this floor.
+   * If so, append their reactions as additional dialogue panels at the end.
+   */
+  appendHeroReactions() {
+    const save = loadSave(getActiveSlot(this));
+    const party = save.party || [];
+    const floorReactions = HERO_REACTIONS[this.floorId];
+    if (!floorReactions) return;
+
+    const reactionLines = [];
+    for (const slot of party) {
+      if (!slot || !slot.id) continue;
+      const reaction = floorReactions[slot.id];
+      if (!reaction) continue;
+      if (reaction.trigger !== this.cutsceneTrigger) continue;
+      const heroDef = getHeroById(slot.id);
+      const heroName = heroDef ? heroDef.name : slot.name || slot.id;
+      reactionLines.push({ speaker: heroName, text: reaction.text, side: 'left' });
+    }
+
+    if (reactionLines.length > 0) {
+      this.panels.push({ type: 'party', lines: reactionLines });
+    }
   }
 
   buildPanels(lines) {

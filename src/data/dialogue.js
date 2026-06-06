@@ -701,3 +701,80 @@ export function getRescueDialogue(floorId, heroIds) {
   }
   return lines;
 }
+
+// ══════════════════════════════════════════════════════════════════
+// HERO REACTIONS — party-aware cutscene dialogue additions
+// Maps floorId -> heroId -> { text, trigger }
+// trigger: 'intro' = after floor_entry, 'boss' = after floor_boss
+// ══════════════════════════════════════════════════════════════════
+
+export const HERO_REACTIONS = {
+  // ── FLOOR 1: THE GARDEN ──
+  1: {
+    'knight-crusader': { text: '"The Garden cries for justice!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Fascinating botanical corruption..."', trigger: 'intro' },
+    'bunny-pepper': { text: '"Ooh! Dead flowers! SPOOKY! Let\'s GO!"', trigger: 'intro' },
+    'knight-shadow': { text: '"...Something hides in these thorns."', trigger: 'intro' },
+  },
+  // ── FLOOR 2: TIDEPOOL RUINS ──
+  2: {
+    'wizard-bookworm': { text: '"The tidal math inversions match chapter 7 of my research!"', trigger: 'intro' },
+    'bunny-pepper': { text: '"Water goes UP?! That\'s HILARIOUS!"', trigger: 'intro' },
+    'knight-crusader': { text: '"These ruins once held sacred truths."', trigger: 'intro' },
+    'wizard-stargazer': { text: '"The stars reflect strangely in backward tides..."', trigger: 'intro' },
+  },
+  // ── FLOOR 3: CLOUD MAZE ──
+  3: {
+    'bunny-pepper': { text: '"CLOUDS! I wanna BOUNCE on them!"', trigger: 'intro' },
+    'wizard-stargazer': { text: '"We are closer to my domain now. The stars weep."', trigger: 'intro' },
+    'knight-paladin': { text: '"I will shield us from the storm."', trigger: 'intro' },
+    'knight-shadow': { text: '"Good visibility. Bad for hiding."', trigger: 'intro' },
+  },
+  // ── FLOOR 4: EMBER CAVES — Berserker was imprisoned here ──
+  4: {
+    'knight-berserker': { text: '"I remember these cages... NEVER AGAIN!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"The ember patterns match my research!"', trigger: 'intro' },
+    'bunny-pepper': { text: '"HOT HOT HOT! But I\'m FASTER than fire!"', trigger: 'intro' },
+    'knight-crusader': { text: '"Ember, we will free your friend."', trigger: 'intro' },
+    'bunny-blaze': { text: '"This heat... feels like home."', trigger: 'intro' },
+  },
+  // ── FLOOR 5: FROZEN PEAK ──
+  5: {
+    'bunny-blaze': { text: '"ICE?! My NEMESIS! Let me at it!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Cryogenic math stasis. Remarkable."', trigger: 'intro' },
+    'knight-shadow': { text: '"The cold reveals footprints. Someone was here."', trigger: 'intro' },
+    'bunny-pepper': { text: '"B-b-brrr! My ears are FREEZING!"', trigger: 'intro' },
+  },
+  // ── FLOOR 6: CRYSTAL CAVERNS ──
+  6: {
+    'wizard-stargazer': { text: '"These crystals refract starlight beautifully."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Geometric instability. I should take notes."', trigger: 'intro' },
+    'knight-greathelm': { text: '"Prism sealed me here. I owe it a visit."', trigger: 'intro' },
+    'bunny-pepper': { text: '"SHINY! Can I keep one? PLEASE?!"', trigger: 'intro' },
+  },
+  // ── FLOOR 7: MARKET SQUARE — Duchess was sold here ──
+  7: {
+    'bunny-duchess': { text: '"This market... they SOLD me here."', trigger: 'intro' },
+    'knight-crusader': { text: '"Commerce without honor is theft."', trigger: 'intro' },
+    'bunny-pepper': { text: '"FREE SAMPLES?! Oh wait, everything\'s fake."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Counterfeit currency violates seventeen laws."', trigger: 'intro' },
+    'knight-shadow': { text: '"...I know how to spot a fake."', trigger: 'intro' },
+  },
+  // ── FLOOR 8: INFINITY LIBRARY ──
+  8: {
+    'wizard-bookworm': { text: '"I recognize this handwriting... it is the Theorem!"', trigger: 'boss' },
+    'wizard-stargazer': { text: '"The constellations in these pages... they move."', trigger: 'intro' },
+    'bunny-pepper': { text: '"Books?! BORING! ...Wait, this one has PICTURES!"', trigger: 'intro' },
+    'knight-paladin': { text: '"Even words can be weapons. Stay alert."', trigger: 'intro' },
+    'wizard-grandmage': { text: '"These texts... I wrote some of them. Long ago."', trigger: 'intro' },
+  },
+  // ── FLOOR 9: THE MENDING ROOM ──
+  9: {
+    'knight-crusader': { text: '"Justice is not punishment. It is restoration."', trigger: 'intro' },
+    'knight-shadow': { text: '"...The final shadow falls here."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Every equation has an answer. Even this one."', trigger: 'intro' },
+    'bunny-pepper': { text: '"FINAL BOSS! FINAL BOSS! LET\'S GOOOOO!"', trigger: 'intro' },
+    'bunny-duchess': { text: '"By royal decree: we finish this today."', trigger: 'intro' },
+    'knight-berserker': { text: '"No more cages. No more fear. CHARGE!"', trigger: 'boss' },
+  },
+};

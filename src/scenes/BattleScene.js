@@ -1397,12 +1397,46 @@ export class BattleScene extends Phaser.Scene {
       });
     }
 
+    // --- Stargazer signature: reveal one wrong answer ---
+    if (this.signatureState.revealWrongActive) {
+      const wrongIndices = [0, 1, 2, 3].filter(i => i !== this.currentQuestion.correctIndex);
+      if (wrongIndices.length > 0) {
+        const revealIdx = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+        // Reduce opacity and draw a red X over the wrong answer button
+        this.recolorAnswerButton(revealIdx, this.answerButtons[revealIdx].baseColor, 0.4);
+        const { w, h, y: btnY, startX, gap } = this.answerBtnLayout;
+        const bx = startX + revealIdx * (w + gap);
+        const xMark = this.add.text(bx, btnY, '✗', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '52px',
+          color: '#e04040',
+          stroke: '#000000',
+          strokeThickness: 4,
+        }).setOrigin(0.5).setDepth(30);
+        this._revealWrongMark = xMark;
+      }
+    }
+
     // Boss timer starts AFTER command selection
     if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
     if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
     if (this.isBoss) {
       const gradeTimers = [12000, 11000, 10000, 8000, 9000, 10000];
-      const timerDuration = gradeTimers[this.grade] || 8000;
+      let timerDuration = gradeTimers[this.grade] || 8000;
+      // --- Bookworm signature: add extra seconds to boss timer ---
+      if (this.signatureState.timerBonusSeconds > 0) {
+        timerDuration += this.signatureState.timerBonusSeconds * 1000;
+        // Show +Ns indicator near the timer bar
+        const area2 = safeArea(GAME_WIDTH, GAME_HEIGHT);
+        const bonusLabel = this.add.text(area2.cx + 210, this.turnLabel.y - 30, `+${this.signatureState.timerBonusSeconds}s`, {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '16px',
+          color: '#4080e0',
+          stroke: '#000000',
+          strokeThickness: 2,
+        }).setOrigin(0, 0.5).setDepth(30);
+        this._timerBonusLabel = bonusLabel;
+      }
       this.bossTimerStart = this.time.now;
       this.bossTimerDuration = timerDuration;
 
@@ -1920,6 +1954,10 @@ export class BattleScene extends Phaser.Scene {
     this.locked = true;
     this.clearBossTimer();
     hidePanelFx(this.panelFx);
+
+    // Clean up signature UI elements
+    if (this._revealWrongMark) { this._revealWrongMark.destroy(); this._revealWrongMark = null; }
+    if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
 
     // Freeze command for this answer — prevents race conditions
     const activeCommand = this.selectedCommand || COMMANDS.FIGHT;
