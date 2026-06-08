@@ -1835,6 +1835,11 @@ export class BattleScene extends Phaser.Scene {
         this.updateEnemyHp(ei);
         const color = tick.type === 'poison' ? '#80ff40' : '#ff8040';
         const label = tick.type === 'poison' ? 'POISON' : 'BURN';
+        if (tick.type === 'poison') {
+          this.showFirstTimeTip('sig_poison', `Poison! A hero's special ability — deals damage every enemy turn!`);
+        } else if (tick.type === 'burn') {
+          this.showFirstTimeTip('sig_burn', `Burn! A hero's special ability — scorches enemies over time!`);
+        }
         if (sprite) {
           this.floatDamageNumber(sprite.x, sprite.y - 100, tick.damage, color, '-');
         }
@@ -1908,6 +1913,7 @@ export class BattleScene extends Phaser.Scene {
         if (targetHeroIdx >= 0 && consumePaladinGuard(targetHeroIdx, this.signatureState)) {
           const paladin = this.party.find(h => h && h.hp > 0 && h.signature && h.signature.effect === 'guardAlly');
           this.showToast(`${paladin ? paladin.name : 'Paladin'} blocks for ${target.name}!`, '#60a0ff');
+          this.showFirstTimeTip('sig_guardAlly', `Guardian! ${paladin ? paladin.name : 'Paladin'}'s special ability — protects low-HP allies!`);
           audio.play('battle/hit-hero');
           this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
           return;
@@ -1921,6 +1927,7 @@ export class BattleScene extends Phaser.Scene {
             this.showToast(`${target.name} DODGE ROLL!`, '#e86898');
           } else {
             this.showToast(`${target.name} DODGES!`, '#e86898');
+            this.showFirstTimeTip('sig_dodge', `Shadow Step! ${target.name}'s special ability — 30% dodge chance!`);
           }
           audio.play('battle/hit-hero');
           this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
@@ -1976,6 +1983,7 @@ export class BattleScene extends Phaser.Scene {
         // --- Signature: lastStand check (Great Helm) ---
         if (target.hp <= 0 && checkLastStand(target, targetHeroIdx, this.signatureState)) {
           this.showToast(`${target.name}: LAST STAND!`, '#f0d040');
+          this.showFirstTimeTip('sig_lastStand', `Last Stand! ${target.name}'s special ability — survives one fatal blow per battle!`);
         }
 
         // --- Signature: Paladin guardAlly trigger (check low HP) ---
@@ -2090,10 +2098,23 @@ export class BattleScene extends Phaser.Scene {
 
       const prevStreak = this.streak;
       this.streak++;
+      this.wrongStreak = 0; // reset wrong streak on correct
       this.battleCorrect++;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
       this.updateMomentumBar();
       this.updateStreakDisplay(prevStreak);
+
+      // --- Streak milestone toasts (Item 20) ---
+      if (this.streak === 3 && !this._streakToastShown[3]) {
+        this._streakToastShown[3] = true;
+        this.showStyledToast('Nice streak!', '#40c040');
+      } else if (this.streak === 5 && !this._streakToastShown[5]) {
+        this._streakToastShown[5] = true;
+        this.showStyledToast('Awesome!', '#f0c040');
+      } else if (this.streak === 8 && !this._streakToastShown[8]) {
+        this._streakToastShown[8] = true;
+        this.showStyledToast('UNSTOPPABLE!', '#ff4040', true);
+      }
 
       const heroIdx = this.currentTurn.heroIndex;
       this.heroStreaks[heroIdx] = (this.heroStreaks[heroIdx] || 0) + 1;
@@ -2408,12 +2429,19 @@ export class BattleScene extends Phaser.Scene {
     } else {
       const prevStreak2 = this.streak;
       this.streak = 0;
+      this._streakToastShown = {}; // reset streak milestones for next streak
+      this.wrongStreak++;
       this.updateStreakDisplay(prevStreak2);
       const heroIdx = this.currentTurn.heroIndex;
       this.heroStreaks[heroIdx] = 0;
       this.superReady[heroIdx] = false;
       this.updateSuperButton();
       this.battleWrong++;
+
+      // --- Wrong streak encouragement (Item 20) ---
+      if (this.wrongStreak >= 3) {
+        this.showStyledToast('Keep trying!', '#6090e0');
+      }
       this.momentum = advanceMomentum(this.momentum, false);
       this.updateMomentumBar(true);
 
@@ -2953,6 +2981,24 @@ export class BattleScene extends Phaser.Scene {
     if (this.envState) {
       updateEnvironment(this.envState, this.momentum, this.streak, zone.label, justWrong);
     }
+
+    // --- Momentum zone visual overlay ---
+    if (this._zoneOverlay && zone.label !== this._lastZone) {
+      this._lastZone = zone.label;
+      if (zone.label === 'HEAT') {
+        this._zoneOverlay.setFillStyle(0xff8020, 1);
+        this.tweens.killTweensOf(this._zoneOverlay);
+        this.tweens.add({ targets: this._zoneOverlay, alpha: 0.06, duration: 300, ease: 'Sine.out' });
+      } else if (zone.label === 'COOL') {
+        this._zoneOverlay.setFillStyle(0x2060e0, 1);
+        this.tweens.killTweensOf(this._zoneOverlay);
+        this.tweens.add({ targets: this._zoneOverlay, alpha: 0.06, duration: 300, ease: 'Sine.out' });
+      } else {
+        // ZONE — clear overlay
+        this.tweens.killTweensOf(this._zoneOverlay);
+        this.tweens.add({ targets: this._zoneOverlay, alpha: 0, duration: 300, ease: 'Sine.out' });
+      }
+    }
   }
 
   /** Update the streak counter HUD display */
@@ -3122,6 +3168,108 @@ export class BattleScene extends Phaser.Scene {
       alpha: 0,
       duration: 400,
       delay: 800,
+    });
+  }
+
+  /**
+   * Show a styled one-time toast for streak milestones and encouragement.
+   * Does NOT conflict with the persistent streak counter — these are ephemeral.
+   * @param {string} message
+   * @param {string} color - CSS color for text
+   * @param {boolean} withParticles - if true, add a particle burst
+   */
+  showStyledToast(message, color, withParticles = false) {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const toastText = this.add.text(area.cx, area.top + 140, message, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '28px',
+      color,
+      stroke: '#000000',
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(55).setAlpha(0).setScale(0.6);
+
+    this.tweens.add({
+      targets: toastText,
+      alpha: 1,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 250,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: toastText,
+          alpha: 0,
+          y: area.top + 120,
+          scaleX: 0.9,
+          scaleY: 0.9,
+          duration: 500,
+          delay: 1000,
+          ease: 'Cubic.in',
+          onComplete: () => toastText.destroy(),
+        });
+      },
+    });
+
+    if (withParticles) {
+      for (let i = 0; i < 16; i++) {
+        const angle = (i / 16) * Math.PI * 2;
+        const dist = 60 + Math.random() * 40;
+        const pc = [0xff4040, 0xf0d040, 0xf08020][i % 3];
+        const p = this.add.circle(area.cx, area.top + 140, 3 + Math.random() * 3, pc, 0.8).setDepth(55);
+        this.tweens.add({
+          targets: p,
+          x: area.cx + Math.cos(angle) * dist,
+          y: area.top + 140 + Math.sin(angle) * dist,
+          alpha: 0,
+          duration: 500 + Math.random() * 300,
+          ease: 'Cubic.out',
+          onComplete: () => p.destroy(),
+        });
+      }
+    }
+  }
+
+  /**
+   * Show a contextual first-time tooltip for a new system (signature, bond).
+   * Blue-tinted, lasts 3 seconds. Only shown once per tip key per battle.
+   * @param {string} tipKey - unique key to prevent duplicates
+   * @param {string} message - explanatory text
+   */
+  showFirstTimeTip(tipKey, message) {
+    if (this._shownTips.has(tipKey)) return;
+    this._shownTips.add(tipKey);
+
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const tipBg = this.add.graphics().setDepth(54);
+    const tipText = this.add.text(area.cx, area.top + 180, message, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '16px',
+      color: '#e0f0ff',
+      align: 'center',
+      wordWrap: { width: 450 },
+    }).setOrigin(0.5).setDepth(55).setAlpha(0);
+
+    const tw = Math.min(500, tipText.width + 30);
+    const th = tipText.height + 16;
+    tipBg.fillStyle(0x203060, 0.9);
+    tipBg.fillRoundedRect(area.cx - tw / 2, area.top + 180 - th / 2, tw, th, 10);
+    tipBg.setAlpha(0);
+
+    this.tweens.add({
+      targets: [tipBg, tipText],
+      alpha: 1,
+      duration: 300,
+      ease: 'Sine.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: [tipBg, tipText],
+          alpha: 0,
+          duration: 400,
+          delay: 3000,
+          ease: 'Sine.in',
+          onComplete: () => { tipBg.destroy(); tipText.destroy(); },
+        });
+      },
     });
   }
 
@@ -3610,6 +3758,8 @@ export class BattleScene extends Phaser.Scene {
         const n1 = h1 ? h1.name : br.heroId1;
         const n2 = h2 ? h2.name : br.heroId2;
         rewardText += `\n${n1} & ${n2}: Bond rank ${br.rank}!`;
+        // First-time bond rank tooltip
+        this.showFirstTimeTip(`bond_${br.rank}`, `New Bond! ${n1} & ${n2} reached rank ${br.rank}! Fight together to grow stronger!`);
       }
       this.endOverlay.rewardsText.setText(rewardText);
       this.endOverlay.setVisible(true);
