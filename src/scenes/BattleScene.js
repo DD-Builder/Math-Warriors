@@ -44,7 +44,7 @@ import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { getHint } from '../systems/hints.js';
 import { recordBattle, getBondStatBonuses, getAvailableCombos } from '../systems/bonds.js';
-import { getEvolutionStatBoosts } from '../systems/evolution.js';
+import { getEvolutionStatBoosts, getEvolutionStage } from '../systems/evolution.js';
 import {
   createSignatureState,
   onHeroDamageDealt,
@@ -202,6 +202,14 @@ export class BattleScene extends Phaser.Scene {
       hero.def += bondBonus.def || 0;
       hero.maxHp += bondBonus.hp || 0;
       hero.hp += bondBonus.hp || 0;
+    }
+
+    // --- Copy hero levels from save data ---
+    for (let i = 0; i < this.party.length && i < 3; i++) {
+      const saveHero = this.save.party?.[i];
+      if (saveHero && saveHero.level) {
+        this.party[i].level = saveHero.level;
+      }
     }
 
     // --- Signature effects state ---
@@ -550,7 +558,8 @@ export class BattleScene extends Phaser.Scene {
       const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
 
       const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
-      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
+      const evoStage = getEvolutionStage(this.save, hero.id);
+      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale, evolutionStage: evoStage });
       body.setDepth(12);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
@@ -2710,33 +2719,60 @@ export class BattleScene extends Phaser.Scene {
 
     const colorNum = hero.displayColor || 0xffffff;
     const colorHex = '#' + colorNum.toString(16).padStart(6, '0');
+    const isSuper = cryType === 'superMove';
 
-    const text = this.add.text(hs.x, hs.y - 140, cry, {
+    // Speech bubble with rounded rect background + triangle tail
+    const bubbleX = hs.x;
+    const bubbleY = hs.y - 155;
+    const bubbleContainer = this.add.container(bubbleX, bubbleY).setDepth(50).setAlpha(0).setScale(0);
+
+    const fontSize = isSuper ? 18 : 16;
+    const textObj = this.add.text(0, 0, cry, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
-      fontStyle: 'italic',
+      fontSize: `${fontSize}px`,
       color: colorHex,
-      stroke: '#000000',
-      strokeThickness: 3,
       align: 'center',
-      wordWrap: { width: 200 },
-    }).setOrigin(0.5).setAlpha(0).setDepth(50);
+      wordWrap: { width: isSuper ? 220 : 180 },
+    }).setOrigin(0.5);
 
+    const padX = 14;
+    const padY = 8;
+    const bw = Math.max(60, textObj.width + padX * 2);
+    const bh = textObj.height + padY * 2;
+
+    const bubbleGfx = this.add.graphics();
+    if (isSuper) {
+      bubbleGfx.lineStyle(2, 0xf0d060, 0.9);
+    }
+    bubbleGfx.fillStyle(0xffffff, 0.9);
+    bubbleGfx.fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 10);
+    if (isSuper) {
+      bubbleGfx.strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 10);
+    }
+    // Triangle tail pointing toward the hero
+    bubbleGfx.fillStyle(0xffffff, 0.9);
+    bubbleGfx.fillTriangle(-6, bh / 2, 6, bh / 2, 0, bh / 2 + 10);
+
+    bubbleContainer.add([bubbleGfx, textObj]);
+
+    // Pop in with Back.out easing
     this.tweens.add({
-      targets: text,
+      targets: bubbleContainer,
       alpha: 1,
-      y: hs.y - 155,
-      duration: 300,
-      ease: 'Cubic.out',
+      scaleX: 1,
+      scaleY: 1,
+      duration: 200,
+      ease: 'Back.out',
       onComplete: () => {
         this.tweens.add({
-          targets: text,
+          targets: bubbleContainer,
+          scaleX: 0,
+          scaleY: 0,
           alpha: 0,
-          y: hs.y - 170,
-          duration: 700,
-          delay: 1000,
+          duration: 150,
+          delay: 1500,
           ease: 'Cubic.in',
-          onComplete: () => text.destroy(),
+          onComplete: () => bubbleContainer.destroy(),
         });
       },
     });
@@ -2786,13 +2822,13 @@ export class BattleScene extends Phaser.Scene {
     // Cream panel overlay
     const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5)
       .setDepth(150).setInteractive();
-    const panel = PaperPanel(this, area.cx, area.cy, 620, 180, {
+    const panel = PaperPanel(this, area.cx, area.cy, 620, 240, {
       color: 0xf5ead0, alpha: 0.97, radius: 20,
     });
     if (panel.bg) panel.bg.setDepth(151);
     if (panel.shadow) panel.shadow.setDepth(150);
 
-    const hintLabel = this.add.text(area.cx, area.cy, hintText, {
+    const hintLabel = this.add.text(area.cx, area.cy - 30, hintText, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '22px',
       color: '#3a2410',
@@ -2800,18 +2836,33 @@ export class BattleScene extends Phaser.Scene {
       wordWrap: { width: 560 },
     }).setOrigin(0.5).setDepth(152);
 
+    // "GOT IT" dismiss button
+    const gotItBtn = PaperButton(this, area.cx, area.cy + 60, 'GOT IT', {
+      w: 180, h: 50, color: 0x4aa848, fontSize: 20,
+      onClick: () => dismissHint(),
+    });
+    if (gotItBtn.bg) gotItBtn.bg.setDepth(153);
+    if (gotItBtn.shadow) gotItBtn.shadow.setDepth(152);
+    if (gotItBtn.label) gotItBtn.label.setDepth(154);
+    if (gotItBtn.zone) gotItBtn.zone.setDepth(154);
+
     const elements = [overlayBg, hintLabel];
     if (panel.bg) elements.push(panel.bg);
     if (panel.shadow) elements.push(panel.shadow);
+    if (gotItBtn.bg) elements.push(gotItBtn.bg);
+    if (gotItBtn.shadow) elements.push(gotItBtn.shadow);
+    if (gotItBtn.label) elements.push(gotItBtn.label);
+    if (gotItBtn.zone) elements.push(gotItBtn.zone);
 
-    // Dismiss on tap or after 4 seconds
+    // Dismiss on tap (overlay bg or GOT IT button)
     const dismissHint = () => {
       if (dismissTimer) dismissTimer.remove();
       elements.forEach(el => { if (el && el.scene) el.destroy(); });
+      this.locked = false;
     };
 
     overlayBg.on('pointerdown', dismissHint);
-    const dismissTimer = this.time.delayedCall(4000, dismissHint);
+    const dismissTimer = this.time.delayedCall(8000, dismissHint);
   }
 
   // ================================================================

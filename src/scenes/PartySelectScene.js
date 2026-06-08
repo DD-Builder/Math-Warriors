@@ -197,7 +197,8 @@ export class PartySelectScene extends Phaser.Scene {
       return;
     }
 
-    const portrait = drawHeroSprite(this, x, y - h * 0.08, hero, { scale: 0.85 });
+    const stage = getEvolutionStage(this.save, hero.id);
+    const portrait = drawHeroSprite(this, x, y - h * 0.08, hero, { scale: 0.85, evolutionStage: stage });
 
     // Show evolved name instead of base name
     const evolvedName = getEvolvedName(this.save, hero.id);
@@ -210,7 +211,6 @@ export class PartySelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Evolution stage dots (1-3)
-    const stage = getEvolutionStage(this.save, hero.id);
     const dotsY = y + h * 0.24;
     const dotGfx = this.add.graphics();
     for (let d = 0; d < 3; d++) {
@@ -389,7 +389,8 @@ export class PartySelectScene extends Phaser.Scene {
       if (sel) {
         const hero = this.classes[sel.class][sel.index];
         slot.portrait.setFillStyle(0xd0c8b0, 0.3);
-        slot.heroSprite = drawHeroSprite(this, slot.sx, slot.sy - 12, hero, { scale: 0.45 });
+        const slotEvoStage = getEvolutionStage(this.save, hero.id);
+        slot.heroSprite = drawHeroSprite(this, slot.sx, slot.sy - 12, hero, { scale: 0.45, evolutionStage: slotEvoStage });
         const evoName = getEvolvedName(this.save, hero.id);
         slot.nameTxt.setText(evoName.toUpperCase());
         slot.nameTxt.setColor('#3a2410');
@@ -532,7 +533,8 @@ export class PartySelectScene extends Phaser.Scene {
     elements.push(panel);
 
     // --- HEADER (always visible) ---
-    const portrait = drawHeroSprite(this, cx - pw / 2 + 70, cy - ph / 2 + 80, hero, { scale: 0.7 });
+    const detailEvoStage = getEvolutionStage(this.save, hero.id);
+    const portrait = drawHeroSprite(this, cx - pw / 2 + 70, cy - ph / 2 + 80, hero, { scale: 0.7, evolutionStage: detailEvoStage });
     portrait.setDepth(952);
     elements.push(portrait);
 

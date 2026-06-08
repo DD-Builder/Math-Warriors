@@ -1508,7 +1508,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
     x: (startX + 0.5) * LV_TILE,
     y: (startY + 0.5) * LV_TILE,
     vx: 0, vy: 0,
-    speed: 2.8,
+    speed: 4.2,
     facing: 'down',
     animT: 0
   };

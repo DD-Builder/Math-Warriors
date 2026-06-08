@@ -7,6 +7,7 @@ import { drawPapercutBackground, drawWorldMapGarden, drawWorldMapCaves, drawWorl
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
+import { getEvolutionStage } from '../systems/evolution.js';
 import { getDailyChallenge, isDailyChallengeCompleted, markDailyChallengeComplete } from '../systems/dailyChallenge.js';
 import { getDailyQuests, getQuestProgress, claimQuestReward, getLoginReward } from '../systems/dailyQuests.js';
 import { DIALOGUE } from '../data/dialogue.js';
@@ -376,7 +377,8 @@ export class WorldMapScene extends Phaser.Scene {
         if (slot) {
           const heroDef = getHeroById(slot.id);
           if (heroDef) {
-            const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35 });
+            const wmEvoStage = getEvolutionStage(this.save, heroDef.id);
+            const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35, evolutionStage: wmEvoStage });
             img.setScrollFactor(0);
           }
         }
@@ -724,7 +726,8 @@ export class WorldMapScene extends Phaser.Scene {
     panel.strokeRoundedRect(cx - pw / 2, cy - ph / 2, pw, ph, 22);
     elements.push(panel);
 
-    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1 });
+    const wmDetailEvoStage = getEvolutionStage(this.save, hero.id);
+    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1, evolutionStage: wmDetailEvoStage });
     portrait.setScrollFactor(0).setDepth(952);
     elements.push(portrait);
 
