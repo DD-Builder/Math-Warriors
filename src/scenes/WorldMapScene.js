@@ -117,6 +117,13 @@ export class WorldMapScene extends Phaser.Scene {
 
     this.nodePositions = [];
 
+    // Find the highest unlocked, incomplete node (active/current node)
+    let activeNodeIndex = -1;
+    for (let i = 8; i >= 0; i--) {
+      const f = this.save.floors[i];
+      if (f.unlocked && !f.complete) { activeNodeIndex = i; break; }
+    }
+
     for (let i = 0; i < 9; i++) {
       const screen = Math.floor(i / 3);
       const slot = i % 3;
@@ -129,12 +136,13 @@ export class WorldMapScene extends Phaser.Scene {
       const saved = this.save.floors[i];
       const locked = !saved.unlocked;
       const complete = saved.complete;
+      const isActive = i === activeNodeIndex;
 
-      this.createFloorNode(x, y, info, locked, complete);
+      this.createFloorNode(x, y, info, locked, complete, saved, isActive);
     }
   }
 
-  createFloorNode(x, y, info, locked, complete) {
+  createFloorNode(x, y, info, locked, complete, saved, isActive) {
     const radius = 56;
 
     this.add.circle(x + 4, y + 6, radius, 0x000000, 0.3).setDepth(10);
@@ -161,10 +169,63 @@ export class WorldMapScene extends Phaser.Scene {
       this.drawMiniDiorama(x, y, radius - 10, info.id);
     }
 
+    // --- Star rating for completed nodes (Item 48) ---
     if (complete) {
-      this.add.text(x + radius * 0.65, y - radius * 0.65, '⭐', {
-        fontSize: '28px',
-      }).setOrigin(0.5);
+      const acc = saved.bestAccuracy || 0;
+      const earnedStars = acc >= 95 ? 3 : acc >= 80 ? 2 : 1;
+      const starY = y - radius * 0.65;
+      const starSpacing = 18;
+      const starStartX = x + radius * 0.65 - starSpacing;
+      for (let s = 0; s < 3; s++) {
+        const sx = starStartX + s * starSpacing;
+        const isEarned = s < earnedStars;
+        this.add.text(sx, starY, '⭐', {
+          fontSize: '14px',
+          alpha: isEarned ? 1 : 0.3,
+        }).setOrigin(0.5).setDepth(12).setAlpha(isEarned ? 1 : 0.3);
+      }
+    }
+
+    // --- Particle effects for completed nodes (Item 22) ---
+    if (complete && !locked) {
+      const themeColor = info.color;
+      const r = (themeColor >> 16) & 0xff;
+      const g = (themeColor >> 8) & 0xff;
+      const b = themeColor & 0xff;
+      this.time.addEvent({
+        delay: 2000,
+        loop: true,
+        callback: () => {
+          const count = 3 + Math.floor(Math.random() * 2); // 3-4 particles
+          for (let p = 0; p < count; p++) {
+            const px = x + (Math.random() - 0.5) * radius * 1.2;
+            const py = y + (Math.random() - 0.5) * radius * 0.6;
+            const size = 2 + Math.random();
+            const sparkle = this.add.circle(px, py, size, themeColor, 0.8).setDepth(13);
+            this.tweens.add({
+              targets: sparkle,
+              y: py - 20,
+              alpha: 0,
+              duration: 800 + Math.random() * 400,
+              ease: 'Sine.out',
+              onComplete: () => sparkle.destroy(),
+            });
+          }
+        },
+      });
+    }
+
+    // --- Beacon glow for active/current node (Item 22) ---
+    if (isActive && !locked) {
+      const beacon = this.add.circle(x, y, radius + 10, 0xf0d060, 0.1).setDepth(9);
+      this.tweens.add({
+        targets: beacon,
+        alpha: 0.3,
+        duration: 1500,
+        ease: 'Sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      });
     }
 
     const labelY = y + radius + 24;

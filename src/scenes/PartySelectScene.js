@@ -260,6 +260,27 @@ export class PartySelectScene extends Phaser.Scene {
       fontSize: '9px', color: '#ffffff',
     }).setOrigin(0.5);
 
+    // "NEW!" badge for freshly unlocked heroes not yet viewed
+    let newBadgeGfx = null;
+    let newBadgeText = null;
+    const viewed = Array.isArray(this.save.viewedHeroes) ? this.save.viewedHeroes : [];
+    if (!viewed.includes(hero.id)) {
+      newBadgeGfx = this.add.graphics();
+      newBadgeGfx.fillStyle(0xe84040, 0.95);
+      newBadgeGfx.fillRoundedRect(x - w / 2 + 6, y - h / 2 + 6, 50, 22, 8);
+      newBadgeText = this.add.text(x - w / 2 + 31, y - h / 2 + 17, 'NEW!', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '11px', color: '#ffffff',
+      }).setOrigin(0.5);
+      this.tweens.add({
+        targets: [newBadgeGfx, newBadgeText],
+        scaleX: 1.1, scaleY: 1.1,
+        duration: 600,
+        yoyo: true, repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    }
+
     // Evolve badge — check if eligible for Stage 2 or Stage 3
     const partyEntry = (this.save.party || []).find(p => p.id === hero.id);
     const heroLevel = partyEntry?.level || 1;
@@ -315,6 +336,8 @@ export class PartySelectScene extends Phaser.Scene {
     cardElements.push(portrait, name, dotGfx, trait, stats, rarBadge, rarText);
     if (sigText) cardElements.push(sigText);
     if (evolveBadge) cardElements.push(evolveBadge);
+    if (newBadgeGfx) cardElements.push(newBadgeGfx);
+    if (newBadgeText) cardElements.push(newBadgeText);
     cardElements.push(card.zone);
     this.heroCardContainer.add(cardElements);
 
@@ -512,6 +535,14 @@ export class PartySelectScene extends Phaser.Scene {
   showHeroDetail(hero) {
     if (this._detailOpen) return;
     this._detailOpen = true;
+
+    // Mark hero as viewed (removes NEW badge next time)
+    if (!Array.isArray(this.save.viewedHeroes)) this.save.viewedHeroes = [];
+    if (!this.save.viewedHeroes.includes(hero.id)) {
+      this.save.viewedHeroes.push(hero.id);
+      writeSave(this.save, this.slot);
+    }
+
     const elements = [];
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const cx = area.cx, cy = area.cy;
@@ -635,10 +666,13 @@ export class PartySelectScene extends Phaser.Scene {
       w: 180, h: 46, color: 0xd07818, fontSize: 18, textColor: '#fff8e0',
       onClick: () => {
         clearContent();
+        clearContent();
         elements.forEach(e => { if (e && e.destroy) e.destroy(); });
         closeBtn.bg.destroy(); closeBtn.shadow.destroy();
         closeBtn.label.destroy(); if (closeBtn.zone) closeBtn.zone.destroy();
         this._detailOpen = false;
+        // Rebuild grid to remove NEW badge after viewing
+        this.rebuildHeroGrid();
       },
     });
     closeBtn.bg.setDepth(953);
