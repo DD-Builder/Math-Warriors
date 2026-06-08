@@ -147,6 +147,10 @@ export class BattleScene extends Phaser.Scene {
 
     this.momentum = 0.5;
     this.streak = 0;
+    this.wrongStreak = 0;
+    this._streakToastShown = {}; // track which streak milestone toasts shown
+    this._lastZone = 'ZONE'; // track momentum zone for overlay transitions
+    this._shownTips = new Set(); // track first-time tooltips for new systems
     this.heroStreaks = new Array(this.party.length).fill(0);
     this.superReady = new Array(this.party.length).fill(false);
     this.potionUsedThisBattle = false;
@@ -323,6 +327,11 @@ export class BattleScene extends Phaser.Scene {
 
     // Environmental responsiveness — subtle mood shifts based on performance
     this.envState = createEnvironmentState(this, this.parallaxState);
+
+    // Momentum zone tint overlay — reacts subtly to HEAT/COOL/ZONE zones
+    this._zoneOverlay = this.add.rectangle(
+      GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0
+    ).setDepth(9).setAlpha(0);
 
     // Hook into update loop for parallax on camera shake
     this.events.on('update', () => {
