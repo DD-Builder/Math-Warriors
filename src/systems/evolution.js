@@ -22,8 +22,8 @@ const MASTERY_ID_MAP = {
   division: '/',
   fractions: 'frac',
   geometry: 'geo',
-  measurement: 'money',
-  time: 'word',
+  measurement: 'geo',
+  time: 'frac',
   patterns: 'word',
 };
 
@@ -256,15 +256,15 @@ export function getEvolutionSupers(save, heroId) {
   const evoDef = HERO_EVOLUTIONS[heroId];
   const supers = [...hero.superMoves];
 
-  if (evoDef && stage >= 2 && evoDef.stage2.superMove) {
-    supers.push(evoDef.stage2.superMove);
+  if (evoDef && stage >= 2 && evoDef.stage2.newSuper) {
+    supers.push(evoDef.stage2.newSuper);
   }
 
   if (evoDef && stage >= 3) {
     const pathId = getEvolutionPath(save, heroId);
     const pathDef = evoDef.stage3.paths.find(p => p.id === pathId);
-    if (pathDef?.superMove) {
-      supers.push(pathDef.superMove);
+    if (pathDef?.newSuper) {
+      supers.push(pathDef.newSuper);
     }
   }
 

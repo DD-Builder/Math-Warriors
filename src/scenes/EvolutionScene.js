@@ -428,8 +428,10 @@ export class EvolutionScene extends Phaser.Scene {
           w: 260, h: 64, color: 0xe84840, fontSize: 24, textColor: '#fff8e0',
           onClick: () => {
             audio.play('ui/confirm');
+            const psState = d.partySelectState || {};
             transitionTo(this, SCENES.PARTY_SELECT, {
-              returnFromEvolution: true,
+              grade: psState.grade,
+              returnScene: psState.returnScene,
             }, 400);
           },
         });

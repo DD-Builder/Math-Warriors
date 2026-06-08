@@ -202,15 +202,16 @@ export function getBondDialogues(save, heroId1, heroId2) {
     const [h1, h2] = b.heroes;
     return bondKey(h1, h2) === key;
   });
-  if (!bondDef || !bondDef.dialogues) return [];
+  if (!bondDef) return [];
 
-  // Return all dialogues up to and including current rank
+  const dialogueMap = { C: bondDef.dialogueC, B: bondDef.dialogueB, A: bondDef.dialogueA, S: bondDef.dialogueS };
+
   const rankIdx = RANK_ORDER.indexOf(rank);
   const dialogues = [];
   for (let i = 0; i <= rankIdx; i++) {
     const r = RANK_ORDER[i];
-    if (bondDef.dialogues[r]) {
-      dialogues.push({ rank: r, text: bondDef.dialogues[r] });
+    if (dialogueMap[r]) {
+      dialogues.push({ rank: r, text: dialogueMap[r] });
     }
   }
 

@@ -137,7 +137,8 @@ export class PartySelectScene extends Phaser.Scene {
   rebuildHeroGrid() {
     this.heroCardContainer.removeAll(true);
     const heroes = this.classes[this.activeClass];
-    this.gridLabel.setText(`Choose your ${this.classLabels[this.activeClass].replace(/S$/, '').toLowerCase()}`);
+    const singular = { knight: 'knight', wizard: 'wizard', bunny: 'battle bunny' };
+    this.gridLabel.setText(`Choose your ${singular[this.activeClass]}`);
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const cardW = 192;
@@ -875,9 +876,10 @@ export class PartySelectScene extends Phaser.Scene {
               evolvedName: result.name,
               evolvedTitle: result.title,
               stage: 2,
-              statBoosts: result.statBoost,
-              newSuper: result.newSuper,
+              statBoosts: result.statBoosts,
+              newSuper: result.superMove,
               displayColor: hero.displayColor,
+              partySelectState: { grade: this.grade, returnScene: this.returnScene },
             }, 300);
           },
         });
@@ -965,11 +967,12 @@ export class PartySelectScene extends Phaser.Scene {
                 evolvedName: result.name,
                 evolvedTitle: result.title,
                 stage: 3,
-                statBoosts: result.statBoost,
-                newSuper: result.newSuper,
+                statBoosts: result.statBoosts,
+                newSuper: result.superMove,
                 pathName: p.name,
                 pathDescription: p.description,
                 displayColor: hero.displayColor,
+                partySelectState: { grade: this.grade, returnScene: this.returnScene },
               }, 300);
             },
           });

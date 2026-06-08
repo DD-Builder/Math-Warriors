@@ -1853,17 +1853,6 @@ export class BattleScene extends Phaser.Scene {
           return;
         }
 
-        // --- Signature: Shadow dodge ---
-        if (target.signature && target.signature.effect === 'dodge') {
-          if (Math.random() < target.signature.value) {
-            this.showToast(`${target.name} Dodged!`, '#e86898');
-            this.showBattleCry(target, 'attack'); // dodge counts as a reaction
-            audio.play('battle/hit-hero');
-            this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
-            return;
-          }
-        }
-
         // Bunny dodge — base 30% chance, Dodge Roll ability raises to 60%
         const dodgeChance = (cls === 'bunny') ? (this.dodgeActive ? 0.6 : 0.3) : 0;
         if (dodgeChance > 0 && Math.random() < dodgeChance) {
@@ -2128,7 +2117,17 @@ export class BattleScene extends Phaser.Scene {
         questionStars: stars,
       });
 
-      const modified = hitCount > 1 ? Math.max(3, Math.round(sigDmg / hitCount)) * hitCount : sigDmg;
+      let abilityDmg = sigDmg;
+      if (this.manaSurgeActive) {
+        abilityDmg = Math.round(abilityDmg * 2);
+        this.manaSurgeActive = false;
+        this.showBattleCry(hero, 'superMove');
+      }
+      if (this.furyCharges > 0) {
+        abilityDmg = Math.round(abilityDmg * 1.5);
+        this.furyCharges--;
+      }
+      const modified = hitCount > 1 ? Math.max(3, Math.round(abilityDmg / hitCount)) * hitCount : abilityDmg;
       const newHp = Math.max(0, targetEnemy.hp - modified);
       const result = {
         baseDamage: commandResult.baseDamage,
@@ -2624,7 +2623,7 @@ export class BattleScene extends Phaser.Scene {
     const enemy = this.enemies[idx] || this.enemy;
     const sprite = this.enemySprites[idx] || this.enemySprite;
     const pct = Math.max(0, enemy.hp / enemy.maxHp);
-    const fullW = 200 + 10 - 4; // matches buildEnemySprite
+    const fullW = 200 + 20 - 4; // matches buildEnemySprite
     this.tweens.add({
       targets: sprite.hpBarFill,
       width: fullW * pct,
@@ -2825,7 +2824,7 @@ export class BattleScene extends Phaser.Scene {
 
   hidePauseOverlay() {
     this._pauseElements.forEach(el => el.setVisible(false));
-    if (this.phase === 'question') {
+    if (this.phase === 'question' || this.phase === 'command') {
       this.locked = false;
     }
   }
@@ -3355,6 +3354,7 @@ export class BattleScene extends Phaser.Scene {
       if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
       if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
       if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
+      if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 400 });
       if (this.allEnemiesDead()) {
         this.time.delayedCall(400, () => this.showVictory());
       } else {
