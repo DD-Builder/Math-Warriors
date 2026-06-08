@@ -105,36 +105,103 @@ export class MazeScene extends Phaser.Scene {
       this.mazeTransformed = false;
       this.revealedSecrets = [];
 
-      // Hand-placed objects (chests, potions, boss, exit) keep their
-      // designated positions. Encounter (monster) tiles get randomized
-      // each run for surprise. We pick walkable tiles that aren't
-      // occupied by another object or the start position.
-      const handPlaced = this.floor.objects.filter((o) => o.type !== 'encounter');
-      const encounterCount = this.floor.objects.filter((o) => o.type === 'encounter').length;
+      // Build reachable tile set via flood fill from player start
+      const reachable = this.floodFillReachable(this.playerX, this.playerY);
 
-      const occupied = new Set();
-      occupied.add(`${this.playerX},${this.playerY}`);
-      handPlaced.forEach((o) => occupied.add(`${o.x},${o.y}`));
+      // Separate fixed-position items (boss, exit) from randomizable items
+      const fixedTypes = new Set(['boss', 'exit']);
+      const challengeType = this.floor.challenge?.type;
+      const phase2Type = this.floor.challenge?.phase2?.type;
+      const randomizableTypes = new Set([
+        challengeType, phase2Type,
+        'chest', 'potion', 'gold', 'fountain', 'golden', 'mathdoor',
+      ].filter(Boolean));
 
-      // Find all walkable tiles not occupied
-      const candidates = [];
-      for (let y = 0; y < this.floor.height; y++) {
-        for (let x = 0; x < this.floor.width; x++) {
-          if (this.floor.tiles[y][x] === TILE.WALL) continue;
-          if (occupied.has(`${x},${y}`)) continue;
-          // Don't put monsters right next to start either
-          const dx = x - this.playerX;
-          const dy = y - this.playerY;
-          if (Math.abs(dx) + Math.abs(dy) < 2) continue;
-          candidates.push({ x, y });
+      const fixedItems = [];
+      const itemsToRandomize = [];
+
+      for (const o of this.floor.objects) {
+        if (o.type === 'encounter') continue;
+        if (fixedTypes.has(o.type)) {
+          fixedItems.push(o);
+        } else if (randomizableTypes.has(o.type)) {
+          itemsToRandomize.push(o);
+        } else {
+          fixedItems.push(o);
         }
       }
-      // Shuffle and take the first N
-      for (let i = candidates.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+
+      // Build occupied set from fixed items + player start
+      const occupied = new Set();
+      occupied.add(`${this.playerX},${this.playerY}`);
+      fixedItems.forEach((o) => occupied.add(`${o.x},${o.y}`));
+
+      // Find reachable, walkable, unoccupied tiles for randomized placement
+      const placementCandidates = [];
+      for (const key of reachable) {
+        if (occupied.has(key)) continue;
+        const [x, y] = key.split(',').map(Number);
+        const dx = x - this.playerX;
+        const dy = y - this.playerY;
+        if (Math.abs(dx) + Math.abs(dy) < 3) continue;
+        placementCandidates.push({ x, y });
       }
-      const encounters = candidates.slice(0, encounterCount).map((p, idx) => ({
+
+      // Shuffle candidates
+      for (let i = placementCandidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [placementCandidates[i], placementCandidates[j]] = [placementCandidates[j], placementCandidates[i]];
+      }
+
+      // Place randomizable items on reachable tiles
+      const randomizedItems = [];
+      let candIdx = 0;
+      for (const o of itemsToRandomize) {
+        if (candIdx < placementCandidates.length) {
+          const pos = placementCandidates[candIdx++];
+          randomizedItems.push({ ...o, x: pos.x, y: pos.y });
+          occupied.add(`${pos.x},${pos.y}`);
+        } else {
+          randomizedItems.push(o);
+        }
+      }
+
+      // Validate fixed items are reachable; if not, relocate them
+      const validatedFixed = fixedItems.map(o => {
+        if (reachable.has(`${o.x},${o.y}`)) return o;
+        // Item is unreachable — find nearest reachable tile
+        for (const pos of placementCandidates) {
+          const key = `${pos.x},${pos.y}`;
+          if (!occupied.has(key)) {
+            occupied.add(key);
+            return { ...o, x: pos.x, y: pos.y };
+          }
+        }
+        return o;
+      });
+
+      const handPlaced = [...validatedFixed, ...randomizedItems].map((o) => ({
+        ...o,
+        id: `${o.type}-${o.x}-${o.y}`,
+        consumed: false,
+      }));
+
+      // Randomize encounter positions on reachable tiles
+      const encounterCount = this.floor.objects.filter((o) => o.type === 'encounter').length;
+      const encounterCandidates = [];
+      for (const key of reachable) {
+        if (occupied.has(key)) continue;
+        const [x, y] = key.split(',').map(Number);
+        const dx = x - this.playerX;
+        const dy = y - this.playerY;
+        if (Math.abs(dx) + Math.abs(dy) < 2) continue;
+        encounterCandidates.push({ x, y });
+      }
+      for (let i = encounterCandidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [encounterCandidates[i], encounterCandidates[j]] = [encounterCandidates[j], encounterCandidates[i]];
+      }
+      const encounters = encounterCandidates.slice(0, encounterCount).map((p, idx) => ({
         type: 'encounter',
         x: p.x,
         y: p.y,
@@ -142,18 +209,32 @@ export class MazeScene extends Phaser.Scene {
         consumed: false,
       }));
 
-      const placed = handPlaced.map((o) => ({
-        ...o,
-        id: `${o.type}-${o.x}-${o.y}`,
-        consumed: false,
-      }));
-
-      this.objects = [...placed, ...encounters];
+      this.objects = [...handPlaced, ...encounters];
     }
 
     // Movement state
     this.moving = false;
     this.moveQueued = null;
+  }
+
+  floodFillReachable(startX, startY) {
+    const reachable = new Set();
+    const queue = [`${startX},${startY}`];
+    reachable.add(queue[0]);
+    while (queue.length > 0) {
+      const key = queue.shift();
+      const [x, y] = key.split(',').map(Number);
+      const neighbors = [[x-1,y],[x+1,y],[x,y-1],[x,y+1]];
+      for (const [nx, ny] of neighbors) {
+        if (nx < 0 || ny < 0 || nx >= this.floor.width || ny >= this.floor.height) continue;
+        const nk = `${nx},${ny}`;
+        if (reachable.has(nk)) continue;
+        if (this.floor.tiles[ny]?.[nx] === TILE.WALL) continue;
+        reachable.add(nk);
+        queue.push(nk);
+      }
+    }
+    return reachable;
   }
 
   buildInitialFog() {
