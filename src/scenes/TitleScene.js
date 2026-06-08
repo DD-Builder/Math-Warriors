@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT, VERSION } from '../config.js';
-import { loadSave } from '../systems/save.js';
+import { loadSave, listSlots } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { makeRng } from '../systems/rng.js';
 import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
@@ -161,9 +161,42 @@ export class TitleScene extends Phaser.Scene {
         duration: 3000+rng()*3000, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     }
 
+    // ── CHECK FOR CONTINUABLE SAVE ──────────────────────────────
+    const slots = listSlots();
+    let continueSlot = null;
+    let continueLabel = 'Continue Adventure';
+    for (const meta of slots) {
+      if (meta.exists && meta.floorsComplete > 0) {
+        continueSlot = meta.slot;
+        if (meta.partyNames && meta.partyNames.length > 0) {
+          continueLabel = meta.partyNames.join(', ');
+        }
+        break;
+      }
+    }
+
     // ── BUTTONS ────────────────────────────────────────────────
-    dp(PaperButton(this, area.cx, H * 0.62, 'PLAY', {
-      w: 400, h: 80, color: 0xc83030, fontSize: 34,
+    let playY = H * 0.62;
+
+    if (continueSlot !== null) {
+      // CONTINUE button — larger, green, above PLAY
+      const contY = H * 0.55;
+      playY = H * 0.66;
+      dp(PaperButton(this, area.cx, contY, continueLabel, {
+        w: 420, h: 80, color: 0x4aa848, fontSize: 28,
+        onClick: () => {
+          audio.play('ui/confirm');
+          this.registry.set('activeSlot', continueSlot);
+          transitionTo(this, SCENES.WORLD_MAP, undefined, 300, 'wipe');
+        },
+      }), 10);
+    }
+
+    dp(PaperButton(this, area.cx, playY, continueSlot !== null ? 'NEW GAME' : 'PLAY', {
+      w: continueSlot !== null ? 320 : 400,
+      h: continueSlot !== null ? 64 : 80,
+      color: 0xc83030,
+      fontSize: continueSlot !== null ? 26 : 34,
       onClick: () => { audio.play('ui/confirm'); transitionTo(this, SCENES.SAVE_SELECT, undefined, 300); },
     }), 10);
     dp(PaperButton(this, area.right-75, area.top+35, 'SETTINGS', {

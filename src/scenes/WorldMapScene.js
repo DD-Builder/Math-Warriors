@@ -49,6 +49,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.buildBackgrounds();
     this.buildFloorNodes();
     this.buildPaths();
+    this.buildMapHero();
     this.buildHUD();
     this.buildQuestPanel();
     this.showLoginReward();
@@ -196,9 +197,12 @@ export class WorldMapScene extends Phaser.Scene {
         repeat: -1,
       });
       ring.on('pointerup', () => {
-        if (this._navLocked) return;
+        if (this._navLocked || this._mapHeroWalking) return;
         audio.play('ui/confirm');
-        this.enterFloor(info.id);
+        const targetNodeIndex = info.id - 1; // floor IDs are 1-based, node indices 0-based
+        this.walkHeroToNode(targetNodeIndex, () => {
+          this.enterFloor(info.id);
+        });
       });
     }
   }
@@ -320,6 +324,152 @@ export class WorldMapScene extends Phaser.Scene {
     gfx.moveTo(pts[0].x, pts[0].y);
     for (let i = 1; i < pts.length; i++) gfx.lineTo(pts[i].x, pts[i].y);
     gfx.strokePath();
+  }
+
+  /**
+   * Place a small hero sprite on the world map at the last completed
+   * floor node (or floor 1 if no progress). The sprite is stored as
+   * this.mapHero so it can be animated when the player taps a node.
+   */
+  buildMapHero() {
+    // Determine starting node: last completed floor, or 0 (floor 1) if none
+    this.mapHeroNodeIndex = 0;
+    for (let i = 8; i >= 0; i--) {
+      if (this.save.floors[i]?.complete) {
+        this.mapHeroNodeIndex = i;
+        break;
+      }
+    }
+
+    const pos = this.nodePositions[this.mapHeroNodeIndex];
+    if (!pos) return;
+
+    // Use the lead hero from the party if available
+    const leadHero = this.save.party && this.save.party[0]
+      ? getHeroById(this.save.party[0].id)
+      : null;
+
+    if (leadHero) {
+      this.mapHero = drawHeroSprite(this, pos.x, pos.y - 40, leadHero, { scale: 0.3 });
+    } else {
+      // Fallback: small colored circle
+      this.mapHero = this.add.circle(pos.x, pos.y - 40, 12, 0xf0c040);
+    }
+    this.mapHero.setDepth(15);
+
+    // Idle bob tween
+    this._mapHeroBob = this.tweens.add({
+      targets: this.mapHero,
+      y: this.mapHero.y - 3,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
+
+    this._mapHeroWalking = false;
+  }
+
+  /**
+   * Animate the map hero along the path between nodes, then invoke
+   * the callback when arrival is complete.
+   */
+  walkHeroToNode(targetNodeIndex, onComplete) {
+    if (!this.mapHero) {
+      onComplete();
+      return;
+    }
+
+    const fromIndex = this.mapHeroNodeIndex;
+    if (fromIndex === targetNodeIndex) {
+      onComplete();
+      return;
+    }
+
+    this._mapHeroWalking = true;
+
+    // Stop idle bob during walk
+    if (this._mapHeroBob) {
+      this._mapHeroBob.stop();
+    }
+
+    // Build the full path of points from current node to target node
+    const step = fromIndex < targetNodeIndex ? 1 : -1;
+    let allPoints = [];
+    let idx = fromIndex;
+    while (idx !== targetNodeIndex) {
+      const nextIdx = idx + step;
+      const from = this.nodePositions[idx];
+      const to = this.nodePositions[nextIdx];
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2 - 40;
+      // step>0 => forward along path, step<0 => backward
+      const pts = step > 0
+        ? this.sampleBezier(from.x, from.y, midX, midY, to.x, to.y, 16)
+        : this.sampleBezier(to.x, to.y, midX, midY, from.x, from.y, 16).reverse();
+      // Skip the first point of subsequent segments to avoid duplicates
+      if (allPoints.length > 0) pts.shift();
+      allPoints = allPoints.concat(pts);
+      idx = nextIdx;
+    }
+
+    if (allPoints.length < 2) {
+      this._mapHeroWalking = false;
+      onComplete();
+      return;
+    }
+
+    // Offset y by -40 for the hero sprite position (above the node center)
+    const heroOffset = -40;
+    const totalDuration = 1000; // ~1 second for the full walk
+    const segDuration = totalDuration / (allPoints.length - 1);
+
+    // Flip sprite based on direction
+    const targetX = this.nodePositions[targetNodeIndex].x;
+    const startX = this.nodePositions[fromIndex].x;
+    if (this.mapHero.setFlipX) {
+      this.mapHero.setFlipX(targetX < startX);
+    }
+
+    // Create a chain of tweens using timeline-like approach
+    let pointIndex = 0;
+    const walkStep = () => {
+      pointIndex++;
+      if (pointIndex >= allPoints.length) {
+        // Arrived at destination
+        this.mapHeroNodeIndex = targetNodeIndex;
+        this._mapHeroWalking = false;
+        // Restart idle bob
+        this._mapHeroBob = this.tweens.add({
+          targets: this.mapHero,
+          y: this.mapHero.y - 3,
+          duration: 600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+        onComplete();
+        return;
+      }
+
+      const pt = allPoints[pointIndex];
+      // Bobbing: oscillate 3px using sine of progress
+      const bobPhase = (pointIndex / allPoints.length) * Math.PI * 6;
+      const bob = Math.sin(bobPhase) * 3;
+
+      this.tweens.add({
+        targets: this.mapHero,
+        x: pt.x,
+        y: pt.y + heroOffset + bob,
+        duration: segDuration,
+        ease: 'Linear',
+        onComplete: walkStep,
+      });
+    };
+
+    // Position at first point and start walking
+    this.mapHero.setPosition(allPoints[0].x, allPoints[0].y + heroOffset);
+    walkStep();
   }
 
   buildHUD() {
@@ -697,9 +847,9 @@ export class WorldMapScene extends Phaser.Scene {
         floorId,
         nextScene: SCENES.MAZE,
         nextData: { floor: floorId },
-      }, 300);
+      }, 300, 'circle');
     } else {
-      transitionTo(this, SCENES.MAZE, { floor: floorId }, 300);
+      transitionTo(this, SCENES.MAZE, { floor: floorId }, 300, 'circle');
     }
   }
 

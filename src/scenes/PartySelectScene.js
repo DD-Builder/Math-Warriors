@@ -482,7 +482,7 @@ export class PartySelectScene extends Phaser.Scene {
         return { id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp, xp: 0, level: 1 };
       });
       writeSave(save, this.slot);
-      transitionTo(this, this.returnScene, undefined, 300);
+      transitionTo(this, this.returnScene, undefined, 300, 'wipe');
       return;
     }
 
@@ -503,9 +503,9 @@ export class PartySelectScene extends Phaser.Scene {
         floorId: 1,
         nextScene: SCENES.WORLD_MAP,
         nextData: undefined,
-      }, 300);
+      }, 300, 'wipe');
     } else {
-      transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
+      transitionTo(this, SCENES.WORLD_MAP, undefined, 300, 'wipe');
     }
   }
 

@@ -208,7 +208,13 @@ export class BattleScene extends Phaser.Scene {
     this.signatureState = createSignatureState(this.party);
 
     // Hero ability cooldowns and state (Phase 3.1)
-    this.abilityCooldowns = [{ cd: 0 }, { cd: 0 }, { cd: 0 }];
+    // Each hero gets an array of cooldowns, one per ability (2 abilities per class)
+    this.abilityCooldowns = [
+      [{ cd: 0 }, { cd: 0 }],
+      [{ cd: 0 }, { cd: 0 }],
+      [{ cd: 0 }, { cd: 0 }],
+    ];
+    this.abilityBtn2 = null; // second ability button
     this.shieldBashActive = false;
     this.rallyTurns = 0;
     this.manaSurgeActive = false;
@@ -729,6 +735,29 @@ export class BattleScene extends Phaser.Scene {
       letterSpacing: 1,
     }).setOrigin(0, 0.5);
 
+    // --- Streak Counter Display (Item 36) ---
+    const streakX = barX + barW + 80;
+    const streakY = topY + 28;
+    this.streakFlame = this.add.text(streakX - 18, streakY, '', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '18px',
+      color: '#f0a020',
+    }).setOrigin(0.5).setDepth(21).setAlpha(0);
+    this.streakCount = this.add.text(streakX + 4, streakY, '0', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '18px',
+      color: '#f0c040',
+      stroke: '#3a2410',
+      strokeThickness: 3,
+    }).setOrigin(0, 0.5).setDepth(21).setAlpha(0);
+    this.streakLabel = this.add.text(streakX + 4, streakY + 16, '', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '11px',
+      color: '#ff6040',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0, 0.5).setDepth(21).setAlpha(0);
+
     // Potion button — top-right of screen, inside safe area
     this.potionBtn = PaperButton(this, area.right - 80, topY, '', {
       w: 140, h: 46, color: 0x4caa5c, fontSize: 15,
@@ -821,7 +850,7 @@ export class BattleScene extends Phaser.Scene {
     const abilityBtnY = ansY + ansH / 2 + 32;
     this.abilityBtn = PaperButton(this, area.cx, abilityBtnY, 'ABILITY', {
       w: 220, h: 42, color: 0x9050c8, fontSize: 16,
-      onClick: () => this.useAbility(),
+      onClick: () => this.useAbility(0),
     });
     this.setSuperVisible(this.abilityBtn, false);
 
@@ -1328,15 +1357,21 @@ export class BattleScene extends Phaser.Scene {
       this.turnLabel.setText(`${hero.name} guards! -50% damage`);
       this.showToast(`${hero.name} GUARDS!`, '#48a848');
       audio.play('battle/correct');
-      // Brief shield visual on the hero sprite
-      const hs = this.heroSprites[this.currentTurn.heroIndex];
+      // Persistent translucent shield in front of the guarding hero
+      const guardIdx = this.currentTurn.heroIndex;
+      const hs = this.heroSprites[guardIdx];
       if (hs && hs.body) {
-        const shield = this.add.circle(hs.x, hs.y, 60, 0x48a848, 0.3);
+        // Remove any existing guard shield for this hero
+        if (hs._guardShield) { hs._guardShield.destroy(); hs._guardShield = null; }
+        const shield = this.add.circle(hs.x + 30, hs.y, 55, 0x80c0f0, 0.3);
+        shield.setDepth(13);
+        shield.setScale(0);
+        // Pulse-in animation: scale 0 -> 1 over 200ms
         this.tweens.add({
-          targets: shield, scale: 1.3, alpha: 0,
-          duration: 400, ease: 'Cubic.out',
-          onComplete: () => shield.destroy(),
+          targets: shield, scale: 1,
+          duration: 200, ease: 'Back.out',
         });
+        hs._guardShield = shield;
       }
       this.time.delayedCall(500, () => this.nextTurn());
       return;
@@ -1888,6 +1923,20 @@ export class BattleScene extends Phaser.Scene {
         if (targetHeroIdx >= 0 && this.guardActive[targetHeroIdx]) {
           result = applyGuardReduction(result, target.hp);
           this.showToast(`${target.name} GUARDS! Half damage!`, '#48a848');
+          // Flash the guard shield bright white and fade it out
+          const guardHs = this.heroSprites[targetHeroIdx];
+          if (guardHs && guardHs._guardShield && guardHs._guardShield.scene) {
+            guardHs._guardShield.setFillStyle(0xffffff, 0.8);
+            this.tweens.add({
+              targets: guardHs._guardShield,
+              alpha: 0,
+              duration: 200,
+              ease: 'Cubic.out',
+              onComplete: () => {
+                if (guardHs._guardShield) { guardHs._guardShield.destroy(); guardHs._guardShield = null; }
+              },
+            });
+          }
         } else if (this.shieldBashActive && targetHeroIdx >= 0) {
           // Shield Bash ability — block 50% of next attack
           result.modifiedDamage = Math.max(1, Math.ceil(result.modifiedDamage * 0.5));
@@ -1933,6 +1982,13 @@ export class BattleScene extends Phaser.Scene {
     // Clear guard flags at END of enemy phase (guard lasts full round)
     this.time.delayedCall(aliveEnemies.length * 650 + 100, () => {
       this.guardActive.fill(false);
+      // Clean up any remaining guard shields
+      for (const hs of this.heroSprites) {
+        if (hs._guardShield && hs._guardShield.scene) {
+          hs._guardShield.destroy();
+          hs._guardShield = null;
+        }
+      }
     });
   }
 
@@ -1962,15 +2018,61 @@ export class BattleScene extends Phaser.Scene {
     recordAnswer(correct);
     recordSkillAnswer(this.save, this.currentQuestion?.op, correct);
 
+    // --- Answer Button Flash (Item 27) ---
     if (correct) {
+      // Flash selected button GREEN and scale pop
       this.recolorAnswerButton(index, 0x40c040, 1);
+      const btnLabel = this.answerButtons[index].label;
+      if (btnLabel) {
+        this.tweens.add({
+          targets: btnLabel,
+          scale: 1.1,
+          duration: 100,
+          yoyo: true,
+          ease: 'Cubic.out',
+        });
+      }
+    } else {
+      // Flash selected button RED and shake
+      this.recolorAnswerButton(index, 0xc04040, 1);
+      const btnBg = this.answerButtons[index].bg;
+      if (btnBg) {
+        const origBtnX = btnBg.x;
+        this.tweens.add({
+          targets: btnBg,
+          x: origBtnX + 5,
+          duration: 33,
+          yoyo: true,
+          repeat: 5,
+          ease: 'Sine.inOut',
+          onComplete: () => { if (btnBg.scene) btnBg.x = origBtnX; },
+        });
+      }
+      // Briefly highlight the correct answer in green
+      const correctIdx = this.currentQuestion.correctIndex;
+      this.time.delayedCall(150, () => {
+        this.recolorAnswerButton(correctIdx, 0x40c040, 1);
+      });
+    }
+
+    // 200ms delay so the flash is visible before processing the result
+    this.time.delayedCall(200, () => this._processAnswerResult(index, correct, activeCommand));
+  }
+
+  /** Process the answer result after the button flash delay */
+  _processAnswerResult(index, correct, activeCommand) {
+    if (this._shuttingDown) return;
+
+    if (correct) {
       audio.play('battle/correct');
       updateQuestProgress(this.save, 'correct');
 
+      const prevStreak = this.streak;
       this.streak++;
       this.battleCorrect++;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
       this.updateMomentumBar();
+      this.updateStreakDisplay(prevStreak);
 
       const heroIdx = this.currentTurn.heroIndex;
       this.heroStreaks[heroIdx] = (this.heroStreaks[heroIdx] || 0) + 1;
@@ -2240,10 +2342,9 @@ export class BattleScene extends Phaser.Scene {
         });
       }
     } else {
-      this.recolorAnswerButton(index, 0xc04040, 1);
-      this.recolorAnswerButton(this.currentQuestion.correctIndex, 0x40c040, 1);
-
+      const prevStreak2 = this.streak;
       this.streak = 0;
+      this.updateStreakDisplay(prevStreak2);
       const heroIdx = this.currentTurn.heroIndex;
       this.heroStreaks[heroIdx] = 0;
       this.superReady[heroIdx] = false;
@@ -2357,17 +2458,38 @@ export class BattleScene extends Phaser.Scene {
     this.save.potions -= 1;
     writeSave(this.save, this.slot);
 
-    audio.play('battle/heal');
+    audio.play('battle/correct');
     this.showToast(`+${actualHealed} HP`, COLORS_CSS.greenL);
-    this.floatDamageNumber(
-      this.heroSprites[this.party.indexOf(activeHero)].x,
-      this.heroSprites[this.party.indexOf(activeHero)].y - 80,
-      actualHealed,
-      '#40ff60',
-      '+',
-    );
+    const potionHeroIdx = this.party.indexOf(activeHero);
+    const potionHs = this.heroSprites[potionHeroIdx];
+    this.floatDamageNumber(potionHs.x, potionHs.y - 80, actualHealed, '#40ff60', '+');
     this.updateHeroHp(activeHero);
     this.refreshPotionButton();
+
+    // Green sparkles rising from the healed hero
+    if (potionHs) {
+      for (let pi = 0; pi < 10; pi++) {
+        const px = potionHs.x + (Math.random() - 0.5) * 60;
+        const py = potionHs.y + 10;
+        const sp = this.add.circle(px, py, 3 + Math.random() * 3, 0x60e060, 0.8).setDepth(30);
+        this.tweens.add({
+          targets: sp,
+          y: py - 30 - Math.random() * 20,
+          x: px + (Math.random() - 0.5) * 30,
+          alpha: 0,
+          duration: 500,
+          ease: 'Sine.out',
+          onComplete: () => sp.destroy(),
+        });
+      }
+      // Brief green flash overlay on hero sprite
+      if (potionHs.body) {
+        potionHs.body.setTint(0x60e060);
+        this.time.delayedCall(200, () => {
+          if (potionHs.body && potionHs.body.scene) potionHs.body.clearTint();
+        });
+      }
+    }
 
     // Using a potion costs your turn — skip straight to the enemy's
     this.locked = true;
@@ -2388,44 +2510,110 @@ export class BattleScene extends Phaser.Scene {
     }
     const cls = hero.class || 'knight';
     const abilities = getAbilitiesForClass(cls);
-    const cd = this.abilityCooldowns[heroIdx]?.cd ?? 0;
-    const canUse = this.phase === 'question' && !this.locked && cd <= 0 && abilities.length > 0;
-    // Pick the first ability for the button label
-    const ability = abilities[0];
-    const label = ability ? ability.name : 'ABILITY';
-    const show = canUse;
-    this.abilityBtn.bg.setVisible(show);
-    this.abilityBtn.shadow.setVisible(show);
-    this.abilityBtn.label.setVisible(show);
-    if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(show);
-    this.abilityBtn.label.setText(show ? label : 'ABILITY');
+    const heroCds = this.abilityCooldowns[heroIdx] || [{ cd: 0 }, { cd: 0 }];
+    const inQuestion = this.phase === 'question' && !this.locked;
+
+    // --- Ability 1 ---
+    if (abilities.length > 0) {
+      const cd0 = heroCds[0]?.cd ?? 0;
+      const canUse0 = inQuestion && cd0 <= 0;
+      const show0 = inQuestion && abilities.length > 0;
+      const label0 = cd0 > 0 ? `${abilities[0].name} (${cd0})` : abilities[0].name;
+      this.abilityBtn.bg.setVisible(show0);
+      this.abilityBtn.shadow.setVisible(show0);
+      this.abilityBtn.label.setVisible(show0);
+      if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(show0);
+      this.abilityBtn.label.setText(label0);
+      // Dim if on cooldown
+      if (show0) {
+        const a = canUse0 ? 1 : 0.45;
+        this.abilityBtn.bg.setAlpha(a);
+        this.abilityBtn.shadow.setAlpha(a * 0.7);
+        this.abilityBtn.label.setAlpha(a);
+      }
+    } else {
+      this.abilityBtn.bg.setVisible(false);
+      this.abilityBtn.shadow.setVisible(false);
+      this.abilityBtn.label.setVisible(false);
+      if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(false);
+    }
+
+    // --- Ability 2 ---
+    if (abilities.length > 1) {
+      // Create second button on first use if it doesn't exist yet
+      if (!this.abilityBtn2) {
+        const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+        const ansH = 80;
+        const ansY = area.bottom - ansH / 2 - 6;
+        const abilityBtnY = ansY + ansH / 2 + 32;
+        this.abilityBtn2 = PaperButton(this, area.cx + 120, abilityBtnY, 'ABILITY2', {
+          w: 220, h: 42, color: 0x7040a8, fontSize: 16,
+          onClick: () => this.useAbility(1),
+        });
+        this.setUIDepth(this.abilityBtn2, 24);
+        // Reposition ability 1 to the left to make room
+        const btn1X = area.cx - 120;
+        if (this.abilityBtn.bg) this.abilityBtn.bg.setX(btn1X);
+        if (this.abilityBtn.shadow) this.abilityBtn.shadow.setX(btn1X);
+        if (this.abilityBtn.label) this.abilityBtn.label.setX(btn1X);
+        if (this.abilityBtn.zone) this.abilityBtn.zone.setX(btn1X);
+      }
+      const cd1 = heroCds[1]?.cd ?? 0;
+      const canUse1 = inQuestion && cd1 <= 0;
+      const show1 = inQuestion;
+      const label1 = cd1 > 0 ? `${abilities[1].name} (${cd1})` : abilities[1].name;
+      this.abilityBtn2.bg.setVisible(show1);
+      this.abilityBtn2.shadow.setVisible(show1);
+      this.abilityBtn2.label.setVisible(show1);
+      if (this.abilityBtn2.zone) this.abilityBtn2.zone.setVisible(show1);
+      this.abilityBtn2.label.setText(label1);
+      if (show1) {
+        const a = canUse1 ? 1 : 0.45;
+        this.abilityBtn2.bg.setAlpha(a);
+        this.abilityBtn2.shadow.setAlpha(a * 0.7);
+        this.abilityBtn2.label.setAlpha(a);
+      }
+    } else if (this.abilityBtn2) {
+      this.abilityBtn2.bg.setVisible(false);
+      this.abilityBtn2.shadow.setVisible(false);
+      this.abilityBtn2.label.setVisible(false);
+      if (this.abilityBtn2.zone) this.abilityBtn2.zone.setVisible(false);
+    }
   }
 
   hideAbilityButton() {
-    if (!this.abilityBtn) return;
-    this.abilityBtn.bg.setVisible(false);
-    this.abilityBtn.shadow.setVisible(false);
-    this.abilityBtn.label.setVisible(false);
-    if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(false);
+    if (this.abilityBtn) {
+      this.abilityBtn.bg.setVisible(false);
+      this.abilityBtn.shadow.setVisible(false);
+      this.abilityBtn.label.setVisible(false);
+      if (this.abilityBtn.zone) this.abilityBtn.zone.setVisible(false);
+    }
+    if (this.abilityBtn2) {
+      this.abilityBtn2.bg.setVisible(false);
+      this.abilityBtn2.shadow.setVisible(false);
+      this.abilityBtn2.label.setVisible(false);
+      if (this.abilityBtn2.zone) this.abilityBtn2.zone.setVisible(false);
+    }
   }
 
-  useAbility() {
+  useAbility(abilityIndex = 0) {
     if (this.phase !== 'question' || this.locked) return;
     const heroIdx = this.currentTurn?.heroIndex ?? 0;
     const hero = this.party[heroIdx];
     if (!hero || hero.hp <= 0) return;
-    const cd = this.abilityCooldowns[heroIdx]?.cd ?? 0;
+    const heroCds = this.abilityCooldowns[heroIdx] || [{ cd: 0 }, { cd: 0 }];
+    const cd = heroCds[abilityIndex]?.cd ?? 0;
     if (cd > 0) {
       this.showToast('Ability on cooldown!', COLORS_CSS.scarletL);
       return;
     }
     const cls = hero.class || 'knight';
     const abilities = getAbilitiesForClass(cls);
-    if (abilities.length === 0) return;
-    const ability = abilities[0];
+    if (abilities.length <= abilityIndex) return;
+    const ability = abilities[abilityIndex];
 
     this.locked = true;
-    this.abilityCooldowns[heroIdx].cd = ability.cooldown;
+    heroCds[abilityIndex].cd = ability.cooldown;
     audio.play('ui/confirm');
 
     switch (ability.id) {
@@ -2485,8 +2673,11 @@ export class BattleScene extends Phaser.Scene {
   /** Decrement all hero ability cooldowns — called once per full turn cycle */
   tickAbilityCooldowns() {
     for (let i = 0; i < this.abilityCooldowns.length; i++) {
-      if (this.abilityCooldowns[i].cd > 0) {
-        this.abilityCooldowns[i].cd--;
+      const heroCds = this.abilityCooldowns[i];
+      for (let j = 0; j < heroCds.length; j++) {
+        if (heroCds[j].cd > 0) {
+          heroCds[j].cd--;
+        }
       }
     }
   }
@@ -2623,9 +2814,46 @@ export class BattleScene extends Phaser.Scene {
     });
     s.hpText.setText(`${hero.hp}/${hero.maxHp}`);
 
-    if (hero.hp <= 0) {
-      s.body.setAlpha(0.2);
+    if (hero.hp <= 0 && !s._deathPlayed) {
+      s._deathPlayed = true;
+      // Tilt the hero sprite 15 degrees clockwise over 300ms
+      this.tweens.add({
+        targets: s.body,
+        angle: 15,
+        alpha: 0.3,
+        duration: 300,
+        ease: 'Cubic.out',
+      });
+      // Fade name
       s.name.setAlpha(0.3);
+      // Turn HP bar gray
+      s.hpBarFill.setFillStyle(0x888888);
+      // Play defeat sound
+      audio.play('battle/wrong');
+      // Float an "X" indicator above the hero
+      const deathMark = this.add.text(s.x, s.y - 60, 'X', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '36px',
+        color: '#ff4040',
+        stroke: '#000000',
+        strokeThickness: 4,
+      }).setOrigin(0.5).setDepth(30).setAlpha(0);
+      this.tweens.add({
+        targets: deathMark,
+        alpha: 1,
+        y: s.y - 90,
+        duration: 400,
+        ease: 'Cubic.out',
+        onComplete: () => {
+          this.tweens.add({
+            targets: deathMark,
+            alpha: 0,
+            duration: 600,
+            delay: 800,
+            onComplete: () => deathMark.destroy(),
+          });
+        },
+      });
     }
   }
 
@@ -2660,6 +2888,61 @@ export class BattleScene extends Phaser.Scene {
     // Environmental responsiveness
     if (this.envState) {
       updateEnvironment(this.envState, this.momentum, this.streak, zone.label, justWrong);
+    }
+  }
+
+  /** Update the streak counter HUD display */
+  updateStreakDisplay(prevStreak) {
+    if (!this.streakFlame || !this.streakCount) return;
+    const s = this.streak;
+
+    if (s > 0) {
+      this.streakFlame.setAlpha(1);
+      this.streakCount.setAlpha(1);
+      this.streakCount.setText(String(s));
+
+      // Flame icon — brighter at higher streaks
+      if (s >= 3) {
+        this.streakFlame.setText('🔥');
+        this.streakFlame.setColor(s >= 5 ? '#ff4020' : '#f0a020');
+      } else {
+        this.streakFlame.setText('🔥');
+        this.streakFlame.setColor('#f0a020');
+      }
+
+      // Label at high streaks
+      if (s >= 8) {
+        this.streakLabel.setText('ON FIRE!').setAlpha(1);
+      } else if (s >= 5) {
+        this.streakLabel.setText('HOT!').setAlpha(1);
+      } else {
+        this.streakLabel.setAlpha(0);
+      }
+
+      // Pop effect when streak increases
+      if (s > (prevStreak || 0)) {
+        this.tweens.add({
+          targets: this.streakCount,
+          scale: 1.3,
+          duration: 100,
+          yoyo: true,
+          ease: 'Cubic.out',
+        });
+      }
+    } else if (prevStreak > 0) {
+      // Streak reset — poof animation (scale down + fade)
+      this.tweens.add({
+        targets: [this.streakFlame, this.streakCount, this.streakLabel],
+        scale: 0.3,
+        alpha: 0,
+        duration: 300,
+        ease: 'Cubic.in',
+        onComplete: () => {
+          this.streakFlame.setScale(1);
+          this.streakCount.setScale(1);
+          this.streakLabel.setScale(1);
+        },
+      });
     }
   }
 
