@@ -1200,10 +1200,10 @@ export class BattleScene extends Phaser.Scene {
     const hs1 = this.heroSprites[h1Idx];
     const hs2 = this.heroSprites[h2Idx];
 
-    // Mark the partner's turn to be skipped
+    // Mark the partner's turn to be skipped (only if they haven't acted yet this round)
     const currentHeroIdx = this.currentTurn.heroIndex;
     const partnerIdx = currentHeroIdx === h1Idx ? h2Idx : h1Idx;
-    this.comboSkipHeroIndex = partnerIdx;
+    this.comboSkipHeroIndex = partnerIdx > currentHeroIdx ? partnerIdx : -1;
 
     // Show combo name in golden text at center
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
@@ -1522,9 +1522,11 @@ export class BattleScene extends Phaser.Scene {
     this.turnIdx = result.index;
     this.currentTurn = result.turn;
 
-    // Tick ability cooldowns and rally turns on each turn advance
-    this.tickAbilityCooldowns();
-    if (this.rallyTurns > 0) this.rallyTurns--;
+    // Only tick cooldowns/rally on hero turns (not enemy turns)
+    if (this.currentTurn.who === 'hero') {
+      this.tickAbilityCooldowns();
+      if (this.rallyTurns > 0) this.rallyTurns--;
+    }
 
     // Signature: reset per-turn flags
     onTurnStart(this.party, this.signatureState);
@@ -1547,6 +1549,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'command';
     this.locked = false;
     this.selectedCommand = null;
+    this._availableCombo = null;
     this.refreshPotionButton();
     this.refreshAbilityButton();
     this.updateSuperButton();
@@ -1770,6 +1773,7 @@ export class BattleScene extends Phaser.Scene {
       if (!this.enemies[ei] || this.enemies[ei].hp <= 0) continue;
       this.time.delayedCall(dotDelay, () => {
         const enemy = this.enemies[ei];
+        if (!enemy || enemy.hp <= 0) return;
         const sprite = this.enemySprites[ei];
         enemy.hp = Math.max(0, enemy.hp - tick.damage);
         this.updateEnemyHp(ei);
@@ -2277,20 +2281,31 @@ export class BattleScene extends Phaser.Scene {
         });
 
         this.time.delayedCall(300, () => {
-          const target = this.party[this.currentTurn.heroIndex];
+          const heroIdx = this.currentTurn.heroIndex;
+          const target = this.party[heroIdx];
           const counterEnemy = this.enemies[this.currentTarget] || this.enemy;
           let result = computeEnemyDamage(counterEnemy, target, { momentum: this.momentum });
-          // Apply guard reduction if hero is guarding
-          if (this.guardActive[this.currentTurn.heroIndex]) {
+          if (this.guardActive[heroIdx]) {
             result = applyGuardReduction(result, target.hp);
           }
+          let dmg = result.modifiedDamage;
+          dmg = onHeroDamageReceived(target, counterEnemy, dmg, {
+            party: this.party,
+            battleState: this.signatureState,
+          });
+          result.modifiedDamage = dmg;
           applyDamageResult(target, result);
+          checkLastStand(target, heroIdx, this.signatureState);
+          checkPaladinGuard(target, this.party, this.signatureState);
           if (result.modifiedDamage > 0) this.battleDamageTaken = true;
           this.hitFlash();
           this.flashHero(target, result);
           this.updateHeroHp(target);
           this.shakeCamera(0.01, 250);
           audio.play('battle/hit-hero');
+          if (this.isPartyDefeated()) {
+            this.time.delayedCall(600, () => this.showDefeat());
+          }
         });
 
         this.showHintButton(this.currentQuestion);

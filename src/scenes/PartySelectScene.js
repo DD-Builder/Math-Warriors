@@ -310,6 +310,14 @@ export class PartySelectScene extends Phaser.Scene {
       this.toggleHeroSelection(this.activeClass, heroIndex);
     });
 
+    const cardElements = [card.shadow, card.bg];
+    if (evolveGlow) cardElements.push(evolveGlow);
+    cardElements.push(portrait, name, dotGfx, trait, stats, rarBadge, rarText);
+    if (sigText) cardElements.push(sigText);
+    if (evolveBadge) cardElements.push(evolveBadge);
+    cardElements.push(card.zone);
+    this.heroCardContainer.add(cardElements);
+
     const infoBtn = PaperButton(this, x + w / 2 - 20, y + h / 2 - 16, 'i', {
       w: 32, h: 32, color: 0x4080c0, fontSize: 16, textColor: '#ffffff',
       onClick: () => {
@@ -318,14 +326,6 @@ export class PartySelectScene extends Phaser.Scene {
       },
     });
     this.heroCardContainer.add([infoBtn.bg, infoBtn.shadow, infoBtn.label, infoBtn.zone]);
-
-    const cardElements = [card.shadow, card.bg];
-    if (evolveGlow) cardElements.push(evolveGlow);
-    cardElements.push(portrait, name, dotGfx, trait, stats, rarBadge, rarText);
-    if (sigText) cardElements.push(sigText);
-    if (evolveBadge) cardElements.push(evolveBadge);
-    cardElements.push(card.zone);
-    this.heroCardContainer.add(cardElements);
   }
 
   buildPartyStrip(area) {

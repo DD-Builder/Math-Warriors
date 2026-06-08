@@ -359,7 +359,7 @@ export function unlockHeroesForFloor(save, floorId) {
     if (!Array.isArray(save.pendingRescueDialogue)) {
       save.pendingRescueDialogue = [];
     }
-    save.pendingRescueDialogue = newlyUnlocked.map(h => h.id);
+    save.pendingRescueDialogue.push(...newlyUnlocked.map(h => h.id));
   }
   return newlyUnlocked;
 }
