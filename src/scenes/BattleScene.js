@@ -38,7 +38,7 @@ import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { makeRng } from '../systems/rng.js';
-import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
+import { computeLevel, levelBonuses, getPersonality, LEVEL_THRESHOLDS, xpToNextLevel } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
@@ -973,6 +973,9 @@ export class BattleScene extends Phaser.Scene {
         if (y > 800 || child._paperPanel) child.setDepth(UI_DEPTH);
       }
     });
+
+    // --- Turn Order Queue (Item 31) ---
+    this.buildTurnOrderQueue();
 
     // End overlay (hidden by default)
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
@@ -2233,6 +2236,14 @@ export class BattleScene extends Phaser.Scene {
         abilityDmg = Math.round(abilityDmg * 1.5);
         this.furyCharges--;
       }
+
+      // --- Critical Hit System (Item 32) ---
+      let isCritical = false;
+      if (stars >= 4 && Math.random() < 0.10) {
+        isCritical = true;
+        abilityDmg = Math.round(abilityDmg * 2);
+      }
+
       const modified = hitCount > 1 ? Math.max(3, Math.round(abilityDmg / hitCount)) * hitCount : abilityDmg;
       const newHp = Math.max(0, targetEnemy.hp - modified);
       const result = {
@@ -2258,6 +2269,41 @@ export class BattleScene extends Phaser.Scene {
           const ss = this.enemySprites[splash.enemyIndex];
           if (ss) this.floatDamageNumber(ss.x, ss.y - 80, splash.damage, '#f080ff', '-');
         }
+      }
+
+      // --- Critical Hit Effects (Item 32) ---
+      if (isCritical) {
+        // "CRITICAL!" text at center
+        const critArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
+        const critText = this.add.text(critArea.cx, critArea.cy - 80, 'CRITICAL!', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '58px',
+          color: '#ff3030',
+          stroke: '#f0d040',
+          strokeThickness: 6,
+        }).setOrigin(0.5).setDepth(60).setAlpha(0).setScale(0.5);
+        this.tweens.add({
+          targets: critText,
+          alpha: 1, scale: 1.3,
+          duration: 250, ease: 'Back.out',
+          onComplete: () => {
+            this.tweens.add({
+              targets: critText, alpha: 0, scale: 1.6,
+              duration: 400, delay: 500, ease: 'Cubic.in',
+              onComplete: () => critText.destroy(),
+            });
+          },
+        });
+        // Extra screen shake (intensity 0.02)
+        this.shakeCamera(0.02, 400);
+        // Extra particle burst (double, red/gold colors)
+        this.burstParticles(targetSprite.x, targetSprite.y, 0xff3030);
+        this.burstParticles(targetSprite.x, targetSprite.y, 0xf0d040);
+        this.burstParticles(targetSprite.x, targetSprite.y, 0xff6020);
+        this.burstParticles(targetSprite.x, targetSprite.y, 0xf0c040);
+        // Double hit sound
+        audio.play('battle/correct');
+        this.time.delayedCall(80, () => audio.play('battle/correct'));
       }
 
       // --- Battle cry: correct answer ---
@@ -2951,6 +2997,104 @@ export class BattleScene extends Phaser.Scene {
       const active = this.currentTurn?.who === 'hero' && this.currentTurn.heroIndex === i;
       this.heroSprites[i].indicator.setVisible(active);
     }
+    this.updateTurnOrderQueue();
+  }
+
+  /** Build the turn order queue display in the top-right area (Item 31) */
+  buildTurnOrderQueue() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const queueX = area.right - 100;
+    const queueY = area.top + 60;
+    const circleSize = 12; // radius
+    const gap = 34;
+
+    this._turnQueueElements = [];
+    for (let i = 0; i < this.party.length; i++) {
+      const x = queueX + i * gap;
+      const hero = this.party[i];
+      const cls = hero.class || 'knight';
+      const clsColors = { knight: 0x2e4e88, wizard: 0x5a1878, bunny: 0xc02860 };
+      const color = clsColors[cls] || 0x808080;
+
+      // Border circle (gold for active)
+      const border = this.add.circle(x, queueY, circleSize + 3, 0x808080).setDepth(22);
+      // Inner circle (hero class color)
+      const inner = this.add.circle(x, queueY, circleSize, color).setDepth(22);
+      // Initial letter
+      const initial = this.add.text(x, queueY, hero.name.charAt(0).toUpperCase(), {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '14px',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(23);
+      // X overlay for dead heroes
+      const deadX = this.add.text(x, queueY, 'X', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '18px',
+        color: '#ff4040',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(24).setVisible(false);
+
+      this._turnQueueElements.push({ border, inner, initial, deadX, heroIndex: i });
+    }
+  }
+
+  /** Update the turn order queue display each turn (Item 31) */
+  updateTurnOrderQueue() {
+    if (!this._turnQueueElements) return;
+    const currentHeroIdx = this.currentTurn?.who === 'hero' ? this.currentTurn.heroIndex : -1;
+
+    // Determine which heroes have already acted this round by looking at turnSeq
+    const actedSet = new Set();
+    if (this.turnSeq && this.turnIdx >= 0) {
+      for (let t = 0; t < this.turnIdx; t++) {
+        const step = this.turnSeq[t % this.turnSeq.length];
+        if (step && step.who === 'hero') actedSet.add(step.heroIndex);
+      }
+    }
+
+    for (const el of this._turnQueueElements) {
+      const hero = this.party[el.heroIndex];
+      const isDead = !hero || hero.hp <= 0;
+      const isActive = el.heroIndex === currentHeroIdx;
+      const hasActed = actedSet.has(el.heroIndex) && !isActive;
+
+      // Dead heroes: X overlay, dimmed
+      el.deadX.setVisible(isDead);
+      if (isDead) {
+        el.inner.setAlpha(0.3);
+        el.border.setAlpha(0.3);
+        el.initial.setAlpha(0.3);
+        el.border.setFillStyle(0x808080);
+        el.border.setScale(1);
+        el.inner.setScale(1);
+        el.initial.setScale(1);
+        continue;
+      }
+
+      // Active hero: gold border, scaled up
+      if (isActive) {
+        el.border.setFillStyle(0xf0d060);
+        el.border.setScale(1.2);
+        el.inner.setScale(1.2);
+        el.initial.setScale(1.2);
+        el.inner.setAlpha(1);
+        el.border.setAlpha(1);
+        el.initial.setAlpha(1);
+      } else {
+        el.border.setFillStyle(0x808080);
+        el.border.setScale(1);
+        el.inner.setScale(1);
+        el.initial.setScale(1);
+        // Already acted: dimmed
+        const alpha = hasActed ? 0.4 : 1;
+        el.inner.setAlpha(alpha);
+        el.border.setAlpha(alpha);
+        el.initial.setAlpha(alpha);
+      }
+    }
   }
 
   showToast(message, color) {
@@ -3277,7 +3421,9 @@ export class BattleScene extends Phaser.Scene {
     // world map (no maze wrapper), any win counts so the progression
     // still advances on the fast path.
     if (this.isBoss || this.returnScene === SCENES.WORLD_MAP) {
-      markFloorComplete(save, this.floor);
+      const floorAccuracy = this.battleCorrect + this.battleWrong > 0
+        ? Math.round((this.battleCorrect / (this.battleCorrect + this.battleWrong)) * 100) : 100;
+      markFloorComplete(save, this.floor, floorAccuracy);
       const newHeroes = unlockHeroesForFloor(save, this.floor);
       if (newHeroes.length > 0) {
         this.registry.set('newlyUnlockedHeroes', newHeroes);
@@ -3367,25 +3513,37 @@ export class BattleScene extends Phaser.Scene {
       ? this.enemies.map(e => e.name).join(' & ')
       : this.enemy.name;
 
+    // Store per-hero XP data for the animated victory screen
+    const heroXpData = [];
+    for (let i = 0; i < this.party.length && i < 3; i++) {
+      const sp = save.party[i];
+      if (!sp) continue;
+      const oldXp = (sp.xp || 0) - xpEarned; // XP before this battle
+      const newXp = sp.xp || 0;
+      const oldLevel = computeLevel(Math.max(0, oldXp));
+      const newLevel = sp.level || computeLevel(newXp);
+      heroXpData.push({
+        name: sp.name || this.party[i].name,
+        oldXp: Math.max(0, oldXp),
+        newXp,
+        oldLevel,
+        newLevel,
+        didLevelUp: newLevel > oldLevel,
+        heroIndex: i,
+      });
+    }
+
     this.time.delayedCall(500, () => {
       this.endOverlay.titleText.setText('VICTORY!');
       this.endOverlay.subText.setText(`${defeatedNames} defeated!`);
 
-      // Enhanced victory stats
+      // Enhanced victory stats (compact, since XP bars go below)
       const bestStreak = save.stats.bestStreak || this.streak;
-      let rewardText = `Accuracy: ${accuracy}%`;
-      rewardText += `\nBest Streak: ${bestStreak}`;
-      rewardText += `\n+${goldEarned} GOLD  •  +${xpEarned} XP`;
-      if (leveledUp.length > 0) {
-        rewardText += `\nLEVELED UP: ${leveledUp.join(' & ')}`;
-      }
+      let rewardText = `Accuracy: ${accuracy}%  •  Best Streak: ${bestStreak}`;
       if (dailyGold > 0) {
         rewardText += `\nDAILY CHALLENGE: +${dailyGold} GOLD`;
-        if (dailyStreak > 1) {
-          rewardText += `  (${dailyStreak}-day streak!)`;
-        }
+        if (dailyStreak > 1) rewardText += `  (${dailyStreak}-day streak!)`;
       }
-      // Show bond rank-ups
       for (const br of newBondRanks) {
         const h1 = this.party.find(h => h && h.id === br.heroId1);
         const h2 = this.party.find(h => h && h.id === br.heroId2);
@@ -3397,31 +3555,305 @@ export class BattleScene extends Phaser.Scene {
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
 
-      // XP filling bar animation below rewards text
-      const barW = 280, barH = 16;
-      const barBg = this.add.rectangle(0, 90, barW, barH, 0x3a2410, 0.7).setOrigin(0.5);
-      const barFill = this.add.rectangle(-barW / 2, 90, 0, barH - 4, 0xf0c040).setOrigin(0, 0.5);
-      const xpLabel = this.add.text(0, 110, `+${xpEarned} XP`, {
+      // === GOLD COIN SCATTER (Item 8) ===
+      const goldCounterY = -48;
+      const goldCounterText = this.add.text(0, goldCounterY, `+${goldEarned} GOLD`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '16px',
-        color: COLORS_CSS.goldL,
+        fontSize: '22px',
+        color: '#f0d060',
+        stroke: '#3a1a00',
+        strokeThickness: 3,
       }).setOrigin(0.5);
-      this.endOverlay.add([barBg, barFill, xpLabel]);
-      // Animate XP bar filling
-      this.tweens.add({
-        targets: barFill,
-        width: barW - 4,
-        duration: 800,
-        ease: 'Cubic.out',
-        delay: 200,
-      });
+      this.endOverlay.add([goldCounterText]);
+
+      // Scatter 8-12 gold coins from center with parabolic arcs
+      const coinCount = 8 + Math.floor(Math.random() * 5);
+      for (let ci = 0; ci < coinCount; ci++) {
+        const coin = this.add.circle(0, goldCounterY, 5, 0xf0d060).setDepth(201);
+        coin.setStrokeStyle(1.5, 0xc09020);
+        this.endOverlay.add([coin]);
+
+        const targetX = (Math.random() - 0.5) * 300;
+        const peakY = goldCounterY - 60 - Math.random() * 80;
+        const dur = 600 + Math.random() * 400;
+        const delay = ci * 50;
+
+        // X: linear motion outward
+        this.tweens.add({
+          targets: coin, x: targetX,
+          duration: dur, delay,
+          ease: 'Linear',
+        });
+        // Y: parabolic arc — up then down to gold counter
+        this.tweens.add({
+          targets: coin, y: peakY,
+          duration: dur * 0.45, delay,
+          ease: 'Quad.out',
+          onComplete: () => {
+            this.tweens.add({
+              targets: coin, y: goldCounterY, x: 0,
+              duration: dur * 0.55,
+              ease: 'Quad.in',
+              onComplete: () => {
+                this.tweens.add({
+                  targets: coin, alpha: 0, scale: 0.3,
+                  duration: 150,
+                  onComplete: () => coin.destroy(),
+                });
+              },
+            });
+          },
+        });
+      }
+
+      // === HERO PORTRAITS + XP BARS (Items 8 & 38) ===
+      const portraitBaseY = 70;
+      const xpBarW = 200, xpBarH = 12;
+      const heroGap = 230;
+      const heroStartX = -(heroXpData.length - 1) * heroGap / 2;
+
+      for (let hi = 0; hi < heroXpData.length; hi++) {
+        const hd = heroXpData[hi];
+        const hx = heroStartX + hi * heroGap;
+
+        // Hero portrait circle
+        const hero = this.party[hd.heroIndex];
+        const cls = hero ? (hero.class || 'knight') : 'knight';
+        const clsColors = { knight: 0x2e4e88, wizard: 0x5a1878, bunny: 0xc02860 };
+        const portraitBorder = this.add.circle(hx, portraitBaseY, 22, 0xf0d060).setDepth(201);
+        const portraitFill = this.add.circle(hx, portraitBaseY, 19, clsColors[cls] || 0x808080).setDepth(201);
+        const portraitInitial = this.add.text(hx, portraitBaseY, hd.name.charAt(0).toUpperCase(), {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '18px', color: '#ffffff',
+          stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(202);
+        const heroNameText = this.add.text(hx, portraitBaseY + 28, hd.name, {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '14px', color: '#ffffff',
+        }).setOrigin(0.5).setDepth(202);
+
+        // XP bar background
+        const xpBarBg = this.add.rectangle(hx, portraitBaseY + 48, xpBarW, xpBarH, 0x3a2410, 0.8).setDepth(201);
+        // XP bar fill — starts at previous XP fraction
+        const oldLevelXpBase = LEVEL_THRESHOLDS[hd.oldLevel] || 0;
+        const nextLevelXp = LEVEL_THRESHOLDS[Math.min(hd.oldLevel + 1, LEVEL_THRESHOLDS.length - 1)] || 9999;
+        const levelXpRange = Math.max(1, nextLevelXp - oldLevelXpBase);
+        const oldFrac = Math.min(1, Math.max(0, (hd.oldXp - oldLevelXpBase) / levelXpRange));
+        const xpBarFill = this.add.rectangle(
+          hx - xpBarW / 2, portraitBaseY + 48,
+          Math.max(1, (xpBarW - 4) * oldFrac), xpBarH - 4, 0xf0c040
+        ).setOrigin(0, 0.5).setDepth(202);
+
+        // Level text
+        const lvlText = this.add.text(hx + xpBarW / 2 + 8, portraitBaseY + 48, `Lv${hd.oldLevel}`, {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '13px', color: '#f0d060',
+          stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0, 0.5).setDepth(202);
+
+        // +XP float text
+        const xpFloatText = this.add.text(hx, portraitBaseY + 32, `+${xpEarned} XP`, {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '16px', color: '#f0c040',
+          stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(203).setAlpha(0);
+        this.tweens.add({
+          targets: xpFloatText,
+          alpha: 1, y: portraitBaseY + 16,
+          duration: 500, delay: 300 + hi * 150,
+          ease: 'Cubic.out',
+          onComplete: () => {
+            this.tweens.add({
+              targets: xpFloatText,
+              alpha: 0, y: portraitBaseY + 8,
+              duration: 600, delay: 800,
+              ease: 'Cubic.in',
+              onComplete: () => xpFloatText.destroy(),
+            });
+          },
+        });
+
+        this.endOverlay.add([portraitBorder, portraitFill, portraitInitial, heroNameText, xpBarBg, xpBarFill, lvlText]);
+
+        // Animate XP bar filling with tick-tick-tick (Item 8 & 38)
+        const tickDelay = 500 + hi * 200;
+        if (hd.didLevelUp) {
+          // Fill to 100%, flash, reset, then fill to new level fraction
+          const fillTo100Duration = Math.round(800 * (1 - oldFrac));
+          this.time.delayedCall(tickDelay, () => {
+            // Tick-tick fill to 100%
+            let tickCount = 0;
+            const totalTicks = 20;
+            const tickInterval = Math.max(20, Math.round(fillTo100Duration / totalTicks));
+            const targetWidth100 = xpBarW - 4;
+            const startWidth = xpBarFill.width;
+            this.time.addEvent({
+              delay: tickInterval,
+              repeat: totalTicks - 1,
+              callback: () => {
+                tickCount++;
+                const prog = tickCount / totalTicks;
+                xpBarFill.width = startWidth + (targetWidth100 - startWidth) * prog;
+              },
+            });
+
+            // After fill completes: level-up burst
+            this.time.delayedCall(fillTo100Duration + 100, () => {
+              // Flash the hero area bright gold
+              const flash = this.add.rectangle(hx, portraitBaseY + 30, xpBarW + 40, 90, 0xf0d060, 0.7).setDepth(210);
+              this.endOverlay.add([flash]);
+              this.tweens.add({
+                targets: flash, alpha: 0,
+                duration: 400, ease: 'Cubic.out',
+                onComplete: () => flash.destroy(),
+              });
+
+              // "LEVEL UP!" bouncing text
+              const levelUpText = this.add.text(hx, portraitBaseY + 48, 'LEVEL UP!', {
+                fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+                fontSize: '28px', color: '#f0d060',
+                stroke: '#3a1a00', strokeThickness: 4,
+              }).setOrigin(0.5).setDepth(211).setScale(0);
+              this.endOverlay.add([levelUpText]);
+              this.tweens.add({
+                targets: levelUpText, scale: 1.3,
+                duration: 250, ease: 'Back.out',
+                onComplete: () => {
+                  this.tweens.add({
+                    targets: levelUpText, scale: 1.0,
+                    duration: 150, ease: 'Cubic.out',
+                  });
+                  this.tweens.add({
+                    targets: levelUpText, alpha: 0, y: portraitBaseY + 30,
+                    duration: 600, delay: 1200,
+                    ease: 'Cubic.in',
+                    onComplete: () => levelUpText.destroy(),
+                  });
+                },
+              });
+
+              // Golden sparkle particles
+              for (let sp = 0; sp < 12; sp++) {
+                const sx = hx + (Math.random() - 0.5) * 60;
+                const sy = portraitBaseY + 20 + (Math.random() - 0.5) * 50;
+                const sparkle = this.add.circle(sx, sy, 2 + Math.random() * 3, 0xf0d060, 0.9).setDepth(210);
+                this.endOverlay.add([sparkle]);
+                this.tweens.add({
+                  targets: sparkle,
+                  y: sy - 30 - Math.random() * 40,
+                  x: sx + (Math.random() - 0.5) * 40,
+                  alpha: 0, scale: 0.3,
+                  duration: 500 + Math.random() * 300,
+                  ease: 'Sine.out',
+                  onComplete: () => sparkle.destroy(),
+                });
+              }
+
+              // Update level text and reset bar for new level
+              lvlText.setText(`Lv${hd.newLevel}`);
+              const newLevelBase = LEVEL_THRESHOLDS[hd.newLevel] || 0;
+              const newNextXp = LEVEL_THRESHOLDS[Math.min(hd.newLevel + 1, LEVEL_THRESHOLDS.length - 1)] || 9999;
+              const newRange = Math.max(1, newNextXp - newLevelBase);
+              const newFrac = Math.min(1, Math.max(0, (hd.newXp - newLevelBase) / newRange));
+              xpBarFill.width = 1;
+              // Fill to new level fraction
+              this.time.delayedCall(200, () => {
+                let t2 = 0;
+                const ticks2 = 15;
+                const targetW2 = Math.max(1, (xpBarW - 4) * newFrac);
+                this.time.addEvent({
+                  delay: 30,
+                  repeat: ticks2 - 1,
+                  callback: () => {
+                    t2++;
+                    xpBarFill.width = 1 + (targetW2 - 1) * (t2 / ticks2);
+                  },
+                });
+              });
+
+              audio.play('battle/correct');
+            });
+          });
+        } else {
+          // No level up: just animate from old to new fraction
+          const newLevelXpBase = LEVEL_THRESHOLDS[hd.newLevel] || 0;
+          const nNextXp = LEVEL_THRESHOLDS[Math.min(hd.newLevel + 1, LEVEL_THRESHOLDS.length - 1)] || 9999;
+          const nRange = Math.max(1, nNextXp - newLevelXpBase);
+          const newFrac = Math.min(1, Math.max(0, (hd.newXp - newLevelXpBase) / nRange));
+          const targetWidth = Math.max(1, (xpBarW - 4) * newFrac);
+
+          this.time.delayedCall(tickDelay, () => {
+            let tickCount = 0;
+            const totalTicks = 20;
+            const startW = xpBarFill.width;
+            this.time.addEvent({
+              delay: 40,
+              repeat: totalTicks - 1,
+              callback: () => {
+                tickCount++;
+                xpBarFill.width = startW + (targetWidth - startW) * (tickCount / totalTicks);
+              },
+            });
+          });
+        }
+      }
+
+      // === STAR RATING REVEAL (Item 8) ===
+      const starY = 130;
+      const starCount = accuracy >= 90 ? 3 : accuracy >= 70 ? 2 : 1;
+      const maxStars = 3;
+      const starGap = 50;
+      const starStartX = -(maxStars - 1) * starGap / 2;
+
+      for (let si = 0; si < maxStars; si++) {
+        const filled = si < starCount;
+        const starObj = this.add.text(starStartX + si * starGap, starY, '★', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '42px',
+          color: filled ? '#f0d060' : '#808080',
+          stroke: filled ? '#c09020' : '#404040',
+          strokeThickness: 3,
+        }).setOrigin(0.5).setScale(0).setAlpha(0).setDepth(202);
+        this.endOverlay.add([starObj]);
+
+        this.tweens.add({
+          targets: starObj,
+          scale: 1.2, alpha: 1,
+          duration: 300, delay: 1200 + si * 300,
+          ease: 'Back.out',
+          onComplete: () => {
+            this.tweens.add({
+              targets: starObj, scale: 1,
+              duration: 150, ease: 'Cubic.out',
+            });
+            if (filled) {
+              // Small burst on earned star
+              for (let sp = 0; sp < 6; sp++) {
+                const sparkle = this.add.circle(
+                  starStartX + si * starGap + (Math.random() - 0.5) * 30,
+                  starY + (Math.random() - 0.5) * 20,
+                  2, 0xf0d060, 0.8
+                ).setDepth(203);
+                this.endOverlay.add([sparkle]);
+                this.tweens.add({
+                  targets: sparkle,
+                  alpha: 0, y: starY - 20 - Math.random() * 20,
+                  duration: 400,
+                  ease: 'Sine.out',
+                  onComplete: () => sparkle.destroy(),
+                });
+              }
+            }
+          },
+        });
+      }
 
       // Show newly unlocked achievements with gold badge icons
       if (newAchievements.length > 0) {
         newAchievements.forEach((ach, i) => {
           const ay = 200 + i * 36;
           const badge = this.add.circle(-120, ay, 10, 0xf0c040);
-          const star = this.add.text(-120, ay, '*', {
+          const star2 = this.add.text(-120, ay, '*', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
             fontSize: '14px',
             color: '#3a2410',
@@ -3433,7 +3865,7 @@ export class BattleScene extends Phaser.Scene {
             stroke: '#000000',
             strokeThickness: 2,
           }).setOrigin(0, 0.5);
-          this.endOverlay.add([badge, star, achText]);
+          this.endOverlay.add([badge, star2, achText]);
 
           // Stagger toast for each achievement
           this.time.delayedCall(800 + i * 1200, () => {
