@@ -224,16 +224,44 @@ export function PaperButton(scene, x, y, text, opts = {}) {
   const zone = hitZone(scene, x, y, w, h);
 
   if (opts.onClick) {
+    const btnTargets = [bg, shadow, label, zone];
     zone.on('pointerdown', () => {
-      // Fire the handler immediately — if it were called from the
-      // tween's onYoyo, a paused/cleared tween system could swallow it.
-      opts.onClick();
+      // Squash down on press
       scene.tweens.add({
-        targets: [bg, shadow, label, zone],
-        scaleX: 0.95,
-        scaleY: 0.95,
+        targets: btnTargets,
+        scaleX: 0.92,
+        scaleY: 0.92,
         duration: 60,
-        yoyo: true,
+        ease: 'Power1',
+      });
+    });
+    zone.on('pointerup', () => {
+      opts.onClick();
+      // Bounce up and settle
+      scene.tweens.add({
+        targets: btnTargets,
+        scaleX: 1.08,
+        scaleY: 1.08,
+        duration: 80,
+        ease: 'Power1',
+        onComplete: () => {
+          scene.tweens.add({
+            targets: btnTargets,
+            scaleX: 1.0,
+            scaleY: 1.0,
+            duration: 150,
+            ease: 'Back.out',
+          });
+        },
+      });
+    });
+    zone.on('pointerout', () => {
+      // Reset if pointer leaves without releasing
+      scene.tweens.add({
+        targets: btnTargets,
+        scaleX: 1.0,
+        scaleY: 1.0,
+        duration: 100,
       });
     });
   }
