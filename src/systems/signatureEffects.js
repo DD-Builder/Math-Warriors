@@ -48,7 +48,7 @@ export function createSignatureState(party) {
     const hero = party[i];
     if (!hero || !hero.signature) continue;
 
-    if (hero.signature.effect === 'revealWrong') {
+    if (hero.signature.effect === 'revealWrong' && (hero.level || 1) >= 5) {
       state.revealWrongActive = true;
     }
     if (hero.signature.effect === 'timerBonus') {
@@ -109,9 +109,10 @@ export function onHeroDamageDealt(hero, target, baseDamage, ctx) {
  * @param {object} attacker - The enemy attacking
  * @param {number} baseDamage - Computed damage before signature
  * @param {object} ctx - { party, battleState, heroIndex }
+ * @param {function} [rng] - Random source in [0, 1). Injectable for tests.
  * @returns {{ damage: number, dodged: boolean, lastStand: boolean }}
  */
-export function onHeroDamageReceived(hero, attacker, baseDamage, ctx) {
+export function onHeroDamageReceived(hero, attacker, baseDamage, ctx, rng = Math.random) {
   const result = { damage: baseDamage, dodged: false, lastStand: false };
   if (!hero) return result;
 
@@ -121,7 +122,7 @@ export function onHeroDamageReceived(hero, attacker, baseDamage, ctx) {
 
   // Shadow: dodge — random < value means damage = 0
   if (hero.signature && hero.signature.effect === 'dodge') {
-    if (Math.random() < hero.signature.value) {
+    if (rng() < hero.signature.value) {
       result.damage = 0;
       result.dodged = true;
       return result;

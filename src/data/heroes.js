@@ -19,7 +19,7 @@ const CLASS_BASE = {
   bunny:  { maxHp: 45, atk: 16, def: 10 },
 };
 
-function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, superMoves = [], signature = null, evolution = null, personality = null) {
+function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, superMoves = [], signature = null, evolution = null, personality = null, affinity = null) {
   const base = CLASS_BASE[className];
   const rarity = unlockedAtFloor >= 5 ? 'legendary' : unlockedAtFloor >= 3 ? 'epic' : unlockedAtFloor >= 1 ? 'rare' : 'common';
   return {
@@ -38,6 +38,7 @@ function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, super
     signature,
     evolution,
     personality,
+    affinity,
   };
 }
 
@@ -114,7 +115,7 @@ export const KNIGHTS = [
       defeat: '"..."',
       bossEncounter: '"..."',
     },
-  }),
+  }, 9),
 
   make('knight-crusader', 'Crusader', 'knight', 'Holy. Righteous. Relentless.', { def: 2, maxHp: -3 }, 1, [
     { name: 'Holy Slam',       type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -175,7 +176,7 @@ export const KNIGHTS = [
       defeat: '"Not... in vain..."',
       bossEncounter: '"Face judgment!"',
     },
-  }),
+  }, 1),
 
   make('knight-paladin', 'Paladin', 'knight', 'Light in darkness. Grace in battle.', { maxHp: 3 }, 3, [
     { name: 'Shield Bash',   type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -236,7 +237,7 @@ export const KNIGHTS = [
       defeat: '"I am sorry..."',
       bossEncounter: '"Behind me!"',
     },
-  }),
+  }, 6),
 
   make('knight-berserker', 'Berserker', 'knight', 'Pure fury. Zero chill.', { atk: 3, def: -3 }, 4, [
     { name: 'Rage Blow',   type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -297,7 +298,7 @@ export const KNIGHTS = [
       defeat: '"Not... done..."',
       bossEncounter: '"FINALLY!"',
     },
-  }),
+  }, 4),
 
   make('knight-greathelm', 'Great Helm', 'knight', 'Noble. Steadfast. Legendary.', { def: 3 }, 6, [
     { name: 'Iron Wall',     type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -358,7 +359,7 @@ export const KNIGHTS = [
       defeat: '"Impossible..."',
       bossEncounter: '"A worthy foe."',
     },
-  }),
+  }, 5),
 ];
 
 // ------------------------------------------------------------------
@@ -425,7 +426,7 @@ export const WIZARDS = [
       defeat: '"The stars dim..."',
       bossEncounter: '"I foresee... pain."',
     },
-  }),
+  }, 3),
 
   make('wizard-toadstool', 'Toadstool', 'wizard', 'Brews chaos. Serves it hot.', { atk: 1, def: 1 }, 1, [
     { name: 'Spore Cloud',    type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -486,7 +487,7 @@ export const WIZARDS = [
       defeat: '"Bleh..."',
       bossEncounter: '"Ooh, a big one!"',
     },
-  }),
+  }, 1),
 
   make('wizard-spellblade', 'Spellblade', 'wizard', 'Magic fists. Still counts.', { def: 3, atk: -1 }, 2, [
     { name: 'Magic Fist',    type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -547,7 +548,7 @@ export const WIZARDS = [
       defeat: '"Lucky shot."',
       bossEncounter: '"My kind of fight."',
     },
-  }),
+  }, 2),
 
   make('wizard-bookworm', 'Bookworm', 'wizard', 'Knows every spell. Uses them all.', { maxHp: 3 }, 4, [
     { name: 'Ink Splash',      type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -608,7 +609,7 @@ export const WIZARDS = [
       defeat: '"Back to study..."',
       bossEncounter: '"Fascinating..."',
     },
-  }),
+  }, 8),
 
   make('wizard-grandmage', 'Grand Mage', 'wizard', 'Ancient power. Zero patience.', { atk: 3, maxHp: -3 }, 6, [
     { name: 'Fire Bolt',      type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -669,7 +670,7 @@ export const WIZARDS = [
       defeat: '"This means nothing."',
       bossEncounter: '"You bore me."',
     },
-  }),
+  }, 6),
 ];
 
 // ------------------------------------------------------------------
@@ -736,7 +737,7 @@ export const BUNNIES = [
       defeat: '"No fair..."',
       bossEncounter: '"Ooh big! BIG!"',
     },
-  }),
+  }, 4),
 
   make('bunny-nova', 'Nova', 'bunny', 'She sparkles. Then she wins.', { atk: 2, maxHp: -2 }, 2, [
     { name: 'Spark Jump',  type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -797,7 +798,7 @@ export const BUNNIES = [
       defeat: '"Next time..."',
       bossEncounter: '"Let\'s glow!"',
     },
-  }),
+  }, 3),
 
   make('bunny-boulder', 'Boulder', 'bunny', 'Heaviest punch in the kingdom.', { atk: -1, def: 3, maxHp: 3 }, 3, [
     { name: 'Rock Toss',      type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -858,7 +859,7 @@ export const BUNNIES = [
       defeat: '"Dang."',
       bossEncounter: '"Big guy, huh."',
     },
-  }),
+  }, 5),
 
   make('bunny-blaze', 'Blaze', 'bunny', 'Fire magic. Fire attitude.', { atk: 2 }, 5, [
     { name: 'Flame Hop',      type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -919,7 +920,7 @@ export const BUNNIES = [
       defeat: '"Flame... out..."',
       bossEncounter: '"Let\'s heat up!"',
     },
-  }),
+  }, 4),
 
   make('bunny-duchess', 'Duchess', 'bunny', 'Royal blood. Royal fury.', { def: 2, maxHp: 2 }, 7, [
     { name: 'Royal Strike',    type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -980,7 +981,7 @@ export const BUNNIES = [
       defeat: '"Retreat... for now."',
       bossEncounter: '"Kneel."',
     },
-  }),
+  }, 7),
 ];
 
 // ------------------------------------------------------------------
@@ -1028,11 +1029,12 @@ export function spawnHero(idOrHero) {
     def: def.def,
     signature: def.signature ?? null,
     personality: def.personality ?? null,
+    affinity: def.affinity ?? null,
   };
 }
 
 // XP thresholds per level. Index = level (1-based), value = total XP needed.
-export const LEVEL_THRESHOLDS = [0, 0, 80, 180, 320, 500, 750, 1050, 1400, 1850, 2400];
+export const LEVEL_THRESHOLDS = [0, 0, 80, 180, 320, 500, 750, 1050, 1200, 1500, 1900];
 
 /**
  * Compute the stat bonuses for a given level.
@@ -1139,6 +1141,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Shadow: "..."', 'Stargazer: "The stars see what shadows hide."'],
     dialogueA: ['Shadow: "You see too much."', 'Stargazer: "And you hide too much. We balance."'],
+    dialogueB: ['Shadow: "We work well."', 'Stargazer: "The stars agree!"'],
+    dialogueS: ['Shadow: "I trust you."', 'Stargazer: "And I trust the shadows."'],
   },
   {
     heroes: ['knight-crusader', 'wizard-grandmage'],
@@ -1147,6 +1151,8 @@ export const HERO_BONDS = [
     multiplier: 4.5,
     dialogueC: ['Crusader: "Lend me your flame."', 'Grand Mage: "Try not to waste it."'],
     dialogueA: ['Crusader: "Your power serves justice."', 'Grand Mage: "Justice? I just like explosions."'],
+    dialogueB: ['Crusader: "Your flames are holy."', 'Grand Mage: "Flattery. Continue."'],
+    dialogueS: ['Crusader: "Brother in arms."', 'Grand Mage: "...Fine. Brother."'],
   },
   {
     heroes: ['knight-paladin', 'wizard-bookworm'],
@@ -1155,6 +1161,8 @@ export const HERO_BONDS = [
     multiplier: 3.5,
     dialogueC: ['Paladin: "I will protect you."', 'Bookworm: "Um, thanks."'],
     dialogueA: ['Paladin: "Your knowledge saves lives."', 'Bookworm: "And your shield saves mine!"'],
+    dialogueB: ['Paladin: "Read to me sometime?"', 'Bookworm: "I have just the book!"'],
+    dialogueS: ['Paladin: "My shield is yours."', 'Bookworm: "And my spells are yours."'],
   },
   {
     heroes: ['knight-berserker', 'wizard-spellblade'],
@@ -1163,6 +1171,8 @@ export const HERO_BONDS = [
     multiplier: 4.5,
     dialogueC: ['Berserker: "OUTTA MY WAY!"', 'Spellblade: "After you, big guy."'],
     dialogueA: ['Berserker: "You fight good!"', 'Spellblade: "I know."'],
+    dialogueB: ['Berserker: "More smashing!"', 'Spellblade: "More style, please."'],
+    dialogueS: ['Berserker: "You make me better."', 'Spellblade: "Likewise, big guy."'],
   },
   // --- Cross-class: Knight + Bunny ---
   {
@@ -1172,6 +1182,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Great Helm: "Your Highness."', 'Duchess: "You may rise."'],
     dialogueA: ['Great Helm: "A worthy liege."', 'Duchess: "A worthy champion."'],
+    dialogueB: ['Great Helm: "Command me."', 'Duchess: "Gladly."'],
+    dialogueS: ['Great Helm: "My life for yours."', 'Duchess: "Together, always."'],
   },
   {
     heroes: ['knight-shadow', 'bunny-pepper'],
@@ -1180,6 +1192,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Shadow: "Be quiet."', 'Pepper: "NEVER!"'],
     dialogueA: ['Shadow: "You are... loud."', 'Pepper: "And YOU need to loosen up!"'],
+    dialogueB: ['Shadow: "You are fast."', 'Pepper: "You are SNEAKY!"'],
+    dialogueS: ['Shadow: "Stay close, Pepper."', 'Pepper: "BFFs FOREVER!"'],
   },
   {
     heroes: ['knight-crusader', 'bunny-boulder'],
@@ -1188,6 +1202,8 @@ export const HERO_BONDS = [
     multiplier: 3.5,
     dialogueC: ['Crusader: "Ready yourself!"', 'Boulder: "Yep."'],
     dialogueA: ['Crusader: "Your strength is a gift!"', 'Boulder: "Cool. Thanks."'],
+    dialogueB: ['Crusader: "Stand firm!"', 'Boulder: "Always do."'],
+    dialogueS: ['Crusader: "You are my rock."', 'Boulder: "Literally."'],
   },
   {
     heroes: ['knight-paladin', 'bunny-nova'],
@@ -1196,6 +1212,8 @@ export const HERO_BONDS = [
     multiplier: 3.5,
     dialogueC: ['Paladin: "Stay close."', 'Nova: "Ooh, shiny!"'],
     dialogueA: ['Paladin: "You light up the dark."', 'Nova: "Aww, you too!"'],
+    dialogueB: ['Paladin: "Your light inspires."', 'Nova: "Your shield rocks!"'],
+    dialogueS: ['Paladin: "Shine on, Nova."', 'Nova: "Always, for you!"'],
   },
   // --- Cross-class: Wizard + Bunny ---
   {
@@ -1205,6 +1223,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Toadstool: "Hee hee, catch!"', 'Blaze: "Burn, baby!"'],
     dialogueA: ['Toadstool: "You make everything better!"', 'Blaze: "Everything is better on fire!"'],
+    dialogueB: ['Toadstool: "More booms please!"', 'Blaze: "You got it, shroomy!"'],
+    dialogueS: ['Toadstool: "Best fire friend!"', 'Blaze: "Best spore pal!"'],
   },
   {
     heroes: ['wizard-stargazer', 'bunny-nova'],
@@ -1213,6 +1233,8 @@ export const HERO_BONDS = [
     multiplier: 4.5,
     dialogueC: ['Stargazer: "A star descends."', 'Nova: "Wheee!"'],
     dialogueA: ['Stargazer: "You shine so brightly."', 'Nova: "Right back at you!"'],
+    dialogueB: ['Stargazer: "Our light merges."', 'Nova: "Double sparkle power!"'],
+    dialogueS: ['Stargazer: "My constellation."', 'Nova: "My stargazer!"'],
   },
   {
     heroes: ['wizard-bookworm', 'bunny-pepper'],
@@ -1221,6 +1243,8 @@ export const HERO_BONDS = [
     multiplier: 3.5,
     dialogueC: ['Bookworm: "Hold still please."', 'Pepper: "CAN\'T! WON\'T!"'],
     dialogueA: ['Bookworm: "Fascinating velocity."', 'Pepper: "Big words! Let\'s GO!"'],
+    dialogueB: ['Bookworm: "You deliver well."', 'Pepper: "SPEED READING!"'],
+    dialogueS: ['Bookworm: "My favorite chapter."', 'Pepper: "Aww! ZOOM HUG!"'],
   },
   // --- Personality contrast pairs ---
   {
@@ -1230,6 +1254,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Paladin: "Please be careful."', 'Berserker: "NO PROMISES!"'],
     dialogueA: ['Paladin: "I believe in you."', 'Berserker: "...thanks."'],
+    dialogueB: ['Paladin: "Temper your rage."', 'Berserker: "You temper yours!"'],
+    dialogueS: ['Paladin: "I need your fire."', 'Berserker: "I need your calm."'],
   },
   {
     heroes: ['wizard-grandmage', 'wizard-toadstool'],
@@ -1238,5 +1264,7 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Grand Mage: "Stand back, fungus."', 'Toadstool: "Ooh, grumpy!"'],
     dialogueA: ['Grand Mage: "Your methods are... unorthodox."', 'Toadstool: "That means fun, right?"'],
+    dialogueB: ['Grand Mage: "Acceptable brews."', 'Toadstool: "High praise! Hee!"'],
+    dialogueS: ['Grand Mage: "You... grew on me."', 'Toadstool: "Like a mushroom!"'],
   },
 ];

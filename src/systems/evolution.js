@@ -4,7 +4,8 @@
  * Each hero has 3 stages:
  *   Stage 1: Starting form (levels 1-4)
  *   Stage 2: Warrior form (requires level 5 + beating a floor)
- *   Stage 3: Master form (requires level 8 + math domain mastery, branching choice)
+ *   Stage 3: Master form (requires level 8 + math domain proficiency at
+ *            Practicing tier or above, branching choice)
  *
  * Evolution data is stored in save.heroEvolution:
  *   { 'knight-shadow': { stage: 2, path: null },
@@ -27,9 +28,14 @@ const MASTERY_ID_MAP = {
   patterns: 'word',
 };
 
-function resolveMasteryId(mastery) {
+export function resolveMasteryId(mastery) {
   return MASTERY_ID_MAP[mastery] || mastery;
 }
+
+// Mastery tiers that satisfy the Stage 3 requirement.
+// Lowered from 'mastered' only (85% / 20+) to also accept
+// 'practicing' (65% / 10+) so Stage 3 is reachable sooner.
+const STAGE3_MASTERY_LEVELS = ['practicing', 'mastered'];
 
 // ------------------------------------------------------------------
 // STAGE QUERIES
@@ -99,13 +105,16 @@ export function canEvolveStage3(save, heroId, heroLevel) {
   const paths = evoDef.stage3.paths.map(p => {
     const levelMet = heroLevel >= p.level;
     const mastery = getSkillMastery(save, resolveMasteryId(p.mastery));
-    const masteryMet = mastery.level === 'mastered';
+    const masteryMet = STAGE3_MASTERY_LEVELS.includes(mastery.level);
     return {
       id: p.id,
       name: p.name,
       levelMet,
       masteryMet,
       masterySkill: p.mastery,
+      masteryLevel: mastery.level,
+      masteryAccuracy: mastery.accuracy,
+      masteryTotal: mastery.total,
       requiredLevel: p.level,
     };
   });

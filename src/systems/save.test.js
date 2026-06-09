@@ -114,11 +114,11 @@ describe('loadSave', () => {
   test('loads a previously written save', () => {
     const save = makeDefaultSave();
     save.gold = 150;
-    save.party = [{ id: 'test' }];
+    save.party = [{ id: 'knight-shadow' }];
     writeSave(save);
     const loaded = loadSave();
     assert.equal(loaded.gold, 150);
-    assert.equal(loaded.party[0].id, 'test');
+    assert.equal(loaded.party[0].id, 'knight-shadow');
   });
 });
 
@@ -206,6 +206,72 @@ describe('normalization', () => {
     const save = loadSave();
     assert.equal(save.settings.musicVolume, 0.3);
     assert.equal(save.settings.sfxVolume, 1.0);
+  });
+
+  test('drops party entries with null/unknown ids and coerces numeric fields', () => {
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      version: CURRENT_VERSION,
+      party: [
+        { id: null, hp: 50 },                              // null id — dropped
+        'not-an-object',                                   // non-object — dropped
+        { id: 'no-such-hero', hp: 50 },                    // unresolvable id — dropped
+        { id: 'knight-shadow', hp: '30', maxHp: '52', xp: 'garbage', level: null },
+      ],
+    }));
+    const save = loadSave();
+    assert.equal(save.party.length, 1);
+    assert.equal(save.party[0].id, 'knight-shadow');
+    assert.equal(save.party[0].hp, 30);       // coerced from string
+    assert.equal(save.party[0].maxHp, 52);    // coerced from string
+    assert.equal(save.party[0].xp, 0);        // garbage -> default
+    assert.equal(save.party[0].level, 1);     // null -> default
+  });
+
+  test('party hp is clamped to maxHp and defaults from hero data', () => {
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      version: CURRENT_VERSION,
+      party: [{ id: 'bunny-pepper', hp: 9999 }],
+    }));
+    const save = loadSave();
+    assert.equal(save.party.length, 1);
+    assert.ok(typeof save.party[0].maxHp === 'number');
+    assert.equal(save.party[0].hp, save.party[0].maxHp); // clamped
+  });
+
+  test('drops malformed heroEvolution entries, keeps valid ones', () => {
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      version: CURRENT_VERSION,
+      heroEvolution: {
+        'knight-shadow': 'stage2',                         // string value — dropped
+        'wizard-stargazer': { stage: 'two', path: null },  // non-number stage — dropped
+        'bunny-pepper': { stage: 3, path: 42 },            // non-string path — dropped
+        'knight-crusader': { stage: 2 },                   // missing path — normalized to null
+        'wizard-toadstool': { stage: 3, path: 'toadstool-plaguemaster' },
+      },
+    }));
+    const save = loadSave();
+    assert.deepEqual(save.heroEvolution, {
+      'knight-crusader': { stage: 2, path: null },
+      'wizard-toadstool': { stage: 3, path: 'toadstool-plaguemaster' },
+    });
+  });
+
+  test('drops malformed heroBonds entries, keeps valid ones', () => {
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      version: CURRENT_VERSION,
+      heroBonds: {
+        'a|b': 12,                                  // number value — dropped
+        'c|d': { battles: 'lots', rank: 'C' },      // non-number battles — dropped
+        'e|f': { battles: 8, rank: 3 },             // non-string rank — dropped
+        'g|h': { battles: 7, rank: 'C' },
+        'i|j': { battles: 2 },                      // missing rank — normalized to null
+      },
+    }));
+    const save = loadSave();
+    assert.deepEqual(save.heroBonds, {
+      'g|h': { battles: 7, rank: 'C' },
+      'i|j': { battles: 2, rank: null },
+    });
   });
 });
 

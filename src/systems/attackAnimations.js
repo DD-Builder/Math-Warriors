@@ -206,6 +206,29 @@ function drawSlashArc(scene, enemyX, enemyY, lineWidth, color, alpha, offsetX, o
 // ================================================================
 
 function playKnightFight(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
+  // Afterimage trail: 3 fading ghosts spawned along the charge path
+  for (let g = 0; g < 3; g++) {
+    scene.time.delayedCall(60 + g * 80, () => {
+      const body = heroSprite.body;
+      if (!body) return;
+      let ghost;
+      if (body.texture && body.texture.key && body.texture.key !== '__MISSING') {
+        ghost = scene.add.image(body.x, body.y, body.texture.key)
+          .setScale(body.scaleX, body.scaleY)
+          .setAlpha(0.35)
+          .setTint(0x88aaff)
+          .setDepth((body.depth || 10) - 1);
+      } else {
+        ghost = scene.add.ellipse(body.x, body.y, 70, 100, 0x88aaff, 0.25)
+          .setDepth((body.depth || 10) - 1);
+      }
+      scene.tweens.add({
+        targets: ghost, alpha: 0, duration: 250,
+        onComplete: () => ghost.destroy(),
+      });
+    });
+  }
+
   scene.tweens.add({
     targets: heroSprite.body,
     x: enemyX - 80,
@@ -641,14 +664,15 @@ function playWizardMagic(scene, heroSprite, targetSprite, enemyX, enemyY, op, re
     if (cb.onHit) cb.onHit();
   });
 
-  // 550-900ms: Aftermath — lingering sparkles
+  // 550-900ms: Aftermath — lingering sparkles. The magic circles
+  // persist ~200ms past impact before fading so the spell "lands".
   scene.time.delayedCall(550, () => {
     scene.tweens.add({
-      targets: circle1, alpha: 0, duration: 200,
+      targets: circle1, alpha: 0, duration: 300, delay: 200,
       onComplete: () => { rotTween1.stop(); circle1.destroy(); },
     });
     scene.tweens.add({
-      targets: circle2, alpha: 0, duration: 200,
+      targets: circle2, alpha: 0, duration: 300, delay: 200,
       onComplete: () => { rotTween2.stop(); circle2.destroy(); },
     });
 

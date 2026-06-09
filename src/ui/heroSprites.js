@@ -48,6 +48,7 @@ function getHeroCanvas(hero) {
  */
 export function drawHeroSprite(scene, x, y, hero, opts = {}) {
   const scale = opts.scale ?? 1;
+  const evolutionStage = opts.evolutionStage ?? 1;
   const id = hero.id;
   const textureKey = 'hero-' + id;
 
@@ -63,6 +64,69 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
       gfx.fillRoundedRect(x - 40 * scale, y - 60 * scale, 80 * scale, 120 * scale, 8);
       return gfx;
     }
+  }
+
+  // If evolution stage >= 2, wrap in a container to add aura / particles
+  if (evolutionStage >= 2) {
+    const container = scene.add.container(x, y);
+    const heroColor = hero.displayColor || 0x2e4e88;
+
+    // Stage 2+: aura ring behind sprite
+    const auraRadius = 65 * scale;
+    const aura = scene.add.circle(0, 0, auraRadius, heroColor, 0.15);
+    container.add(aura);
+    // Gentle pulse on the aura
+    scene.tweens.add({
+      targets: aura,
+      scaleX: 1.12, scaleY: 1.12,
+      alpha: 0.08,
+      duration: 1400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
+
+    const img = scene.add.image(0, 0, textureKey);
+    img.setScale(scale);
+    img.setOrigin(0.5, 0.5);
+    container.add(img);
+
+    // Stage 3: orbiting particles
+    if (evolutionStage >= 3) {
+      const isLegendary = hero.trait && /legendary/i.test(hero.trait);
+      const particleColor = isLegendary ? 0xf0d060 : heroColor;
+      const particleCount = 4;
+      for (let i = 0; i < particleCount; i++) {
+        const angle = (i / particleCount) * Math.PI * 2;
+        const orbitR = 55 * scale;
+        const px = Math.cos(angle) * orbitR;
+        const py = Math.sin(angle) * orbitR * 0.6; // slight ellipse
+        const particle = scene.add.circle(px, py, 3 * scale, particleColor, 0.7);
+        container.add(particle);
+        // Orbit by cycling through angles
+        scene.tweens.add({
+          targets: particle,
+          angle: 360,
+          duration: 3000 + i * 200,
+          repeat: -1,
+          ease: 'Linear',
+          onUpdate: () => {
+            const t = (Date.now() / (3000 + i * 200) + i / particleCount) * Math.PI * 2;
+            particle.x = Math.cos(t) * orbitR;
+            particle.y = Math.sin(t) * orbitR * 0.6;
+          },
+        });
+      }
+    }
+
+    // Forward common image methods so call sites can treat container like an image
+    container.setScale = function (s) {
+      this.scaleX = s;
+      this.scaleY = s;
+      return this;
+    };
+
+    return container;
   }
 
   const img = scene.add.image(x, y, textureKey);
