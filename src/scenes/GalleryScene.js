@@ -93,9 +93,13 @@ export class GalleryScene extends Phaser.Scene {
       }
     }
 
-    // Stats summary below the grid
-    const statsY = startY + gridH + 40;
-    PaperPanel(this, area.cx, statsY, 700, 60, {
+    // BACK button — positioned first so we can calculate available space
+    const backBtnH = 56;
+    const backBtnY = area.bottom - backBtnH / 2 - 4;
+
+    // Stats summary below the grid, above the BACK button
+    const statsY = Math.min(startY + gridH + 30, backBtnY - backBtnH / 2 - 40);
+    PaperPanel(this, area.cx, statsY, 700, 50, {
       color: 0x1a0e04, alpha: 0.75, radius: 14,
     });
 
@@ -105,13 +109,12 @@ export class GalleryScene extends Phaser.Scene {
       `Accuracy: ${accuracy}%`,
     ].join('    '), {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '18px', color: '#f0e4cc',
+      fontSize: '16px', color: '#f0e4cc',
       stroke: '#1a0e04', strokeThickness: 2,
     }).setOrigin(0.5);
 
-    // BACK button
-    PaperButton(this, area.cx, area.bottom - 30, 'BACK', {
-      w: 200, h: 60, color: 0x6090c0, fontSize: 22,
+    PaperButton(this, area.cx, backBtnY, 'BACK', {
+      w: 200, h: backBtnH, color: 0x6090c0, fontSize: 22,
       onClick: () => {
         audio.play('ui/back');
         transitionTo(this, SCENES.WORLD_MAP, undefined, 200);

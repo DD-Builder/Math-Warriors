@@ -613,8 +613,27 @@ export class WorldMapScene extends Phaser.Scene {
       });
     }
 
-    const skillsBtn = PaperButton(this, area.cx - 160, area.bottom - 36, 'SKILLS', {
-      w: 140, h: 56, color: 0x4080c0, fontSize: 18,
+    // Bottom toolbar: 5 buttons evenly distributed across safe area width
+    const bottomY = area.bottom - 36;
+    const bBtnW = 130;
+    const bBtnH = 50;
+    const bBtnGap = 16;
+    const bTotalW = 5 * bBtnW + 4 * bBtnGap;
+    const bStartX = area.cx - bTotalW / 2 + bBtnW / 2;
+
+    const dailyCompleted = isDailyChallengeCompleted(this.save);
+    const dailyBtn = PaperButton(this, bStartX, bottomY, 'DAILY', {
+      w: bBtnW, h: bBtnH, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 16,
+      textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        this.onDailyChallenge();
+      },
+    });
+    this.setScrollFactorDeep(dailyBtn, 0);
+
+    const skillsBtn = PaperButton(this, bStartX + (bBtnW + bBtnGap), bottomY, 'SKILLS', {
+      w: bBtnW, h: bBtnH, color: 0x4080c0, fontSize: 16,
       textColor: '#fff8e0',
       onClick: () => {
         audio.play('ui/click');
@@ -623,8 +642,8 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(skillsBtn, 0);
 
-    const shopBtn = PaperButton(this, area.cx, area.bottom - 36, 'SHOP', {
-      w: 140, h: 56, color: 0xd07818, fontSize: 20,
+    const shopBtn = PaperButton(this, bStartX + 2 * (bBtnW + bBtnGap), bottomY, 'SHOP', {
+      w: bBtnW, h: bBtnH, color: 0xd07818, fontSize: 16,
       textColor: '#fff8e0',
       onClick: () => {
         audio.play('ui/click');
@@ -633,8 +652,8 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(shopBtn, 0);
 
-    const galleryBtn = PaperButton(this, area.cx + 160, area.bottom - 36, 'GALLERY', {
-      w: 140, h: 56, color: 0x9050c8, fontSize: 18,
+    const galleryBtn = PaperButton(this, bStartX + 3 * (bBtnW + bBtnGap), bottomY, 'GALLERY', {
+      w: bBtnW, h: bBtnH, color: 0x9050c8, fontSize: 15,
       textColor: '#fff8e0',
       onClick: () => {
         audio.play('ui/click');
@@ -643,25 +662,14 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(galleryBtn, 0);
 
-    const settingsBtn = PaperButton(this, area.right - 60, area.bottom - 36, '⚙', {
-      w: 100, h: 50, color: 0x4a6ca8, fontSize: 24,
+    const settingsBtn = PaperButton(this, bStartX + 4 * (bBtnW + bBtnGap), bottomY, '⚙', {
+      w: bBtnW, h: bBtnH, color: 0x4a6ca8, fontSize: 20,
       onClick: () => {
         audio.play('ui/click');
         transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
       },
     });
     this.setScrollFactorDeep(settingsBtn, 0);
-
-    const dailyCompleted = isDailyChallengeCompleted(this.save);
-    const dailyBtn = PaperButton(this, area.left + 130, area.bottom - 36, 'DAILY', {
-      w: 180, h: 50, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 18,
-      textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
-      onClick: () => {
-        audio.play('ui/click');
-        this.onDailyChallenge();
-      },
-    });
-    this.setScrollFactorDeep(dailyBtn, 0);
 
     const arrowStyle = { w: 110, h: 60, color: 0xd0a040, fontSize: 20, textColor: '#fff8e0' };
     this.leftArrow = PaperButton(this, area.left + 65, area.cy, 'PREV', {
