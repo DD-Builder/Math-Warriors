@@ -709,23 +709,22 @@ export class BattleScene extends Phaser.Scene {
     if (topPanel.bg) topPanel.bg.setDepth(20);
     if (topPanel.shadow) topPanel.shadow.setDepth(19);
 
-    this.add.text(barX - 10, topY, 'MOMENTUM', {
+    this.add.text(barX + barW / 2, topY - 14, 'MOMENTUM', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '13px',
+      fontSize: '12px',
       color: '#3a2410',
       letterSpacing: 1,
-    }).setOrigin(1, 0.5).setDepth(21);
+    }).setOrigin(0.5, 0.5).setDepth(21);
 
-    this.momentumBarObj = PaperBar(this, barX, topY, barW, 16, this.momentum, 0x4aa848, {
+    this.momentumBarObj = PaperBar(this, barX, topY + 2, barW, 16, this.momentum, 0x4aa848, {
       bgColor: 0xc8b898,
     });
-    for (const t of [0.33, 0.66]) {
-      this.add.rectangle(barX + barW * t, topY, 2, 16, 0x3a2410, 0.5);
-    }
-    this.momentumLabel = this.add.text(barX + barW + 10, topY, 'ZONE', {
+    this.momentumLabel = this.add.text(barX + barW / 2, topY + 2, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '13px',
-      color: '#b86820',
+      fontSize: '11px',
+      color: '#ffffff',
+      stroke: '#1a0e04',
+      strokeThickness: 2,
       letterSpacing: 1,
     }).setOrigin(0, 0.5);
 
@@ -1398,7 +1397,15 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // --- Stargazer signature: reveal one wrong answer ---
-    if (this.signatureState.revealWrongActive) {
+    // Activates when: (a) Stargazer level 5+ (always active), OR
+    // (b) Stargazer in party + momentum HEAT + streak 3+ (earned in battle)
+    const stargazerInParty = this.party.some(h => h?.id === 'wizard-stargazer' && h.hp > 0);
+    const earnedReveal = stargazerInParty && this.momentum >= 0.66 && this.streak >= 3;
+    if (this.signatureState.revealWrongActive || earnedReveal) {
+      if (earnedReveal && !this._revealNotified) {
+        this._revealNotified = true;
+        this.showToast('Stargazer eliminates a wrong answer!', '#c080ff');
+      }
       const wrongIndices = [0, 1, 2, 3].filter(i => i !== this.currentQuestion.correctIndex);
       if (wrongIndices.length > 0) {
         const revealIdx = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
@@ -2025,12 +2032,16 @@ export class BattleScene extends Phaser.Scene {
       const hero = this.party[heroIdx];
       const cls = hero.class || 'knight';
 
-      // Bunny MAGIC = heal (not attack)
+      // Bunny MAGIC = heal — show hero selection, then heal chosen target
       if (cls === 'bunny' && activeCommand === COMMANDS.MAGIC) {
         const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
         const healAmt = Math.max(8, Math.round((hero.atk || 10) * getDifficultyMultiplier(stars) * 1.2));
         const alive = this.party.filter(h => h.hp > 0);
-        const target = alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+        if (alive.length > 1) {
+          this.showHealTargetPicker(alive, healAmt);
+          return;
+        }
+        const target = alive[0];
         if (target) {
           const before = target.hp;
           target.hp = Math.min(target.maxHp, target.hp + healAmt);
@@ -2650,14 +2661,18 @@ export class BattleScene extends Phaser.Scene {
 
   updateMomentumBar(justWrong = false) {
     const zone = getZone(this.momentum);
-    this.momentumLabel.setText(zone.label);
-    let fillColor = 0x4aa848; // ZONE (green)
-    if (zone.label === 'COOL') fillColor = 0x4080c0;
-    else if (zone.label === 'HEAT') fillColor = 0xd06020;
+    const m = this.momentum;
+    // Green (low) → yellow (mid) → orange → red (full)
+    let fillColor;
+    if (m < 0.33) fillColor = 0x40a848;
+    else if (m < 0.5) fillColor = 0x80c040;
+    else if (m < 0.66) fillColor = 0xc0c030;
+    else if (m < 0.8) fillColor = 0xe09020;
+    else fillColor = 0xd04020;
+    this.momentumLabel.setText(m >= 0.66 ? 'ON FIRE!' : m < 0.33 ? 'COOL' : '');
     if (this.momentumBarObj) {
       updatePaperBar(this.momentumBarObj, this.momentum, fillColor);
     }
-    // Environmental responsiveness
     if (this.envState) {
       updateEnvironment(this.envState, this.momentum, this.streak, zone.label, justWrong);
     }
@@ -2746,6 +2761,49 @@ export class BattleScene extends Phaser.Scene {
    * Show a HINT button that appears for 3 seconds after a wrong answer.
    * When tapped, displays a step-by-step hint in a cream panel overlay.
    */
+  showHealTargetPicker(aliveHeroes, healAmt) {
+    this.locked = true;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const elements = [];
+    const prompt = this.add.text(area.cx, area.top + 50, 'TAP A HERO TO HEAL', {
+      ...TEXT.heading(), fontSize: '24px', color: '#60ff60',
+      stroke: '#1a0e04', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(100);
+    elements.push(prompt);
+
+    for (let i = 0; i < this.heroSprites.length; i++) {
+      const hs = this.heroSprites[i];
+      const hero = this.party[i];
+      if (!hero || hero.hp <= 0) continue;
+      const glow = this.add.circle(hs.x, hs.y, 50, 0x60ff60, 0.2).setDepth(99);
+      elements.push(glow);
+      this.tweens.add({ targets: glow, alpha: 0.4, duration: 600, yoyo: true, repeat: -1 });
+
+      const zone = this.add.rectangle(hs.x, hs.y, 100, 120, 0x000000, 0.01).setInteractive({ useHandCursor: true }).setDepth(100);
+      elements.push(zone);
+      zone.on('pointerdown', () => {
+        elements.forEach(e => e.destroy());
+        const before = hero.hp;
+        hero.hp = Math.min(hero.maxHp, hero.hp + healAmt);
+        const healed = hero.hp - before;
+        if (healed > 0) {
+          this.showToast(`${hero.name} healed ${healed} HP!`, '#60ff60');
+          this.updateAllHeroHp();
+          const floatText = this.add.text(hs.x, hs.y - 40, `+${healed}`, {
+            fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+            fontSize: '28px', color: '#60ff60',
+            stroke: '#1a0e04', strokeThickness: 4,
+          }).setOrigin(0.5).setDepth(30);
+          this.tweens.add({ targets: floatText, y: hs.y - 100, alpha: 0, duration: 900, ease: 'Cubic.out', onComplete: () => floatText.destroy() });
+        } else {
+          this.showToast(`${hero.name} is already at full HP!`, '#c0c0c0');
+        }
+        this.locked = false;
+        this.time.delayedCall(400, () => this.nextTurn());
+      });
+    }
+  }
+
   showHintButton(question) {
     if (!question) return;
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
@@ -2804,14 +2862,29 @@ export class BattleScene extends Phaser.Scene {
     if (panel.bg) elements.push(panel.bg);
     if (panel.shadow) elements.push(panel.shadow);
 
-    // Dismiss on tap or after 4 seconds
+    // GOT IT button
+    const gotItBtn = PaperButton(this, area.cx, area.cy + 65, 'GOT IT', {
+      w: 180, h: 50, color: 0x4aa848, fontSize: 20,
+    });
+    if (gotItBtn.bg) gotItBtn.bg.setDepth(153);
+    if (gotItBtn.shadow) gotItBtn.shadow.setDepth(153);
+    if (gotItBtn.label) gotItBtn.label.setDepth(154);
+    if (gotItBtn.zone) gotItBtn.zone.setDepth(154);
+    elements.push(gotItBtn.bg, gotItBtn.shadow, gotItBtn.label, gotItBtn.zone);
+
     const dismissHint = () => {
+      if (this._hintDismissed) return;
+      this._hintDismissed = true;
       if (dismissTimer) dismissTimer.remove();
       elements.forEach(el => { if (el && el.scene) el.destroy(); });
+      this.locked = false;
+      this.time.delayedCall(300, () => this.nextTurn());
     };
+    this._hintDismissed = false;
 
     overlayBg.on('pointerdown', dismissHint);
-    const dismissTimer = this.time.delayedCall(4000, dismissHint);
+    if (gotItBtn.zone) gotItBtn.zone.on('pointerdown', dismissHint);
+    const dismissTimer = this.time.delayedCall(8000, dismissHint);
   }
 
   // ================================================================

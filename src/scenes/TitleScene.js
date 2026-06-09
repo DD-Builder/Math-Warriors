@@ -10,6 +10,26 @@ export class TitleScene extends Phaser.Scene {
   constructor() { super({ key: SCENES.TITLE }); }
 
   create() {
+    // Check for auto-resume from backgrounding
+    try {
+      const resumeStr = localStorage.getItem('mw_resume');
+      if (resumeStr) {
+        localStorage.removeItem('mw_resume');
+        const resume = JSON.parse(resumeStr);
+        if (resume.slot && resume.scene) {
+          this.registry.set('activeSlot', resume.slot);
+          if (resume.scene === SCENES.MAZE && resume.floor) {
+            this.scene.start(SCENES.MAZE, { floor: resume.floor });
+            return;
+          }
+          if (resume.scene === SCENES.WORLD_MAP || resume.scene === SCENES.BATTLE) {
+            this.scene.start(SCENES.WORLD_MAP);
+            return;
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const W = GAME_WIDTH, H = GAME_HEIGHT;
     const rng = makeRng(56);
