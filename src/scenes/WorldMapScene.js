@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
-import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
+import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
+import { loadSave, writeSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
+import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES, levelBonuses, getAvailableSupers, LEVEL_THRESHOLDS, getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
-import { drawPapercutBackground } from '../systems/papercut.js';
+import { drawPapercutBackground, drawWorldMapGarden, drawWorldMapCaves, drawWorldMapStarlitHighlands } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
+import { getEvolutionStage } from '../systems/evolution.js';
 import { getDailyChallenge, isDailyChallengeCompleted, markDailyChallengeComplete } from '../systems/dailyChallenge.js';
 import { getDailyQuests, getQuestProgress, claimQuestReward, getLoginReward } from '../systems/dailyQuests.js';
 import { DIALOGUE } from '../data/dialogue.js';
@@ -26,8 +27,6 @@ const FLOOR_INFO = [
   { id: 8, name: 'INFINITY LIBRARY', tagline: 'Word Problems',  color: 0x604020 },
   { id: 9, name: 'MENDING ROOM',     tagline: 'All Operations', color: 0x8830b8 },
 ];
-
-const SCREEN_PALETTES = [1, 4, 9];
 
 export class WorldMapScene extends Phaser.Scene {
   constructor() {
@@ -51,6 +50,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.buildBackgrounds();
     this.buildFloorNodes();
     this.buildPaths();
+    this.buildMapHero();
     this.buildHUD();
     this.buildQuestPanel();
     this.showLoginReward();
@@ -61,6 +61,13 @@ export class WorldMapScene extends Phaser.Scene {
     this.currentScreen = startScreen;
     this.cameras.main.setScroll(startScreen * SCREEN_W, 0);
     this.updatePageDots();
+    this.updateArrows();
+
+    // Cleanup: node sparkle loop timers and pulse tweens on exit
+    this.events.once('shutdown', () => {
+      this.tweens.killAll();
+      this.time.removeAllEvents();
+    });
   }
 
   getMaxScreen() {
@@ -78,10 +85,11 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   buildBackgrounds() {
+    const drawFns = [drawWorldMapGarden, drawWorldMapCaves, drawWorldMapStarlitHighlands];
     for (let s = 0; s < TOTAL_SCREENS; s++) {
       const offsetX = s * SCREEN_W;
       const before = this.children.list.length;
-      drawPapercutBackground(this, SCREEN_PALETTES[s], SCREEN_W, GAME_HEIGHT, 777 + s * 100);
+      drawFns[s](this, SCREEN_W, GAME_HEIGHT, 777 + s * 100);
       const after = this.children.list.length;
       for (let i = before; i < after; i++) {
         const obj = this.children.list[i];
@@ -89,10 +97,18 @@ export class WorldMapScene extends Phaser.Scene {
       }
 
       if (s > this.maxScreen) {
+        const screenNames = ['', 'CRYSTAL CAVES', 'STARLIT HIGHLANDS'];
         this.add.rectangle(
           offsetX + SCREEN_W / 2, GAME_HEIGHT / 2,
-          SCREEN_W, GAME_HEIGHT, 0x000000, 0.6
+          SCREEN_W, GAME_HEIGHT, 0x000000, 0.35
         );
+        this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2 - 60, screenNames[s] || '', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '32px',
+          color: '#f0d040',
+          stroke: '#1a0e04',
+          strokeThickness: 5,
+        }).setOrigin(0.5);
         this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2, '🔒', {
           fontSize: '80px',
         }).setOrigin(0.5);
@@ -109,12 +125,19 @@ export class WorldMapScene extends Phaser.Scene {
 
   buildFloorNodes() {
     const nodeLayout = [
-      { rx: 0.22, ry: 0.70 },
-      { rx: 0.50, ry: 0.42 },
-      { rx: 0.78, ry: 0.62 },
+      { rx: 0.20, ry: 0.72 },
+      { rx: 0.50, ry: 0.36 },
+      { rx: 0.80, ry: 0.64 },
     ];
 
     this.nodePositions = [];
+
+    // Find the highest unlocked, incomplete node (active/current node)
+    let activeNodeIndex = -1;
+    for (let i = 8; i >= 0; i--) {
+      const f = this.save.floors[i];
+      if (f.unlocked && !f.complete) { activeNodeIndex = i; break; }
+    }
 
     for (let i = 0; i < 9; i++) {
       const screen = Math.floor(i / 3);
@@ -128,60 +151,116 @@ export class WorldMapScene extends Phaser.Scene {
       const saved = this.save.floors[i];
       const locked = !saved.unlocked;
       const complete = saved.complete;
+      const isActive = i === activeNodeIndex;
 
-      this.createFloorNode(x, y, info, locked, complete);
+      this.createFloorNode(x, y, info, locked, complete, saved, isActive);
     }
   }
 
-  createFloorNode(x, y, info, locked, complete) {
-    const radius = 56;
+  createFloorNode(x, y, info, locked, complete, saved, isActive) {
+    const radius = 100;
 
-    this.add.circle(x + 4, y + 6, radius, 0x000000, 0.3);
+    this.add.circle(x + 5, y + 8, radius, 0x000000, 0.3).setDepth(10);
 
     const nodeColor = locked ? 0x8a8070 : info.color;
-    const ring = this.add.circle(x, y, radius, nodeColor);
-    ring.setStrokeStyle(4, locked ? 0x5a5040 : 0xfff8e0);
+    const ring = this.add.circle(x, y, radius, nodeColor).setDepth(10);
+    ring.setStrokeStyle(5, locked ? 0x5a5040 : 0xfff8e0);
 
-    const inner = this.add.circle(x, y, radius - 6, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1);
+    const inner = this.add.circle(x, y, radius - 8, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1).setDepth(10);
 
-    const numX = x - radius * 0.7;
-    const numY = y - radius * 0.7;
-    this.add.circle(numX, numY, 16, locked ? 0x5a5040 : 0xd07818)
-      .setStrokeStyle(2, 0xfff8e0);
+    const numX = x - radius * 0.65;
+    const numY = y - radius * 0.65;
+    this.add.circle(numX, numY, 22, locked ? 0x5a5040 : 0xd07818)
+      .setStrokeStyle(3, 0xfff8e0).setDepth(11);
     this.add.text(numX, numY, `${info.id}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
+      fontSize: '22px',
       color: '#fff8e0',
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(11);
 
+    // Always draw a diorama — locked nodes get a dimmed version with a padlock on top
     if (locked) {
-      this.drawPaperPadlock(x, y, 24);
+      this.drawMiniDiorama(x, y, radius - 8, info.id, 0.4);
+      this.drawPaperPadlock(x, y, 30);
     } else {
-      this.drawMiniDiorama(x, y, radius - 10, info.id);
+      this.drawMiniDiorama(x, y, radius - 8, info.id, 1.0);
     }
 
+    // --- Star rating for completed nodes (Item 48) ---
     if (complete) {
-      this.add.text(x + radius * 0.65, y - radius * 0.65, '⭐', {
-        fontSize: '28px',
-      }).setOrigin(0.5);
+      const acc = saved.bestAccuracy || 0;
+      const earnedStars = acc >= 95 ? 3 : acc >= 80 ? 2 : 1;
+      const starY = y - radius * 0.60;
+      const starSpacing = 24;
+      const starStartX = x + radius * 0.60 - starSpacing;
+      for (let s = 0; s < 3; s++) {
+        const sx = starStartX + s * starSpacing;
+        const isEarned = s < earnedStars;
+        this.add.text(sx, starY, '⭐', {
+          fontSize: '18px',
+          alpha: isEarned ? 1 : 0.3,
+        }).setOrigin(0.5).setDepth(12).setAlpha(isEarned ? 1 : 0.3);
+      }
     }
 
-    const labelY = y + radius + 24;
-    const labelW = 200;
-    const labelH = 50;
+    // --- Particle effects for completed nodes (Item 22) ---
+    if (complete && !locked) {
+      const themeColor = info.color;
+      const r = (themeColor >> 16) & 0xff;
+      const g = (themeColor >> 8) & 0xff;
+      const b = themeColor & 0xff;
+      this.time.addEvent({
+        delay: 2000,
+        loop: true,
+        callback: () => {
+          const count = 3 + Math.floor(Math.random() * 2); // 3-4 particles
+          for (let p = 0; p < count; p++) {
+            const px = x + (Math.random() - 0.5) * radius * 1.2;
+            const py = y + (Math.random() - 0.5) * radius * 0.6;
+            const size = 2 + Math.random();
+            const sparkle = this.add.circle(px, py, size, themeColor, 0.8).setDepth(13);
+            this.tweens.add({
+              targets: sparkle,
+              y: py - 20,
+              alpha: 0,
+              duration: 800 + Math.random() * 400,
+              ease: 'Sine.out',
+              onComplete: () => sparkle.destroy(),
+            });
+          }
+        },
+      });
+    }
+
+    // --- Beacon glow for active/current node (Item 22) ---
+    if (isActive && !locked) {
+      const beacon = this.add.circle(x, y, radius + 14, 0xf0d060, 0.1).setDepth(9);
+      this.tweens.add({
+        targets: beacon,
+        alpha: 0.3,
+        duration: 1500,
+        ease: 'Sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+
+    const labelY = y + radius + 28;
+    const labelW = 260;
+    const labelH = 56;
     PaperPanel(this, x, labelY, labelW, labelH, {
       color: locked ? 0xc8b898 : 0xffffff,
       alpha: 0.95,
-      radius: 12,
+      radius: 14,
     });
     this.add.text(x, labelY - 10, info.name, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '14px',
+      fontSize: '16px',
       color: locked ? '#3a2010' : '#d07818',
     }).setOrigin(0.5);
-    this.add.text(x, labelY + 10, info.tagline, {
+    this.add.text(x, labelY + 12, info.tagline, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: locked ? '#8a7a60' : '#5a3820',
     }).setOrigin(0.5);
 
@@ -196,56 +275,125 @@ export class WorldMapScene extends Phaser.Scene {
         repeat: -1,
       });
       ring.on('pointerup', () => {
-        if (this._scrolling) return;
+        if (this._navLocked || this._mapHeroWalking) return;
         audio.play('ui/confirm');
-        this.enterFloor(info.id);
+        const targetNodeIndex = info.id - 1; // floor IDs are 1-based, node indices 0-based
+        this.walkHeroToNode(targetNodeIndex, () => {
+          this.enterFloor(info.id);
+        });
       });
     }
   }
 
-  drawMiniDiorama(cx, cy, r, floorId) {
-    const gfx = this.add.graphics();
+  drawMiniDiorama(cx, cy, r, floorId, alphaScale = 1.0) {
+    const gfx = this.add.graphics().setDepth(11);
+    if (alphaScale < 1) gfx.setAlpha(alphaScale);
     const palettes = {
-      1: { sky: 0x68b8e8, ground: 0x48a040, accent: 0xf06888, detail: 0x388828 },
-      2: { sky: 0x2878c0, ground: 0x2070a0, accent: 0xf0a848, detail: 0x186898 },
-      3: { sky: 0x88c8f8, ground: 0xb8e0f0, accent: 0xffd040, detail: 0xa0d0f0 },
-      4: { sky: 0x4a1818, ground: 0x6a2810, accent: 0xf0a020, detail: 0x882818 },
-      5: { sky: 0x88c8f0, ground: 0x90c8e0, accent: 0xd0f0ff, detail: 0x5898b8 },
-      6: { sky: 0x281850, ground: 0x4838a0, accent: 0xd0a0ff, detail: 0x5840b0 },
-      7: { sky: 0xd8a858, ground: 0x8a6828, accent: 0xf0c040, detail: 0xa07830 },
-      8: { sky: 0x3a2010, ground: 0x4a3018, accent: 0xc8a050, detail: 0x5a4020 },
-      9: { sky: 0x382060, ground: 0x4030a0, accent: 0xf0c0ff, detail: 0x5840c0 },
+      1: { sky: 0x68b8e8, skyTop: 0x4090d0, ground: 0x48a040, accent: 0xf06888, detail: 0x388828, sun: 0xf0e040 },
+      2: { sky: 0x2878c0, skyTop: 0x184898, ground: 0x2070a0, accent: 0xf0a848, detail: 0x186898, sun: 0xf0c848 },
+      3: { sky: 0x88c8f8, skyTop: 0x5898d8, ground: 0xb8e0f0, accent: 0xffd040, detail: 0xa0d0f0, sun: 0xfff0a0 },
+      4: { sky: 0x4a1818, skyTop: 0x2a0808, ground: 0x6a2810, accent: 0xf0a020, detail: 0x882818, sun: 0xf06020 },
+      5: { sky: 0x88c8f0, skyTop: 0x5898c0, ground: 0x90c8e0, accent: 0xd0f0ff, detail: 0x5898b8, sun: 0xe0f0ff },
+      6: { sky: 0x281850, skyTop: 0x100830, ground: 0x4838a0, accent: 0xd0a0ff, detail: 0x5840b0, sun: 0xc0c0f0 },
+      7: { sky: 0xd8a858, skyTop: 0xb08838, ground: 0x8a6828, accent: 0xf0c040, detail: 0xa07830, sun: 0xf0d860 },
+      8: { sky: 0x3a2010, skyTop: 0x1a1008, ground: 0x4a3018, accent: 0xc8a050, detail: 0x5a4020, sun: 0xc8a050 },
+      9: { sky: 0x382060, skyTop: 0x180840, ground: 0x4030a0, accent: 0xf0c0ff, detail: 0x5840c0, sun: 0xe0a0f0 },
     };
     const p = palettes[floorId] || palettes[1];
 
-    gfx.fillStyle(p.sky, 1);
+    // Sky gradient — fill the full circle with a richer sky
+    gfx.fillStyle(p.skyTop, 1);
     gfx.fillCircle(cx, cy, r);
-
-    gfx.fillStyle(p.ground, 1);
+    // Lower sky — lighter band
+    gfx.fillStyle(p.sky, 0.85);
     gfx.beginPath();
-    gfx.arc(cx, cy, r, 0.2 * Math.PI, 0.8 * Math.PI, false);
+    gfx.arc(cx, cy, r, -0.15 * Math.PI, 1.15 * Math.PI, false);
     gfx.lineTo(cx, cy + r);
     gfx.closePath();
     gfx.fillPath();
 
-    for (let i = 0; i < 3; i++) {
-      const dx = (i - 1) * r * 0.45;
-      const baseY = cy + r * 0.15;
-      const peakH = r * (0.35 + (i % 2) * 0.15);
-      gfx.fillStyle(p.detail, 0.85);
-      gfx.fillTriangle(cx + dx - r * 0.25, baseY, cx + dx, baseY - peakH, cx + dx + r * 0.25, baseY);
+    // Sun or moon
+    const isMoon = floorId === 6 || floorId === 9;
+    const celestialX = cx + r * 0.35;
+    const celestialY = cy - r * 0.50;
+    const celestialR = r * 0.14;
+    gfx.fillStyle(p.sun, 0.9);
+    gfx.fillCircle(celestialX, celestialY, celestialR);
+    if (!isMoon) {
+      // Sun rays
+      gfx.fillStyle(p.sun, 0.25);
+      gfx.fillCircle(celestialX, celestialY, celestialR * 1.8);
+    } else {
+      // Moon crescent — cut a circle out
+      gfx.fillStyle(p.skyTop, 1);
+      gfx.fillCircle(celestialX + celestialR * 0.4, celestialY - celestialR * 0.3, celestialR * 0.8);
     }
 
-    for (let i = 0; i < 5; i++) {
-      const angle = -0.8 + i * 0.4;
-      const dist = r * (0.3 + (i % 3) * 0.15);
+    // Clouds (small wispy shapes in the sky area)
+    gfx.fillStyle(0xffffff, 0.25);
+    gfx.fillEllipse(cx - r * 0.4, cy - r * 0.35, r * 0.3, r * 0.1);
+    gfx.fillEllipse(cx - r * 0.3, cy - r * 0.38, r * 0.2, r * 0.08);
+    gfx.fillStyle(0xffffff, 0.18);
+    gfx.fillEllipse(cx + r * 0.05, cy - r * 0.25, r * 0.25, r * 0.08);
+
+    // Ground — rolling hills fill the bottom half
+    gfx.fillStyle(p.ground, 1);
+    gfx.beginPath();
+    gfx.arc(cx, cy, r, 0.15 * Math.PI, 0.85 * Math.PI, false);
+    gfx.lineTo(cx, cy + r);
+    gfx.closePath();
+    gfx.fillPath();
+
+    // Background hills — behind the main terrain
+    for (let i = 0; i < 4; i++) {
+      const dx = (i - 1.5) * r * 0.4;
+      const baseY = cy + r * 0.1;
+      const peakH = r * (0.30 + (i % 2) * 0.18);
+      gfx.fillStyle(p.detail, 0.7);
+      gfx.fillTriangle(cx + dx - r * 0.28, baseY, cx + dx, baseY - peakH, cx + dx + r * 0.28, baseY);
+    }
+
+    // Trees — small triangular evergreens
+    const treePositions = [
+      { dx: -r * 0.45, dy: r * 0.15, h: r * 0.28 },
+      { dx: -r * 0.2,  dy: r * 0.22, h: r * 0.22 },
+      { dx: r * 0.15,  dy: r * 0.18, h: r * 0.25 },
+      { dx: r * 0.40,  dy: r * 0.24, h: r * 0.20 },
+    ];
+    for (const tree of treePositions) {
+      const tx = cx + tree.dx;
+      const ty = cy + tree.dy;
+      // Trunk
+      gfx.fillStyle(p.detail, 0.6);
+      gfx.fillRect(tx - 1.5, ty - tree.h * 0.2, 3, tree.h * 0.3);
+      // Canopy — layered triangles
+      gfx.fillStyle(p.detail, 0.9);
+      const cw = tree.h * 0.5;
+      gfx.fillTriangle(tx - cw, ty - tree.h * 0.15, tx, ty - tree.h, tx + cw, ty - tree.h * 0.15);
+      gfx.fillTriangle(tx - cw * 0.8, ty - tree.h * 0.4, tx, ty - tree.h * 0.85, tx + cw * 0.8, ty - tree.h * 0.4);
+    }
+
+    // Accent dots — flowers, sparkles, creatures
+    for (let i = 0; i < 7; i++) {
+      const angle = -0.7 + i * 0.35;
+      const dist = r * (0.35 + (i % 3) * 0.12);
       const ax = cx + Math.cos(angle) * dist;
-      const ay = cy + Math.sin(angle) * dist - r * 0.2;
-      gfx.fillStyle(p.accent, 0.8);
-      gfx.fillCircle(ax, ay, r * 0.06 + i * 0.8);
+      const ay = cy + Math.sin(angle) * dist - r * 0.1;
+      gfx.fillStyle(p.accent, 0.85);
+      gfx.fillCircle(ax, ay, r * 0.04 + i * 0.6);
     }
 
-    gfx.lineStyle(2, p.detail, 0.5);
+    // Path/road winding through the scene
+    gfx.lineStyle(r * 0.04, p.accent, 0.35);
+    gfx.beginPath();
+    gfx.moveTo(cx - r * 0.5, cy + r * 0.45);
+    gfx.lineTo(cx - r * 0.15, cy + r * 0.2);
+    gfx.lineTo(cx + r * 0.2, cy + r * 0.3);
+    gfx.lineTo(cx + r * 0.4, cy + r * 0.15);
+    gfx.strokePath();
+
+    // Border ring
+    gfx.lineStyle(2.5, p.detail, 0.6);
     gfx.strokeCircle(cx, cy, r);
   }
 
@@ -281,7 +429,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   buildPaths() {
-    const pathGfx = this.add.graphics();
+    const pathGfx = this.add.graphics().setDepth(5);
     for (let i = 0; i < this.nodePositions.length - 1; i++) {
       const from = this.nodePositions[i];
       const to = this.nodePositions[i + 1];
@@ -322,13 +470,163 @@ export class WorldMapScene extends Phaser.Scene {
     gfx.strokePath();
   }
 
+  /**
+   * Place a small hero sprite on the world map at the last completed
+   * floor node (or floor 1 if no progress). The sprite is stored as
+   * this.mapHero so it can be animated when the player taps a node.
+   */
+  buildMapHero() {
+    // Determine starting node: last completed floor, or 0 (floor 1) if none
+    this.mapHeroNodeIndex = 0;
+    for (let i = 8; i >= 0; i--) {
+      if (this.save.floors[i]?.complete) {
+        this.mapHeroNodeIndex = i;
+        break;
+      }
+    }
+
+    const pos = this.nodePositions[this.mapHeroNodeIndex];
+    if (!pos) return;
+
+    // Position hero slightly below and to the left of the node, as if approaching it
+    const heroOffX = -20;
+    const heroOffY = 100 + 20;  // radius + offset below the orb
+    const heroX = pos.x + heroOffX;
+    const heroY = pos.y + heroOffY;
+
+    // Use the lead hero from the party if available
+    const leadHero = this.save.party && this.save.party[0]
+      ? getHeroById(this.save.party[0].id)
+      : null;
+
+    if (leadHero) {
+      this.mapHero = drawHeroSprite(this, heroX, heroY, leadHero, { scale: 0.4 });
+    } else {
+      // Fallback: small colored circle
+      this.mapHero = this.add.circle(heroX, heroY, 12, 0xf0c040);
+    }
+    this.mapHero.setDepth(15);
+
+    // Idle bob tween
+    this._mapHeroBob = this.tweens.add({
+      targets: this.mapHero,
+      y: this.mapHero.y - 3,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
+
+    this._mapHeroWalking = false;
+  }
+
+  /**
+   * Animate the map hero along the path between nodes, then invoke
+   * the callback when arrival is complete.
+   */
+  walkHeroToNode(targetNodeIndex, onComplete) {
+    if (!this.mapHero) {
+      onComplete();
+      return;
+    }
+
+    const fromIndex = this.mapHeroNodeIndex;
+    if (fromIndex === targetNodeIndex) {
+      onComplete();
+      return;
+    }
+
+    this._mapHeroWalking = true;
+
+    // Stop idle bob during walk
+    if (this._mapHeroBob) {
+      this._mapHeroBob.stop();
+    }
+
+    // Build the full path of points from current node to target node
+    const step = fromIndex < targetNodeIndex ? 1 : -1;
+    let allPoints = [];
+    let idx = fromIndex;
+    while (idx !== targetNodeIndex) {
+      const nextIdx = idx + step;
+      const from = this.nodePositions[idx];
+      const to = this.nodePositions[nextIdx];
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2 - 40;
+      // step>0 => forward along path, step<0 => backward
+      const pts = step > 0
+        ? this.sampleBezier(from.x, from.y, midX, midY, to.x, to.y, 16)
+        : this.sampleBezier(to.x, to.y, midX, midY, from.x, from.y, 16).reverse();
+      // Skip the first point of subsequent segments to avoid duplicates
+      if (allPoints.length > 0) pts.shift();
+      allPoints = allPoints.concat(pts);
+      idx = nextIdx;
+    }
+
+    if (allPoints.length < 2) {
+      this._mapHeroWalking = false;
+      onComplete();
+      return;
+    }
+
+    // Offset hero position: slightly left and below the node orb
+    const heroOffX = -20;
+    const heroOffY = 100 + 20;  // radius + below offset
+    const totalDuration = 1000; // ~1 second for the full walk
+    const segDuration = totalDuration / (allPoints.length - 1);
+
+    // Flip sprite based on direction
+    const targetX = this.nodePositions[targetNodeIndex].x;
+    const startX = this.nodePositions[fromIndex].x;
+    if (this.mapHero.setFlipX) {
+      this.mapHero.setFlipX(targetX < startX);
+    }
+
+    // Create a chain of tweens using timeline-like approach
+    let pointIndex = 0;
+    const walkStep = () => {
+      pointIndex++;
+      if (pointIndex >= allPoints.length) {
+        // Arrived at destination — snap to offset position beside the node
+        const destPos = this.nodePositions[targetNodeIndex];
+        this.mapHero.setPosition(destPos.x + heroOffX, destPos.y + heroOffY);
+        this.mapHeroNodeIndex = targetNodeIndex;
+        this._mapHeroWalking = false;
+        // Restart idle bob
+        this._mapHeroBob = this.tweens.add({
+          targets: this.mapHero,
+          y: this.mapHero.y - 3,
+          duration: 600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+        onComplete();
+        return;
+      }
+
+      const pt = allPoints[pointIndex];
+      // Bobbing: oscillate 3px using sine of progress
+      const bobPhase = (pointIndex / allPoints.length) * Math.PI * 6;
+      const bob = Math.sin(bobPhase) * 3;
+
+      this.tweens.add({
+        targets: this.mapHero,
+        x: pt.x + heroOffX,
+        y: pt.y + heroOffY + bob,
+        duration: segDuration,
+        ease: 'Linear',
+        onComplete: walkStep,
+      });
+    };
+
+    // Position at first point and start walking
+    this.mapHero.setPosition(allPoints[0].x + heroOffX, allPoints[0].y + heroOffY);
+    walkStep();
+  }
+
   buildHUD() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiCam = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    uiCam.setScroll(0, 0);
-    this.uiCam = uiCam;
-
-    const hudContainer = this.add.container(0, 0);
 
     const title = this.add.text(GAME_WIDTH / 2, 80, 'WORLD MAP', {
       ...TEXT.title(),
@@ -342,7 +640,6 @@ export class WorldMapScene extends Phaser.Scene {
       w: 180, h: 64, color: 0xffffff, fontSize: 22,
       textColor: '#b83820',
       onClick: () => {
-        if (this._scrolling) return;
         audio.play('ui/back');
         transitionTo(this, SCENES.TITLE);
       },
@@ -373,85 +670,100 @@ export class WorldMapScene extends Phaser.Scene {
       const partyLabel = this.add.text(stripCx - stripW / 2 + 12, stripY - 24, 'PARTY', {
         ...TEXT.stat(), fontSize: '11px', color: '#6a4c28',
       }).setScrollFactor(0);
+      const editHint = this.add.text(stripCx + stripW / 2 - 12, stripY - 24, 'TAP TO EDIT', {
+        ...TEXT.stat(), fontSize: '9px', color: '#8a7a60',
+      }).setOrigin(1, 0).setScrollFactor(0);
       for (let i = 0; i < 3; i++) {
         const hx = stripCx - stripW / 2 + 50 + i * 65;
         const slot = this.save.party[i];
         if (slot) {
-          const def = getHeroById(slot.id);
-          if (def) {
-            const img = drawHeroSprite(this, hx, stripY - 4, def, { scale: 0.35 });
+          const heroDef = getHeroById(slot.id);
+          if (heroDef) {
+            const wmEvoStage = getEvolutionStage(this.save, heroDef.id);
+            const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35, evolutionStage: wmEvoStage });
             img.setScrollFactor(0);
           }
         }
       }
+      const partyZone = this.add.rectangle(stripCx, stripY, stripW, 70, 0x000000, 0)
+        .setScrollFactor(0).setInteractive({ useHandCursor: true });
+      partyZone.on('pointerup', () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.PARTY_SELECT, {
+          grade: this.save.grade,
+          returnScene: SCENES.WORLD_MAP,
+        }, 200);
+      });
     }
 
-    const skillsBtn = PaperButton(this, area.cx - 100, area.bottom - 36, 'SKILLS', {
-      w: 150, h: 56, color: 0x4080c0, fontSize: 18,
-      textColor: '#fff8e0',
-      onClick: () => {
-        if (this._scrolling) return;
-        audio.play('ui/click');
-        transitionTo(this, SCENES.MASTERY, undefined, 200);
-      },
-    });
-    this.setScrollFactorDeep(skillsBtn, 0);
-
-    const shopBtn = PaperButton(this, area.cx + 100, area.bottom - 36, 'SHOP', {
-      w: 160, h: 56, color: 0xd07818, fontSize: 20,
-      textColor: '#fff8e0',
-      onClick: () => {
-        if (this._scrolling) return;
-        audio.play('ui/click');
-        transitionTo(this, SCENES.SHOP, undefined, 200);
-      },
-    });
-    this.setScrollFactorDeep(shopBtn, 0);
-
-    const settingsBtn = PaperButton(this, area.right - 60, area.bottom - 36, '⚙', {
-      w: 100, h: 50, color: 0x4a6ca8, fontSize: 24,
-      onClick: () => {
-        if (this._scrolling) return;
-        audio.play('ui/click');
-        transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
-      },
-    });
-    this.setScrollFactorDeep(settingsBtn, 0);
+    // Bottom toolbar: 5 buttons evenly distributed across safe area width
+    const bottomY = area.bottom - 36;
+    const bBtnW = 130;
+    const bBtnH = 50;
+    const bBtnGap = 16;
+    const bTotalW = 5 * bBtnW + 4 * bBtnGap;
+    const bStartX = area.cx - bTotalW / 2 + bBtnW / 2;
 
     const dailyCompleted = isDailyChallengeCompleted(this.save);
-    const dailyBtn = PaperButton(this, area.left + 130, area.bottom - 36, 'DAILY', {
-      w: 180, h: 50, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 18,
+    const dailyBtn = PaperButton(this, bStartX, bottomY, 'DAILY', {
+      w: bBtnW, h: bBtnH, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 16,
       textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
       onClick: () => {
-        if (this._scrolling) return;
         audio.play('ui/click');
         this.onDailyChallenge();
       },
     });
     this.setScrollFactorDeep(dailyBtn, 0);
 
-    const arrowStyle = { w: 70, h: 70, color: 0xf0e4cc, fontSize: 28, textColor: '#3a2410' };
-    this.leftArrow = PaperButton(this, area.left + 50, area.cy, '◀', {
-      ...arrowStyle,
+    const skillsBtn = PaperButton(this, bStartX + (bBtnW + bBtnGap), bottomY, 'SKILLS', {
+      w: bBtnW, h: bBtnH, color: 0x4080c0, fontSize: 16,
+      textColor: '#fff8e0',
       onClick: () => {
-        if (this.currentScreen > 0) {
-          this.snapToScreen(this.currentScreen - 1);
-          this._scrolling = true;
-          this.time.delayedCall(350, () => { this._scrolling = false; });
-        }
+        audio.play('ui/click');
+        transitionTo(this, SCENES.MASTERY, undefined, 200);
       },
+    });
+    this.setScrollFactorDeep(skillsBtn, 0);
+
+    const shopBtn = PaperButton(this, bStartX + 2 * (bBtnW + bBtnGap), bottomY, 'SHOP', {
+      w: bBtnW, h: bBtnH, color: 0xd07818, fontSize: 16,
+      textColor: '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.SHOP, undefined, 200);
+      },
+    });
+    this.setScrollFactorDeep(shopBtn, 0);
+
+    const galleryBtn = PaperButton(this, bStartX + 3 * (bBtnW + bBtnGap), bottomY, 'GALLERY', {
+      w: bBtnW, h: bBtnH, color: 0x9050c8, fontSize: 15,
+      textColor: '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.GALLERY, undefined, 200);
+      },
+    });
+    this.setScrollFactorDeep(galleryBtn, 0);
+
+    const settingsBtn = PaperButton(this, bStartX + 4 * (bBtnW + bBtnGap), bottomY, '⚙', {
+      w: bBtnW, h: bBtnH, color: 0x4a6ca8, fontSize: 20,
+      onClick: () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
+      },
+    });
+    this.setScrollFactorDeep(settingsBtn, 0);
+
+    const arrowStyle = { w: 110, h: 60, color: 0xd0a040, fontSize: 20, textColor: '#fff8e0' };
+    this.leftArrow = PaperButton(this, area.left + 65, area.cy, 'PREV', {
+      ...arrowStyle,
+      onClick: () => this.goScreen(this.currentScreen - 1),
     });
     this.setScrollFactorDeep(this.leftArrow, 0);
 
-    this.rightArrow = PaperButton(this, area.right - 50, area.cy, '▶', {
+    this.rightArrow = PaperButton(this, area.right - 65, area.cy, 'NEXT', {
       ...arrowStyle,
-      onClick: () => {
-        if (this.currentScreen < this.maxScreen) {
-          this.snapToScreen(this.currentScreen + 1);
-          this._scrolling = true;
-          this.time.delayedCall(350, () => { this._scrolling = false; });
-        }
-      },
+      onClick: () => this.goScreen(this.currentScreen + 1),
     });
     this.setScrollFactorDeep(this.rightArrow, 0);
   }
@@ -593,58 +905,55 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   setupScroll() {
-    let dragging = false;
+    this._navLocked = false;
     let startX = 0;
-    let startScrollX = 0;
-    this._scrolling = false;
-
-    const maxScreen = this.getMaxScreen();
+    let didDrag = false;
 
     this.input.on('pointerdown', (pointer) => {
-      dragging = true;
-      this._scrolling = false;
       startX = pointer.x;
-      startScrollX = this.cameras.main.scrollX;
+      didDrag = false;
     });
 
     this.input.on('pointermove', (pointer) => {
-      if (!dragging || !pointer.isDown) return;
-      const dx = startX - pointer.x;
-      if (Math.abs(dx) > 3) this._scrolling = true;
-      const newScroll = Phaser.Math.Clamp(startScrollX + dx, 0, maxScreen * SCREEN_W);
-      this.cameras.main.setScroll(newScroll, 0);
+      if (!pointer.isDown || this._navLocked) return;
+      if (Math.abs(pointer.x - startX) > 30) didDrag = true;
     });
 
     this.input.on('pointerup', (pointer) => {
-      if (!dragging) return;
-      dragging = false;
-      if (!this._scrolling) {
-        this.snapToScreen(Math.round(this.cameras.main.scrollX / SCREEN_W));
-        return;
-      }
+      if (this._navLocked || !didDrag) return;
       const dx = startX - pointer.x;
-      const baseScreen = Math.round(startScrollX / SCREEN_W);
-      let target = baseScreen;
-      if (Math.abs(dx) > 50) {
-        target += dx > 0 ? 1 : -1;
-      } else {
-        target = Math.round(this.cameras.main.scrollX / SCREEN_W);
+      if (dx > 60) {
+        this.goScreen(this.currentScreen + 1);
+      } else if (dx < -60) {
+        this.goScreen(this.currentScreen - 1);
       }
-      target = Phaser.Math.Clamp(target, 0, maxScreen);
-      this.snapToScreen(target);
-      this.time.delayedCall(350, () => { this._scrolling = false; });
     });
   }
 
-  snapToScreen(screen) {
+  goScreen(screen) {
+    if (this._navLocked) return;
+    screen = Phaser.Math.Clamp(screen, 0, this.maxScreen);
+    if (screen === this.currentScreen) return;
+    this._navLocked = true;
     this.currentScreen = screen;
     this.tweens.add({
       targets: this.cameras.main,
       scrollX: screen * SCREEN_W,
       duration: 300,
       ease: 'Cubic.out',
+      onComplete: () => { this._navLocked = false; },
     });
     this.updatePageDots();
+    this.updateArrows();
+  }
+
+  updateArrows() {
+    const showLeft = this.currentScreen > 0;
+    const showRight = this.currentScreen < this.maxScreen;
+    ['bg', 'shadow', 'label', 'zone'].forEach(k => {
+      if (this.leftArrow[k]) this.leftArrow[k].setVisible(showLeft);
+      if (this.rightArrow[k]) this.rightArrow[k].setVisible(showRight);
+    });
   }
 
   onDailyChallenge() {
@@ -696,17 +1005,142 @@ export class WorldMapScene extends Phaser.Scene {
       return;
     }
 
+    // Skip cutscene if player has saved maze state (they've already seen it)
+    let hasSavedState = !!this.registry.get(mazeStateKey(floorId));
+    if (!hasSavedState) {
+      try { hasSavedState = !!localStorage.getItem(`mw_maze_${floorId}`); } catch (e) { /* ignore */ }
+    }
+
     const entryKey = `floor${floorId}_entry`;
     const lines = DIALOGUE[entryKey];
-    if (lines && lines.length > 0) {
+    if (lines && lines.length > 0 && !hasSavedState) {
       transitionTo(this, SCENES.CUTSCENE, {
         lines,
         floorId,
         nextScene: SCENES.MAZE,
         nextData: { floor: floorId },
-      }, 300);
+      }, 300, 'circle');
     } else {
-      transitionTo(this, SCENES.MAZE, { floor: floorId }, 300);
+      transitionTo(this, SCENES.MAZE, { floor: floorId }, 300, 'circle');
     }
+  }
+
+  showHeroDetail(heroId) {
+    if (this._detailOpen) return;
+    this._detailOpen = true;
+    const hero = getHeroById(heroId);
+    if (!hero) return;
+    const elements = [];
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const cx = area.cx, cy = area.cy;
+    const pw = 520, ph = 620;
+
+    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+      .setScrollFactor(0).setDepth(950).setInteractive();
+    elements.push(dim);
+
+    const panel = this.add.graphics().setScrollFactor(0).setDepth(951);
+    panel.fillStyle(0xf5ead0, 0.97);
+    panel.fillRoundedRect(cx - pw / 2, cy - ph / 2, pw, ph, 22);
+    panel.lineStyle(3, 0xd4a840, 0.8);
+    panel.strokeRoundedRect(cx - pw / 2, cy - ph / 2, pw, ph, 22);
+    elements.push(panel);
+
+    const wmDetailEvoStage = getEvolutionStage(this.save, hero.id);
+    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1, evolutionStage: wmDetailEvoStage });
+    portrait.setScrollFactor(0).setDepth(952);
+    elements.push(portrait);
+
+    const nameT = this.add.text(cx, cy - 90, hero.name.toUpperCase(), {
+      ...TEXT.title(), fontSize: '30px', color: '#d07818',
+      stroke: '#fff8e0', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(nameT);
+
+    const classLabel = hero.class.charAt(0).toUpperCase() + hero.class.slice(1);
+    const rarCol = getRarityColor(hero.rarity);
+    const classT = this.add.text(cx, cy - 58, `${classLabel} — ${getRarityLabel(hero.rarity)}`, {
+      ...TEXT.body(), fontSize: '16px', color: rarCol.main || '#5a3820',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(classT);
+
+    const partyEntry = (this.save.party || []).find(p => p.id === heroId);
+    const level = partyEntry?.level || 1;
+    const xp = partyEntry?.xp || 0;
+    const bonus = levelBonuses(level);
+    const hp = hero.maxHp + bonus.maxHp;
+    const atk = hero.atk + bonus.atk;
+    const def = hero.def + bonus.def;
+
+    const levelT = this.add.text(cx, cy - 8, `LEVEL ${level}`, {
+      ...TEXT.heading(), fontSize: '26px', color: '#3a2410',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(levelT);
+
+    const nextXp = level < LEVEL_THRESHOLDS.length - 1 ? LEVEL_THRESHOLDS[level + 1] : LEVEL_THRESHOLDS[level];
+    const currXp = level < LEVEL_THRESHOLDS.length - 1 ? LEVEL_THRESHOLDS[level] : nextXp;
+    const frac = nextXp > currXp ? (xp - currXp) / (nextXp - currXp) : 1;
+
+    const barW = 260, barH = 18, barX = cx - barW / 2, barY = cy + 18;
+    const barBg = this.add.graphics().setScrollFactor(0).setDepth(952);
+    barBg.fillStyle(0x3a2410, 0.3);
+    barBg.fillRoundedRect(barX, barY, barW, barH, 8);
+    barBg.fillStyle(0x40a848, 0.9);
+    barBg.fillRoundedRect(barX, barY, Math.max(barW * frac, 8), barH, 8);
+    elements.push(barBg);
+
+    const xpT = this.add.text(cx, barY + barH / 2, `${xp} / ${nextXp} XP`, {
+      ...TEXT.stat(), fontSize: '11px', color: '#ffffff',
+    }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(953);
+    elements.push(xpT);
+
+    const statsT = this.add.text(cx, cy + 58, `HP ${hp}    ATK ${atk}    DEF ${def}`, {
+      ...TEXT.heading(), fontSize: '20px', color: '#3a2410',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(statsT);
+
+    if (level > 1) {
+      const bonusT = this.add.text(cx, cy + 82, `(+${bonus.maxHp} HP  +${bonus.atk} ATK  +${bonus.def} DEF from level)`, {
+        ...TEXT.stat(), fontSize: '11px', color: '#6a8a40',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+      elements.push(bonusT);
+    }
+
+    const supersY = cy + 112;
+    const supersTitle = this.add.text(cx, supersY, 'SUPER MOVES', {
+      ...TEXT.heading(), fontSize: '16px', color: '#c06a10',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
+    elements.push(supersTitle);
+
+    const allSupers = hero.superMoves || [];
+    allSupers.forEach((s, i) => {
+      const sy = supersY + 28 + i * 30;
+      const unlocked = level >= (s.unlockLevel || 1);
+      const icon = unlocked ? '⚔' : '🔒';
+      const txt = this.add.text(cx - 100, sy, `${icon}  ${s.name}`, {
+        ...TEXT.body(), fontSize: '15px',
+        color: unlocked ? '#3a2410' : '#8a7a60',
+      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(952);
+      elements.push(txt);
+      const mult = this.add.text(cx + 100, sy, unlocked ? `${s.multiplier}x` : `Lv ${s.unlockLevel}`, {
+        ...TEXT.stat(), fontSize: '13px',
+        color: unlocked ? '#d07818' : '#8a7a60',
+      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(952);
+      elements.push(mult);
+    });
+
+    const closeBtn = PaperButton(this, cx, cy + ph / 2 - 40, 'CLOSE', {
+      w: 180, h: 50, color: 0xd07818, fontSize: 20, textColor: '#fff8e0',
+      onClick: () => {
+        elements.forEach(e => { if (e && e.destroy) e.destroy(); });
+        closeBtn.bg.destroy(); closeBtn.shadow.destroy();
+        closeBtn.label.destroy(); if (closeBtn.zone) closeBtn.zone.destroy();
+        this._detailOpen = false;
+      },
+    });
+    closeBtn.bg.setScrollFactor(0).setDepth(953);
+    closeBtn.shadow.setScrollFactor(0).setDepth(953);
+    closeBtn.label.setScrollFactor(0).setDepth(953);
+    if (closeBtn.zone) closeBtn.zone.setScrollFactor(0).setDepth(953);
   }
 }

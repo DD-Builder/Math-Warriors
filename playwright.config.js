@@ -8,6 +8,9 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // Software-rendered headless Chromium (sandbox/CI) is slow; the
+  // multi-scene tests legitimately need more than the 30s default.
+  timeout: 120_000,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,

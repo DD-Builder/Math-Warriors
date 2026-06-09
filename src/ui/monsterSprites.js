@@ -9,6 +9,20 @@
 import { createMonsterCanvas } from './legacyRenderer.js';
 import { FLOOR1_MONSTERS, FLOOR2_MONSTERS, FLOOR3_MONSTERS, FLOOR4_MONSTERS, FLOOR5_MONSTERS, BOSSES } from '../data/monsterArt.js';
 import { makeRng } from '../systems/rng.js';
+import { applySpriteFilter } from '../systems/renderingFilters.js';
+
+// Floor-themed base colors for enemy sprites (used when no art is available)
+const FLOOR_ENEMY_COLORS = {
+  1: 0x48a040,  // green
+  2: 0x2878c0,  // blue
+  3: 0x88c8f0,  // light blue
+  4: 0xc04020,  // red
+  5: 0x60b8e0,  // ice
+  6: 0x8050c0,  // purple
+  7: 0xc0a040,  // gold
+  8: 0x806040,  // brown
+  9: 0x9040b0,  // violet
+};
 
 const ART_LOOKUP = {};
 [FLOOR1_MONSTERS, FLOOR2_MONSTERS, FLOOR3_MONSTERS, FLOOR4_MONSTERS, FLOOR5_MONSTERS, BOSSES].forEach(group => {
@@ -29,13 +43,15 @@ function getMonsterCanvas(id) {
 
 export function drawMonsterSprite(scene, x, y, enemy, opts = {}) {
   const scale = opts.scale ?? 1;
+  const floorId = opts.floorId || 1;
   const id = enemy.id;
-  const textureKey = 'monster-' + id;
+  const textureKey = `monster-${id}-f${floorId}`;
 
   // Try reference art first
   if (!scene.textures.exists(textureKey)) {
     const cv = getMonsterCanvas(id);
     if (cv) {
+      applySpriteFilter(cv, floorId);
       scene.textures.addCanvas(textureKey, cv);
     } else {
       // Fallback to old Phaser Graphics draw
@@ -62,7 +78,7 @@ function drawFallback(scene, x, y, enemy, sc) {
   const gfx = scene.add.graphics();
   const fn = FALLBACK_DRAW[enemy.id];
   if (fn) fn(gfx, x, y, sc, seed);
-  else drawGeneric(gfx, x, y, sc, seed, enemy.displayColor);
+  else drawGeneric(gfx, x, y, sc, seed, enemy.displayColor || FLOOR_ENEMY_COLORS[enemy.floor] || 0x808080);
   return gfx;
 }
 

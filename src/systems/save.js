@@ -10,7 +10,7 @@ import { ALL_HEROES } from '../data/heroes.js';
 const LEGACY_KEY = 'mathwarriors.save';
 const SLOT_PREFIX = 'mathwarriors.save.';
 const META_KEY = 'mathwarriors.slots';
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 4;
 const MAX_SLOTS = 3;
 
 const STARTER_HEROES = ['knight-shadow', 'wizard-stargazer', 'bunny-pepper'];
@@ -45,16 +45,20 @@ export function makeDefaultSave() {
       hero2: { weapon: null, armor: null, accessory: null },
     },
     floors: [
-      { id: 1, unlocked: true,  complete: false, bestStreak: 0 },
-      { id: 2, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 3, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 4, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 5, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 6, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 7, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 8, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 9, unlocked: false, complete: false, bestStreak: 0 },
+      { id: 1, unlocked: true,  complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 2, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 3, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 4, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 5, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 6, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 7, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 8, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 9, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
     ],
+    heroEvolution: {},
+    heroBonds: {},
+    viewedHeroes: [],
+    pendingRescueDialogue: [],
     settings: {
       musicVolume: 0.8,
       sfxVolume: 1.0,
@@ -121,6 +125,16 @@ const MIGRATIONS = [
       return { ...save, unlockedHeroes: unlocked };
     },
   },
+  {
+    from: 3, to: 4,
+    migrate: (save) => {
+      return {
+        ...save,
+        heroEvolution: save.heroEvolution || {},
+        heroBonds: save.heroBonds || {},
+      };
+    },
+  },
 ];
 
 /**
@@ -149,9 +163,41 @@ function migrate(save) {
 // someone hand-edits their save or we ship a bad write, this prevents
 // undefined crashes downstream.
 
+/** Coerce a value to a finite number, falling back to a default.
+ *  Only accepts actual numbers and numeric strings (null/booleans/etc
+ *  fall back, since Number(null) === 0 would silently zero fields). */
+function toNumber(value, fallback) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return fallback;
+}
+
 function normalize(save) {
   const def = makeDefaultSave();
   const out = { ...def, ...save };
+
+  // Party: keep only entries that are objects with a string id resolvable
+  // via the hero roster; coerce numeric fields to sane values.
+  const rawParty = Array.isArray(save.party) ? save.party : [];
+  out.party = rawParty
+    .filter((p) =>
+      p && typeof p === 'object' && typeof p.id === 'string' &&
+      ALL_HEROES.some((h) => h.id === p.id))
+    .map((p) => {
+      const heroDef = ALL_HEROES.find((h) => h.id === p.id);
+      const maxHp = toNumber(p.maxHp, heroDef.maxHp);
+      return {
+        ...p,
+        name: typeof p.name === 'string' ? p.name : heroDef.name,
+        maxHp,
+        hp: Math.min(toNumber(p.hp, maxHp), maxHp),
+        xp: toNumber(p.xp, 0),
+        level: toNumber(p.level, 1),
+      };
+    });
 
   // Deep-normalize nested objects
   out.settings = { ...def.settings, ...(save.settings || {}) };
@@ -186,6 +232,34 @@ function normalize(save) {
   // Ensure unlockedHeroes is present
   if (!Array.isArray(out.unlockedHeroes)) {
     out.unlockedHeroes = [...STARTER_HEROES];
+  }
+
+  // heroEvolution: values must be objects shaped { stage: number, path: string|null }
+  const rawEvolution = (out.heroEvolution && typeof out.heroEvolution === 'object' && !Array.isArray(out.heroEvolution))
+    ? out.heroEvolution : {};
+  out.heroEvolution = {};
+  for (const [heroId, evo] of Object.entries(rawEvolution)) {
+    if (!evo || typeof evo !== 'object' || Array.isArray(evo)) continue;
+    if (typeof evo.stage !== 'number' || !Number.isFinite(evo.stage)) continue;
+    if (evo.path != null && typeof evo.path !== 'string') continue;
+    out.heroEvolution[heroId] = { stage: evo.stage, path: typeof evo.path === 'string' ? evo.path : null };
+  }
+
+  // heroBonds: values must be objects shaped { battles: number, rank: string|null }
+  const rawBonds = (out.heroBonds && typeof out.heroBonds === 'object' && !Array.isArray(out.heroBonds))
+    ? out.heroBonds : {};
+  out.heroBonds = {};
+  for (const [pairKey, bond] of Object.entries(rawBonds)) {
+    if (!bond || typeof bond !== 'object' || Array.isArray(bond)) continue;
+    if (typeof bond.battles !== 'number' || !Number.isFinite(bond.battles)) continue;
+    if (bond.rank != null && typeof bond.rank !== 'string') continue;
+    out.heroBonds[pairKey] = { battles: bond.battles, rank: typeof bond.rank === 'string' ? bond.rank : null };
+  }
+  if (!Array.isArray(out.viewedHeroes)) {
+    out.viewedHeroes = [];
+  }
+  if (!Array.isArray(out.pendingRescueDialogue)) {
+    out.pendingRescueDialogue = [];
   }
 
   out.version = CURRENT_VERSION;
@@ -307,11 +381,15 @@ export function updateSave(mutator, slot = 1) {
   return writeSave(save, slot);
 }
 
-/** Mark a floor complete and unlock the next one. */
-export function markFloorComplete(save, floorId) {
+/** Mark a floor complete and unlock the next one.
+ *  Optionally store best accuracy for star rating. */
+export function markFloorComplete(save, floorId, accuracy) {
   const floor = save.floors.find((f) => f.id === floorId);
   if (!floor) return save;
   floor.complete = true;
+  if (typeof accuracy === 'number' && accuracy > (floor.bestAccuracy || 0)) {
+    floor.bestAccuracy = accuracy;
+  }
   const next = save.floors.find((f) => f.id === floorId + 1);
   if (next) next.unlocked = true;
   return save;
@@ -330,7 +408,26 @@ export function unlockHeroesForFloor(save, floorId) {
       newlyUnlocked.push(h);
     }
   }
+  // Track rescued hero IDs so the UI can display rescue dialogue
+  if (newlyUnlocked.length > 0) {
+    if (!Array.isArray(save.pendingRescueDialogue)) {
+      save.pendingRescueDialogue = [];
+    }
+    save.pendingRescueDialogue.push(...newlyUnlocked.map(h => h.id));
+  }
   return newlyUnlocked;
+}
+
+/**
+ * Consume and return the pending rescue hero IDs, clearing them from save.
+ * Returns an array of hero ID strings, or empty array if none pending.
+ */
+export function consumePendingRescues(save) {
+  const pending = Array.isArray(save.pendingRescueDialogue)
+    ? [...save.pendingRescueDialogue]
+    : [];
+  save.pendingRescueDialogue = [];
+  return pending;
 }
 
 export function isHeroUnlocked(save, heroId) {

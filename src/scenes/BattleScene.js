@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
-import { generateQuestion, recordAnswer } from '../systems/math.js';
+import { generateQuestion, generateRatedQuestion, recordAnswer } from '../systems/math.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { recordSkillAnswer } from '../systems/mastery.js';
@@ -8,31 +8,57 @@ import {
   getZone,
   advanceMomentum,
   computeEnemyDamage,
+  computeCommandDamage,
+  applyGuardReduction,
   applyDamageResult,
   buildTurnSequence,
   advanceTurn,
   isPartyDefeated,
   pickRandomLivingHero,
 } from '../systems/combat.js';
+import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
+import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
-import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor, getActiveSlot } from '../systems/save.js';
+import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor, consumePendingRescues, getActiveSlot } from '../systems/save.js';
+import { getRescueDialogue } from '../data/dialogue.js';
 import { markDailyChallengeComplete, getDailyChallenge } from '../systems/dailyChallenge.js';
 import { invokeAbility } from '../systems/abilities.js';
 import { getAbilitiesForClass } from '../systems/heroAbilities.js';
 import { getEquipmentById } from '../systems/equipment.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
+import { createParallaxBackground, shiftParallaxLayers, startAtmosphericParticles, destroyParallaxBackground } from '../systems/parallaxBg.js';
+import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } from '../systems/envResponsive.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
+import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
+import { playFightAnimation, playMagicAnimation, playFizzleAnimation } from '../systems/attackAnimations.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
+import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { makeRng } from '../systems/rng.js';
-import { computeLevel, levelBonuses } from '../data/heroes.js';
+import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { getHint } from '../systems/hints.js';
+import { recordBattle, getBondStatBonuses, getAvailableCombos } from '../systems/bonds.js';
+import { getEvolutionStatBoosts } from '../systems/evolution.js';
+import {
+  createSignatureState,
+  onHeroDamageDealt,
+  onHeroDamageReceived,
+  onTurnStart,
+  onEnemyTurnStart,
+  checkLastStand,
+  applyBurnOnAttack,
+  getSplashDamage,
+  getEffectiveAtk,
+  getEffectiveDef,
+  checkPaladinGuard,
+  consumePaladinGuard,
+} from '../systems/signatureEffects.js';
 
 /**
  * BattleScene — the turn-based math combat stage.
@@ -56,6 +82,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   init(data) {
+    this._answerProcessing = false;
+
     // Party: use provided or default to one of each class
     if (data?.party && data.party.length === 3) {
       this.party = data.party.map((h) => ({ ...h }));
@@ -68,7 +96,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.floor = data?.floor ?? 1;
-    this.grade = data?.grade ?? 3;
+    this.grade = data?.grade ?? this.registry.get('grade') ?? 3;
     this.operator = FLOOR_OPERATORS[this.floor] ?? '+';
     this.isBoss = !!data?.isBoss;
 
@@ -122,6 +150,8 @@ export class BattleScene extends Phaser.Scene {
     this.heroStreaks = new Array(this.party.length).fill(0);
     this.superReady = new Array(this.party.length).fill(false);
     this.potionUsedThisBattle = false;
+    this.comboUsedThisBattle = false;
+    this.comboSkipHeroIndex = -1; // hero index whose turn to skip after combo
     this.turnSeq = buildTurnSequence(this.party.length);
     this.turnIdx = -1;
     this.phase = 'intro';
@@ -133,6 +163,8 @@ export class BattleScene extends Phaser.Scene {
 
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
+    // Accessibility: skip screen flashes/shakes/confetti when enabled
+    this.reducedMotion = !!this.save.settings?.reducedMotion;
 
     // Apply equipment bonuses from save to each hero
     for (let i = 0; i < this.party.length && i < 3; i++) {
@@ -156,6 +188,27 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
+    // --- Apply evolution + bond stat boosts ---
+    const partyHeroIds = this.party.map(h => h.id);
+    for (let i = 0; i < this.party.length; i++) {
+      const hero = this.party[i];
+      // Evolution stat boosts
+      const evoBoosts = getEvolutionStatBoosts(this.save, hero.id);
+      hero.atk += evoBoosts.atk || 0;
+      hero.def += evoBoosts.def || 0;
+      hero.maxHp += evoBoosts.maxHp || 0;
+      hero.hp += evoBoosts.maxHp || 0;
+      // Bond stat bonuses
+      const bondBonus = getBondStatBonuses(this.save, hero.id, partyHeroIds);
+      hero.atk += bondBonus.atk || 0;
+      hero.def += bondBonus.def || 0;
+      hero.maxHp += bondBonus.hp || 0;
+      hero.hp += bondBonus.hp || 0;
+    }
+
+    // --- Signature effects state ---
+    this.signatureState = createSignatureState(this.party);
+
     // Hero ability cooldowns and state (Phase 3.1)
     this.abilityCooldowns = [{ cd: 0 }, { cd: 0 }, { cd: 0 }];
     this.shieldBashActive = false;
@@ -177,18 +230,29 @@ export class BattleScene extends Phaser.Scene {
 
     // Boss Rush mode
     this.bossRush = !!data?.bossRush;
+
+    // Command menu state (Phase 2: Streamlined Commander)
+    this.selectedCommand = null;        // 'fight', 'magic', or 'guard'
+    this.guardActive = new Array(this.party.length).fill(false);
+    this.commandButtons = [];           // Phaser objects for command menu
+    this.availableCommands = getAvailableCommands(this.grade);
   }
 
   create() {
+    this._shuttingDown = false;
     this.events.on('shutdown', () => {
+      this._shuttingDown = true;
       this.tweens.killAll();
       this.time.removeAllEvents();
+      if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
+      if (this.envState) destroyEnvironmentState(this.envState);
     });
 
     this.buildBackground();
     this.buildHeroSprites();
     this.buildEnemySprite();
     this.buildUI();
+    this.buildCommandMenu();
 
     audio.playMusic('music/battle');
 
@@ -215,6 +279,12 @@ export class BattleScene extends Phaser.Scene {
 
     // Fade in
     fadeInScene(this);
+
+    // --- Battle cry: boss encounter ---
+    if (this.isBoss && this.party[0]) {
+      this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
+    }
+
     this.time.delayedCall(400, () => this.nextTurn());
   }
 
@@ -224,431 +294,210 @@ export class BattleScene extends Phaser.Scene {
 
   buildBackground() {
     this.cameras.main.setBackgroundColor(0x000000);
-    const bgHeight = GAME_HEIGHT * 0.72;
-    drawPapercutBackground(this, this.floor, GAME_WIDTH, bgHeight, 42);
+    // Background fills FULL screen height — no black void
+    const bgHeight = GAME_HEIGHT;
 
-    // Floor-specific foreground details to make each level feel unique
+    // Parallax layered diorama background
+    this.parallaxState = createParallaxBackground(
+      this, this.floor, this.battleVariant, GAME_WIDTH, bgHeight,
+    );
+    startAtmosphericParticles(this, this.parallaxState);
+
+    // Per-floor visual overlay (paper texture, vignette, etc.)
+    this.floorOverlay = applyFloorOverlay(this, this.floor, GAME_WIDTH, GAME_HEIGHT);
+
+    // Diorama frame — torn paper edges (battle scene only)
+    // diorama frame removed — was distracting
+
+    // Environmental responsiveness — subtle mood shifts based on performance
+    this.envState = createEnvironmentState(this, this.parallaxState);
+
+    // Hook into update loop for parallax on camera shake
+    this.events.on('update', () => {
+      const cam = this.cameras.main;
+      if (cam._shakeDuration > 0) {
+        shiftParallaxLayers(this.parallaxState, cam._shakeOffsetX || 0, cam._shakeOffsetY || 0);
+      } else {
+        shiftParallaxLayers(this.parallaxState, 0, 0);
+      }
+    });
+
+    // Legacy: still draw themed details on top for extra richness
     this.drawBattleThemeDetails(bgHeight);
 
-    // Ambient floating particles — drift upward slowly for atmosphere
-    this.startAmbientParticles(bgHeight);
-
-    this.add.text(30, 20, `QUEST ${this.floor}`, {
+    const sceneName = this.registry.get('battleSceneName') || '';
+    const questLabel = sceneName ? `QUEST ${this.floor} — ${sceneName}` : `QUEST ${this.floor}`;
+    this.add.text(30, 20, questLabel, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: COLORS_CSS.paper,
       stroke: '#000000',
       strokeThickness: 4,
-    });
+    }).setDepth(20);
   }
 
   drawBattleThemeDetails(bgH) {
     const g = this.add.graphics();
+    g.setDepth(2);
     const rng = makeRng(this.floor * 5555 + (this.battleVariant || 0) * 1111);
-    const gndY = bgH * 0.88;
+    const gndY = bgH * 0.62 + 10;
     const v = this.battleVariant || 0;
+
+    const drawTree = (x, y, h, trunkC, canopyC) => {
+      const tw = h * 0.12;
+      g.fillStyle(trunkC, 0.85);
+      g.fillRect(x - tw, y - h * 0.4, tw * 2, h * 0.45);
+      g.fillStyle(canopyC, 0.80);
+      const cr = h * 0.32;
+      g.fillCircle(x, y - h * 0.58, cr);
+      g.fillCircle(x - cr * 0.55, y - h * 0.44, cr * 0.8);
+      g.fillCircle(x + cr * 0.55, y - h * 0.44, cr * 0.8);
+      g.fillCircle(x, y - h * 0.72, cr * 0.65);
+      g.fillStyle(0x000000, 0.06);
+      g.fillEllipse(x, y + 3, h * 0.5, 6);
+    };
+
+    const drawBush = (x, y, w, c) => {
+      g.fillStyle(c, 0.72);
+      g.fillEllipse(x, y - w * 0.2, w, w * 0.5);
+      g.fillStyle(c, 0.50);
+      g.fillEllipse(x - w * 0.2, y - w * 0.32, w * 0.6, w * 0.4);
+    };
+
+    const drawRock = (x, y, s) => {
+      g.fillStyle(0x807870, 0.6);
+      g.fillEllipse(x, y, s, s * 0.55);
+      g.fillStyle(0xb0a898, 0.18);
+      g.fillEllipse(x - s * 0.15, y - s * 0.1, s * 0.5, s * 0.3);
+    };
+
+    const drawFlowers = (x, y, count, spread, colors) => {
+      for (let i = 0; i < count; i++) {
+        const fx = x + (rng() - 0.5) * spread;
+        const fy = y + (rng() - 0.5) * spread * 0.25;
+        g.fillStyle(0x408028, 0.45);
+        g.fillRect(fx - 0.5, fy, 1, 10 + rng() * 6);
+        const c = colors[Math.floor(rng() * colors.length)];
+        const pr = 4 + rng() * 3;
+        g.fillStyle(c, 0.75 + rng() * 0.2);
+        g.fillCircle(fx, fy - 2, pr);
+        g.fillStyle(0xf0e060, 0.65);
+        g.fillCircle(fx, fy - 2, pr * 0.35);
+      }
+    };
+
+    const drawMushroom = (x, y, h) => {
+      g.fillStyle(0xf0e8d0, 0.8);
+      g.fillRect(x - 3, y - h * 0.4, 6, h * 0.45);
+      g.fillStyle(0xc04818, 0.82);
+      g.fillEllipse(x, y - h * 0.55, h * 0.45, h * 0.28);
+      g.fillStyle(0xf0e8d0, 0.5);
+      g.fillCircle(x - h * 0.12, y - h * 0.6, 2.5);
+      g.fillCircle(x + h * 0.1, y - h * 0.5, 2);
+    };
 
     if (this.floor === 1) {
       if (v === 0) {
-        // Flower garden: flowers along ground, mushrooms
-        for (let i = 0; i < 10; i++) {
-          const fx = rng() * GAME_WIDTH;
-          const fy = gndY - rng() * 20;
-          const colors = [0xf06080, 0xf0c040, 0xa0d8f0, 0xf080c0, 0xff8080];
-          g.fillStyle(colors[Math.floor(rng() * colors.length)], 0.7);
-          g.fillCircle(fx, fy, 4 + rng() * 3);
-          g.fillStyle(0xf0f080, 0.8);
-          g.fillCircle(fx, fy, 2);
-        }
-        for (let i = 0; i < 4; i++) {
-          const mx = 60 + rng() * (GAME_WIDTH - 120);
-          g.fillStyle(0x6a4010, 1);
-          g.fillRect(mx - 2, gndY - 8, 4, 10);
-          g.fillStyle(0xc04818, 0.8);
-          g.fillCircle(mx, gndY - 12, 7 + rng() * 4);
-          g.fillStyle(0xf0e8d0, 0.6);
-          g.fillCircle(mx - 2, gndY - 14, 2);
-        }
+        for (let i = 0; i < 4; i++) drawTree(100 + rng() * (GAME_WIDTH - 200), gndY, 75 + rng() * 30, 0x6a4818, 0x48a038);
+        drawFlowers(GAME_WIDTH * 0.25, gndY - 10, 10, 120, [0xf06080, 0xf0c040, 0xf080c0, 0xff8080]);
+        drawFlowers(GAME_WIDTH * 0.7, gndY - 8, 8, 100, [0xa0d8f0, 0xf0c040, 0xf06888]);
+        for (let i = 0; i < 5; i++) drawMushroom(60 + rng() * (GAME_WIDTH - 120), gndY, 28 + rng() * 14);
+        for (let i = 0; i < 5; i++) drawBush(80 + rng() * (GAME_WIDTH - 160), gndY - 5, 35 + rng() * 20, 0x48a038);
+        for (let i = 0; i < 4; i++) drawRock(rng() * GAME_WIDTH, gndY + rng() * 5, 14 + rng() * 12);
       } else if (v === 1) {
-        // Mossy forest clearing: tree stumps, ferns, fallen leaves
-        for (let i = 0; i < 5; i++) {
-          const tx = 40 + rng() * (GAME_WIDTH - 80);
-          g.fillStyle(0x5a3810, 0.7);
-          g.fillRect(tx - 8, gndY - 10, 16, 12);
-          g.fillStyle(0x3a6020, 0.5);
-          g.fillCircle(tx, gndY - 12, 10 + rng() * 5);
-        }
-        for (let i = 0; i < 12; i++) {
-          const lx = rng() * GAME_WIDTH;
-          const ly = gndY - rng() * 10;
-          const lc = rng() > 0.5 ? 0xa07020 : 0xc09030;
-          g.fillStyle(lc, 0.4);
-          g.fillCircle(lx, ly, 2 + rng() * 2);
-        }
+        for (let i = 0; i < 7; i++) drawTree(60 + rng() * (GAME_WIDTH - 120), gndY, 85 + rng() * 40, 0x5a3810, 0x388828);
         for (let i = 0; i < 6; i++) {
-          const fx = 30 + rng() * (GAME_WIDTH - 60);
-          g.fillStyle(0x408030, 0.5);
-          g.fillTriangle(fx, gndY, fx - 6, gndY - 14 - rng() * 8, fx + 6, gndY - 14 - rng() * 8);
+          const fx = 40 + rng() * (GAME_WIDTH - 80); const fh = 30 + rng() * 20;
+          g.fillStyle(0x408030, 0.55);
+          g.beginPath(); g.moveTo(fx - fh * 0.3, gndY); g.lineTo(fx, gndY - fh); g.lineTo(fx + fh * 0.3, gndY); g.closePath(); g.fillPath();
         }
+        for (let i = 0; i < 3; i++) {
+          const lx = 100 + rng() * (GAME_WIDTH - 300); const lw = 70 + rng() * 50;
+          g.fillStyle(0x6a4818, 0.55); g.fillRoundedRect(lx, gndY - 6, lw, 12, 5);
+        }
+        for (let i = 0; i < 6; i++) drawMushroom(rng() * GAME_WIDTH, gndY, 22 + rng() * 12);
+        for (let i = 0; i < 3; i++) drawRock(rng() * GAME_WIDTH, gndY + rng() * 5, 16 + rng() * 10);
+        for (let i = 0; i < 8; i++) { g.fillStyle(0xf0e880, 0.10 + rng() * 0.05); g.fillCircle(rng() * GAME_WIDTH, gndY - 40 - rng() * 60, 20 + rng() * 25); }
       } else {
-        // Sunlit meadow: tall grass, butterflies, dandelions
-        for (let i = 0; i < 14; i++) {
-          const gx = rng() * GAME_WIDTH;
-          g.fillStyle(0x60a830, 0.5);
-          g.fillRect(gx, gndY - 12 - rng() * 10, 2, 14 + rng() * 8);
+        const streamY = gndY - 5;
+        g.fillStyle(0x3888c8, 0.45);
+        for (let s = 0; s < 20; s++) { g.fillEllipse(-20 + s * (GAME_WIDTH + 40) / 20, streamY + Math.sin(s * 0.8) * 12, (GAME_WIDTH + 40) / 18, 42); }
+        g.fillStyle(0x60b0e8, 0.22);
+        for (let s = 0; s < 20; s++) { g.fillEllipse(-20 + s * (GAME_WIDTH + 40) / 20, streamY + Math.sin(s * 0.8) * 12, (GAME_WIDTH + 40) / 22, 20); }
+        for (let i = 0; i < 4; i++) { g.fillStyle(0x888078, 0.65); g.fillEllipse(GAME_WIDTH * 0.2 + i * GAME_WIDTH * 0.18, streamY + Math.sin(i * 1.2) * 8, 18 + rng() * 8, 10 + rng() * 5); }
+        for (let i = 0; i < 3; i++) {
+          const tx = 100 + rng() * (GAME_WIDTH - 200);
+          drawTree(tx, gndY, 90 + rng() * 20, 0x5a3810, 0x58a840);
+          for (let d = 0; d < 6; d++) { g.lineStyle(1.5, 0x58a840, 0.35); g.beginPath(); g.moveTo(tx + (rng() - 0.5) * 50, gndY - 60 - rng() * 30); g.lineTo(tx + (rng() - 0.5) * 40, gndY - 20 - rng() * 15); g.strokePath(); }
         }
-        for (let i = 0; i < 6; i++) {
-          const dx = rng() * GAME_WIDTH;
-          const dy = gndY - 16 - rng() * 10;
-          g.fillStyle(0xf0e8a0, 0.7);
-          g.fillCircle(dx, dy, 3);
-          g.fillStyle(0xf8f0c0, 0.4);
-          for (let s = 0; s < 4; s++) {
-            const a = (s / 4) * Math.PI * 2;
-            g.fillCircle(dx + Math.cos(a) * 5, dy + Math.sin(a) * 5, 1.5);
-          }
-        }
-        for (let i = 0; i < 4; i++) {
-          const bx = rng() * GAME_WIDTH;
-          const by = gndY - 40 - rng() * 80;
-          g.fillStyle(0xf0c040, 0.5);
-          g.fillCircle(bx - 4, by, 3);
-          g.fillCircle(bx + 4, by, 3);
-        }
+        drawFlowers(GAME_WIDTH * 0.15, gndY - 12, 8, 80, [0xf06888, 0xf0c040, 0xa0c8f0]);
+        drawFlowers(GAME_WIDTH * 0.85, gndY - 10, 6, 70, [0xf080c0, 0xff8080, 0xf0e060]);
+        for (let i = 0; i < 4; i++) drawBush(80 + rng() * (GAME_WIDTH - 160), gndY - 4, 30 + rng() * 18, 0x50a838);
       }
     } else if (this.floor === 2) {
       if (v === 0) {
-        // Marsh: dark murky green sky gradient, cattail silhouettes, lily pads, misty fog, fireflies
-        // Cattail silhouettes (tall thin rects with oval tops)
-        for (let i = 0; i < 7; i++) {
-          const cx = 40 + rng() * (GAME_WIDTH - 80);
-          const ch = 30 + rng() * 20;
-          g.fillStyle(0x2a4018, 0.7);
-          g.fillRect(cx - 1, gndY - ch, 3, ch);
-          g.fillStyle(0x3a5028, 0.8);
-          g.fillCircle(cx, gndY - ch - 4, 4);
-          g.fillCircle(cx, gndY - ch - 8, 3);
-        }
-        // Lily pads (green ovals on dark ground)
-        for (let i = 0; i < 6; i++) {
-          const lx = rng() * GAME_WIDTH;
-          g.fillStyle(0x40882a, 0.4);
-          g.fillCircle(lx, gndY + rng() * 4, 7 + rng() * 5);
-          g.fillStyle(0x50a838, 0.3);
-          g.fillCircle(lx + 2, gndY + rng() * 3, 4 + rng() * 3);
-        }
-        // Misty fog overlay (semi-transparent white rects at bottom)
-        for (let i = 0; i < 4; i++) {
-          const fx = rng() * GAME_WIDTH;
-          g.fillStyle(0xc0d0c0, 0.08);
-          g.fillRect(fx - 40, gndY - 10 - rng() * 15, 80 + rng() * 60, 12);
-        }
-        // Fireflies (small yellow dots)
-        for (let i = 0; i < 8; i++) {
-          const ffx = rng() * GAME_WIDTH;
-          const ffy = gndY - 20 - rng() * 100;
-          g.fillStyle(0xf0e060, 0.5 + rng() * 0.3);
-          g.fillCircle(ffx, ffy, 1.5 + rng());
-        }
+        for (let i = 0; i < 8; i++) drawRock(rng() * GAME_WIDTH, gndY - rng() * 15, 18 + rng() * 20);
+        for (let i = 0; i < 4; i++) { const px = 100 + rng() * (GAME_WIDTH - 200); const pw = 30 + rng() * 25; g.fillStyle(0x2070a0, 0.42); g.fillEllipse(px, gndY + 5, pw, pw * 0.4); g.fillStyle(0x40a0d0, 0.18); g.fillEllipse(px - 3, gndY + 2, pw * 0.6, pw * 0.25); }
+        for (let i = 0; i < 6; i++) { const sx = rng() * GAME_WIDTH; const sh = 30 + rng() * 25; g.fillStyle(0x308040, 0.5); for (let s = 0; s < 4; s++) g.fillEllipse(sx + Math.sin(s * 1.5) * 8, gndY - s * sh / 4, 6, sh / 5); }
       } else if (v === 1) {
-        // Beach: bright sky blue, sand dunes, palm tree silhouettes, scattered shells, wave line
-        // Sand dunes (smooth tan hills)
-        for (let i = 0; i < 4; i++) {
-          const dx = rng() * GAME_WIDTH;
-          const dw = 60 + rng() * 80;
-          g.fillStyle(0xd8c090, 0.35);
-          g.fillCircle(dx, gndY + 5, dw / 2);
-        }
-        // Palm tree silhouettes (brown trunk + green fan top)
-        for (let i = 0; i < 3; i++) {
-          const px = 80 + rng() * (GAME_WIDTH - 160);
-          g.fillStyle(0x6a4818, 0.6);
-          g.fillRect(px - 3, gndY - 50, 6, 52);
-          g.fillStyle(0x308828, 0.5);
-          g.fillTriangle(px, gndY - 58, px - 28, gndY - 38, px + 28, gndY - 38);
-          g.fillTriangle(px + 5, gndY - 52, px - 20, gndY - 32, px + 30, gndY - 35);
-        }
-        // Scattered shells (small tan/white circles)
-        for (let i = 0; i < 10; i++) {
-          const sx = rng() * GAME_WIDTH;
-          const sc = rng() > 0.5 ? 0xf0e0c0 : 0xe8d8b0;
-          g.fillStyle(sc, 0.5);
-          g.fillCircle(sx, gndY - rng() * 6, 2 + rng() * 2);
-        }
-        // Gentle wave line at shore
-        g.lineStyle(2, 0x80c8e0, 0.3);
-        g.beginPath();
-        for (let wx = 0; wx < GAME_WIDTH; wx += 20) {
-          const wy = gndY - 2 + Math.sin(wx * 0.05) * 3;
-          if (wx === 0) g.moveTo(wx, wy); else g.lineTo(wx, wy);
-        }
-        g.strokePath();
+        for (let i = 0; i < 5; i++) { const cx = 80 + rng() * (GAME_WIDTH - 160); const ch = 35 + rng() * 30; const cc = [0xf0a848, 0xe86060, 0xf080a0, 0xc060c0][Math.floor(rng() * 4)]; g.fillStyle(cc, 0.65); for (let b = 0; b < 4; b++) g.fillEllipse(cx + (rng() - 0.5) * ch * 0.6, gndY - ch * 0.3 - rng() * ch * 0.4, 6 + rng() * 5, ch * 0.35); g.fillEllipse(cx, gndY - 3, ch * 0.4, 8); }
+        for (let i = 0; i < 8; i++) { g.fillStyle(0xf0e8d0, 0.45); g.fillEllipse(rng() * GAME_WIDTH, gndY + rng() * 8, 6 + rng() * 6, 4 + rng() * 4); }
+        for (let i = 0; i < 10; i++) { g.fillStyle(0x80d0f0, 0.22 + rng() * 0.12); g.fillCircle(rng() * GAME_WIDTH, gndY - 30 - rng() * 60, 3 + rng() * 4); }
       } else {
-        // Water: deep ocean blue bg, coral formations, bubbles rising, underwater light rays, seaweed
-        // Coral formations (orange/pink irregular shapes)
-        for (let i = 0; i < 5; i++) {
-          const cx = 40 + rng() * (GAME_WIDTH - 80);
-          const cc = rng() > 0.5 ? 0xe87060 : 0xe06888;
-          g.fillStyle(cc, 0.45);
-          g.fillCircle(cx, gndY - rng() * 12, 8 + rng() * 8);
-          g.fillCircle(cx + (rng() - 0.5) * 12, gndY - 8 - rng() * 10, 5 + rng() * 5);
-          g.fillCircle(cx + (rng() - 0.5) * 8, gndY - 14 - rng() * 8, 3 + rng() * 4);
-        }
-        // Bubbles rising (white circles with alpha)
-        for (let i = 0; i < 10; i++) {
-          const bx = rng() * GAME_WIDTH;
-          const by = gndY - 20 - rng() * 120;
-          g.fillStyle(0xffffff, 0.15 + rng() * 0.15);
-          g.fillCircle(bx, by, 2 + rng() * 3);
-        }
-        // Underwater light rays (angled semi-transparent white bars)
-        for (let i = 0; i < 3; i++) {
-          const rx = 60 + rng() * (GAME_WIDTH - 120);
-          const ry = gndY - 140;
-          g.fillStyle(0xffffff, 0.06);
-          const pts = [
-            { x: rx - 8, y: ry },
-            { x: rx + 8, y: ry },
-            { x: rx + 30, y: gndY + 10 },
-            { x: rx + 10, y: gndY + 10 }
-          ];
-          g.fillTriangle(pts[0].x, pts[0].y, pts[1].x, pts[1].y, pts[2].x, pts[2].y);
-          g.fillTriangle(pts[0].x, pts[0].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y);
-        }
-        // Seaweed (green wavy lines from bottom)
-        for (let i = 0; i < 6; i++) {
-          const sx = 50 + rng() * (GAME_WIDTH - 100);
-          g.fillStyle(0x208848, 0.45);
-          for (let s = 0; s < 4; s++) {
-            g.fillCircle(sx + (rng() - 0.5) * 8, gndY - s * 9 - 4, 3 + rng() * 2);
-          }
-        }
+        for (let i = 0; i < 8; i++) { const cx = rng() * GAME_WIDTH; const ch = 40 + rng() * 25; g.fillStyle(0x2a4018, 0.65); g.fillRect(cx - 1.5, gndY - ch, 3, ch); g.fillStyle(0x3a5028, 0.75); g.fillEllipse(cx, gndY - ch - 5, 5, 8); }
+        for (let i = 0; i < 6; i++) { g.fillStyle(0x40882a, 0.42); g.fillEllipse(rng() * GAME_WIDTH, gndY + rng() * 6, 14 + rng() * 10, 8 + rng() * 5); }
+        for (let i = 0; i < 5; i++) { g.fillStyle(0xc0d0c0, 0.06 + rng() * 0.04); g.fillEllipse(rng() * GAME_WIDTH, gndY - 20 - rng() * 30, 100 + rng() * 80, 20 + rng() * 15); }
+        for (let i = 0; i < 4; i++) drawBush(rng() * GAME_WIDTH, gndY - 3, 30 + rng() * 15, 0x2a5020);
       }
     } else if (this.floor === 3) {
       if (v === 0) {
-        // Calm Sky: Bright sky blue, large fluffy white clouds, rainbow arc, floating golden platforms, tiny birds
-        // Large fluffy white clouds
-        for (let i = 0; i < 6; i++) {
-          const cx = rng() * GAME_WIDTH;
-          const cy = gndY - 60 - rng() * 100;
-          g.fillStyle(0xffffff, 0.35);
-          g.fillCircle(cx, cy, 18 + rng() * 16);
-          g.fillCircle(cx + 14, cy - 4, 14 + rng() * 10);
-          g.fillCircle(cx - 12, cy + 2, 12 + rng() * 8);
-          g.fillStyle(0xe8f0ff, 0.25);
-          g.fillCircle(cx + 6, cy + 6, 10 + rng() * 6);
-        }
-        // Rainbow arc across top
-        const rainbowColors = [0xff4040, 0xff8020, 0xf0e020, 0x40d040, 0x4080f0, 0x8040e0];
-        for (let ri = 0; ri < rainbowColors.length; ri++) {
-          g.lineStyle(2, rainbowColors[ri], 0.2);
-          g.beginPath();
-          const arcR = 120 + ri * 6;
-          for (let a = 0; a <= 20; a++) {
-            const angle = Math.PI * 0.15 + (a / 20) * Math.PI * 0.7;
-            const ax = GAME_WIDTH * 0.5 + Math.cos(angle) * arcR;
-            const ay = gndY - 40 - Math.sin(angle) * arcR * 0.5;
-            if (a === 0) g.moveTo(ax, ay); else g.lineTo(ax, ay);
-          }
-          g.strokePath();
-        }
-        // Floating golden platforms
-        for (let i = 0; i < 5; i++) {
-          const px = 60 + rng() * (GAME_WIDTH - 120);
-          const py = gndY - 30 - rng() * 60;
-          g.fillStyle(0xc8b060, 0.4);
-          g.fillRoundedRect(px - 25, py, 50 + rng() * 20, 8, 4);
-          g.fillStyle(0xd8c878, 0.3);
-          g.fillRoundedRect(px - 20, py + 2, 40 + rng() * 16, 4, 2);
-        }
-        // Tiny birds (v-shaped)
-        for (let i = 0; i < 5; i++) {
-          const bx = rng() * GAME_WIDTH;
-          const by = gndY - 100 - rng() * 60;
-          g.lineStyle(1, 0x405060, 0.4);
-          g.beginPath(); g.moveTo(bx - 4, by + 2); g.lineTo(bx, by); g.lineTo(bx + 4, by + 2); g.strokePath();
-        }
+        for (let i = 0; i < 5; i++) { const px = 80 + rng() * (GAME_WIDTH - 160); const pw = 55 + rng() * 30; g.fillStyle(0xd0e8f8, 0.6); g.fillRoundedRect(px - pw / 2, gndY - 8 - rng() * 30, pw, 14, 6); g.fillStyle(0xffffff, 0.22); g.fillRoundedRect(px - pw / 2 + 4, gndY - 10 - rng() * 28, pw - 8, 8, 4); }
+        const rc = [0xff4040, 0xff8020, 0xf0e040, 0x40c040, 0x4080f0, 0x8040c0];
+        for (let c = 0; c < rc.length; c++) { g.lineStyle(3, rc[c], 0.28); g.beginPath(); for (let a = 0; a <= 20; a++) { const t = (a / 20) * Math.PI; const x = GAME_WIDTH * 0.5 + Math.cos(t) * (180 + c * 8); const y = gndY - 30 - Math.sin(t) * 72; if (a === 0) g.moveTo(x, y); else g.lineTo(x, y); } g.strokePath(); }
+        for (let i = 0; i < 6; i++) { g.fillStyle(0xffffff, 0.18 + rng() * 0.12); g.fillEllipse(rng() * GAME_WIDTH, gndY - 20 - rng() * 50, 30 + rng() * 25, 12 + rng() * 8); }
       } else if (v === 1) {
-        // Storm: Dark purple-grey sky, heavy rain, lightning bolts, churning clouds, wind streaks
-        // Churning dark clouds at top
-        for (let i = 0; i < 8; i++) {
-          const cx = rng() * GAME_WIDTH;
-          const cy = gndY - 120 - rng() * 60;
-          g.fillStyle(0x282040, 0.5);
-          g.fillCircle(cx, cy, 22 + rng() * 18);
-          g.fillCircle(cx + 18, cy - 6, 16 + rng() * 12);
-          g.fillStyle(0x1a1830, 0.4);
-          g.fillCircle(cx - 10, cy + 4, 14 + rng() * 8);
-        }
-        // Heavy rain streaks (20 diagonal lines)
-        for (let i = 0; i < 20; i++) {
-          const rx = rng() * GAME_WIDTH;
-          const ry = gndY - rng() * 180;
-          g.lineStyle(1, 0x8090b0, 0.25);
-          g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx - 5, ry + 22); g.strokePath();
-        }
-        // 2-3 jagged lightning bolts (bright yellow)
-        const boltCount = 2 + (rng() > 0.5 ? 1 : 0);
-        for (let b = 0; b < boltCount; b++) {
-          const lx = 40 + rng() * (GAME_WIDTH - 80);
-          g.lineStyle(2.5, 0xf8e840, 0.6);
-          g.beginPath();
-          let ly = gndY - 170;
-          g.moveTo(lx, ly);
-          for (let seg = 0; seg < 4; seg++) {
-            ly += 30 + rng() * 20;
-            const lxOff = (rng() - 0.5) * 20;
-            g.lineTo(lx + lxOff, ly);
-          }
-          g.strokePath();
-          // Glow around bolt
-          g.lineStyle(6, 0xf8e840, 0.1);
-          g.beginPath(); g.moveTo(lx, gndY - 170); g.lineTo(lx + (rng() - 0.5) * 10, gndY - 60); g.strokePath();
-        }
-        // Wind streaks (horizontal lines)
-        for (let i = 0; i < 6; i++) {
-          const wx = rng() * GAME_WIDTH;
-          const wy = gndY - 30 - rng() * 120;
-          g.lineStyle(1, 0x607090, 0.2);
-          g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + 30 + rng() * 40, wy - 2); g.strokePath();
-        }
+        for (let i = 0; i < 6; i++) { g.fillStyle(0x304050, 0.38 + rng() * 0.18); g.fillEllipse(rng() * GAME_WIDTH, gndY - 60 - rng() * 40, 50 + rng() * 40, 20 + rng() * 15); }
+        for (let i = 0; i < 25; i++) { const rx = rng() * GAME_WIDTH; g.lineStyle(1, 0xa0b8c8, 0.28); g.beginPath(); g.moveTo(rx, gndY - 80 - rng() * 40); g.lineTo(rx - 3, gndY - 50 - rng() * 20); g.strokePath(); }
+        g.lineStyle(2.5, 0xf0e040, 0.55); g.beginPath(); const lx = GAME_WIDTH * (0.3 + rng() * 0.4); let ly = gndY - 100; g.moveTo(lx, ly); for (let s = 0; s < 5; s++) { ly += 15 + rng() * 10; g.lineTo(lx + (rng() - 0.5) * 30, ly); } g.strokePath();
       } else {
-        // Sunset: Orange-to-pink gradient bands, large warm sun, silhouetted clouds, golden light rays
-        // Gradient bands (4 horizontal color bands)
-        const bandColors = [0xf08040, 0xe06868, 0xd050a0, 0x8040c0];
-        const bandH = bgH / 4;
-        for (let i = 0; i < 4; i++) {
-          g.fillStyle(bandColors[i], 0.12);
-          g.fillRect(0, i * bandH, GAME_WIDTH, bandH);
-        }
-        // Large warm sun circle (bottom-right)
-        const sunX = GAME_WIDTH * 0.78, sunY = gndY - 60;
-        g.fillStyle(0xf0c040, 0.25);
-        g.fillCircle(sunX, sunY, 40);
-        g.fillStyle(0xf8d860, 0.15);
-        g.fillCircle(sunX, sunY, 55);
-        g.fillStyle(0xffe880, 0.08);
-        g.fillCircle(sunX, sunY, 75);
-        // Golden light rays from sun
-        for (let i = 0; i < 6; i++) {
-          const angle = -Math.PI * 0.8 + (i / 5) * Math.PI * 0.6;
-          const rayLen = 80 + rng() * 40;
-          g.lineStyle(3, 0xf0c040, 0.1);
-          g.beginPath();
-          g.moveTo(sunX, sunY);
-          g.lineTo(sunX + Math.cos(angle) * rayLen, sunY + Math.sin(angle) * rayLen);
-          g.strokePath();
-        }
-        // Silhouetted cloud shapes in dark purple
-        for (let i = 0; i < 5; i++) {
-          const cx = rng() * GAME_WIDTH;
-          const cy = gndY - 80 - rng() * 80;
-          g.fillStyle(0x402060, 0.35);
-          g.fillCircle(cx, cy, 16 + rng() * 12);
-          g.fillCircle(cx + 12, cy - 3, 12 + rng() * 8);
-          g.fillCircle(cx - 8, cy + 2, 10 + rng() * 6);
-        }
+        const bands = [0xf08040, 0xe06868, 0xd050a0, 0x8040c0];
+        for (let b = 0; b < bands.length; b++) { g.fillStyle(bands[b], 0.10); g.fillRect(0, gndY - 120 + b * 25, GAME_WIDTH, 30); }
+        g.fillStyle(0xf0c040, 0.32); g.fillCircle(GAME_WIDTH * 0.5, gndY - 80, 50);
+        g.fillStyle(0xf0e080, 0.18); g.fillCircle(GAME_WIDTH * 0.5, gndY - 80, 70);
+        for (let r = 0; r < 6; r++) { const angle = (r / 6) * Math.PI - Math.PI / 2 + (rng() - 0.5) * 0.3; g.fillStyle(0xf0e080, 0.05); g.beginPath(); g.moveTo(GAME_WIDTH * 0.5, gndY - 80); g.lineTo(GAME_WIDTH * 0.5 + Math.cos(angle - 0.06) * 250, gndY - 80 + Math.sin(angle - 0.06) * 180); g.lineTo(GAME_WIDTH * 0.5 + Math.cos(angle + 0.06) * 250, gndY - 80 + Math.sin(angle + 0.06) * 180); g.closePath(); g.fillPath(); }
+        for (let i = 0; i < 5; i++) { g.fillStyle(0x2a2040, 0.28); g.fillEllipse(rng() * GAME_WIDTH, gndY - 40 - rng() * 40, 40 + rng() * 30, 10 + rng() * 8); }
       }
     } else if (this.floor === 4) {
       if (v === 0) {
-        // Lava pools: glowing lava at ground, floating embers
-        for (let i = 0; i < 5; i++) {
-          const lx = rng() * GAME_WIDTH;
-          g.fillStyle(0xe04808, 0.3);
-          g.fillCircle(lx, gndY + 4, 12 + rng() * 16);
-          g.fillStyle(0xf0a010, 0.2);
-          g.fillCircle(lx, gndY + 2, 8 + rng() * 10);
-        }
-        for (let i = 0; i < 12; i++) {
-          g.fillStyle(0xf08020, 0.3 + rng() * 0.3);
-          g.fillCircle(rng() * GAME_WIDTH, gndY - rng() * 200, 2 + rng() * 2);
-        }
+        for (let i = 0; i < 5; i++) { g.fillStyle(0xf06020, 0.45 + rng() * 0.2); g.fillEllipse(rng() * GAME_WIDTH, gndY + rng() * 10, 22 + rng() * 20, 10 + rng() * 8); g.fillStyle(0xf0c040, 0.22); g.fillEllipse(rng() * GAME_WIDTH, gndY + rng() * 8, 12 + rng() * 10, 5 + rng() * 4); }
+        for (let i = 0; i < 4; i++) { const tx = rng() * GAME_WIDTH; g.fillStyle(0x2a1808, 0.65); g.fillRect(tx - 5, gndY - 30 - rng() * 20, 10, 35); g.fillStyle(0x1a1008, 0.45); g.fillEllipse(tx, gndY - 35 - rng() * 15, 18, 10); }
+        for (let i = 0; i < 6; i++) drawRock(rng() * GAME_WIDTH, gndY - rng() * 8, 15 + rng() * 15);
       } else if (v === 1) {
-        // Volcanic crags: jagged rock spires, smoke wisps, ash
-        for (let i = 0; i < 5; i++) {
-          const sx = 60 + rng() * (GAME_WIDTH - 120);
-          const sh = 20 + rng() * 30;
-          g.fillStyle(0x3a2820, 0.6);
-          g.fillTriangle(sx, gndY, sx - 8 - rng() * 6, gndY, sx + rng() * 4, gndY - sh);
-        }
-        for (let i = 0; i < 6; i++) {
-          const wx = rng() * GAME_WIDTH;
-          const wy = gndY - 30 - rng() * 60;
-          g.fillStyle(0x808080, 0.15);
-          g.fillCircle(wx, wy, 8 + rng() * 6);
-          g.fillCircle(wx + 6, wy - 6, 6 + rng() * 4);
-        }
-        for (let i = 0; i < 10; i++) {
-          g.fillStyle(0x604040, 0.25);
-          g.fillCircle(rng() * GAME_WIDTH, gndY - rng() * 160, 1 + rng() * 1.5);
-        }
+        for (let i = 0; i < 5; i++) { const sx = rng() * GAME_WIDTH; const sh = 30 + rng() * 30; g.fillStyle(0x3a2010, 0.65); g.beginPath(); g.moveTo(sx - sh * 0.3, gndY); g.lineTo(sx, gndY - sh); g.lineTo(sx + sh * 0.3, gndY); g.closePath(); g.fillPath(); }
+        for (let i = 0; i < 6; i++) { g.fillStyle(0x808080, 0.22 + rng() * 0.12); g.fillEllipse(rng() * GAME_WIDTH, gndY - 30 - rng() * 40, 15 + rng() * 15, 10 + rng() * 8); }
+        for (let i = 0; i < 8; i++) drawRock(rng() * GAME_WIDTH, gndY + rng() * 5, 12 + rng() * 12);
       } else {
-        // Magma cavern: stalactites hanging down, lava glow, crystals
-        for (let i = 0; i < 6; i++) {
-          const sx = rng() * GAME_WIDTH;
-          const sl = 15 + rng() * 20;
-          g.fillStyle(0x504038, 0.5);
-          g.fillTriangle(sx - 4, 0, sx + 4, 0, sx, sl);
-        }
-        g.fillStyle(0xf06010, 0.12);
-        g.fillRect(0, gndY - 2, GAME_WIDTH, 8);
-        for (let i = 0; i < 4; i++) {
-          const cx = 80 + rng() * (GAME_WIDTH - 160);
-          const cy = gndY - 20 - rng() * 40;
-          g.fillStyle(0xe06030, 0.4);
-          g.fillTriangle(cx, cy - 10, cx - 4, cy + 4, cx + 4, cy + 4);
-          g.fillStyle(0xf08040, 0.3);
-          g.fillTriangle(cx + 2, cy - 8, cx - 2, cy + 2, cx + 6, cy + 2);
-        }
+        for (let i = 0; i < 6; i++) { const sx = rng() * GAME_WIDTH; const sh = 20 + rng() * 30; g.fillStyle(0x4a3828, 0.6); g.beginPath(); g.moveTo(sx - 5, gndY - 80); g.lineTo(sx - sh * 0.3, gndY - 80 + sh); g.lineTo(sx + sh * 0.3, gndY - 80 + sh); g.closePath(); g.fillPath(); }
+        g.fillStyle(0xf06020, 0.12); g.fillRect(0, gndY - 5, GAME_WIDTH, 15);
+        for (let i = 0; i < 4; i++) { const cx = rng() * GAME_WIDTH; const ch = 25 + rng() * 20; g.fillStyle(0x60c8f0, 0.45); g.beginPath(); g.moveTo(cx, gndY - ch); g.lineTo(cx - ch * 0.15, gndY); g.lineTo(cx + ch * 0.15, gndY); g.closePath(); g.fillPath(); }
       }
     } else if (this.floor === 5) {
       if (v === 0) {
-        // Arcane: floating rune circles, magic particles
-        for (let i = 0; i < 4; i++) {
-          const rx = 120 + rng() * (GAME_WIDTH - 240);
-          const ry = gndY - 60 - rng() * 100;
-          g.lineStyle(1.5, 0x8040d0, 0.3);
-          g.strokeCircle(rx, ry, 16 + rng() * 12);
-          g.fillStyle(0x8040d0, 0.15);
-          g.fillCircle(rx, ry, 4);
-        }
-        for (let i = 0; i < 15; i++) {
-          g.fillStyle(0xc090f0, 0.2 + rng() * 0.2);
-          g.fillCircle(rng() * GAME_WIDTH, rng() * gndY, 1.5 + rng() * 1.5);
-        }
+        g.fillStyle(0x88c8e8, 0.18); g.fillEllipse(GAME_WIDTH * 0.5, gndY + 5, GAME_WIDTH * 0.5, 30);
+        for (let i = 0; i < 5; i++) { const cx = rng() * GAME_WIDTH; const ch = 25 + rng() * 20; g.fillStyle(0x88d8f8, 0.42); g.beginPath(); g.moveTo(cx, gndY - ch); g.lineTo(cx - ch * 0.2, gndY); g.lineTo(cx + ch * 0.2, gndY); g.closePath(); g.fillPath(); }
+        for (let i = 0; i < 4; i++) { const tx = rng() * GAME_WIDTH; g.fillStyle(0x6a5040, 0.55); g.fillRect(tx - 3, gndY - 45 - rng() * 20, 6, 50); g.lineStyle(1.5, 0x5a4030, 0.35); for (let b = 0; b < 3; b++) { g.beginPath(); g.moveTo(tx, gndY - 30 - b * 12); g.lineTo(tx + (rng() > 0.5 ? 1 : -1) * (10 + rng() * 10), gndY - 40 - b * 12); g.strokePath(); } }
       } else if (v === 1) {
-        // Void rift: dark tears in space, swirling energy, star dots
-        for (let i = 0; i < 3; i++) {
-          const rx = 100 + rng() * (GAME_WIDTH - 200);
-          const ry = gndY - 50 - rng() * 80;
-          g.fillStyle(0x180828, 0.5);
-          g.fillEllipse(rx, ry, 30 + rng() * 20, 8 + rng() * 6);
-          g.lineStyle(1, 0xa060e0, 0.4);
-          g.strokeEllipse(rx, ry, 32 + rng() * 20, 10 + rng() * 6);
-        }
-        for (let i = 0; i < 20; i++) {
-          g.fillStyle(0xe0d0ff, 0.15 + rng() * 0.2);
-          g.fillCircle(rng() * GAME_WIDTH, rng() * gndY, 1 + rng());
-        }
+        for (let i = 0; i < 3; i++) { const rx = rng() * GAME_WIDTH; const ry = gndY - 30 - rng() * 40; g.fillStyle(0x200830, 0.5); g.fillEllipse(rx, ry, 35 + rng() * 20, 10 + rng() * 8); g.fillStyle(0x6020a0, 0.22); g.fillEllipse(rx, ry, 20 + rng() * 10, 5 + rng() * 4); }
+        for (let i = 0; i < 25; i++) { g.fillStyle(0xffffff, 0.28 + rng() * 0.28); g.fillCircle(rng() * GAME_WIDTH, gndY - 20 - rng() * 80, 1 + rng() * 1.5); }
       } else {
-        // Crystal sanctum: large crystal formations, prismatic sparkle
-        for (let i = 0; i < 5; i++) {
-          const cx = 60 + rng() * (GAME_WIDTH - 120);
-          const ch = 18 + rng() * 22;
-          const cc = [0x8060d0, 0x60a0d0, 0xd060a0][Math.floor(rng() * 3)];
-          g.fillStyle(cc, 0.4);
-          g.fillTriangle(cx, gndY - ch, cx - 6, gndY, cx + 6, gndY);
-          g.fillStyle(0xffffff, 0.15);
-          g.fillTriangle(cx + 1, gndY - ch + 4, cx - 2, gndY - 4, cx + 5, gndY - 4);
-        }
-        for (let i = 0; i < 10; i++) {
-          const sx = rng() * GAME_WIDTH;
-          const sy = rng() * gndY;
-          const sc = [0xf0c0ff, 0xc0f0ff, 0xfff0c0][Math.floor(rng() * 3)];
-          g.fillStyle(sc, 0.25);
-          g.fillCircle(sx, sy, 1.5 + rng());
-        }
+        for (let i = 0; i < 6; i++) { const cx = rng() * GAME_WIDTH; const ch = 35 + rng() * 30; const cc = [0x88c8f8, 0xa080e0, 0x60e0c0][Math.floor(rng() * 3)]; g.fillStyle(cc, 0.5); g.beginPath(); g.moveTo(cx, gndY - ch); g.lineTo(cx - ch * 0.18, gndY); g.lineTo(cx + ch * 0.18, gndY); g.closePath(); g.fillPath(); g.fillStyle(0xffffff, 0.12); g.beginPath(); g.moveTo(cx - 2, gndY - ch + 5); g.lineTo(cx - ch * 0.1, gndY); g.lineTo(cx, gndY); g.closePath(); g.fillPath(); }
+        for (let i = 0; i < 12; i++) { g.fillStyle(0xffffff, 0.32 + rng() * 0.28); g.fillCircle(rng() * GAME_WIDTH, gndY - 10 - rng() * 60, 1.5 + rng() * 1.5); }
       }
+    } else {
+      for (let i = 0; i < 4; i++) drawTree(100 + rng() * (GAME_WIDTH - 200), gndY, 60 + rng() * 30, 0x4a3020, 0x406040);
+      for (let i = 0; i < 6; i++) drawBush(rng() * GAME_WIDTH, gndY - 3, 25 + rng() * 20, 0x385838);
+      for (let i = 0; i < 5; i++) drawRock(rng() * GAME_WIDTH, gndY + rng() * 5, 12 + rng() * 14);
+      drawFlowers(GAME_WIDTH * 0.3, gndY - 8, 6, 80, [0xc080d0, 0x80b0e0, 0xe0a060]);
     }
   }
 
@@ -687,28 +536,24 @@ export class BattleScene extends Phaser.Scene {
 
   buildHeroSprites() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    // Layout: heroes in middle-left, standing on the ground strip.
-    // The bottom ~220px is the equation+answer UI. Characters go above.
-    const uiTop = area.bottom - 220;
-    const groundY = uiTop - 30;
-
-    // Draw a ground path strip so heroes aren't on black void
-    const groundGfx = this.add.graphics();
-    groundGfx.fillStyle(0x3a6818, 0.6);
-    groundGfx.fillRect(0, groundY, GAME_WIDTH, uiTop - groundY + 40);
-    groundGfx.fillStyle(0x4a8828, 0.4);
-    groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
+    const uiTop = area.bottom - 290;
+    const groundY = uiTop;
 
     const enemyCount = this.enemies.length;
     const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
     const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
-    const leftAnchor = GAME_WIDTH * 0.08 + spacing / 2;
+    const leftAnchor = GAME_WIDTH * 0.12 + spacing / 2;
 
     this.heroSprites = this.party.map((hero, i) => {
-      const x = leftAnchor + i * spacing;
-      const y = groundY - 100;
+      const xStagger = (1 - i) * 15;  // hero 0: +15, hero 1: 0, hero 2: -15
+      const x = leftAnchor + i * spacing + xStagger;
+      const stagger = 30;
+      const baseY = groundY - 90;
+      const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
 
-      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale });
+      const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
+      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
+      body.setDepth(12);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -716,20 +561,20 @@ export class BattleScene extends Phaser.Scene {
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
         strokeThickness: 3,
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(14);
 
       const hpBarBg = this.add.rectangle(x, y + 80, 150, 14, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD);
+        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
       const hpBarFill = this.add.rectangle(x - 73, y + 80, 146, 10, 0x40c040)
-        .setOrigin(0, 0.5);
+        .setOrigin(0, 0.5).setDepth(13);
       const hpText = this.add.text(x, y + 96, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '14px',
         color: COLORS_CSS.paper,
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(14);
 
       const indicator = this.add.triangle(x, y - 160, 0, 0, 20, 0, 10, 20, COLORS.goldL)
-        .setVisible(false);
+        .setVisible(false).setDepth(15);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y };
     });
@@ -749,8 +594,8 @@ export class BattleScene extends Phaser.Scene {
 
   buildEnemySprite() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 220;
-    const groundY = uiTop - 30;
+    const uiTop = area.bottom - 290;
+    const groundY = uiTop;
     const centerX = GAME_WIDTH * 0.76;
     const count = this.enemies.length;
 
@@ -770,8 +615,8 @@ export class BattleScene extends Phaser.Scene {
     } else {
       // Triangle: top-center, bottom-left, bottom-right
       positions.push({ dx: 0, dy: -displayH * 0.4 });
-      positions.push({ dx: -90, dy: displayH * 0.3 });
-      positions.push({ dx: 90, dy: displayH * 0.3 });
+      positions.push({ dx: -130, dy: displayH * 0.3 });
+      positions.push({ dx: 130, dy: displayH * 0.3 });
     }
 
     this.enemySprites = [];
@@ -784,10 +629,11 @@ export class BattleScene extends Phaser.Scene {
       const y = groundY - monsterDisplayH * 0.50 + positions[ei].dy;
       const w = 200, h = 220;
 
-      const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale });
+      const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
+      body.setDepth(12);
 
       // Name/HP bars directly above the sprite head
-      const spriteHalfH = (640 * monsterScale) * 0.35;
+      const spriteHalfH = (640 * monsterScale) * 0.50;
       const nameY = y - spriteHalfH - 10;
       const hpY = y - spriteHalfH + 6;
       const hpTextY = y - spriteHalfH + 20;
@@ -798,19 +644,19 @@ export class BattleScene extends Phaser.Scene {
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.scarlet,
         strokeThickness: 4,
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(14);
 
       const hpBarBg = this.add.rectangle(x, hpY, w + 20, 20, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD);
+        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
       const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (enemy.hp / enemy.maxHp), 14, 0xc04030)
-        .setOrigin(0, 0.5);
+        .setOrigin(0, 0.5).setDepth(13);
       const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '15px',
         color: '#fff8e0',
         stroke: '#1a0e04',
         strokeThickness: 3,
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(14);
 
       const spriteData = { body, name, hpBarBg, hpBarFill, hpText, x, y };
       this.enemySprites.push(spriteData);
@@ -836,31 +682,41 @@ export class BattleScene extends Phaser.Scene {
   // UI — momentum, question, answers, toasts, end screen
   // ================================================================
 
+  setUIDepth(obj, depth) {
+    if (!obj) return;
+    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track']) {
+      if (obj[key] && obj[key].setDepth) obj[key].setDepth(depth);
+    }
+    if (obj.setDepth) obj.setDepth(depth);
+  }
+
   buildUI() {
     // NEW LAYOUT — characters always visible, equation floats as a
     // small paper note in the upper area, only the answer-button row
     // lives in a tight bottom strip.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    const ansH = 100;
-    const ansY = area.bottom - ansH / 2 - 28;
-    const eqY = ansY - ansH / 2 - 90;
+    const ansH = 80;
+    const ansY = area.bottom - ansH / 2 - 6;
+    const eqY = ansY - ansH / 2 - 80;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
     const barW = 380;
     const barX = area.cx - barW / 2;
 
-    PaperPanel(this, area.cx, topY, barW + 220, 50, {
+    const topPanel = PaperPanel(this, area.cx, topY, barW + 220, 50, {
       color: 0xfff4e0, alpha: 0.92, radius: 16,
     });
+    if (topPanel.bg) topPanel.bg.setDepth(20);
+    if (topPanel.shadow) topPanel.shadow.setDepth(19);
 
     this.add.text(barX - 10, topY, 'MOMENTUM', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '13px',
       color: '#3a2410',
       letterSpacing: 1,
-    }).setOrigin(1, 0.5);
+    }).setOrigin(1, 0.5).setDepth(21);
 
     this.momentumBarObj = PaperBar(this, barX, topY, barW, 16, this.momentum, 0x4aa848, {
       bgColor: 0xc8b898,
@@ -884,36 +740,49 @@ export class BattleScene extends Phaser.Scene {
     this.refreshPotionButton();
 
     const noteW = 345;
-    const noteH = 127;
+    const noteH = 110;
     const noteCx = area.cx;
     const noteCy = eqY;
+    this.eqCenterY = eqY;
 
     PaperPanel(this, noteCx, noteCy, noteW, noteH, {
       color: 0xf5ead0, alpha: 0.92, radius: 18, shadowOff: 4, shadowAlpha: 0.2,
     });
 
+    // Floor-themed math panel decorations
+    this.panelFx = createPanelDecorations(this, this.floor, noteCx, noteCy, noteW, noteH);
+
+    // Bigger digits for the youngest players (K-2) who are still
+    // learning to read numerals at a glance.
+    const eqFont = this.grade <= 2 ? '54px' : '44px';
     this.eqLines = {
-      a:    this.add.text(noteCx + 20, noteCy - 34, '', this.eqLineStyle({ fontSize: '52px', color: '#3a2410' })),
-      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '52px', color: '#c06a10' })),
-      bar:  this.add.text(noteCx,      noteCy + 28, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '24px', color: '#8a7050' })),
-      ans:  this.add.text(noteCx,      noteCy + 52, '?', this.eqLineStyle({ fontSize: '52px', color: '#d08020' })),
+      a:    this.add.text(noteCx + 20, noteCy - 30, '', this.eqLineStyle({ fontSize: eqFont, color: '#3a2410' })),
+      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: eqFont, color: '#c06a10' })),
+      bar:  this.add.text(noteCx,      noteCy + 24, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '22px', color: '#8a7050' })),
+      ans:  this.add.text(noteCx,      noteCy + 42, '?', this.eqLineStyle({ fontSize: eqFont, color: '#d08020' })),
+      stars: this.add.text(noteCx + noteW / 2 - 10, noteCy - noteH / 2 + 8, '', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '18px', color: '#8a5010', letterSpacing: 3,
+        stroke: '#f5ead0', strokeThickness: 1,
+      }),
     };
     this.eqLines.a.setOrigin(1, 0.5);
     this.eqLines.opB.setOrigin(1, 0.5);
     this.eqLines.bar.setOrigin(0.5);
     this.eqLines.ans.setOrigin(0.5, 0.5);
+    this.eqLines.stars.setOrigin(1, 0);
 
-    // Turn label — slim pill at the top of the math area
-    const turnY = eqY - noteH / 2 - 32;
-    PaperPanel(this, area.cx, turnY, 400, 38, {
-      color: 0xf5ead0, alpha: 0.90, radius: 12, shadowOff: 2, shadowAlpha: 0.15,
+    // Turn label — above the math panel, full width with larger font
+    const turnY = eqY - noteH / 2 - 24;
+    PaperPanel(this, area.cx, turnY, area.w - 40, 42, {
+      color: 0xf5ead0, alpha: 0.92, radius: 14, shadowOff: 3, shadowAlpha: 0.18,
     });
     this.turnLabel = this.add.text(area.cx, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '17px',
+      fontSize: '28px',
       color: '#3a2410',
       stroke: '#f5ead0',
-      strokeThickness: 1,
+      strokeThickness: 3,
       letterSpacing: 1,
     }).setOrigin(0.5);
 
@@ -936,6 +805,7 @@ export class BattleScene extends Phaser.Scene {
         seed,
         onClick: () => {
           if (this.locked) return;
+          if (this._consumedButtonIdx === i) return;
           audio.play('ui/click');
           this.onAnswer(i);
         },
@@ -973,11 +843,12 @@ export class BattleScene extends Phaser.Scene {
     this.setSuperVisible(this.teamBtn, false);
 
     // Pause/gear button — top-left near QUEST label
-    PaperButton(this, area.left + 60, area.top + 22, '⚙', {
+    const gearBtn = PaperButton(this, area.left + 60, area.top + 22, '⚙', {
       w: 54, h: 46, color: 0xfff8e8, fontSize: 22,
       textColor: '#3a2410',
       onClick: () => this.showPauseOverlay(),
     });
+    this.setUIDepth(gearBtn, 20);
 
     // Pause overlay — all elements at absolute positions, collected into
     // an array so we can show/hide them together. Depth is set high so
@@ -1044,7 +915,40 @@ export class BattleScene extends Phaser.Scene {
       fontSize: '26px',
       backgroundColor: '#1a0e04',
       padding: { x: 20, y: 10 },
-    }).setOrigin(0.5).setAlpha(0);
+    }).setOrigin(0.5).setAlpha(0).setDepth(50);
+
+    // --- DEPTH FIX: Set all UI elements above parallax background (depths 0-8) ---
+    const UI_DEPTH = 20;
+    const UI_TEXT_DEPTH = 21;
+    // Momentum bar
+    this.setUIDepth(this.momentumBarObj, UI_DEPTH);
+    if (this.momentumLabel) this.momentumLabel.setDepth(UI_TEXT_DEPTH);
+    // Potion button
+    this.setUIDepth(this.potionBtn, UI_DEPTH);
+    // Equation panel elements
+    for (const key of Object.keys(this.eqLines || {})) {
+      if (this.eqLines[key]?.setDepth) this.eqLines[key].setDepth(UI_TEXT_DEPTH + 2);
+    }
+    // Turn label
+    if (this.turnLabel) this.turnLabel.setDepth(UI_TEXT_DEPTH + 2);
+    // Answer buttons
+    for (const btn of this.answerButtons || []) {
+      this.setUIDepth(btn, UI_DEPTH + 5);
+      if (btn.label?.setDepth) btn.label.setDepth(UI_DEPTH + 6);
+    }
+    // Ability buttons
+    for (const btn of [this.abilityBtn, this.superBtn, this.teamBtn]) {
+      this.setUIDepth(btn, UI_DEPTH + 4);
+    }
+    // Gear/pause button — find all non-depth-set game objects and bump UI ones
+    // The PaperPanels for equation and turn label need depth too
+    this.children.list.forEach(child => {
+      if (child.depth === 0 && child.type === 'Graphics' && child !== this.parallaxState?.layers?.[0]?.gfx) {
+        // Only bump UI graphics, not parallax ones
+        const y = child.y ?? 0;
+        if (y > 800 || child._paperPanel) child.setDepth(UI_DEPTH);
+      }
+    });
 
     // End overlay (hidden by default)
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
@@ -1097,6 +1001,496 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // ================================================================
+  // ================================================================
+  // COMMAND MENU
+  // ================================================================
+
+  buildCommandMenu() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const cmds = this.availableCommands;
+    const btnW = 160;
+    const btnH = 75;
+    const gap = 22;
+    const totalW = cmds.length * btnW + (cmds.length - 1) * gap;
+    const startX = area.cx - totalW / 2 + btnW / 2;
+    const cmdY = this.eqCenterY || (this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 80);
+
+    this.commandButtons = [];
+    const cmdColors = {
+      [COMMANDS.FIGHT]: 0x3080d0,
+      [COMMANDS.MAGIC]: 0x8040c0,
+      [COMMANDS.GUARD]: 0x308830,
+    };
+    const cmdIcons = {
+      [COMMANDS.FIGHT]: '⚔️',
+      [COMMANDS.MAGIC]: '✨',
+      [COMMANDS.GUARD]: '🛡️',
+    };
+    const cmdLabels = {
+      [COMMANDS.FIGHT]: 'FIGHT',
+      [COMMANDS.MAGIC]: 'MAGIC',
+      [COMMANDS.GUARD]: 'GUARD',
+    };
+
+    for (let i = 0; i < cmds.length; i++) {
+      const cmd = cmds[i];
+      const x = startX + i * (btnW + gap);
+      const btn = PaperButton(this, x, cmdY, `${cmdIcons[cmd]} ${cmdLabels[cmd]}`, {
+        w: btnW, h: btnH,
+        color: cmdColors[cmd],
+        fontSize: 20,
+        onClick: () => {
+          if (this.phase !== 'command') return;
+          audio.play('ui/click');
+          this.selectCommand(cmd);
+        },
+      });
+      btn.cmd = cmd;
+      btn._origY = cmdY;
+      this.setUIDepth(btn, 28);
+      if (btn.label?.setDepth) btn.label.setDepth(29);
+      this.commandButtons.push(btn);
+    }
+    this.setCommandMenuVisible(false);
+  }
+
+  setCommandMenuVisible(visible) {
+    for (let idx = 0; idx < this.commandButtons.length; idx++) {
+      const btn = this.commandButtons[idx];
+      if (btn.bg) btn.bg.setVisible(visible);
+      if (btn.shadow) btn.shadow.setVisible(visible);
+      if (btn.label) btn.label.setVisible(visible);
+      if (btn.zone) btn.zone.setVisible(visible);
+    }
+  }
+
+  setCommandMenuForClass(allowedCmds) {
+    // Destroy old buttons completely and rebuild fresh
+    for (const btn of this.commandButtons) {
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (el) el.destroy();
+      }
+    }
+    this.commandButtons = [];
+
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const btnW = 160, btnH = 75, gap = 22;
+    const cmdY = this.eqCenterY || (this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 80);
+    const totalW = allowedCmds.length * btnW + (allowedCmds.length - 1) * gap;
+    const startX = area.cx - totalW / 2 + btnW / 2;
+
+    const cmdColors = { [COMMANDS.FIGHT]: 0x3080d0, [COMMANDS.MAGIC]: 0x8040c0, [COMMANDS.GUARD]: 0x308830 };
+    const cmdIcons = { [COMMANDS.FIGHT]: '⚔️', [COMMANDS.MAGIC]: '✨', [COMMANDS.GUARD]: '🛡️' };
+    const cmdLabels = { [COMMANDS.FIGHT]: 'FIGHT', [COMMANDS.MAGIC]: 'MAGIC', [COMMANDS.GUARD]: 'GUARD' };
+
+    for (let i = 0; i < allowedCmds.length; i++) {
+      const cmd = allowedCmds[i];
+      const x = startX + i * (btnW + gap);
+      const btn = PaperButton(this, x, cmdY, `${cmdIcons[cmd]} ${cmdLabels[cmd]}`, {
+        w: btnW, h: btnH, color: cmdColors[cmd], fontSize: 20,
+        onClick: () => {
+          if (this.phase !== 'command') return;
+          audio.play('ui/click');
+          this.selectCommand(cmd);
+        },
+      });
+      btn.cmd = cmd;
+      btn._origY = cmdY;
+      this.setUIDepth(btn, 28);
+      if (btn.label?.setDepth) btn.label.setDepth(29);
+      this.commandButtons.push(btn);
+    }
+  }
+
+  addComboButton() {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const btnH = 75;
+    const cmdY = this.eqCenterY || (this.answerBtnLayout.y - this.answerBtnLayout.h / 2 - 80);
+    // Place combo button below the command row
+    const comboY = cmdY + btnH + 16;
+    const btn = PaperButton(this, area.cx, comboY, '⚡ COMBO', {
+      w: 200, h: btnH, color: 0xd4a820, fontSize: 20,
+      onClick: () => {
+        if (this.phase !== 'command') return;
+        audio.play('ui/click');
+        this.executeCombo();
+      },
+    });
+    btn._isCombo = true;
+    btn._origY = comboY;
+    this.setUIDepth(btn, 28);
+    if (btn.label?.setDepth) btn.label.setDepth(29);
+    this.commandButtons.push(btn);
+  }
+
+  executeCombo() {
+    if (this.phase !== 'command' || !this._availableCombo) return;
+    this.comboUsedThisBattle = true;
+
+    const combo = this._availableCombo;
+    const { hero1, hero2, name, multiplier } = combo;
+
+    // Hide command menu
+    this.setCommandMenuVisible(false);
+
+    // Generate a harder question (same as MAGIC — harder difficulty bias)
+    const config = getCommandConfig(COMMANDS.MAGIC);
+    this.currentQuestion = generateRatedQuestion({
+      operator: this.operator,
+      grade: this.grade,
+      streak: this.streak,
+      floor: this.floor,
+      targetStars: config.targetStars,
+    });
+
+    // Show combo name as turn label
+    const starStr = '★'.repeat(this.currentQuestion.stars) +
+                    '☆'.repeat(5 - this.currentQuestion.stars);
+    this.turnLabel.setText(`${hero1.name} & ${hero2.name}: ${name}! ${starStr}`);
+
+    this.phase = 'question';
+    this.selectedCommand = '_COMBO_';
+    this._comboData = { hero1, hero2, name, multiplier };
+    this.renderStackedEquation(this.currentQuestion);
+    showPanelFx(this, this.panelFx);
+
+    for (let i = 0; i < 4; i++) {
+      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
+      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
+    }
+
+    // Animate equation + answer buttons in
+    const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
+    const ansElements = [];
+    for (const btn of this.answerButtons) {
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (el) ansElements.push(el);
+      }
+    }
+    const fadeInTargets = [...eqElements, ...ansElements];
+    const originalYs = fadeInTargets.map(el => el.y);
+    for (let fi = 0; fi < fadeInTargets.length; fi++) {
+      fadeInTargets[fi].setAlpha(0);
+      fadeInTargets[fi].y = originalYs[fi] + 20;
+    }
+    this.setAnswerButtonsVisible(true);
+    for (let fi = 0; fi < fadeInTargets.length; fi++) {
+      this.tweens.add({
+        targets: fadeInTargets[fi],
+        alpha: 1,
+        y: originalYs[fi],
+        duration: 150,
+        ease: 'Cubic.out',
+        delay: 100,
+      });
+    }
+
+    this._consumedButtonIdx = -1;
+  }
+
+  /** Called from onAnswer when selectedCommand is _COMBO_ and the answer is correct */
+  applyComboAttack() {
+    const { hero1, hero2, name, multiplier } = this._comboData;
+    const targetIdx = this.currentTarget;
+    const targetEnemy = this.enemies[targetIdx] || this.enemy;
+    const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
+
+    // Combined ATK of both heroes
+    const combinedAtk = (hero1.atk || 10) + (hero2.atk || 10);
+    const totalDmg = Math.max(5, Math.round(combinedAtk * multiplier));
+
+    // Find hero sprite indices
+    const h1Idx = this.party.indexOf(hero1);
+    const h2Idx = this.party.indexOf(hero2);
+    const hs1 = this.heroSprites[h1Idx];
+    const hs2 = this.heroSprites[h2Idx];
+
+    // Mark the partner's turn to be skipped (only if they haven't acted yet this round)
+    const currentHeroIdx = this.currentTurn.heroIndex;
+    const partnerIdx = currentHeroIdx === h1Idx ? h2Idx : h1Idx;
+    this.comboSkipHeroIndex = partnerIdx > currentHeroIdx ? partnerIdx : -1;
+
+    // Show combo name in golden text at center
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const comboText = this.add.text(area.cx, area.cy - 60, name + '!', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '52px',
+      color: '#f0d040',
+      stroke: '#3a1a00',
+      strokeThickness: 6,
+    }).setOrigin(0.5).setDepth(50).setAlpha(0).setScale(0.5);
+
+    this.tweens.add({
+      targets: comboText,
+      alpha: 1,
+      scale: 1.2,
+      duration: 400,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: comboText,
+          alpha: 0,
+          scale: 1.5,
+          duration: 500,
+          delay: 600,
+          ease: 'Cubic.in',
+          onComplete: () => comboText.destroy(),
+        });
+      },
+    });
+
+    // Both heroes rush forward
+    const lungeX = targetSprite.body ? targetSprite.body.x - 80 : (hs1?.x || 300) + 200;
+    const origX1 = hs1?.body?.x;
+    const origX2 = hs2?.body?.x;
+
+    if (hs1?.body) {
+      hs1.body.setTint(0xffff80);
+      this.tweens.add({
+        targets: hs1.body, x: lungeX - 20, duration: 250, ease: 'Power2',
+        onComplete: () => {
+          hs1.body.clearTint();
+          this.tweens.add({ targets: hs1.body, x: origX1, duration: 200, ease: 'Power2' });
+        },
+      });
+    }
+    if (hs2?.body) {
+      hs2.body.setTint(0xffff80);
+      this.tweens.add({
+        targets: hs2.body, x: lungeX + 20, duration: 250, delay: 80, ease: 'Power2',
+        onComplete: () => {
+          hs2.body.clearTint();
+          this.tweens.add({ targets: hs2.body, x: origX2, duration: 200, ease: 'Power2' });
+        },
+      });
+    }
+
+    // Hit effects after a brief delay
+    this.time.delayedCall(350, () => {
+      // Screen shake + particle burst
+      this.cameras.main.shake(350, 0.025);
+      this.burstParticles(targetSprite.x, targetSprite.y, 0xf0d040);
+      this.burstParticles(targetSprite.x, targetSprite.y, 0xf08020);
+      this.hitFlash();
+
+      // Apply damage
+      targetEnemy.hp = Math.max(0, targetEnemy.hp - totalDmg);
+      this.updateEnemyHp(targetIdx);
+      this.floatDamageNumber(targetSprite.x, targetSprite.y - 100, totalDmg, '#f0d040', '+');
+      audio.play('battle/hit-enemy');
+
+      this.showToast(`${name}! ${totalDmg} DMG!`, '#f0d040');
+
+      // Check for kill
+      if (targetEnemy.hp <= 0) {
+        this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
+        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
+        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
+        if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 300 });
+        if (this.allEnemiesDead()) {
+          this.time.delayedCall(500, () => this.showVictory());
+          return;
+        }
+        const nextAlive = this.findNextAliveEnemy();
+        if (nextAlive >= 0) this.currentTarget = nextAlive;
+      }
+
+      this.time.delayedCall(500, () => {
+        this._answerProcessing = false;
+        this.nextTurn();
+      });
+    });
+  }
+
+  selectCommand(cmd) {
+    this.selectedCommand = cmd;
+
+    // Animate command buttons sliding/fading out
+    const cmdElements = [];
+    for (const btn of this.commandButtons) {
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (el && el.visible) cmdElements.push(el);
+      }
+    }
+    if (cmdElements.length > 0) {
+      this.tweens.add({
+        targets: cmdElements,
+        alpha: 0,
+        duration: 120,
+        ease: 'Cubic.in',
+        onComplete: () => this.setCommandMenuVisible(false),
+      });
+    } else {
+      this.setCommandMenuVisible(false);
+    }
+
+    const hero = this.party[this.currentTurn.heroIndex];
+    const config = getCommandConfig(cmd);
+
+    if (cmd === COMMANDS.GUARD) {
+      this.guardActive[this.currentTurn.heroIndex] = true;
+      this.turnLabel.setText(`${hero.name} guards! -50% damage`);
+      this.showToast(`${hero.name} GUARDS!`, '#48a848');
+      audio.play('battle/correct');
+      // Brief shield visual on the hero sprite
+      const hs = this.heroSprites[this.currentTurn.heroIndex];
+      if (hs && hs.body) {
+        const shield = this.add.circle(hs.x, hs.y, 60, 0x48a848, 0.3);
+        this.tweens.add({
+          targets: shield, scale: 1.3, alpha: 0,
+          duration: 400, ease: 'Cubic.out',
+          onComplete: () => shield.destroy(),
+        });
+      }
+      this.time.delayedCall(500, () => this.nextTurn());
+      return;
+    }
+
+    // FIGHT or MAGIC: generate a rated question and show it
+    this.currentQuestion = generateRatedQuestion({
+      operator: this.operator,
+      grade: this.grade,
+      streak: this.streak,
+      floor: this.floor,
+      targetStars: config.targetStars,
+    });
+
+    // Show star rating on the turn label
+    const starStr = '★'.repeat(this.currentQuestion.stars) +
+                    '☆'.repeat(5 - this.currentQuestion.stars);
+    const isBunnyHeal = cmd === COMMANDS.MAGIC && (hero.class || 'knight') === 'bunny';
+    const cmdName = isBunnyHeal ? 'HEAL' : cmd === COMMANDS.MAGIC ? 'MAGIC' : 'FIGHT';
+    this.turnLabel.setText(`${hero.name}: ${cmdName}! ${starStr}`);
+
+    // --- Battle cry: attack ---
+    this.showBattleCry(hero, 'attack');
+
+    this.phase = 'question';
+    this.renderStackedEquation(this.currentQuestion);
+    showPanelFx(this, this.panelFx);
+
+    for (let i = 0; i < 4; i++) {
+      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
+      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
+    }
+
+    // Animate equation panel + answer buttons sliding/fading in
+    const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
+    const ansElements = [];
+    for (const btn of this.answerButtons) {
+      for (const el of [btn.bg, btn.shadow, btn.label, btn.zone]) {
+        if (el) ansElements.push(el);
+      }
+    }
+    const fadeInTargets = [...eqElements, ...ansElements];
+    // Record target y positions, then offset for slide-in
+    const originalYs = fadeInTargets.map(el => el.y);
+    for (let fi = 0; fi < fadeInTargets.length; fi++) {
+      fadeInTargets[fi].setAlpha(0);
+      fadeInTargets[fi].y = originalYs[fi] + 20;
+    }
+    this.setAnswerButtonsVisible(true);
+    for (let fi = 0; fi < fadeInTargets.length; fi++) {
+      this.tweens.add({
+        targets: fadeInTargets[fi],
+        alpha: 1,
+        y: originalYs[fi],
+        duration: 150,
+        ease: 'Cubic.out',
+        delay: 100,
+      });
+    }
+
+    // --- Stargazer signature: reveal one wrong answer ---
+    if (this.signatureState.revealWrongActive) {
+      const wrongIndices = [0, 1, 2, 3].filter(i => i !== this.currentQuestion.correctIndex);
+      if (wrongIndices.length > 0) {
+        const revealIdx = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+        // Reduce opacity and draw a red X over the wrong answer button
+        this.recolorAnswerButton(revealIdx, this.answerButtons[revealIdx].baseColor, 0.4);
+        const { w, h, y: btnY, startX, gap } = this.answerBtnLayout;
+        const bx = startX + revealIdx * (w + gap);
+        const xMark = this.add.text(bx, btnY, '✗', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '52px',
+          color: '#e04040',
+          stroke: '#000000',
+          strokeThickness: 4,
+        }).setOrigin(0.5).setDepth(30);
+        this._revealWrongMark = xMark;
+      }
+    }
+
+    // Boss timer starts AFTER command selection
+    if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
+    if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
+    if (this.isBoss) {
+      const gradeTimers = [12000, 11000, 10000, 8000, 9000, 10000];
+      let timerDuration = gradeTimers[this.grade] || 8000;
+      // --- Bookworm signature: add extra seconds to boss timer ---
+      if (this.signatureState.timerBonusSeconds > 0) {
+        timerDuration += this.signatureState.timerBonusSeconds * 1000;
+        // Show +Ns indicator near the timer bar
+        const area2 = safeArea(GAME_WIDTH, GAME_HEIGHT);
+        const bonusLabel = this.add.text(area2.cx + 210, this.turnLabel.y - 30, `+${this.signatureState.timerBonusSeconds}s`, {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '16px',
+          color: '#4080e0',
+          stroke: '#000000',
+          strokeThickness: 2,
+        }).setOrigin(0, 0.5).setDepth(30);
+        this._timerBonusLabel = bonusLabel;
+      }
+      this.bossTimerStart = this.time.now;
+      this.bossTimerDuration = timerDuration;
+
+      const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+      const barW = 400;
+      const barY = this.turnLabel.y - 30;
+      this.bossTimerBar = this.add.graphics();
+      this.bossTimerBar.setScrollFactor(0);
+      this.updateBossTimerBar(barW, barY, 1);
+
+      this.bossTimerUpdate = this.time.addEvent({
+        delay: 50, loop: true,
+        callback: () => {
+          const elapsed = this.time.now - this.bossTimerStart;
+          const pct = Math.max(0, 1 - elapsed / timerDuration);
+          this.updateBossTimerBar(barW, barY, pct);
+        },
+      });
+
+      this.bossTimer = this.time.delayedCall(timerDuration, () => {
+        if (this.phase !== 'question' || this.locked) return;
+        this.showToast('TIME UP!', COLORS_CSS.scarletL);
+        const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
+        this.onAnswer(wrongIdx);
+      });
+    }
+
+    // Consume ability (enemy ate a wrong answer button)
+    this._consumedButtonIdx = -1;
+    if (this._consumeNextTurn) {
+      this._consumeNextTurn = false;
+      const wrongIndices = [0, 1, 2, 3].filter((i) => i !== this.currentQuestion.correctIndex);
+      const victim = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+      this._consumedButtonIdx = victim;
+      this.recolorAnswerButton(victim, this.answerButtons[victim].baseColor, 0.25);
+      this.answerButtons[victim].label.setText('?');
+    }
+  }
+
+  setAnswerButtonsVisible(visible) {
+    for (const btn of this.answerButtons) {
+      if (btn.bg) btn.bg.setVisible(visible);
+      if (btn.shadow) btn.shadow.setVisible(visible);
+      if (btn.label) btn.label.setVisible(visible);
+      if (btn.zone) btn.zone.setVisible(visible);
+    }
+  }
+
+  // ================================================================
   // TURN FLOW
   // ================================================================
 
@@ -1133,11 +1527,23 @@ export class BattleScene extends Phaser.Scene {
     this.turnIdx = result.index;
     this.currentTurn = result.turn;
 
-    // Tick ability cooldowns and rally turns on each turn advance
-    this.tickAbilityCooldowns();
-    if (this.rallyTurns > 0) this.rallyTurns--;
+    // Only tick cooldowns/rally on hero turns (not enemy turns)
+    if (this.currentTurn.who === 'hero') {
+      this.tickAbilityCooldowns();
+      if (this.rallyTurns > 0) this.rallyTurns--;
+    }
+
+    // Signature: reset per-turn flags
+    onTurnStart(this.party, this.signatureState);
 
     this.updateHeroIndicators();
+
+    // Skip hero turn if consumed by a combo attack
+    if (this.currentTurn.who === 'hero' && this.comboSkipHeroIndex === this.currentTurn.heroIndex) {
+      this.comboSkipHeroIndex = -1;
+      this.time.delayedCall(50, () => this.nextTurn());
+      return;
+    }
 
     if (this.currentTurn.who === 'hero') this.startHeroTurn();
     else this.startEnemyTurn();
@@ -1145,8 +1551,10 @@ export class BattleScene extends Phaser.Scene {
 
   startHeroTurn() {
     const hero = this.party[this.currentTurn.heroIndex];
-    this.phase = 'question';
+    this.phase = 'command';
     this.locked = false;
+    this.selectedCommand = null;
+    this._availableCombo = null;
     this.refreshPotionButton();
     this.refreshAbilityButton();
     this.updateSuperButton();
@@ -1156,70 +1564,47 @@ export class BattleScene extends Phaser.Scene {
       this.showToast(getTutorialText('FIRST_BATTLE'), COLORS_CSS.goldL);
     }
 
-    this.currentQuestion = generateQuestion({
-      operator: this.operator,
-      grade: this.grade,
-      streak: this.streak,
-      floor: this.floor,
-    });
+    // Clear guard from previous round
+    this.guardActive[this.currentTurn.heroIndex] = false;
 
-    this.renderStackedEquation(this.currentQuestion);
+    // Show command menu filtered by hero class, hide answer buttons
+    const heroCmds = getClassCommands(hero.class || 'knight', this.grade);
+    this.setCommandMenuForClass(heroCmds);
 
-    for (let i = 0; i < 4; i++) {
-      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
-      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
+    // Check for available combo attacks (bond B+ rank, both heroes alive, once per battle)
+    if (!this.comboUsedThisBattle) {
+      const partyHeroIds = this.party.map(h => h.id);
+      const combos = getAvailableCombos(this.save, partyHeroIds);
+      for (const combo of combos) {
+        const [h1Id, h2Id] = combo.heroes;
+        const h1 = this.party.find(h => h && h.id === h1Id && h.hp > 0);
+        const h2 = this.party.find(h => h && h.id === h2Id && h.hp > 0);
+        if (h1 && h2) {
+          this._availableCombo = { ...combo, hero1: h1, hero2: h2 };
+          this.addComboButton();
+          // First-time explainer — combos are powerful but hidden otherwise
+          const tipKey = 'mw_combo_tip_shown';
+          let tipShown = false;
+          try { tipShown = !!localStorage.getItem(tipKey); } catch (e) { /* ignore */ }
+          if (!tipShown) {
+            try { localStorage.setItem(tipKey, '1'); } catch (e) { /* ignore */ }
+            this.showFirstTimeTip(
+              `${h1.name} & ${h2.name} are best friends now!\nTap the gold COMBO button for a team move!`
+            );
+          }
+          break; // only show one combo at a time
+        }
+      }
     }
 
-    // Boss fights have a countdown timer — race to answer!
-    if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
-    if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
+    this.setAnswerButtonsVisible(false);
+    this.turnLabel.setText(`${hero.name}'s turn — choose a command!`);
 
-    if (this.isBoss) {
-      const gradeTimers = [12000, 11000, 10000, 8000, 9000, 10000];
-      const timerDuration = gradeTimers[this.grade] || 8000;
-      this.bossTimerStart = this.time.now;
-      this.bossTimerDuration = timerDuration;
-      this.turnLabel.setText(`${hero.name} — HURRY! ⏱`);
-
-      // Visual timer bar above the turn label
-      const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-      const barW = 400;
-      const barY = this.turnLabel.y - 30;
-      this.bossTimerBar = this.add.graphics();
-      this.bossTimerBar.setScrollFactor(0);
-      this.updateBossTimerBar(barW, barY, 1);
-
-      this.bossTimerUpdate = this.time.addEvent({
-        delay: 50,
-        loop: true,
-        callback: () => {
-          const elapsed = this.time.now - this.bossTimerStart;
-          const pct = Math.max(0, 1 - elapsed / timerDuration);
-          this.updateBossTimerBar(barW, barY, pct);
-        },
-      });
-
-      this.bossTimer = this.time.delayedCall(timerDuration, () => {
-        if (this.phase !== 'question' || this.locked) return;
-        this.showToast('TIME UP!', COLORS_CSS.scarletL);
-        // Find a wrong answer index and force-select it
-        const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
-        this.onAnswer(wrongIdx);
-      });
-    } else {
-      this.turnLabel.setText(`${hero.name}'s turn — answer the question!`);
-    }
-
-    // Consume ability: if the previous turn was wrong and the enemy has
-    // the consume ability, one random wrong answer button is "eaten"
-    // and can't be tapped. This forces the player to commit without a
-    // full set of options.
-    if (this._consumeNextTurn) {
-      this._consumeNextTurn = false;
-      const wrongIndices = [0, 1, 2, 3].filter((i) => i !== this.currentQuestion.correctIndex);
-      const victim = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
-      this.recolorAnswerButton(victim, this.answerButtons[victim].baseColor, 0.25);
-      this.answerButtons[victim].label.setText('?');
+    // Clear any stale equation text
+    if (this.eqLines) {
+      this.eqLines.a.setText('');
+      this.eqLines.opB.setText('');
+      this.eqLines.ans.setText('');
     }
   }
 
@@ -1354,18 +1739,20 @@ export class BattleScene extends Phaser.Scene {
     const opSym = q.op === '*' ? '\u00d7' : q.op === '/' ? '\u00f7' : q.op;
 
     if (q.format === 'missing') {
-      // Phase 2.3: Missing operand format \u2014 "? [op] b = fullAnswer"
-      // Student solves for 'a', the missing operand
       this.eqLines.a.setText(`  ?`);
       this.eqLines.opB.setText(`${opSym} ${q.b}`);
       this.eqLines.bar.setText('\u2500'.repeat(Math.max(3, String(Math.max(q.fullAnswer, q.b)).length + 2)));
       this.eqLines.ans.setText(String(q.fullAnswer));
     } else {
-      // Standard format: "a [op] b = ?"
       this.eqLines.a.setText(`  ${q.a}`);
       this.eqLines.opB.setText(`${opSym} ${q.b}`);
       this.eqLines.bar.setText('\u2500'.repeat(Math.max(3, String(Math.max(q.a, q.b)).length + 2)));
       this.eqLines.ans.setText('?');
+    }
+
+    // Star rating on equation panel
+    if (this.eqLines.stars && q.stars) {
+      this.eqLines.stars.setText('\u2605'.repeat(q.stars) + '\u2606'.repeat(5 - q.stars));
     }
   }
 
@@ -1375,6 +1762,7 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.opB.setText('');
     this.eqLines.bar.setText('');
     this.eqLines.ans.setText('');
+    if (this.eqLines.stars) this.eqLines.stars.setText('');
   }
 
   startEnemyTurn() {
@@ -1391,6 +1779,53 @@ export class BattleScene extends Phaser.Scene {
       this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 0.3);
       this.answerButtons[i].label.setText('');
     }
+
+    // --- Signature: poison/burn ticks at start of enemy turn ---
+    const dotTicks = onEnemyTurnStart(this.enemies, this.party, this.signatureState);
+    let dotDelay = 0;
+    for (const tick of dotTicks) {
+      const ei = tick.enemyIndex;
+      if (!this.enemies[ei] || this.enemies[ei].hp <= 0) continue;
+      this.time.delayedCall(dotDelay, () => {
+        const enemy = this.enemies[ei];
+        if (!enemy || enemy.hp <= 0) return;
+        const sprite = this.enemySprites[ei];
+        enemy.hp = Math.max(0, enemy.hp - tick.damage);
+        this.updateEnemyHp(ei);
+        const color = tick.type === 'poison' ? '#80ff40' : '#ff8040';
+        const label = tick.type === 'poison' ? 'POISON' : 'BURN';
+        if (sprite) {
+          this.floatDamageNumber(sprite.x, sprite.y - 100, tick.damage, color, '-');
+        }
+        if (enemy.hp <= 0 && sprite) {
+          this.tweens.add({ targets: sprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+          if (sprite.name) this.tweens.add({ targets: sprite.name, alpha: 0, duration: 400 });
+          if (sprite.hpBarBg) this.tweens.add({ targets: sprite.hpBarBg, alpha: 0, duration: 400 });
+          if (sprite.hpBarFill) this.tweens.add({ targets: sprite.hpBarFill, alpha: 0, duration: 400 });
+          if (sprite.hpText) this.tweens.add({ targets: sprite.hpText, alpha: 0, duration: 300 });
+        }
+      });
+      dotDelay += 200;
+    }
+
+    // Check if DOTs killed all enemies
+    if (dotTicks.length > 0) {
+      this.time.delayedCall(dotDelay + 100, () => {
+        if (this.allEnemiesDead()) {
+          this.showVictory();
+          return;
+        }
+        this._doEnemyAttacks();
+      });
+      return;
+    }
+
+    this._doEnemyAttacks();
+  }
+
+  /** Internal: execute the enemy attack sequence after DOT ticks. */
+  _doEnemyAttacks() {
+    const aliveEnemies = this.enemies.filter(e => e.hp > 0);
 
     // Each alive enemy attacks once, spread across heroes
     const livingHeroes = this.party.filter(h => h && h.hp > 0);
@@ -1426,19 +1861,55 @@ export class BattleScene extends Phaser.Scene {
 
       this.time.delayedCall(350, () => {
         const cls = target.class || 'knight';
+        const targetHeroIdx = this.party.indexOf(target);
 
-        // Bunny dodge — 30% chance to avoid all damage
-        if (cls === 'bunny' && Math.random() < 0.3) {
-          this.showToast(`${target.name} DODGES!`, '#e86898');
+        // --- Signature: Paladin guard block ---
+        if (targetHeroIdx >= 0 && consumePaladinGuard(targetHeroIdx, this.signatureState)) {
+          const paladin = this.party.find(h => h && h.hp > 0 && h.signature && h.signature.effect === 'guardAlly');
+          this.showToast(`${paladin ? paladin.name : 'Paladin'} blocks for ${target.name}!`, '#60a0ff');
           audio.play('battle/hit-hero');
           this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
           return;
         }
 
-        const result = computeEnemyDamage(attacker, target, { momentum: this.momentum });
+        // Bunny dodge — base 30% chance, Dodge Roll ability raises to 60%
+        const dodgeChance = (cls === 'bunny') ? (this.dodgeActive ? 0.6 : 0.3) : 0;
+        if (dodgeChance > 0 && Math.random() < dodgeChance) {
+          if (this.dodgeActive) {
+            this.dodgeActive = false;
+            this.showToast(`${target.name} DODGE ROLL!`, '#e86898');
+          } else {
+            this.showToast(`${target.name} DODGES!`, '#e86898');
+          }
+          audio.play('battle/hit-hero');
+          this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
+          return;
+        }
 
-        // Knight shield block — 40% chance to halve incoming damage
-        if (cls === 'knight' && Math.random() < 0.4) {
+        let result = computeEnemyDamage(attacker, target, { momentum: this.momentum });
+
+        // --- Signature: apply incoming damage modifiers (Crusader aura, Boulder doubleDef) ---
+        const sigResult = onHeroDamageReceived(target, attacker, result.modifiedDamage, {
+          party: this.party,
+          battleState: this.signatureState,
+          heroIndex: targetHeroIdx,
+        });
+        if (sigResult.damage !== result.modifiedDamage) {
+          result.modifiedDamage = sigResult.damage;
+          result.newHp = Math.max(0, target.hp - result.modifiedDamage);
+        }
+
+        // Guard reduction — lasts the FULL enemy round (not consumed per hit)
+        if (targetHeroIdx >= 0 && this.guardActive[targetHeroIdx]) {
+          result = applyGuardReduction(result, target.hp);
+          this.showToast(`${target.name} GUARDS! Half damage!`, '#48a848');
+        } else if (this.shieldBashActive && targetHeroIdx >= 0) {
+          // Shield Bash ability — block 50% of next attack
+          result.modifiedDamage = Math.max(1, Math.ceil(result.modifiedDamage * 0.5));
+          result.newHp = Math.max(0, target.hp - result.modifiedDamage);
+          this.shieldBashActive = false;
+          this.showToast(`${target.name} SHIELD BASH! Half damage!`, '#5a7ab8');
+        } else if (cls === 'knight' && Math.random() < 0.4) {
           result.modifiedDamage = Math.max(1, Math.round(result.modifiedDamage / 2));
           result.newHp = Math.max(0, target.hp - result.modifiedDamage);
           this.showToast(`${target.name} BLOCKS! Half damage!`, '#5a7ab8');
@@ -1446,6 +1917,22 @@ export class BattleScene extends Phaser.Scene {
 
         applyDamageResult(target, result);
         if (result.modifiedDamage > 0) this.battleDamageTaken = true;
+
+        // --- Signature: lastStand check (Great Helm) ---
+        if (target.hp <= 0 && checkLastStand(target, targetHeroIdx, this.signatureState)) {
+          this.showToast(`${target.name}: LAST STAND!`, '#f0d040');
+        }
+
+        // --- Signature: Paladin guardAlly trigger (check low HP) ---
+        if (target.hp > 0) {
+          checkPaladinGuard(target, targetHeroIdx, this.party, this.signatureState);
+        }
+
+        // --- Battle cry: lowHp ---
+        if (target.hp > 0 && target.hp <= target.maxHp * 0.25) {
+          this.showBattleCry(target, 'lowHp');
+        }
+
         this.hitFlash();
         this.flashHero(target, result);
         this.updateHeroHp(target);
@@ -1457,6 +1944,11 @@ export class BattleScene extends Phaser.Scene {
     };
 
     doEnemyAttack(0);
+
+    // Clear guard flags at END of enemy phase (guard lasts full round)
+    this.time.delayedCall(aliveEnemies.length * 650 + 100, () => {
+      this.guardActive.fill(false);
+    });
   }
 
   // ================================================================
@@ -1465,8 +1957,18 @@ export class BattleScene extends Phaser.Scene {
 
   onAnswer(index) {
     if (this.phase !== 'question' || !this.currentQuestion) return;
+    if (this._answerProcessing) return;
+    this._answerProcessing = true;
     this.locked = true;
     this.clearBossTimer();
+    hidePanelFx(this.panelFx);
+
+    // Clean up signature UI elements
+    if (this._revealWrongMark) { this._revealWrongMark.destroy(); this._revealWrongMark = null; }
+    if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
+
+    // Freeze command for this answer — prevents race conditions
+    const activeCommand = this.selectedCommand || COMMANDS.FIGHT;
 
     const correct = index === this.currentQuestion.correctIndex;
     const btn = this.answerButtons[index];
@@ -1496,23 +1998,30 @@ export class BattleScene extends Phaser.Scene {
 
       const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
       const btnObj = this.answerButtons[index];
+      const rm = this.reducedMotion;
       if (this.momentum >= 1.0) {
         this.showToast('TEAM ATTACK READY!', '#f0d040');
       } else if (this.streak >= 8) {
         streakBanner(this, this.streak, area.cx, area.cy);
-        screenEdgeGlow(this, 0xff4040, 500);
+        if (!rm) screenEdgeGlow(this, 0xff4040, 500);
       } else if (this.streak >= 5) {
         streakBanner(this, this.streak, area.cx, area.cy);
-        screenEdgeGlow(this, 0xf0a020, 400);
+        if (!rm) screenEdgeGlow(this, 0xf0a020, 400);
       } else if (this.streak >= 3) {
         streakBanner(this, this.streak, area.cx, area.cy);
-        screenEdgeGlow(this, 0x40c040, 300);
+        if (!rm) screenEdgeGlow(this, 0x40c040, 300);
       } else if (this.momentum > 0.66) {
-        this.showToast('CRITICAL HIT!', COLORS_CSS.goldL);
-        confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 12);
+        this.showToast('GREAT!', COLORS_CSS.goldL);
+        if (!rm) confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 12);
       } else {
-        this.showToast('CORRECT!', COLORS_CSS.greenL);
-        confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
+        this.showToast('CORRECT!', '#40c040');
+        if (!rm) confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
+      }
+
+      // Combo attack: intercept before normal damage path
+      if (activeCommand === '_COMBO_' && this._comboData) {
+        this.applyComboAttack();
+        return;
       }
 
       // Target the current enemy
@@ -1529,26 +2038,69 @@ export class BattleScene extends Phaser.Scene {
         activeHero: this.party[this.currentTurn.heroIndex],
       });
 
-      const answer = this.currentQuestion.answer;
-      const zone = getZone(this.momentum);
       const hero = this.party[heroIdx];
       const cls = hero.class || 'knight';
 
-      const streakBonus = this.streak >= 8 ? 6 : this.streak >= 5 ? 4 : this.streak >= 3 ? 2 : 0;
-      const BASE_POWER = 5;
-      const rawDmg = BASE_POWER + (answer * 0.8) + ((hero.atk || 10) * 0.3) + streakBonus;
+      // Bunny MAGIC = heal (not attack)
+      if (cls === 'bunny' && activeCommand === COMMANDS.MAGIC) {
+        const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
+        const healAmt = Math.max(8, Math.round((hero.atk || 10) * getDifficultyMultiplier(stars) * 1.2));
+        const alive = this.party.filter(h => h.hp > 0);
+        const target = alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+        if (target) {
+          const before = target.hp;
+          target.hp = Math.min(target.maxHp, target.hp + healAmt);
+          const healed = target.hp - before;
+          if (healed > 0) {
+            this.showToast(`${target.name} healed ${healed} HP!`, '#60ff60');
+            this.updateAllHeroHp();
+            const hs = this.heroSprites.find(s => s.hero === target);
+            if (hs) {
+              const floatText = this.add.text(hs.x, hs.y - 40, `+${healed}`, {
+                fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+                fontSize: '28px', color: '#60ff60',
+                stroke: '#1a0e04', strokeThickness: 4,
+              }).setOrigin(0.5).setDepth(30);
+              this.tweens.add({ targets: floatText, y: hs.y - 100, alpha: 0, duration: 900, ease: 'Cubic.out', onComplete: () => floatText.destroy() });
+              for (let i = 0; i < 10; i++) {
+                const px = hs.x + (Math.random() - 0.5) * 60;
+                const py = hs.y + 20;
+                const sp = this.add.circle(px, py, 3 + Math.random() * 3, 0x60ff60, 0.7).setDepth(30);
+                this.tweens.add({ targets: sp, y: py - 60 - Math.random() * 40, alpha: 0, duration: 600 + Math.random() * 400, ease: 'Sine.out', onComplete: () => sp.destroy() });
+              }
+            }
+          } else {
+            this.showToast(`${target.name} is at full HP!`, '#80c0ff');
+          }
+        }
+        const advanceDelay = 750;
+        this.time.delayedCall(advanceDelay, () => {
+          this._answerProcessing = false;
+          this.nextTurn();
+        });
+        return;
+      }
 
-      // Apply enemy DEF reduction
-      const defReduction = (targetEnemy.def || 0) * 0.2;
+      // Difficulty-rated damage: stars drive damage, not answer magnitude
+      const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
+      const diffMult = getDifficultyMultiplier(stars);
+      const cmdConfig = getCommandConfig(activeCommand);
+      const cmdMult = cmdConfig.damageMult;
 
-      // Class-specific damage modifiers
+      // Rally ability: +2 ATK for 3 turns (applied temporarily)
+      let atkBonus = 0;
+      if (this.rallyTurns > 0) atkBonus = 2;
+      // Signature: effective ATK includes rageAtk (Berserker) + leaderAura (Duchess)
+      const sigAtk = getEffectiveAtk(hero, this.party);
+      const effectiveHero = { ...hero, atk: sigAtk + atkBonus };
+
+      // Class-specific modifiers
       let classMult = 1;
       let hitCount = 1;
       if (cls === 'knight') {
-        classMult = 1.3; // heavy single hit
+        classMult = 1.3;
       } else if (cls === 'wizard') {
         if (this.streak >= 5) {
-          // Streak 5+: heal weakest ally 10 HP
           const weakest = this.party.filter(h => h.hp > 0).sort((a, b) => a.hp - b.hp)[0];
           if (weakest) {
             weakest.hp = Math.min(weakest.maxHp, weakest.hp + 10);
@@ -1556,22 +2108,74 @@ export class BattleScene extends Phaser.Scene {
             this.updateAllHeroHp();
           }
         }
-        classMult = this.streak >= 3 ? 1.5 : 1.0; // streak bonus
+        classMult = this.streak >= 3 ? 1.5 : 1.0;
       } else if (cls === 'bunny') {
-        hitCount = 2 + (this.streak >= 4 ? 1 : 0); // 2-3 hit combo
-        classMult = 1.0 / hitCount * 1.2; // split damage but 20% total bonus
+        hitCount = 2 + (this.streak >= 4 ? 1 : 0);
+        classMult = 1.0 / hitCount * 1.2;
       }
 
-      // Show ON FIRE! toast at streak 8
       if (this.streak === 8) {
         this.showToast('ON FIRE!', COLORS_CSS.goldL);
       }
 
-      const totalDmg = Math.max(3, Math.round((rawDmg - defReduction) * zone.heroMult * classMult));
-      const modified = hitCount > 1 ? Math.max(3, Math.round(totalDmg / hitCount)) * hitCount : totalDmg;
+      // Damage formula: base × difficulty × command × momentum, then class modifier
+      const commandResult = computeCommandDamage(effectiveHero, targetEnemy, {
+        momentum: this.momentum,
+        streak: this.streak,
+        difficultyMult: diffMult,
+        commandMult: cmdMult,
+      });
+      const baseDmg = commandResult.modifiedDamage;
+      const totalDmg = Math.max(3, Math.round(baseDmg * classMult));
+
+      // --- Signature: modify outgoing damage (hybridDamage, firstStrike, hardBonus) ---
+      const sigDmg = onHeroDamageDealt(hero, targetEnemy, totalDmg, {
+        party: this.party,
+        battleState: this.signatureState,
+        command: activeCommand,
+        streak: this.streak,
+        questionStars: stars,
+      });
+
+      let abilityDmg = sigDmg;
+      if (this.manaSurgeActive) {
+        abilityDmg = Math.round(abilityDmg * 2);
+        this.manaSurgeActive = false;
+        this.showBattleCry(hero, 'superMove');
+      }
+      if (this.furyCharges > 0) {
+        abilityDmg = Math.round(abilityDmg * 1.5);
+        this.furyCharges--;
+      }
+
+      // Critical hit: 10% chance on hard (4-5 star) questions. 2x damage,
+      // warm screen bloom, extra shake — a rare, special moment.
+      if (stars >= 4 && Math.random() < 0.10) {
+        abilityDmg = Math.round(abilityDmg * 2);
+        const critText = this.add.text(area.cx, area.cy - 120, 'CRITICAL!', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '52px', color: '#ffd040',
+          stroke: '#a02000', strokeThickness: 7,
+        }).setOrigin(0.5).setScale(0.4).setDepth(60);
+        this.tweens.add({
+          targets: critText, scale: 1.2, duration: 180, ease: 'Back.out',
+          onComplete: () => this.tweens.add({
+            targets: critText, alpha: 0, y: critText.y - 30, duration: 500, delay: 500,
+            onComplete: () => critText.destroy(),
+          }),
+        });
+        // Screen bloom — brief warm overlay (skipped in reduced motion)
+        if (!this.reducedMotion) {
+          const bloom = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xffc040, 0.18).setDepth(59);
+          this.tweens.add({ targets: bloom, alpha: 0, duration: 300, onComplete: () => bloom.destroy() });
+        }
+        this.shakeCamera(0.02, 300);
+        navigator.vibrate?.(80);
+      }
+      const modified = hitCount > 1 ? Math.max(3, Math.round(abilityDmg / hitCount)) * hitCount : abilityDmg;
       const newHp = Math.max(0, targetEnemy.hp - modified);
       const result = {
-        baseDamage: rawDmg,
+        baseDamage: commandResult.baseDamage,
         modifiedDamage: modified,
         newHp,
         killed: newHp === 0 && targetEnemy.hp > 0,
@@ -1580,8 +2184,32 @@ export class BattleScene extends Phaser.Scene {
       };
       applyDamageResult(targetEnemy, result);
 
-      // Boss half-HP reaction toast
-      if (this.isBoss && !this.bossHalfHpShown && targetEnemy.hp > 0 && targetEnemy.hp <= targetEnemy.maxHp / 2) {
+      // --- Signature: Blaze burn on attack ---
+      applyBurnOnAttack(hero, targetIdx, this.signatureState);
+
+      // --- Signature: Nova splash streak ---
+      const splashes = getSplashDamage(hero, targetIdx, modified, this.enemies, this.streak);
+      for (const splash of splashes) {
+        const se = this.enemies[splash.enemyIndex];
+        if (se && se.hp > 0) {
+          se.hp = Math.max(0, se.hp - splash.damage);
+          this.updateEnemyHp(splash.enemyIndex);
+          const ss = this.enemySprites[splash.enemyIndex];
+          if (ss) this.floatDamageNumber(ss.x, ss.y - 80, splash.damage, '#f080ff', '-');
+        }
+      }
+
+      // --- Battle cry: correct answer ---
+      this.showBattleCry(hero, 'correctAnswer');
+
+
+      // Boss story beats: HP thresholds, with a question-count fallback so
+      // fast battles (supers/crits skipping past thresholds) still get them.
+      this._bossQuestionCount = (this._bossQuestionCount || 0) + 1;
+      const halfDue = targetEnemy.hp <= targetEnemy.maxHp / 2 || this._bossQuestionCount >= 8;
+      const quarterDue = targetEnemy.hp <= targetEnemy.maxHp / 4 || this._bossQuestionCount >= 14;
+
+      if (this.isBoss && !this.bossHalfHpShown && targetEnemy.hp > 0 && halfDue) {
         this.bossHalfHpShown = true;
         const halfKey = `floor${this.floor}_boss_half`;
         const halfDialogue = DIALOGUE[halfKey];
@@ -1590,8 +2218,8 @@ export class BattleScene extends Phaser.Scene {
         }
       }
 
-      // Boss quarter-HP story beat
-      if (this.isBoss && !this.bossQuarterHpShown && targetEnemy.hp > 0 && targetEnemy.hp <= targetEnemy.maxHp / 4) {
+      // Boss quarter-HP story beat (or question-count fallback)
+      if (this.isBoss && this.bossHalfHpShown && !this.bossQuarterHpShown && targetEnemy.hp > 0 && quarterDue) {
         this.bossQuarterHpShown = true;
         const qKey = `floor${this.floor}_boss_quarter`;
         const qDialogue = DIALOGUE[qKey];
@@ -1622,292 +2250,44 @@ export class BattleScene extends Phaser.Scene {
         const nextAlive = this.findNextAliveEnemy();
         if (nextAlive >= 0) this.currentTarget = nextAlive;
         // Fall through to turn advance
-      } else {
-        // Class-specific attack animation (enemy survived)
+      } else if (activeCommand === COMMANDS.MAGIC) {
+        // MAGIC: spectacular animation (900ms) via the new animation system
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
-        const enemyX = targetSprite.x;
-        const enemyY = targetSprite.y;
-
-        if (cls === 'knight') {
-          // Knight: lunge to ENEMY position, curved slash arc, yellow-white sparks
-          this.tweens.add({
-            targets: heroSprite.body,
-            x: enemyX - 80,
-            duration: 200,
-            ease: 'Back.out',
-            onComplete: () => {
-              this.hitFlash();
-              this.flashEnemy(result, targetIdx);
-              this.updateEnemyHp(targetIdx);
-              audio.play('battle/hit-enemy');
-              this.shakeCamera(0.008, 250);
-              // Curved slash arc (bezier) ON the enemy
-              const slash = this.add.graphics();
-              slash.lineStyle(5, 0xf0e8c0, 0.95);
-              slash.beginPath();
-              slash.moveTo(enemyX - 40, enemyY - 50);
-              // Approximate bezier with quadratic curve points
-              const cp1x = enemyX + 30, cp1y = enemyY - 30;
-              const cp2x = enemyX + 20, cp2y = enemyY + 40;
-              const endX = enemyX - 30, endY = enemyY + 50;
-              const steps = 12;
-              for (let t = 1; t <= steps; t++) {
-                const p = t / steps;
-                const ip = 1 - p;
-                const sx = ip*ip*ip*(enemyX - 40) + 3*ip*ip*p*cp1x + 3*ip*p*p*cp2x + p*p*p*endX;
-                const sy = ip*ip*ip*(enemyY - 50) + 3*ip*ip*p*cp1y + 3*ip*p*p*cp2y + p*p*p*endY;
-                slash.lineTo(sx, sy);
-              }
-              slash.strokePath();
-              this.tweens.add({ targets: slash, alpha: 0, duration: 300, onComplete: () => slash.destroy() });
-              // Yellow-white sparks at enemy position
-              for (let i = 0; i < 8; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const dist = 20 + Math.random() * 30;
-                const sparkColor = Math.random() > 0.5 ? 0xfff8c0 : 0xf0d040;
-                const sp = this.add.circle(enemyX, enemyY, 3 + Math.random() * 3, sparkColor);
-                this.tweens.add({
-                  targets: sp,
-                  x: enemyX + Math.cos(angle) * dist,
-                  y: enemyY + Math.sin(angle) * dist,
-                  alpha: 0, duration: 300 + Math.random() * 150,
-                  onComplete: () => sp.destroy(),
-                });
-              }
-              // Return
-              this.tweens.add({ targets: heroSprite.body, x: heroSprite.x, duration: 150, delay: 80, ease: 'Sine.in' });
-            },
-          });
-        } else if (cls === 'wizard') {
-          // Wizard: dramatic elemental beams/bolts based on operator
-          const op = this.currentQuestion?.op || '+';
-          const beamStartX = heroSprite.x + 60;
-          const beamStartY = heroSprite.y - 40;
-          const beamEndX = enemyX;
-          const beamEndY = enemyY;
-
-          if (op === '+') {
-            // FIRE BEAM: wide rectangle from wizard to enemy, trailing particles
-            const beam = this.add.graphics();
-            const angle = Math.atan2(beamEndY - beamStartY, beamEndX - beamStartX);
-            const dist = Math.sqrt((beamEndX - beamStartX) ** 2 + (beamEndY - beamStartY) ** 2);
-            beam.fillStyle(0xff6020, 0.85);
-            beam.save();
-            beam.translateCanvas(beamStartX, beamStartY);
-            beam.rotateCanvas(angle);
-            beam.fillRect(0, -10, dist, 20);
-            beam.restore();
-            // Fire trail particles along beam length
-            for (let i = 0; i < 15; i++) {
-              const t = Math.random();
-              const px = beamStartX + (beamEndX - beamStartX) * t;
-              const py = beamStartY + (beamEndY - beamStartY) * t + (Math.random() - 0.5) * 20;
-              const fp = this.add.circle(px, py, 3 + Math.random() * 4, 0xff8020, 0.7);
-              this.tweens.add({
-                targets: fp, y: py - 20 - Math.random() * 20, alpha: 0, scale: 0.3,
-                duration: 200 + Math.random() * 150, onComplete: () => fp.destroy(),
-              });
-            }
-            // Impact: damage + camera shake
-            this.hitFlash();
-            this.flashEnemy(result, targetIdx);
-            this.updateEnemyHp(targetIdx);
-            audio.play('battle/hit-enemy');
-            this.shakeCamera(0.012, 300);
-            this.burstParticles(beamEndX, beamEndY, 0xff6020);
-            // Hold beam 250ms then fade
-            this.tweens.add({ targets: beam, alpha: 0, duration: 250, onComplete: () => beam.destroy() });
-          } else if (op === '-') {
-            // LIGHTNING BOLT: jagged connected line segments, instant
-            const bolt = this.add.graphics();
-            bolt.lineStyle(6, 0xf0e020, 1);
-            bolt.beginPath();
-            bolt.moveTo(beamStartX, beamStartY);
-            const segs = 6 + Math.floor(Math.random() * 3); // 6-8 segments
-            for (let i = 1; i <= segs; i++) {
-              const t = i / segs;
-              const lx = beamStartX + (beamEndX - beamStartX) * t;
-              const ly = beamStartY + (beamEndY - beamStartY) * t;
-              const offsetY = (i < segs) ? (Math.random() - 0.5) * 60 : 0;
-              bolt.lineTo(lx, ly + offsetY);
-            }
-            bolt.strokePath();
-            // White screen flash
-            const flash = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0.4);
-            this.tweens.add({ targets: flash, alpha: 0, duration: 100, onComplete: () => flash.destroy() });
-            // Impact: damage
-            this.hitFlash();
-            this.flashEnemy(result, targetIdx);
-            this.updateEnemyHp(targetIdx);
-            audio.play('battle/hit-enemy');
-            this.shakeCamera(0.008, 200);
-            this.burstParticles(beamEndX, beamEndY, 0xf0e020);
-            // Hold bolt 200ms then fade
-            this.tweens.add({ targets: bolt, alpha: 0, duration: 200, onComplete: () => bolt.destroy() });
-          } else if (op === '*') {
-            // ICE SHARD: crystalline polygon, shoots straight 150ms
-            const shard = this.add.graphics();
-            const shardAngle = Math.atan2(beamEndY - beamStartY, beamEndX - beamStartX);
-            // Draw elongated diamond (6 points)
-            shard.fillStyle(0x40c0f0, 0.9);
-            shard.beginPath();
-            shard.moveTo(25, 0);   // tip
-            shard.lineTo(8, -10);
-            shard.lineTo(-8, -8);
-            shard.lineTo(-25, 0);  // back
-            shard.lineTo(-8, 8);
-            shard.lineTo(8, 10);
-            shard.closePath();
-            shard.fillPath();
-            shard.lineStyle(2, 0x80e0ff, 0.7);
-            shard.strokePath();
-            shard.setPosition(beamStartX, beamStartY);
-            shard.setRotation(shardAngle);
-            this.tweens.add({
-              targets: shard, x: beamEndX, y: beamEndY, duration: 150, ease: 'Linear',
-              onComplete: () => {
-                shard.destroy();
-                this.hitFlash();
-                this.flashEnemy(result, targetIdx);
-                this.updateEnemyHp(targetIdx);
-                audio.play('battle/hit-enemy');
-                this.shakeCamera(0.008, 200);
-                // 12 ice fragment particles burst outward
-                for (let i = 0; i < 12; i++) {
-                  const a = (i / 12) * Math.PI * 2;
-                  const d = 30 + Math.random() * 25;
-                  const fp = this.add.circle(beamEndX, beamEndY, 3 + Math.random() * 3, 0x80e0ff, 0.8);
-                  this.tweens.add({
-                    targets: fp, x: beamEndX + Math.cos(a) * d, y: beamEndY + Math.sin(a) * d,
-                    alpha: 0, duration: 350, onComplete: () => fp.destroy(),
-                  });
-                }
-                // Frost overlay flash
-                const frost = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x80d0f0, 0.15);
-                this.tweens.add({ targets: frost, alpha: 0, duration: 200, onComplete: () => frost.destroy() });
-              },
-            });
-          } else {
-            // VOID BEAM: dark energy beam with orbiting purple particles, implosion
-            const beam = this.add.graphics();
-            const angle = Math.atan2(beamEndY - beamStartY, beamEndX - beamStartX);
-            const dist = Math.sqrt((beamEndX - beamStartX) ** 2 + (beamEndY - beamStartY) ** 2);
-            beam.fillStyle(0x8040c0, 0.8);
-            beam.save();
-            beam.translateCanvas(beamStartX, beamStartY);
-            beam.rotateCanvas(angle);
-            beam.fillRect(0, -8, dist, 16);
-            beam.restore();
-            // 8 purple spiral particles along beam
-            const spirals = [];
-            for (let i = 0; i < 8; i++) {
-              const t = (i + 1) / 9;
-              const px = beamStartX + (beamEndX - beamStartX) * t;
-              const py = beamStartY + (beamEndY - beamStartY) * t;
-              const orbitR = 16;
-              const sp = this.add.circle(px + Math.cos(i * 0.8) * orbitR, py + Math.sin(i * 0.8) * orbitR, 4, 0xc080f0, 0.7);
-              spirals.push(sp);
-              this.tweens.add({ targets: sp, alpha: 0, scale: 0.5, duration: 300, onComplete: () => sp.destroy() });
-            }
-            // Impact: damage + dark flash
-            this.hitFlash();
-            this.flashEnemy(result, targetIdx);
-            this.updateEnemyHp(targetIdx);
-            audio.play('battle/hit-enemy');
-            this.shakeCamera(0.008, 200);
-            // Implosion: particles rush INWARD toward hit point
-            for (let i = 0; i < 10; i++) {
-              const a = (i / 10) * Math.PI * 2;
-              const d = 40 + Math.random() * 20;
-              const dp = this.add.circle(beamEndX + Math.cos(a) * d, beamEndY + Math.sin(a) * d, 5, 0x4020a0, 0.8);
-              this.tweens.add({
-                targets: dp, x: beamEndX, y: beamEndY, alpha: 0, scale: 0.2,
-                duration: 250, onComplete: () => dp.destroy(),
-              });
-            }
-            // Dark flash overlay
-            const darkFlash = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x200830, 0.3);
-            this.tweens.add({ targets: darkFlash, alpha: 0, duration: 200, onComplete: () => darkFlash.destroy() });
-            // Fade beam
-            this.tweens.add({ targets: beam, alpha: 0, duration: 250, onComplete: () => beam.destroy() });
-          }
-        } else if (cls === 'bunny') {
-          // Bunny: martial arts combo — dash TO enemy, multi-hit with pink particles
-          const hits = result.hitCount || 2;
-          let hitIdx = 0;
-          // Dash to enemy position
-          this.tweens.add({
-            targets: heroSprite.body,
-            x: enemyX - 50,
-            duration: 100,
-            ease: 'Quad.out',
-            onComplete: () => {
-              const doHit = () => {
-                if (hitIdx >= hits) {
-                  // Return to original position
-                  this.tweens.add({ targets: heroSprite.body, x: heroSprite.x, y: heroSprite.y, duration: 150, ease: 'Sine.in' });
-                  return;
-                }
-                if (hitIdx === 0) {
-                  // Hit 1: Left hook
-                  this.tweens.add({
-                    targets: heroSprite.body, x: enemyX - 30, duration: 100, ease: 'Linear',
-                    onComplete: () => {
-                      this.flashEnemy(result, targetIdx);
-                      this.updateEnemyHp(targetIdx);
-                      audio.play('battle/hit-enemy');
-                      this.burstParticles(enemyX, enemyY, 0xe86898);
-                      this.shakeCamera(0.006, 100);
-                      hitIdx++;
-                      this.time.delayedCall(50, doHit);
-                    },
-                  });
-                } else if (hitIdx === 1) {
-                  // Hit 2: Right kick
-                  this.tweens.add({
-                    targets: heroSprite.body, x: enemyX + 30, duration: 100, ease: 'Linear',
-                    onComplete: () => {
-                      this.burstParticles(enemyX, enemyY, 0xe86898);
-                      this.shakeCamera(0.006, 100);
-                      hitIdx++;
-                      this.time.delayedCall(50, doHit);
-                    },
-                  });
-                } else if (hitIdx === 2) {
-                  // Hit 3: Uppercut (only if streak >= 4)
-                  this.tweens.add({
-                    targets: heroSprite.body, x: enemyX, y: enemyY + 30, duration: 100, ease: 'Linear',
-                    onComplete: () => {
-                      // Enemy bounces up 20px
-                      this.tweens.add({ targets: targetSprite.body, y: targetSprite.y - 20, duration: 100, yoyo: true, ease: 'Sine.out' });
-                      this.burstParticles(enemyX, enemyY - 10, 0xe86898);
-                      this.shakeCamera(0.008, 120);
-                      hitIdx++;
-                      this.time.delayedCall(50, doHit);
-                    },
-                  });
-                }
-              };
-              doHit();
-            },
-          });
-        } else {
-          // Fallback: simple lunge
-          this.tweens.add({
-            targets: heroSprite.body, x: heroSprite.x + 60, duration: 120, yoyo: true, ease: 'Sine.inOut',
-            onYoyo: () => {
-              this.hitFlash(); this.flashEnemy(result, targetIdx); this.updateEnemyHp(targetIdx);
-              audio.play('battle/hit-enemy'); this.shakeCamera(0.008, 200);
-              this.burstParticles(enemyX, enemyY, 0xe8a030);
-            },
-          });
+        const op = this.currentQuestion?.op || '+';
+        // Trigger body-part attack animation
+        if (heroSprite.body && heroSprite.body.playAttack) {
+          heroSprite.body.playAttack('magic');
         }
+        playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, {
+          onHit: () => {
+            this.hitFlash();
+            this.flashEnemy(result, targetIdx);
+            this.updateEnemyHp(targetIdx);
+            this.shakeCamera(0.018, 400);
+            audio.play('battle/hit-enemy');
+          },
+        });
+      } else {
+        // FIGHT: class-specific attack animation via the animation system
+        const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
+        const op = this.currentQuestion?.op || '+';
+        // Trigger body-part attack animation based on class
+        if (heroSprite.body && heroSprite.body.playAttack) {
+          const attackType = cls === 'wizard' ? 'magic' : cls === 'bunny' ? 'punch' : 'slash';
+          heroSprite.body.playAttack(attackType);
+        }
+        playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
+          onHit: () => {
+            this.hitFlash();
+            this.flashEnemy(result, targetIdx);
+            this.updateEnemyHp(targetIdx);
+            audio.play('battle/hit-enemy');
+          },
+        });
       }
     } else {
       this.recolorAnswerButton(index, 0xc04040, 1);
-      // Flash the correct one in green too
       this.recolorAnswerButton(this.currentQuestion.correctIndex, 0x40c040, 1);
-      audio.play('battle/wrong');
 
       this.streak = 0;
       const heroIdx = this.currentTurn.heroIndex;
@@ -1916,44 +2296,74 @@ export class BattleScene extends Phaser.Scene {
       this.updateSuperButton();
       this.battleWrong++;
       this.momentum = advanceMomentum(this.momentum, false);
-      this.updateMomentumBar();
-      if (shouldShowTutorial('FIRST_WRONG')) {
-        markTutorialShown('FIRST_WRONG');
-        this.showToast(getTutorialText('FIRST_WRONG'), COLORS_CSS.goldL);
+      this.updateMomentumBar(true);
+
+      // --- Battle cry: wrong answer ---
+      this.showBattleCry(this.party[heroIdx], 'wrongAnswer');
+
+      if (activeCommand === COMMANDS.MAGIC) {
+        // MAGIC FIZZLE: no damage dealt, NO counter-attack. Safe failure.
+        audio.play('battle/wrong');
+        this.showToast('Fizzle!', '#b080e0');
+        const hs = this.heroSprites[this.currentTurn.heroIndex];
+        if (hs) playFizzleAnimation(this, hs);
+        this.showHintButton(this.currentQuestion);
       } else {
-        this.showToast('Try again!', COLORS_CSS.scarletL);
+        // FIGHT wrong: normal counter-attack
+        audio.play('battle/wrong');
+        if (shouldShowTutorial('FIRST_WRONG')) {
+          markTutorialShown('FIRST_WRONG');
+          this.showToast(getTutorialText('FIRST_WRONG'), COLORS_CSS.goldL);
+        } else {
+          this.showToast('Try again!', COLORS_CSS.scarletL);
+        }
+
+        const wrongTargetEnemy = this.enemies[this.currentTarget] || this.enemy;
+        invokeAbility(wrongTargetEnemy.ability, 'onHeroWrong', {
+          enemy: wrongTargetEnemy,
+          party: this.party,
+          scene: this,
+          activeHero: this.party[this.currentTurn.heroIndex],
+        });
+
+        this.time.delayedCall(300, () => {
+          const heroIdx = this.currentTurn.heroIndex;
+          const target = this.party[heroIdx];
+          const counterEnemy = this.enemies[this.currentTarget] || this.enemy;
+          let result = computeEnemyDamage(counterEnemy, target, { momentum: this.momentum });
+          if (this.guardActive[heroIdx]) {
+            result = applyGuardReduction(result, target.hp);
+          }
+          let dmg = result.modifiedDamage;
+          dmg = onHeroDamageReceived(target, counterEnemy, dmg, {
+            party: this.party,
+            battleState: this.signatureState,
+          });
+          result.modifiedDamage = dmg;
+          applyDamageResult(target, result);
+          checkLastStand(target, heroIdx, this.signatureState);
+          checkPaladinGuard(target, this.party, this.signatureState);
+          if (result.modifiedDamage > 0) this.battleDamageTaken = true;
+          this.hitFlash();
+          this.flashHero(target, result);
+          this.updateHeroHp(target);
+          this.shakeCamera(0.01, 250);
+          audio.play('battle/hit-hero');
+          if (this.isPartyDefeated()) {
+            this.time.delayedCall(600, () => this.showDefeat());
+          }
+        });
+
+        this.showHintButton(this.currentQuestion);
       }
-
-      // Fire enemy ability hook for wrong answers — most interesting
-      // side effects trigger here (sporulate boost, crown tally, consume)
-      const wrongTargetEnemy = this.enemies[this.currentTarget] || this.enemy;
-      invokeAbility(wrongTargetEnemy.ability, 'onHeroWrong', {
-        enemy: wrongTargetEnemy,
-        party: this.party,
-        scene: this,
-        activeHero: this.party[this.currentTurn.heroIndex],
-      });
-
-      // Brief pause, then enemy counters
-      this.time.delayedCall(300, () => {
-        const target = this.party[this.currentTurn.heroIndex];
-        const counterEnemy = this.enemies[this.currentTarget] || this.enemy;
-        const result = computeEnemyDamage(counterEnemy, target, { momentum: this.momentum });
-        applyDamageResult(target, result);
-        if (result.modifiedDamage > 0) this.battleDamageTaken = true;
-        this.hitFlash();
-        this.flashHero(target, result);
-        this.updateHeroHp(target);
-        this.shakeCamera(0.01, 250);
-        audio.play('battle/hit-hero');
-      });
-
-      // Show HINT button after wrong answer
-      this.showHintButton(this.currentQuestion);
     }
 
-    // Snappy turn advance — see principle #3 (tempo) in DESIGN-PRINCIPLES.md.
-    this.time.delayedCall(550, () => this.nextTurn());
+    // Snappy turn advance — MAGIC gets longer (spectacular animation is 900ms)
+    const advanceDelay = activeCommand === COMMANDS.MAGIC ? 950 : 750;
+    this.time.delayedCall(advanceDelay, () => {
+      this._answerProcessing = false;
+      this.nextTurn();
+    });
   }
 
   // ================================================================
@@ -1964,7 +2374,7 @@ export class BattleScene extends Phaser.Scene {
     if (!this.potionLabel) return;
     const count = this.save.potions || 0;
     this.potionLabel.setText(`POTION ${count}`);
-    const canUse = count > 0 && this.phase === 'question';
+    const canUse = count > 0 && (this.phase === 'question' || this.phase === 'command');
     if (this.potionBtn && this.potionBtn.bg) {
       const alpha = canUse ? 1 : 0.5;
       this.potionBtn.bg.setAlpha(alpha);
@@ -1974,7 +2384,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   usePotion() {
-    if (this.phase !== 'question' || this.locked) return;
+    if ((this.phase !== 'question' && this.phase !== 'command') || this.locked) return;
     this.potionUsedThisBattle = true;
 
     if ((this.save.potions || 0) <= 0) {
@@ -2243,6 +2653,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   shakeCamera(intensity = 0.008, duration = 200) {
+    if (this.reducedMotion) return;
     this.cameras.main.shake(duration, intensity);
   }
 
@@ -2274,7 +2685,7 @@ export class BattleScene extends Phaser.Scene {
     const enemy = this.enemies[idx] || this.enemy;
     const sprite = this.enemySprites[idx] || this.enemySprite;
     const pct = Math.max(0, enemy.hp / enemy.maxHp);
-    const fullW = 200 + 10 - 4; // matches buildEnemySprite
+    const fullW = 200 + 20 - 4; // matches buildEnemySprite
     this.tweens.add({
       targets: sprite.hpBarFill,
       width: fullW * pct,
@@ -2284,7 +2695,7 @@ export class BattleScene extends Phaser.Scene {
     sprite.hpText.setText(`${enemy.hp}/${enemy.maxHp}`);
   }
 
-  updateMomentumBar() {
+  updateMomentumBar(justWrong = false) {
     const zone = getZone(this.momentum);
     this.momentumLabel.setText(zone.label);
     let fillColor = 0x4aa848; // ZONE (green)
@@ -2292,6 +2703,10 @@ export class BattleScene extends Phaser.Scene {
     else if (zone.label === 'HEAT') fillColor = 0xd06020;
     if (this.momentumBarObj) {
       updatePaperBar(this.momentumBarObj, this.momentum, fillColor);
+    }
+    // Environmental responsiveness
+    if (this.envState) {
+      updateEnvironment(this.envState, this.momentum, this.streak, zone.label, justWrong);
     }
   }
 
@@ -2309,6 +2724,68 @@ export class BattleScene extends Phaser.Scene {
       alpha: 0,
       duration: 400,
       delay: 800,
+    });
+  }
+
+  /**
+   * Show a personality battle cry as floating italic text above a hero.
+   * Fades in and out over ~2 seconds. Uses the hero's displayColor.
+   *
+   * @param {object} hero - The hero object (must have .id)
+   * @param {string} cryType - One of: attack, correctAnswer, wrongAnswer, superMove, lowHp, victory, defeat
+   */
+  showBattleCry(hero, cryType) {
+    if (!hero) return;
+
+    // Low HP cry: only show once per battle
+    if (cryType === 'lowHp' && this.signatureState) {
+      const idx = this.party.indexOf(hero);
+      if (idx >= 0 && this.signatureState.lowHpCryShown[idx]) return;
+      if (idx >= 0) this.signatureState.lowHpCryShown[idx] = true;
+    }
+
+    const personality = hero.personality || getPersonality(hero.id);
+    if (!personality || !personality.battleCries) return;
+
+    const cry = personality.battleCries[cryType];
+    if (!cry) return;
+
+    // Find the hero sprite to position above
+    const idx = this.party.indexOf(hero);
+    const hs = idx >= 0 ? this.heroSprites[idx] : null;
+    if (!hs) return;
+
+    const colorNum = hero.displayColor || 0xffffff;
+    const colorHex = '#' + colorNum.toString(16).padStart(6, '0');
+
+    const text = this.add.text(hs.x, hs.y - 140, cry, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '16px',
+      fontStyle: 'italic',
+      color: colorHex,
+      stroke: '#000000',
+      strokeThickness: 3,
+      align: 'center',
+      wordWrap: { width: 200 },
+    }).setOrigin(0.5).setAlpha(0).setDepth(50);
+
+    this.tweens.add({
+      targets: text,
+      alpha: 1,
+      y: hs.y - 155,
+      duration: 300,
+      ease: 'Cubic.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: text,
+          alpha: 0,
+          y: hs.y - 170,
+          duration: 700,
+          delay: 1000,
+          ease: 'Cubic.in',
+          onComplete: () => text.destroy(),
+        });
+      },
     });
   }
 
@@ -2352,17 +2829,17 @@ export class BattleScene extends Phaser.Scene {
   showHintOverlay(question) {
     const hintText = getHint(question.op, question.a, question.b, question.answer);
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this.locked = true;
 
-    // Cream panel overlay
     const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5)
       .setDepth(150).setInteractive();
-    const panel = PaperPanel(this, area.cx, area.cy, 620, 180, {
+    const panel = PaperPanel(this, area.cx, area.cy - 20, 620, 200, {
       color: 0xf5ead0, alpha: 0.97, radius: 20,
     });
     if (panel.bg) panel.bg.setDepth(151);
     if (panel.shadow) panel.shadow.setDepth(150);
 
-    const hintLabel = this.add.text(area.cx, area.cy, hintText, {
+    const hintLabel = this.add.text(area.cx, area.cy - 30, hintText, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '22px',
       color: '#3a2410',
@@ -2370,18 +2847,32 @@ export class BattleScene extends Phaser.Scene {
       wordWrap: { width: 560 },
     }).setOrigin(0.5).setDepth(152);
 
+    const gotItBtn = PaperButton(this, area.cx, area.cy + 55, 'GOT IT', {
+      w: 200, h: 54, color: 0x4aa848, fontSize: 22,
+    });
+    if (gotItBtn.bg) gotItBtn.bg.setDepth(153);
+    if (gotItBtn.shadow) gotItBtn.shadow.setDepth(153);
+    if (gotItBtn.label) gotItBtn.label.setDepth(154);
+    if (gotItBtn.zone) gotItBtn.zone.setDepth(154);
+
     const elements = [overlayBg, hintLabel];
     if (panel.bg) elements.push(panel.bg);
     if (panel.shadow) elements.push(panel.shadow);
+    elements.push(gotItBtn.bg, gotItBtn.shadow, gotItBtn.label);
+    if (gotItBtn.zone) elements.push(gotItBtn.zone);
 
-    // Dismiss on tap or after 4 seconds
+    let dismissed = false;
     const dismissHint = () => {
+      if (dismissed) return;
+      dismissed = true;
       if (dismissTimer) dismissTimer.remove();
       elements.forEach(el => { if (el && el.scene) el.destroy(); });
+      this.locked = false;
     };
 
     overlayBg.on('pointerdown', dismissHint);
-    const dismissTimer = this.time.delayedCall(4000, dismissHint);
+    if (gotItBtn.zone) gotItBtn.zone.on('pointerdown', dismissHint);
+    const dismissTimer = this.time.delayedCall(6000, dismissHint);
   }
 
   // ================================================================
@@ -2409,7 +2900,7 @@ export class BattleScene extends Phaser.Scene {
 
   hidePauseOverlay() {
     this._pauseElements.forEach(el => el.setVisible(false));
-    if (this.phase === 'question') {
+    if (this.phase === 'question' || this.phase === 'command') {
       this.locked = false;
     }
   }
@@ -2444,14 +2935,26 @@ export class BattleScene extends Phaser.Scene {
     const newHeroes = this.registry.get('newlyUnlockedHeroes');
     if (newHeroes && newHeroes.length > 0) {
       this.registry.remove('newlyUnlockedHeroes');
-      const lines = [];
-      for (const h of newHeroes) {
-        lines.push({ speaker: 'Elder Fairy', text: `The dark magic shatters! A new warrior emerges!`, wide: true });
-        lines.push({ speaker: h.name, text: `${h.trait}`, wide: true });
-        lines.push({ speaker: 'Elder Fairy', text: `${h.name} has joined your quest!`, wide: true });
+      // Use rescue dialogue if available, otherwise fall back to generic lines
+      const heroIds = newHeroes.map(h => h.id);
+      const rescueLines = getRescueDialogue(this.floor, heroIds);
+      let lines;
+      if (rescueLines.length > 0) {
+        lines = rescueLines;
+      } else {
+        lines = [];
+        for (const h of newHeroes) {
+          lines.push({ speaker: 'Elder Fairy', text: `The dark magic shatters! A new warrior emerges!`, wide: true });
+          lines.push({ speaker: h.name, text: `${h.trait}`, wide: true });
+          lines.push({ speaker: 'Elder Fairy', text: `${h.name} has joined your quest!`, wide: true });
+        }
       }
+      // Clear pending rescues from save since we are about to show them
+      consumePendingRescues(save);
+      writeSave(save, this.slot);
       transitionTo(this, SCENES.CUTSCENE, {
         lines,
+        floorId: this.floor,
         nextScene: SCENES.WORLD_MAP,
       });
     } else {
@@ -2470,11 +2973,18 @@ export class BattleScene extends Phaser.Scene {
 
     this.clearBossTimer();
     this.time.removeAllEvents();
+    if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
+    if (this.envState) destroyEnvironmentState(this.envState);
+    hidePanelFx(this.panelFx);
 
     for (const hs of this.heroSprites) heroVictoryBounce(this, hs);
     const vArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
     confettiBurst(this, vArea.cx, vArea.cy - 100, 40);
     screenEdgeGlow(this, 0xf0c040, 600);
+
+    // --- Battle cry: victory (show for first alive hero) ---
+    const victoryHero = this.party.find(h => h && h.hp > 0);
+    if (victoryHero) this.showBattleCry(victoryHero, 'victory');
 
     // Hide equation panel, answer buttons, and ability buttons
     if (this.eqLines) {
@@ -2582,6 +3092,10 @@ export class BattleScene extends Phaser.Scene {
       save.stats.totalGold = (save.stats.totalGold || 0) + dailyGold;
     }
 
+    // --- Record bonds after victory ---
+    const partyIds = this.party.filter(h => h).map(h => h.id);
+    const newBondRanks = recordBattle(save, partyIds);
+
     // Check achievements and queue toasts for newly unlocked ones
     const newAchievements = checkAchievements(save);
 
@@ -2649,6 +3163,18 @@ export class BattleScene extends Phaser.Scene {
           rewardText += `  (${dailyStreak}-day streak!)`;
         }
       }
+      // Show bond rank-ups
+      for (const br of newBondRanks) {
+        const h1 = this.party.find(h => h && h.id === br.heroId1);
+        const h2 = this.party.find(h => h && h.id === br.heroId2);
+        const n1 = h1 ? h1.name : br.heroId1;
+        const n2 = h2 ? h2.name : br.heroId2;
+        rewardText += `\n${n1} & ${n2}: Bond rank ${br.rank}!`;
+      }
+      // Gear nudge after boss wins — kids forget to shop, gear scaling drifts
+      if (this.isBoss && save.gold >= 30) {
+        rewardText += `\nNew gear available in the SHOP!`;
+      }
       this.endOverlay.rewardsText.setText(rewardText);
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
@@ -2709,6 +3235,9 @@ export class BattleScene extends Phaser.Scene {
     this.locked = true;
     this.clearBossTimer();
     this.time.removeAllEvents();
+    if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
+    if (this.envState) destroyEnvironmentState(this.envState);
+    hidePanelFx(this.panelFx);
 
     // Hide equation panel, answer buttons, and ability buttons
     if (this.eqLines) {
@@ -2726,8 +3255,13 @@ export class BattleScene extends Phaser.Scene {
     audio.stopMusic();
     audio.play('battle/defeat');
 
-    // Full party heal — failure is a restart, not a punishment.
-    // See DESIGN-PRINCIPLES.md principle 8.
+    // --- Battle cry: defeat (show for first hero) ---
+    if (this.party[0]) this.showBattleCry(this.party[0], 'defeat');
+
+    // Defeat revives the party at 50% HP — never a soft-lock (battles
+    // stay winnable, maze fountains still heal), but potions now have a
+    // real job: topping the party back up. Failure stays gentle per
+    // DESIGN-PRINCIPLES.md principle 8 without making items pointless.
     const save = this.save;
     save.stats.totalBattles++;
     save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
@@ -2736,7 +3270,7 @@ export class BattleScene extends Phaser.Scene {
       if (!save.party[i]) save.party[i] = {};
       save.party[i].id = this.party[i].id;
       save.party[i].name = this.party[i].name;
-      save.party[i].hp = this.party[i].maxHp;
+      save.party[i].hp = Math.max(1, Math.round(this.party[i].maxHp * 0.5));
       save.party[i].maxHp = this.party[i].maxHp;
     }
     writeSave(save, this.slot);
@@ -2833,6 +3367,8 @@ export class BattleScene extends Phaser.Scene {
 
     audio.play('battle/correct');
     this.showToast(`${move ? move.name : 'SUPER'}! ${dmg} DMG!`, '#f0c040');
+    // --- Battle cry: super move ---
+    this.showBattleCry(hero, 'superMove');
 
     if (heroSprite?.body) {
       heroSprite.body.setTint(0xffff80);
@@ -2900,6 +3436,7 @@ export class BattleScene extends Phaser.Scene {
       if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
       if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
       if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
+      if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 400 });
       if (this.allEnemiesDead()) {
         this.time.delayedCall(400, () => this.showVictory());
       } else {

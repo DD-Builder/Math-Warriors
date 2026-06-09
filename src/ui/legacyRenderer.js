@@ -62,6 +62,7 @@ export function makeRenderer(canvas) {
   }
 
   function L(pts, color, seed, opts) {
+    if (R._seedFilter && !R._seedFilter.has(seed)) return;
     opts = opts || {};
     ctx.save();
     if (!opts.ns) {
@@ -79,6 +80,7 @@ export function makeRenderer(canvas) {
   }
 
   function Ld(cx, cy, radius, color, seed, opts) {
+    if (R._seedFilter && !R._seedFilter.has(seed)) return;
     opts = opts || {};
     if (opts.ns) { ctx.save(); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill(); ctx.restore(); return; }
     var sp = opts.sp || 12, pts = [], r2 = mkRng(seed * 91 + 13);
@@ -112,13 +114,19 @@ export function makeRenderer(canvas) {
     ctx.arc(cx, cy, sr, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   }
 
-  return {
+  var R = {
+    _seedFilter: null,
     G: ctx, L: L, Ld: Ld,
     Lr: function (x, y, w, h, color, seed, opts) {
+      if (R._seedFilter && !R._seedFilter.has(seed)) return;
       L([[x, y], [x + w, y], [x + w, y + h], [x, y + h]], color, seed, opts);
     },
     glow: glow, clear: clear,
+    setSeedFilter: function (allowedSeeds) {
+      R._seedFilter = allowedSeeds ? new Set(allowedSeeds) : null;
+    },
   };
+  return R;
 }
 
 // ─── MONSTER/BOSS RENDERER (Rndr) ───────────────────────────────
@@ -241,6 +249,23 @@ export function createHeroCanvas(w, h, bgColor, drawFn, topExt, botExt) {
   var te = topExt || 80, be = botExt || 78;
   var sc = (h - 14) / (te + be) * 0.89;
   try { drawFn(R, w * .5, 7 + te * sc, sc); } catch (e) { /* ignore draw errors */ }
+  return cv;
+}
+
+// ─── CONVENIENCE: Create hero body-part canvas ─────────────────
+export function createHeroPartCanvas(w, h, drawFn, topExt, botExt, allowedSeeds) {
+  var cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  var R = makeRenderer(cv);
+  R.setSeedFilter(allowedSeeds);
+  var te = topExt || 60, be = botExt || 60;
+  var sc = (h - 14) / (te + be) * 0.89;
+  R.G.save();
+  R.G.translate(w * 0.5, 7 + te * sc);
+  R.G.scale(sc, sc);
+  try { drawFn(R, 0, 0, 1); } catch (e) { /* ignore draw errors */ }
+  R.G.restore();
+  R.setSeedFilter(null);
   return cv;
 }
 

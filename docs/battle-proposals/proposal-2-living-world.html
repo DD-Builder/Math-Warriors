@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440,height=1080,initial-scale=0.6,user-scalable=yes">
+<title>Battle Redesign — Set 2: Three Raw Ideas → Ultimate Proposal 2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Baloo+2:wght@500;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a0e04; font-family: 'Baloo 2', sans-serif; color: #3a2410; }
+  .page { max-width: 1500px; margin: 0 auto; padding: 20px; }
+  .card { background: #f5ead0; border-radius: 24px; border: 3px solid #d4a840; padding: 48px 60px; margin-bottom: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  h1 { font-family: 'Fredoka One', cursive; font-size: 48px; color: #c06a10; margin-bottom: 4px; }
+  h2 { font-family: 'Fredoka One', cursive; font-size: 32px; color: #c06a10; margin: 32px 0 12px; }
+  h3 { font-family: 'Fredoka One', cursive; font-size: 22px; color: #8a6a30; margin: 20px 0 8px; }
+  h4 { font-family: 'Fredoka One', cursive; font-size: 17px; color: #6a5430; margin: 14px 0 6px; }
+  p, li { font-size: 16px; line-height: 1.7; margin-bottom: 6px; }
+  ul { padding-left: 24px; }
+  .subtitle { font-size: 22px; color: #8a6a30; font-weight: 700; margin-bottom: 20px; }
+  .pill { display: inline-block; padding: 3px 14px; border-radius: 14px; font-size: 13px; font-weight: 700; color: #fff; margin-right: 6px; }
+  .pill.keep { background: #4aa848; }
+  .pill.discard { background: #c04040; }
+  .pill.elevate { background: #d07818; }
+  .callout { background: #fff8e0; border-left: 5px solid #d07818; padding: 16px 24px; border-radius: 0 12px 12px 0; margin: 16px 0; }
+  .versus { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+  .spec-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  .spec-table th, .spec-table td { padding: 8px 14px; text-align: left; border-bottom: 1px solid #d4a840; font-size: 14px; }
+  .spec-table th { color: #c06a10; font-family: 'Fredoka One', cursive; }
+  .divider { height: 4px; background: linear-gradient(90deg, transparent, #d4a840, transparent); margin: 40px 0; border-radius: 2px; }
+  .tag-row { margin: 12px 0; }
+
+  /* ─── MOCKUP STYLES ─── */
+  .mockup-title { font-family: 'Fredoka One', cursive; font-size: 32px; color: #f0d040; text-align: center; margin: 30px 0 16px; }
+  .battle-frame {
+    width: 1440px; height: 1080px; position: relative; overflow: hidden;
+    border-radius: 24px; border: 4px solid #3a2410;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6); margin: 0 auto 40px;
+  }
+
+  /* Background layers — garden healthy state */
+  .env-sky {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, #4898d0 0%, #78c8f0 35%, #a8e0ff 60%, #68b8e8 100%);
+    transition: all 1.5s ease;
+  }
+  .env-sky.stressed {
+    background: linear-gradient(180deg, #384868 0%, #506888 35%, #688898 60%, #405868 100%);
+  }
+  .env-sun {
+    position: absolute; top: 40px; right: 200px;
+    width: 160px; height: 160px;
+    background: radial-gradient(circle, rgba(255,240,140,0.7) 0%, rgba(255,220,100,0.3) 40%, transparent 70%);
+    border-radius: 50%;
+    transition: all 1.5s ease;
+  }
+  .env-sun.stressed { opacity: 0.2; top: 60px; }
+
+  /* Flowers — bloom/wilt based on performance */
+  .env-flowers {
+    position: absolute; bottom: 240px; left: 0; right: 0; height: 60px; z-index: 3;
+    display: flex; justify-content: space-around; align-items: flex-end; padding: 0 80px;
+  }
+  .flower {
+    display: flex; flex-direction: column; align-items: center;
+    transition: all 1s ease;
+  }
+  .flower-head {
+    width: 24px; height: 24px; border-radius: 50%;
+    transition: all 1s ease;
+  }
+  .flower-stem { width: 3px; height: 30px; background: #388828; border-radius: 2px; transition: all 1s ease; }
+  .flower.bloom .flower-head { transform: scale(1.2); }
+  .flower.wilt .flower-head { transform: scale(0.5) rotate(90deg); opacity: 0.4; }
+  .flower.wilt .flower-stem { height: 15px; opacity: 0.4; }
+
+  /* Hills — paper layers with depth */
+  .env-hill { position: absolute; left: 0; right: 0; }
+  .env-hill.h1 { bottom: 340px; height: 220px; background: #2a6828; opacity: 0.3;
+    clip-path: polygon(0% 100%, 8% 40%, 18% 55%, 28% 25%, 42% 48%, 55% 18%, 68% 38%, 80% 22%, 92% 45%, 100% 30%, 100% 100%); }
+  .env-hill.h2 { bottom: 290px; height: 200px; background: #3a8838; opacity: 0.5;
+    clip-path: polygon(0% 100%, 5% 50%, 15% 35%, 25% 52%, 38% 22%, 50% 40%, 62% 18%, 75% 35%, 88% 28%, 100% 48%, 100% 100%); }
+  .env-hill.h3 { bottom: 240px; height: 160px; background: #48a840; opacity: 0.7;
+    clip-path: polygon(0% 100%, 6% 48%, 16% 58%, 26% 35%, 40% 52%, 52% 28%, 65% 42%, 78% 32%, 90% 50%, 100% 40%, 100% 100%); }
+
+  /* Ground */
+  .env-ground { position: absolute; bottom: 0; left: 0; right: 0; height: 280px;
+    background: linear-gradient(180deg, #58b848, #48a038, #3a8828);
+    transition: all 1.5s ease; }
+  .env-ground.stressed { background: linear-gradient(180deg, #6a6838, #585828, #484818); }
+
+  /* Particles — butterflies in good state, dead leaves in bad */
+  .env-particles { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+  .particle {
+    position: absolute; font-size: 18px;
+    animation: particleDrift 4s ease-in-out infinite;
+  }
+  @keyframes particleDrift {
+    0% { transform: translate(0, 0) rotate(0deg); opacity: 0.8; }
+    25% { transform: translate(30px, -20px) rotate(15deg); }
+    50% { transform: translate(-10px, -40px) rotate(-10deg); opacity: 1; }
+    75% { transform: translate(20px, -15px) rotate(20deg); }
+    100% { transform: translate(0, 0) rotate(0deg); opacity: 0.8; }
+  }
+
+  /* Audience strip */
+  .audience-strip {
+    position: absolute; bottom: 240px; left: 0; right: 0; height: 45px;
+    display: flex; justify-content: center; gap: 30px; align-items: flex-end;
+    z-index: 5;
+  }
+  .audience-member {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease;
+  }
+  .audience-member.cheer { animation: bounce 0.4s ease 3; }
+  @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+
+  /* Hero vitality glow */
+  .hero-vitality {
+    position: absolute; border-radius: 50%;
+    background: radial-gradient(circle, rgba(100,220,80,0.3) 0%, transparent 70%);
+    pointer-events: none; z-index: 6;
+    transition: all 0.8s ease;
+  }
+  .hero-vitality.fading {
+    background: radial-gradient(circle, rgba(100,60,60,0.2) 0%, transparent 70%);
+  }
+
+  /* ─── CHARACTER SPRITES ─── */
+  .heroes-area {
+    position: absolute; bottom: 270px; left: 50px;
+    display: flex; gap: 14px; z-index: 8;
+  }
+  .hero-unit { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .hero-sprite {
+    width: 115px; height: 150px; border-radius: 8px; position: relative;
+    transition: filter 0.8s ease, opacity 0.8s ease;
+    animation: heroBob 1.5s ease-in-out infinite;
+  }
+  @keyframes heroBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  .hero-sprite.dim { filter: brightness(0.6) saturate(0.4); opacity: 0.7; }
+  .hero-name { font-family: 'Fredoka One', cursive; font-size: 14px; color: #fff8e0; text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
+  .hero-hearts { display: flex; gap: 2px; font-size: 15px; }
+  .hf { color: #e04040; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+  .hh { color: #e08060; opacity: 0.6; }
+  .he { color: #5a4030; opacity: 0.25; }
+  .turn-arr {
+    position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent;
+    border-top: 12px solid #f0c040; filter: drop-shadow(0 2px 3px rgba(240,192,64,0.5));
+  }
+
+  .enemy-area {
+    position: absolute; bottom: 290px; right: 90px;
+    display: flex; flex-direction: column; align-items: center; z-index: 8;
+    animation: enemyBreathe 2s ease-in-out infinite;
+  }
+  @keyframes enemyBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+  .enemy-sprite { width: 240px; height: 270px; border-radius: 16px; }
+  .enemy-name { font-family: 'Fredoka One', cursive; font-size: 20px; color: #fff8e0; text-shadow: 0 2px 6px rgba(0,0,0,0.7); margin-bottom: 4px; }
+  .enemy-hp { width: 200px; height: 14px; background: #3a2410; border-radius: 7px; overflow: hidden; border: 2px solid #5a3820; margin-top: 4px; }
+  .enemy-hp-fill { height: 100%; width: 72%; background: linear-gradient(90deg, #c04030, #e06040); border-radius: 5px; transition: width 0.5s; }
+  .enemy-hp-txt { font-family: 'Fredoka One', cursive; font-size: 12px; color: #f0e4cc; text-shadow: 0 1px 3px rgba(0,0,0,0.5); margin-top: 2px; }
+
+  /* ─── ENVIRONMENT HEALTH METER (replaces momentum) ─── */
+  .env-meter {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    background: rgba(245,234,208,0.92); border-radius: 14px; padding: 8px 20px;
+    border: 2px solid #d4a840; box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+    display: flex; align-items: center; gap: 12px; z-index: 20;
+  }
+  .env-meter-label { font-family: 'Fredoka One', cursive; font-size: 11px; color: #8a6a30; }
+  .env-meter-bar { width: 320px; height: 16px; background: #e0d4c0; border-radius: 8px; overflow: hidden; position: relative; }
+  .env-meter-fill { height: 100%; width: 70%; border-radius: 8px; transition: width 0.8s ease;
+    background: linear-gradient(90deg, #8a6830, #48a040, #68c848, #f0d040); }
+  .env-meter-icon { font-size: 20px; }
+  .env-meter-state { font-family: 'Fredoka One', cursive; font-size: 13px; color: #4aa848; }
+
+  /* ─── HUD ─── */
+  .hud-left { position: absolute; top: 18px; left: 30px; display: flex; gap: 10px; align-items: center; z-index: 20; }
+  .hud-right { position: absolute; top: 18px; right: 30px; display: flex; gap: 10px; align-items: center; z-index: 20; }
+  .hud-btn {
+    font-family: 'Fredoka One', cursive; font-size: 14px; padding: 6px 16px;
+    border-radius: 10px; cursor: pointer; border: 2px solid rgba(255,255,255,0.15);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+  }
+  .hud-gear { background: rgba(245,234,208,0.9); color: #3a2410; border-color: #d4a840; }
+  .hud-floor { font-family: 'Fredoka One', cursive; font-size: 14px; color: #f0e4cc; background: rgba(26,14,4,0.6); padding: 4px 14px; border-radius: 10px; }
+  .hud-potion { background: #4caa5c; color: #fff8e0; border-color: #388a40; }
+
+  /* ─── MATH QUESTION ─── */
+  .math-panel {
+    position: absolute; bottom: 272px; left: 50%; transform: translateX(-50%); z-index: 15;
+  }
+  .math-card {
+    background: linear-gradient(145deg, #f5ead0, #fff8e0);
+    border: 3px solid #d4a840; border-radius: 16px;
+    padding: 10px 30px 14px; text-align: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+    transform: perspective(300px) rotateX(-2deg);
+  }
+  .math-diff { font-size: 13px; letter-spacing: 2px; margin-bottom: 2px; }
+  .math-eq { font-family: 'Fredoka One', cursive; font-size: 42px; color: #3a2410; line-height: 1.1; }
+  .math-op { color: #c06a10; }
+  .math-ans { color: #d08020; font-size: 46px; }
+  .math-rule { width: 100px; height: 3px; background: #8a7050; margin: 3px auto; border-radius: 2px; }
+
+  /* ─── ANSWER BUTTONS ─── */
+  .answers {
+    position: absolute; bottom: 95px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 14px; z-index: 20;
+  }
+  .ans-btn {
+    width: 168px; height: 72px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fredoka One', cursive; font-size: 32px; color: #fff8e0;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    cursor: pointer; border: 3px solid rgba(255,255,255,0.12);
+    transition: transform 0.12s;
+  }
+  .ans-btn:active { transform: scale(0.94); }
+  .ans-btn.b1 { background: linear-gradient(135deg, #3888d8, #2878c8); }
+  .ans-btn.b2 { background: linear-gradient(135deg, #e84840, #d03838); }
+  .ans-btn.b3 { background: linear-gradient(135deg, #4aa848, #3a9838); }
+  .ans-btn.b4 { background: linear-gradient(135deg, #9050c8, #7840b0); }
+
+  /* Abilities */
+  .abilities {
+    position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px; z-index: 20;
+  }
+  .ab-btn {
+    font-family: 'Fredoka One', cursive; font-size: 13px; color: #fff8e0;
+    padding: 6px 18px; border-radius: 10px; cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+  }
+  .ab-btn.super { background: #e8a030; }
+  .ab-btn.shield { background: #9050c8; }
+  .ab-btn.hint { background: #4080c0; }
+
+  /* Turn label */
+  .turn-lbl {
+    position: absolute; bottom: 186px; left: 50%; transform: translateX(-50%);
+    background: rgba(245,234,208,0.9); padding: 5px 20px; border-radius: 10px;
+    font-family: 'Fredoka One', cursive; font-size: 14px; color: #3a2410;
+    border: 2px solid #d4a840; z-index: 16; white-space: nowrap;
+  }
+
+  /* Audience reaction bubble */
+  .audience-reaction {
+    position: absolute; bottom: 290px; left: 50%; transform: translateX(-50%);
+    background: rgba(255,248,224,0.95); padding: 6px 18px; border-radius: 20px;
+    font-family: 'Fredoka One', cursive; font-size: 16px; color: #c06a10;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.15); z-index: 12;
+    opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .audience-reaction.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- HEADER -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h1>Battle Redesign — Set 2</h1>
+  <p class="subtitle">Three raw ideas → one synthesized ultimate proposal</p>
+  <p>Three fundamentally different battle concepts, each exploring how the <strong>world itself</strong> responds to the player's math performance. After developing each to full depth, the strongest elements are synthesized into <strong>Ultimate Proposal 2: "The Living World."</strong></p>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA G: THE STAGE -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea G: "The Stage"</h2>
+  <p class="subtitle">Battles are theater — the audience IS the feedback system</p>
+
+  <h3>Visual Concept</h3>
+  <p>Every battle is a performance on a stage. Red velvet curtains frame the edges. A spotlight follows the active character. Below the stage, an AUDIENCE of fairies, rescued NPCs, and townspeople watch. They react to everything — cheering on correct answers, gasping on wrong ones, throwing flowers after streaks, booing the enemy. The audience isn't decoration — their reactions ARE the primary feedback system.</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>Social feedback drives engagement.</strong> Kids are wired to respond to social approval and disapproval. When a child answers correctly and sees a crowd of characters jump up and cheer, that's 10x more motivating than seeing a number turn green. When they answer wrong and the audience falls silent, that's more impactful than a buzzer sound. The audience creates an emotional amplifier for every answer. Studies on gamification consistently show that social feedback (even simulated) dramatically increases engagement and persistence.
+  </div>
+
+  <h3>Audience Mechanics</h3>
+  <table class="spec-table">
+    <tr><th>Event</th><th>Audience Reaction</th><th>Gameplay Effect</th></tr>
+    <tr><td>Correct answer</td><td>Small cheer — audience members bounce, smiles</td><td>+5% audience energy</td></tr>
+    <tr><td>3-streak</td><td>Standing ovation — all bounce, flower thrown on stage</td><td>Flower = +10 HP heal to weakest hero</td></tr>
+    <tr><td>5-streak</td><td>Wild cheering — signs held up, confetti</td><td>Audience throws power gem = +50% next damage</td></tr>
+    <tr><td>Wrong answer</td><td>Gasp — audience recoils, worried faces</td><td>-5% audience energy</td></tr>
+    <tr><td>Hero KO'd</td><td>Horrified silence — audience covers eyes</td><td>Next correct answer: audience rallies with +20% damage bonus</td></tr>
+    <tr><td>Boss defeated</td><td>Thunderous applause — standing ovation, curtain call</td><td>Bonus gold and XP from tips</td></tr>
+  </table>
+
+  <h3>The Audience Energy Bar</h3>
+  <p>Replaces momentum. An "APPLAUSE" meter fills with correct answers and drains with wrong ones. At high audience energy, the crowd is on their feet and your attacks deal bonus damage. At low energy, the audience is bored and your attacks are weaker. This makes the momentum mechanic feel natural — you're performing for a crowd.</p>
+
+  <h3>Audience Composition Changes Per Floor</h3>
+  <ul>
+    <li><strong>Garden:</strong> Forest creatures — butterflies, squirrels, flower sprites</li>
+    <li><strong>Tidepool:</strong> Sea creatures — fish, crabs, seahorses in water bubbles</li>
+    <li><strong>Cloud:</strong> Sky sprites — tiny birds, cloud puffs with faces</li>
+    <li><strong>Ember:</strong> Fire salamanders, ember sprites, lava bugs</li>
+    <li><strong>Frozen:</strong> Penguins, snow bunnies, ice crystals with eyes</li>
+    <li><strong>Crystal:</strong> Gem sprites, prism creatures, facet beetles</li>
+    <li><strong>Market:</strong> Merchants, coin sprites, vendor animals</li>
+    <li><strong>Library:</strong> Book sprites, ink drops, floating quill pens</li>
+    <li><strong>Mending:</strong> ALL previously rescued creatures return for the finale</li>
+  </ul>
+
+  <h3>Stage Themes</h3>
+  <p>The stage itself transforms per floor. Garden has vine-wrapped pillars and leaf curtains. Tidepool has coral arches and water curtains. The stage is floor-themed but maintains the theatrical framing.</p>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Social feedback is the most powerful engagement tool available</li>
+    <li>Audience reactions create emotional memory ("remember when they cheered?")</li>
+    <li>The audience throwing items creates tangible gameplay rewards for streaks</li>
+    <li>Curtain call on boss defeat is a natural celebration moment</li>
+    <li>Floor 9 audience of ALL rescued creatures is an emotional payoff for the entire game</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Theater/stage framing creates visual distance from the floor's world</li>
+    <li>Audience strip takes screen real estate from the battle area</li>
+    <li>Rendering 15+ animated audience members could be performance-intensive</li>
+    <li>Stage metaphor might feel forced in some floors (Ember Caves on a stage?)</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA H: THE STORM -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea H: "The Storm"</h2>
+  <p class="subtitle">The environment IS the feedback — the entire world shifts with your performance</p>
+
+  <h3>Visual Concept</h3>
+  <p>The battle background isn't static — it's a living ecosystem that responds to EVERY answer in real time. In the Garden, correct answers make flowers bloom, sunlight brighten, and butterflies appear. Wrong answers make flowers wilt, clouds gather, and colors desaturate. The entire screen becomes a progress indicator — you can see whether you're winning or losing by looking at the world, not at any meter or bar.</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>The world IS the HUD.</strong> Instead of abstract bars and numbers telling you how you're doing, the ENVIRONMENT tells you. Flowers are blooming? You're winning. Sky is darkening? You're losing. This is the most intuitive feedback possible — even a child who can't read can look at the screen and understand their performance. The environmental response creates an emotional loop: doing well makes the world beautiful, which feels good, which motivates more correct answers.
+  </div>
+
+  <h3>Environmental State Machine (5 States)</h3>
+  <table class="spec-table">
+    <tr><th>State</th><th>Trigger</th><th>Visual</th><th>Combat Effect</th></tr>
+    <tr><td>Dying (0-20%)</td><td>Many wrong answers</td><td>Dark sky, dead plants, rain/ash, desaturated colors</td><td>Enemy +20% damage</td></tr>
+    <tr><td>Struggling (20-40%)</td><td>More wrong than right</td><td>Gray sky, wilting plants, dim light</td><td>Enemy +10% damage</td></tr>
+    <tr><td>Balanced (40-60%)</td><td>Even performance</td><td>Normal: pleasant sky, some flowers, neutral</td><td>No modifier</td></tr>
+    <tr><td>Thriving (60-80%)</td><td>More right than wrong</td><td>Bright sky, blooming flowers, butterflies, warm light</td><td>Hero +10% damage</td></tr>
+    <tr><td>Flourishing (80-100%)</td><td>Strong performance</td><td>Radiant sky, full bloom, magical particles, golden light</td><td>Hero +20% damage, heal 5 HP/turn</td></tr>
+  </table>
+
+  <h3>Per-Floor Environmental Responses</h3>
+  <div class="versus">
+    <div>
+      <h4>Healthy State (Thriving+)</h4>
+      <ul>
+        <li><strong>Garden:</strong> Flowers bloom, butterflies dance, sunlight streams through</li>
+        <li><strong>Tidepool:</strong> Water clears, coral glows, fish swim peacefully</li>
+        <li><strong>Cloud:</strong> Clouds part, rainbow appears, golden sunbeams</li>
+        <li><strong>Ember:</strong> Lava calms to warm glow, fireflies appear, safe warmth</li>
+        <li><strong>Frozen:</strong> Ice melts to reveal flowers, warm light breaks through</li>
+        <li><strong>Crystal:</strong> Crystals refract rainbow light, prismatic particles swirl</li>
+        <li><strong>Market:</strong> Stalls shine, coins gleam, festive banners wave</li>
+        <li><strong>Library:</strong> Pages float gently, candles brighten, warm amber light</li>
+        <li><strong>Mending:</strong> Equation fragments glow and align, arcane harmony</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Stressed State (Dying/Struggling)</h4>
+      <ul>
+        <li><strong>Garden:</strong> Flowers wilt and die, thorns grow, sky darkens to gray</li>
+        <li><strong>Tidepool:</strong> Water turns murky, coral bleaches, dead fish float</li>
+        <li><strong>Cloud:</strong> Thunderheads gather, lightning flickers, wind howls</li>
+        <li><strong>Ember:</strong> Volcanic eruption, lava surges, ash fills the air</li>
+        <li><strong>Frozen:</strong> Blizzard intensifies, ice spikes grow, visibility drops</li>
+        <li><strong>Crystal:</strong> Crystals crack and darken, light distorts, shadow seeps</li>
+        <li><strong>Market:</strong> Stalls break, coins rust, decay spreads</li>
+        <li><strong>Library:</strong> Pages burn, ink smears, shadows grow</li>
+        <li><strong>Mending:</strong> Equation fragments scatter, void cracks appear</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Transition Animations</h3>
+  <p>States don't snap — they transition smoothly over 1-2 seconds. Colors cross-fade. Flowers physically grow or wilt with small animations. Particles fade in/out. The sky gradient shifts. This creates a LIVING world that breathes with the player's performance.</p>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Most intuitive feedback system — no reading required, just look at the world</li>
+    <li>Creates 10 visually distinct environments per floor (5 states × healthy/stressed)</li>
+    <li>Deep emotional connection — kids want to keep the world beautiful</li>
+    <li>Each floor feels completely different because the environment IS the gameplay feedback</li>
+    <li>Environmental healing at Flourishing state rewards sustained excellence</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Continuous background animation is computationally expensive</li>
+    <li>Players focused on the math question might not notice environmental shifts</li>
+    <li>Without an explicit meter, kids might not understand WHY the world is changing</li>
+    <li>18 floor states (9 floors × 2 extremes) is a lot of art/rendering work</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA I: THE MIRROR -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea I: "The Mirror"</h2>
+  <p class="subtitle">Your hero's vitality reflects your math performance — visible strength or fading</p>
+
+  <h3>Visual Concept</h3>
+  <p>Each hero has a "vitality aura" — a soft glow surrounding them that represents their connection to the mathematical balance of the world. When the player answers correctly, the active hero becomes MORE vivid: colors intensify, the aura brightens, the sprite becomes more solid and detailed. When wrong, the hero dims — colors desaturate, the aura flickers, the sprite becomes slightly translucent. After several wrong answers, the hero looks like a faded ghost of themselves.</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>The hero IS the progress bar.</strong> Instead of monitoring external UI elements (bars, meters, numbers), the player watches their hero — the character they chose, that they identify with — become stronger or weaker. This creates deeply personal stakes. It's not "the momentum bar went down." It's "MY hero is fading." Kids who pick Shadow as their favorite don't want to see Shadow grow dim. This emotional ownership drives engagement harder than any abstract metric.
+  </div>
+
+  <h3>Vitality System (Per-Hero)</h3>
+  <table class="spec-table">
+    <tr><th>Vitality Level</th><th>Visual</th><th>Trigger</th><th>Effect</th></tr>
+    <tr><td>Faded (0-25%)</td><td>Translucent sprite (40% opacity), gray tint, no aura, shaking</td><td>3+ wrong in recent 5</td><td>-15% damage, -10% defense</td></tr>
+    <tr><td>Dim (25-50%)</td><td>Desaturated colors, faint flickering aura</td><td>Below average accuracy</td><td>-5% damage</td></tr>
+    <tr><td>Normal (50-75%)</td><td>Full color, gentle steady aura</td><td>Average performance</td><td>No modifier</td></tr>
+    <tr><td>Vivid (75-90%)</td><td>Enhanced colors, bright aura, slight glow</td><td>Above average, recent streak</td><td>+10% damage</td></tr>
+    <tr><td>Radiant (90-100%)</td><td>Brilliant colors, large golden aura, particle trail, hero seems larger</td><td>Strong streak, high accuracy</td><td>+20% damage, attacks have extra particles</td></tr>
+  </table>
+
+  <h3>Vitality Per Hero, Not Per Party</h3>
+  <p>Each hero tracks their own vitality based on answers given during THEIR turns. This means the player might have one Radiant hero (who they solve well for) and one Faded hero (whose turn has harder problems). This creates natural per-hero investment — "I'm great at addition (Shadow's turns) but struggling with multiplication (Stargazer's turns)."</p>
+
+  <h3>The Visual Arc of a Battle</h3>
+  <p>At battle start, all heroes begin at Normal (50%) vitality. As the battle progresses, the visual difference between heroes tells a story. A player who starts rocky but improves sees their heroes literally come back to life — going from faded ghosts to radiant warriors. This visual arc creates narrative within each battle.</p>
+
+  <h3>Monster Vitality (Inverse)</h3>
+  <p>The enemy has an inverse vitality system — when the player does well, the monster becomes dimmer and more fragile-looking. When the player struggles, the monster becomes more vivid and intimidating. This creates a visual tug-of-war: as your heroes brighten, the monster fades, and vice versa.</p>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Most personal feedback — the hero YOU chose reflects YOUR performance</li>
+    <li>Creates emotional ownership ("my hero is fading, I need to do better")</li>
+    <li>Per-hero tracking naturally identifies which math operations are weakest</li>
+    <li>The visual arc within a battle creates implicit narrative</li>
+    <li>Monster fading as heroes brighten is satisfying symmetry</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Subtle visual shifts might not register with young kids (K-1)</li>
+    <li>Fading heroes could feel discouraging rather than motivating for struggling students</li>
+    <li>Per-hero vitality might be confusing — "why is this hero different?"</li>
+    <li>Doesn't address the battle environment/atmosphere problem</li>
+    <li>Sprite opacity/saturation effects alone may not be dramatic enough</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- EVALUATION & SYNTHESIS -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Evaluation: What to Keep, Discard, and Elevate</h2>
+
+  <h3>From G (Stage)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Audience reactions as emotional amplifier — social feedback for every answer
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Audience throws tangible rewards (flowers, gems) at streak milestones
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Floor-specific audience creatures (butterflies in garden, fish in tidepool)
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Theater/stage framing with curtains — forces every floor into a stage set
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Separate "Applause" meter — redundant if environment already shows state
+  </div>
+
+  <h3>From H (Storm)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Living responsive environment — the world shifts with every answer
+  </div>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> 5-state machine (Dying→Flourishing) — granular, smooth transitions
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Per-floor healthy/stressed visual pairs (blooming vs wilting, clear vs murky)
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> "Flourishing" state heals — sustained excellence rewarded with environmental healing</li>
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> No explicit meter at all — need SOME UI indicator alongside environment
+  </div>
+
+  <h3>From I (Mirror)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Hero vitality glow reflects performance — personal, character-based feedback
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Heroes brighten/fade as visual proxy for player performance
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Monster inverse vitality — as heroes brighten, enemy fades
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Per-hero separate tracking — too complex for young kids, confusing UI
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Full translucency on fading — too discouraging for struggling students
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>The Synthesis Insight</h3>
+  <div class="callout">
+    <p>All three ideas share one breakthrough: <strong>the game world itself becomes the feedback system.</strong> G uses social feedback (audience). H uses environmental feedback (weather/flora). I uses character feedback (hero vitality). The synthesis layers all three: <strong>the environment responds to your performance (flowers bloom or wilt), little creatures watch and react (audience without a stage), and your heroes glow brighter or dimmer (personal stakes).</strong> Together, these create a world that BREATHES with every answer — no abstract meters needed because everything you see tells you how you're doing.</p>
+    <p>A small "World Health" meter sits at the top as a SECONDARY indicator for kids who want explicit numbers, but the PRIMARY feedback is the world itself.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- ULTIMATE PROPOSAL 2 -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Ultimate Proposal 2: "The Living World"</h2>
+  <p class="subtitle">Every correct answer heals the world. Every wrong answer lets it decay. The battle IS the world's life force.</p>
+
+  <h3>Core Concept</h3>
+  <p>The battle takes place in the floor's actual world — not a stage, not a chalkboard, not a forge. But this world is ALIVE. It responds to every single math answer in real time. Correct answers make flowers bloom, sunlight brighten, butterflies appear, and your heroes glow with vitality. Wrong answers make flowers wilt, skies darken, and heroes dim. Small floor-themed creatures line the ground as a living audience, bouncing when you answer correctly and recoiling when you're wrong. The environment IS the feedback system. A child who can't read a single word can look at the screen and know exactly how they're doing.</p>
+
+  <h3>What each source idea contributes</h3>
+  <ul>
+    <li><strong>From G (Stage):</strong> Floor-themed creatures as living audience — they cheer, gasp, and throw rewards at milestones</li>
+    <li><strong>From H (Storm):</strong> 5-state responsive environment — sky, flora, particles, and lighting all shift with performance</li>
+    <li><strong>From I (Mirror):</strong> Hero vitality glow — heroes brighten/dim as personal, character-based feedback</li>
+  </ul>
+
+  <h3>The Three Feedback Layers</h3>
+
+  <h4>Layer 1: The Environment (from H)</h4>
+  <p>A "World Health" percentage (0-100%) tracks overall performance. The environment smoothly transitions between 5 visual states:</p>
+  <table class="spec-table">
+    <tr><th>State</th><th>%</th><th>Garden Visual</th><th>Combat</th></tr>
+    <tr><td>Dying</td><td>0-20</td><td>Dead flowers, dark sky, thorns, rain</td><td>Enemy +20%</td></tr>
+    <tr><td>Struggling</td><td>20-40</td><td>Wilting flowers, gray sky, dim light</td><td>Enemy +10%</td></tr>
+    <tr><td>Balanced</td><td>40-60</td><td>Normal scene, some flowers, pleasant</td><td>Neutral</td></tr>
+    <tr><td>Thriving</td><td>60-80</td><td>Blooming flowers, bright sun, butterflies</td><td>Hero +10%</td></tr>
+    <tr><td>Flourishing</td><td>80-100</td><td>Full bloom, golden light, magical particles, rainbow hints</td><td>Hero +20%, heal 3HP/turn</td></tr>
+  </table>
+  <p>Correct answer: +5% World Health. Wrong answer: -8% World Health. Starts at 50% (Balanced).</p>
+
+  <h4>Layer 2: The Audience (from G)</h4>
+  <p>6-8 small floor-themed creatures line the ground between heroes and UI. They don't have a separate meter — they reflect the environment state:</p>
+  <ul>
+    <li><strong>Correct answer:</strong> Creatures bounce and wiggle (0.4s animation). At 3-streak: they cheer and a speech bubble appears ("Yes!" "Wow!" "Go!")</li>
+    <li><strong>5-streak:</strong> A creature throws a gift onto the field — heals weakest hero 15 HP or grants +30% next damage</li>
+    <li><strong>Wrong answer:</strong> Creatures shrink and cover their eyes</li>
+    <li><strong>Hero KO:</strong> Creatures gasp and huddle together</li>
+    <li><strong>Victory:</strong> All creatures celebrate — jumping, spinning, speech bubbles with hearts</li>
+  </ul>
+  <p>Creatures per floor: Garden → butterflies + ladybugs. Tidepool → tiny fish + crabs. Cloud → cloud puffs with faces. Ember → fire sprites. Frozen → penguins. Crystal → gem beetles. Market → coin sprites. Library → book sprites. Mending → one from each floor returns.</p>
+
+  <h4>Layer 3: Hero Vitality (from I)</h4>
+  <p>Each hero has a soft circular aura glow behind their sprite. The aura responds to the PARTY's overall performance (not per-hero, to keep it simple):</p>
+  <ul>
+    <li><strong>World Health 0-30%:</strong> No aura. Heroes slightly desaturated. Idle bob slower.</li>
+    <li><strong>World Health 30-60%:</strong> Faint warm aura. Normal color.</li>
+    <li><strong>World Health 60-80%:</strong> Visible golden aura. Colors slightly enhanced.</li>
+    <li><strong>World Health 80%+:</strong> Bright golden aura with particle trail. Colors vivid. Idle bob energetic.</li>
+  </ul>
+  <p>The enemy has an INVERSE aura — it dims as World Health rises, creating a satisfying visual contrast.</p>
+
+  <h3>Damage System: Difficulty-Weighted</h3>
+  <p>Same as Proposal 1 — difficulty rating (1-5 stars) replaces answer magnitude:</p>
+  <p><code>damage = (5 + hero.atk * 0.4) × difficultyStars × worldHealthMult × classMultiplier</code></p>
+  <p><code>worldHealthMult</code> = 0.8 (Dying) → 1.0 (Balanced) → 1.2 (Flourishing)</p>
+
+  <h3>Hero Attack Animations</h3>
+  <p>Same 15 hero-specific attack animations as Proposal 1 (knight weapons, wizard projectiles, bunny combos), with one addition: <strong>at Thriving+ world health, attack animations have extra particles and glow effects</strong> — making the attacks LOOK more powerful when the world is healthy. A Shadow dark slash in a Flourishing world has trailing golden particles mixed with the purple. A Stargazer star bolt in a Dying world is dim and sparse.</p>
+
+  <h3>Monster Attack Animations</h3>
+  <p>Same unique per-monster animations as Proposal 1. Additional: <strong>at Dying/Struggling world health, monster attacks are visually larger and more threatening.</strong> A Sproutling vine whip in a Dying world is thick with thorns. In a Flourishing world, it's thin and wilting. The monsters ARE the corruption — they're strongest when the world is weakest.</p>
+
+  <h3>The "World Heals" Victory Moment</h3>
+  <p>When the last enemy falls, the environment rapidly transitions to Flourishing (even if it wasn't there) over 2 seconds. Flowers burst into bloom. Sky floods with golden light. All creatures celebrate. The world healing IS the victory animation. This makes every victory feel like you SAVED something, not just won a fight.</p>
+
+  <h3>Math Engine Integration</h3>
+  <p>All the same upgrades: difficulty rating, anti-pattern detection, per-operator tracking, monster-scaled difficulty mix. Additional: the World Health percentage subtly influences problem selection — at very low World Health (player struggling), the engine softens difficulty slightly to help them recover. At very high World Health (player dominating), it can introduce grade+1 problems for extra challenge.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- MOCKUP -->
+<!-- ════════════════════════════════════════════════ -->
+</div>
+
+<div class="mockup-title">INTERACTIVE MOCKUP — "The Living World" (Floor 1: Garden, Thriving State, 70% World Health)</div>
+
+<div class="battle-frame" id="bf">
+  <!-- Sky (shifts with world health) -->
+  <div class="env-sky" id="envSky"></div>
+  <div class="env-sun" id="envSun"></div>
+
+  <!-- Hills -->
+  <div class="env-hill h1"></div>
+  <div class="env-hill h2"></div>
+  <div class="env-hill h3"></div>
+
+  <!-- Ground -->
+  <div class="env-ground" id="envGround"></div>
+
+  <!-- Flowers -->
+  <div class="env-flowers" id="envFlowers">
+    <div class="flower bloom"><div class="flower-head" style="background:#e06080;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#f0c040;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#e080a0;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#c06090;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#f0a050;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#d060a0;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#e0c040;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#e06070;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#c0a040;"></div><div class="flower-stem"></div></div>
+    <div class="flower bloom"><div class="flower-head" style="background:#f08060;"></div><div class="flower-stem"></div></div>
+  </div>
+
+  <!-- Particles -->
+  <div class="env-particles" id="envParticles">
+    <div class="particle" style="left:15%; top:30%; animation-delay:0s;">🦋</div>
+    <div class="particle" style="left:35%; top:20%; animation-delay:0.8s;">🦋</div>
+    <div class="particle" style="left:55%; top:35%; animation-delay:1.6s;">🌸</div>
+    <div class="particle" style="left:75%; top:25%; animation-delay:2.4s;">🦋</div>
+    <div class="particle" style="left:25%; top:40%; animation-delay:3.2s;">🌸</div>
+  </div>
+
+  <!-- Audience strip -->
+  <div class="audience-strip" id="audienceStrip">
+    <div class="audience-member" style="background:#88cc50;">🐛</div>
+    <div class="audience-member" style="background:#e06080;">🐞</div>
+    <div class="audience-member" style="background:#60c0e0;">🦋</div>
+    <div class="audience-member" style="background:#f0c040;">🐝</div>
+    <div class="audience-member" style="background:#80d060;">🐛</div>
+    <div class="audience-member" style="background:#e080a0;">🐞</div>
+  </div>
+
+  <!-- Audience reaction bubble -->
+  <div class="audience-reaction" id="audienceReaction">Yes! Great!</div>
+
+  <!-- Hero vitality glows -->
+  <div class="hero-vitality" id="vit1" style="left:42px; bottom:320px; width:130px; height:130px;"></div>
+  <div class="hero-vitality" id="vit2" style="left:170px; bottom:320px; width:130px; height:130px;"></div>
+  <div class="hero-vitality" id="vit3" style="left:298px; bottom:320px; width:130px; height:130px;"></div>
+
+  <!-- HUD top -->
+  <div class="hud-left">
+    <div class="hud-btn hud-gear">⚙</div>
+    <div class="hud-floor">QUEST 1 — The Garden</div>
+  </div>
+  <div class="env-meter">
+    <span class="env-meter-icon">🌿</span>
+    <span class="env-meter-label">WORLD HEALTH</span>
+    <div class="env-meter-bar"><div class="env-meter-fill" id="worldFill" style="width:70%;"></div></div>
+    <span class="env-meter-state" id="worldState">THRIVING</span>
+  </div>
+  <div class="hud-right">
+    <div class="hud-btn hud-potion">POTION 2</div>
+  </div>
+
+  <!-- Heroes -->
+  <div class="heroes-area">
+    <div class="hero-unit">
+      <div class="hero-sprite" style="background: linear-gradient(135deg, #2a2040, #4a3060);" id="hero1">
+        <div class="turn-arr"></div>
+      </div>
+      <div class="hero-name">SHADOW</div>
+      <div class="hero-hearts"><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hh">♥</span></div>
+    </div>
+    <div class="hero-unit">
+      <div class="hero-sprite" style="background: linear-gradient(135deg, #1a2858, #3050a0); animation-delay:0.15s;"></div>
+      <div class="hero-name">STARGAZER</div>
+      <div class="hero-hearts"><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="he">♥</span></div>
+    </div>
+    <div class="hero-unit">
+      <div class="hero-sprite" style="background: linear-gradient(135deg, #c0a080, #e8c8a0); animation-delay:0.3s;"></div>
+      <div class="hero-name">PEPPER</div>
+      <div class="hero-hearts"><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span></div>
+    </div>
+  </div>
+
+  <!-- Enemy -->
+  <div class="enemy-area">
+    <div class="enemy-name">BRIAR KING</div>
+    <div class="enemy-sprite" style="background: radial-gradient(circle at 40% 35%, #508030, #3a6020, #2a4810); border-radius: 30% 30% 45% 45%;"></div>
+    <div class="enemy-hp"><div class="enemy-hp-fill" id="eHpFill"></div></div>
+    <div class="enemy-hp-txt" id="eHpTxt">532 / 732</div>
+  </div>
+
+  <!-- Turn label -->
+  <div class="turn-lbl" id="turnLbl">Shadow's turn — the world is listening!</div>
+
+  <!-- Math question -->
+  <div class="math-panel">
+    <div class="math-card">
+      <div class="math-diff">
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#d0c8b0;">☆</span>
+        <span style="color:#d0c8b0;">☆</span>
+      </div>
+      <div class="math-eq">&nbsp;&nbsp;73</div>
+      <div class="math-eq"><span class="math-op">+ 7</span></div>
+      <div class="math-rule"></div>
+      <div class="math-ans">?</div>
+    </div>
+  </div>
+
+  <!-- Answer buttons -->
+  <div class="answers">
+    <div class="ans-btn b1" data-v="80">80</div>
+    <div class="ans-btn b2" data-v="83">83</div>
+    <div class="ans-btn b3" data-v="78">78</div>
+    <div class="ans-btn b4" data-v="85">85</div>
+  </div>
+
+  <!-- Abilities -->
+  <div class="abilities">
+    <div class="ab-btn super">Shadow Strike</div>
+    <div class="ab-btn shield">Shield Bash</div>
+    <div class="ab-btn hint">HINT</div>
+  </div>
+</div>
+
+<div class="page">
+
+<div class="card">
+  <h2>Implementation Scope</h2>
+  <table class="spec-table">
+    <tr><th>System</th><th>Files</th><th>Effort</th></tr>
+    <tr><td>5-state environmental rendering (9 floors)</td><td>papercut.js, BattleScene.js</td><td>Very High — 45 visual states total (9 floors × 5 states)</td></tr>
+    <tr><td>World Health tracking + transitions</td><td>combat.js, BattleScene.js</td><td>Medium — state machine with smooth CSS-like transitions</td></tr>
+    <tr><td>Audience creature system</td><td>BattleScene.js (new)</td><td>High — 9 creature types, bounce/cheer/recoil animations, gift throwing</td></tr>
+    <tr><td>Hero vitality glow</td><td>BattleScene.js</td><td>Medium — aura rendering tied to World Health</td></tr>
+    <tr><td>Environmental particles (bloom/wilt/butterflies)</td><td>BattleScene.js, papercut.js</td><td>Medium — per-floor particle sets that toggle with state</td></tr>
+    <tr><td>Difficulty-rated damage formula</td><td>math.js, combat.js</td><td>Medium — same as Proposal 1</td></tr>
+    <tr><td>Hero attack animations (15)</td><td>BattleScene.js</td><td>High — same as Proposal 1, with vitality-enhanced variants</td></tr>
+    <tr><td>Monster attack animations (9 floor types)</td><td>BattleScene.js</td><td>High — same as Proposal 1, with stressed-enhanced variants</td></tr>
+    <tr><td>Paper hearts HP</td><td>BattleScene.js</td><td>Medium — same as Proposal 1</td></tr>
+    <tr><td>"World Heals" victory animation</td><td>BattleScene.js</td><td>Medium — rapid transition to Flourishing on win</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Key Difference from Proposal 1</h2>
+  <div class="callout">
+    <p><strong>Proposal 1 (Spell Circle)</strong> focuses on the MECHANIC — the spell circle is a visible accumulation system that makes streaks the central spectacle. The feedback is MECHANICAL (runes filling, circle detonating).</p>
+    <p><strong>Proposal 2 (Living World)</strong> focuses on the EMOTION — the world itself responds to your performance, creating an emotional feedback loop. The feedback is ENVIRONMENTAL (flowers blooming, creatures cheering, heroes glowing).</p>
+    <p>Proposal 1 appeals to players who want strategic satisfaction (build the spell, release the power). Proposal 2 appeals to players who want emotional connection (save the world, make it beautiful). Both can coexist, but their EMPHASIS differs.</p>
+  </div>
+</div>
+
+<div class="card" style="text-align:center;">
+  <h2>This is Proposal 2 of 3</h2>
+  <p style="font-size:20px; color:#8a6a30;">
+    Raw ideas G (Stage) + H (Storm) + I (Mirror) → <strong>Ultimate: "The Living World"</strong>
+  </p>
+  <p>Next turn: Raw ideas J + K + L → Ultimate Proposal 3</p>
+</div>
+</div>
+
+<!-- Interactive script -->
+<script>
+let worldHealth = 70;
+let enemyHp = 72;
+
+function updateWorld() {
+  // Environment
+  const sky = document.getElementById('envSky');
+  const sun = document.getElementById('envSun');
+  const ground = document.getElementById('envGround');
+  const flowers = document.querySelectorAll('.flower');
+  const particles = document.getElementById('envParticles');
+  const worldFill = document.getElementById('worldFill');
+  const worldState = document.getElementById('worldState');
+
+  worldFill.style.width = worldHealth + '%';
+
+  if (worldHealth >= 80) {
+    sky.className = 'env-sky'; sun.className = 'env-sun'; ground.className = 'env-ground';
+    worldState.textContent = 'FLOURISHING'; worldState.style.color = '#f0c040';
+    flowers.forEach(f => f.className = 'flower bloom');
+    particles.style.opacity = '1';
+    document.querySelectorAll('.hero-vitality').forEach(v => { v.className = 'hero-vitality'; v.style.boxShadow = '0 0 40px rgba(240,200,64,0.4)'; });
+  } else if (worldHealth >= 60) {
+    sky.className = 'env-sky'; sun.className = 'env-sun'; ground.className = 'env-ground';
+    worldState.textContent = 'THRIVING'; worldState.style.color = '#4aa848';
+    flowers.forEach(f => f.className = 'flower bloom');
+    particles.style.opacity = '0.7';
+    document.querySelectorAll('.hero-vitality').forEach(v => { v.className = 'hero-vitality'; v.style.boxShadow = ''; });
+  } else if (worldHealth >= 40) {
+    sky.className = 'env-sky'; sun.className = 'env-sun'; ground.className = 'env-ground';
+    worldState.textContent = 'BALANCED'; worldState.style.color = '#8a6a30';
+    flowers.forEach(f => f.className = 'flower');
+    particles.style.opacity = '0.4';
+    document.querySelectorAll('.hero-vitality').forEach(v => { v.className = 'hero-vitality'; v.style.boxShadow = ''; });
+  } else if (worldHealth >= 20) {
+    sky.className = 'env-sky stressed'; sun.className = 'env-sun stressed'; ground.className = 'env-ground stressed';
+    worldState.textContent = 'STRUGGLING'; worldState.style.color = '#c04040';
+    flowers.forEach(f => f.className = 'flower wilt');
+    particles.style.opacity = '0.1';
+    document.querySelectorAll('.hero-vitality').forEach(v => { v.className = 'hero-vitality fading'; v.style.boxShadow = ''; });
+  } else {
+    sky.className = 'env-sky stressed'; sun.className = 'env-sun stressed'; ground.className = 'env-ground stressed';
+    worldState.textContent = 'DYING'; worldState.style.color = '#801010';
+    flowers.forEach(f => f.className = 'flower wilt');
+    particles.style.opacity = '0';
+    document.querySelectorAll('.hero-vitality').forEach(v => { v.className = 'hero-vitality fading'; v.style.boxShadow = ''; });
+  }
+
+  // Enemy HP
+  document.getElementById('eHpFill').style.width = enemyHp + '%';
+  document.getElementById('eHpTxt').textContent = Math.round(732 * enemyHp / 100) + ' / 732';
+}
+
+document.querySelectorAll('.ans-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const correct = btn.dataset.v === '80';
+    const reaction = document.getElementById('audienceReaction');
+    const audience = document.querySelectorAll('.audience-member');
+
+    if (correct) {
+      worldHealth = Math.min(100, worldHealth + 6);
+      enemyHp = Math.max(3, enemyHp - 9);
+      btn.style.background = '#40c040';
+      reaction.textContent = ['Yes!', 'Wow!', 'Go!', 'Great!', 'Amazing!'][Math.floor(Math.random()*5)];
+      reaction.className = 'audience-reaction show';
+      audience.forEach(a => a.className = 'audience-member cheer');
+      setTimeout(() => audience.forEach(a => a.className = 'audience-member'), 1200);
+    } else {
+      worldHealth = Math.max(0, worldHealth - 10);
+      btn.style.background = '#c04040';
+      reaction.textContent = ['Oh no...', 'Hmm...', 'Try again!'][Math.floor(Math.random()*3)];
+      reaction.className = 'audience-reaction show';
+    }
+
+    updateWorld();
+    setTimeout(() => { btn.style.background = ''; }, 350);
+    setTimeout(() => { reaction.className = 'audience-reaction'; }, 1500);
+  });
+});
+
+updateWorld();
+</script>
+
+</body>
+</html>

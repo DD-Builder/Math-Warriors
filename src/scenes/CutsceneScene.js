@@ -9,6 +9,7 @@ import { audio } from '../systems/audio.js';
 import { getHeroById } from '../data/heroes.js';
 import { getEnemyById } from '../data/enemies.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
+import { HERO_REACTIONS } from '../data/dialogue.js';
 
 /**
  * CutsceneScene — 3-panel graphic-novel dialogue.
@@ -31,7 +32,12 @@ export class CutsceneScene extends Phaser.Scene {
     this.floorId = data.floorId || 1;
     this.nextScene = data.nextScene || SCENES.WORLD_MAP;
     this.nextData = data.nextData || undefined;
+    this.cutsceneTrigger = data.trigger || 'intro';
     this.panels = this.buildPanels(this.rawLines);
+
+    // Append hero reaction panels based on active party
+    this.appendHeroReactions();
+
     this.panelIdx = 0;
     this.subIdx = 0;
     this.typing = false;
@@ -39,6 +45,32 @@ export class CutsceneScene extends Phaser.Scene {
     this.fullText = '';
     this.timer = null;
     this.save = loadSave(getActiveSlot(this));
+  }
+
+  /**
+   * Check if any heroes in the current party have reactions for this floor.
+   * If so, append their reactions as additional dialogue panels at the end.
+   */
+  appendHeroReactions() {
+    const save = loadSave(getActiveSlot(this));
+    const party = save.party || [];
+    const floorReactions = HERO_REACTIONS[this.floorId];
+    if (!floorReactions) return;
+
+    const reactionLines = [];
+    for (const slot of party) {
+      if (!slot || !slot.id) continue;
+      const reaction = floorReactions[slot.id];
+      if (!reaction) continue;
+      if (reaction.trigger !== this.cutsceneTrigger) continue;
+      const heroDef = getHeroById(slot.id);
+      const heroName = heroDef ? heroDef.name : slot.name || slot.id;
+      reactionLines.push({ speaker: heroName, text: reaction.text, side: 'left' });
+    }
+
+    if (reactionLines.length > 0) {
+      this.panels.push({ type: 'party', lines: reactionLines });
+    }
   }
 
   buildPanels(lines) {
@@ -123,10 +155,10 @@ export class CutsceneScene extends Phaser.Scene {
       this.positionBubble('right');
       this.drawBubbleBackground('right', isWide);
     } else if (panel.type === 'party') {
-      this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.88, line.speaker, 60);
       this.drawPartyHeroes();
-      this.positionBubble('center');
-      this.drawBubbleBackground('center', false);
+      this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.30, line.speaker, 50);
+      this.positionBubble('party');
+      this.drawBubbleBackground('party', false);
     } else {
       this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
       this.positionBubble('left');
@@ -139,21 +171,30 @@ export class CutsceneScene extends Phaser.Scene {
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';
     this.charIdx = 0;
+    this.layoutBubble();
     this.bodyText.setText('');
     this.typing = true;
 
-    [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText].forEach(o => o.setAlpha(0));
-    this.tweens.add({
-      targets: [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText],
-      alpha: 1, duration: 250, ease: 'Sine.out',
+    // Entrance animation: slide from x-30 and fade in
+    [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText].forEach(o => {
+      const finalX = o.x;
+      o.setAlpha(0);
+      o.x = finalX - 30;
+      this.tweens.add({
+        targets: o,
+        alpha: 1,
+        x: finalX,
+        duration: 250,
+        ease: 'Sine.out',
+      });
     });
 
     this.artContainer.list.forEach(obj => {
       if (obj.setAlpha) {
         const finalX = obj.x;
         obj.setAlpha(0);
-        obj.x = finalX - 80;
-        this.tweens.add({ targets: obj, alpha: 1, x: finalX, duration: 350, ease: 'Back.out' });
+        obj.x = finalX - 30;
+        this.tweens.add({ targets: obj, alpha: 1, x: finalX, duration: 250, ease: 'Sine.out' });
       }
     });
 
@@ -240,9 +281,9 @@ export class CutsceneScene extends Phaser.Scene {
   drawPartyHeroes() {
     const party = this.save.party || [];
     const positions = [
-      { x: GAME_WIDTH * 0.22, y: GAME_HEIGHT * 0.62 },
-      { x: GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.55 },
-      { x: GAME_WIDTH * 0.78, y: GAME_HEIGHT * 0.62 },
+      { x: GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.74 },
+      { x: GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.70 },
+      { x: GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.74 },
     ];
     for (let i = 0; i < Math.min(3, party.length); i++) {
       const slot = party[i];
@@ -250,7 +291,7 @@ export class CutsceneScene extends Phaser.Scene {
       const def = getHeroById(slot.id);
       if (!def) continue;
       const pos = positions[i];
-      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.8 });
+      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.2 });
       this.artContainer.add(img);
     }
   }
@@ -266,48 +307,60 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   positionBubble(layout) {
-    let bx, by;
+    let bx;
     if (layout === 'left') {
       bx = GAME_WIDTH * 0.39;
-      by = GAME_HEIGHT * 0.25;
     } else if (layout === 'right') {
       bx = GAME_WIDTH * 0.02;
-      by = GAME_HEIGHT * 0.25;
+    } else if (layout === 'party') {
+      bx = GAME_WIDTH * 0.19;
     } else {
       bx = GAME_WIDTH * 0.19;
-      by = GAME_HEIGHT * 0.25;
     }
-    this.speakerDot.setPosition(bx + 16, by + 16);
-    this.nameText.setPosition(bx + 34, by + 8);
-    this.bodyText.setPosition(bx + 20, by + 44);
-    this.bodyText.setWordWrapWidth(460);
+    this._bubbleLayout = layout;
+    this._bubbleBx = bx;
   }
 
-  drawBubbleBackground(layout, isWide) {
-    let bx, bw;
-    if (layout === 'center') {
-      bx = GAME_WIDTH * 0.19;
-      bw = GAME_WIDTH * 0.55;
-    } else if (layout === 'right') {
-      bx = GAME_WIDTH * 0.02;
-      bw = 560;
-    } else {
-      bx = GAME_WIDTH * 0.39;
-      bw = 560;
-    }
-    if (isWide) {
-      bx = GAME_WIDTH * 0.12;
-      bw = GAME_WIDTH * 0.76;
-    }
-    const by = GAME_HEIGHT * 0.25;
-    const bh = isWide ? 220 : 200;
+  layoutBubble() {
+    const layout = this._bubbleLayout;
+    const isWide = this._bubbleIsWide;
+    let bx = this._bubbleBx;
+    const maxW = isWide ? GAME_WIDTH * 0.76 : 560;
+    const wrapW = maxW - 60;
+    const maxRatio = 3.5;
+    const pad = { x: 20, top: 44, bottom: 20, name: 36 };
+    const by = layout === 'party' ? GAME_HEIGHT * 0.08 : GAME_HEIGHT * 0.25;
 
+    if (isWide) bx = GAME_WIDTH * 0.12;
+
+    this.bodyText.setWordWrapWidth(wrapW);
+    this.bodyText.setText(this.fullText);
+    const textW = Math.min(this.bodyText.width, wrapW);
+    const textH = this.bodyText.height;
+
+    let bw = Math.min(textW + pad.x * 2 + pad.name, maxW);
+    bw = Math.max(bw, 200);
+    let bh = textH + pad.top + pad.bottom;
+    bh = Math.max(bh, 90);
+
+    if (bw / bh > maxRatio) bh = Math.ceil(bw / maxRatio);
+
+    this.speakerDot.setPosition(bx + 16, by + 16);
+    this.nameText.setPosition(bx + 34, by + 8);
+    this.bodyText.setPosition(bx + pad.x, by + pad.top);
+    this.bodyText.setText('');
+
+    this.bubbleGfx.clear();
     this.bubbleGfx.fillStyle(0x000000, 0.15);
     this.bubbleGfx.fillRoundedRect(bx + 4, by + 6, bw, bh, 20);
     this.bubbleGfx.fillStyle(0xf5ead0, 0.92);
     this.bubbleGfx.fillRoundedRect(bx, by, bw, bh, 20);
     this.bubbleGfx.lineStyle(3, 0xd4a840, 0.8);
     this.bubbleGfx.strokeRoundedRect(bx, by, bw, bh, 20);
+  }
+
+  drawBubbleBackground(_layout, isWide) {
+    this._bubbleIsWide = isWide;
   }
 
   getSpeakerColor(speaker) {

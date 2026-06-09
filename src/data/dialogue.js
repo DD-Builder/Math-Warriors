@@ -543,3 +543,238 @@ export const DIALOGUE = {
     { speaker: 'Elder Fairy', text: 'Face The Theorem. End this!' },
   ],
 };
+
+// ══════════════════════════════════════════════════════════════════
+// HERO RESCUE DIALOGUES
+// Shown after a floor boss is defeated and new heroes are unlocked.
+// Each floor key maps hero IDs to 3-4 lines of rescue dialogue
+// featuring the hero speaking in their personality voice.
+// ══════════════════════════════════════════════════════════════════
+
+export const HERO_RESCUE = {
+  // ── FLOOR 1: THE GARDEN — trapped in thorns/vines by the Briar King ──
+  1: {
+    'knight-crusader': [
+      { speaker: 'Elder Fairy', text: 'Someone is in the thorns!' },
+      { speaker: 'Crusader', text: 'You freed me? The Briar King' },
+      { speaker: 'Crusader', text: 'bound me to stop anyone who' },
+      { speaker: 'Crusader', text: 'believes in justice.' },
+      { speaker: 'Crusader', text: 'My holy aura shields the party.' },
+      { speaker: 'Crusader', text: 'Let me fight alongside you!' },
+      { speaker: 'Elder Fairy', text: 'Welcome, Crusader. We need you.' },
+    ],
+    'wizard-toadstool': [
+      { speaker: 'Elder Fairy', text: 'A mushroom wizard in the vines?' },
+      { speaker: 'Toadstool', text: 'Hee hee! Finally!' },
+      { speaker: 'Toadstool', text: 'Those thorns were NOT fun.' },
+      { speaker: 'Toadstool', text: 'I brew toxic spores. Let me help!' },
+      { speaker: 'Elder Fairy', text: 'Your chaos magic is welcome.' },
+    ],
+  },
+
+  // ── FLOOR 2: TIDEPOOL RUINS — trapped in tide pools, magic drained ──
+  2: {
+    'wizard-spellblade': [
+      { speaker: 'Water Fairy', text: 'Someone is trapped in the reef!' },
+      { speaker: 'Spellblade', text: 'About time. The Pressure' },
+      { speaker: 'Spellblade', text: 'drained my magic and left me' },
+      { speaker: 'Spellblade', text: 'stuck in coral.' },
+      { speaker: 'Spellblade', text: 'My blade is ready. Let us go.' },
+      { speaker: 'Water Fairy', text: 'Fight well, Spellblade.' },
+    ],
+    'bunny-nova': [
+      { speaker: 'Water Fairy', text: 'A light in the tide pool!' },
+      { speaker: 'Nova', text: 'Yay, you found me!' },
+      { speaker: 'Nova', text: 'The water dimmed my sparkle' },
+      { speaker: 'Nova', text: 'but I never stopped shining!' },
+      { speaker: 'Nova', text: 'My sparks zap ALL the enemies!' },
+      { speaker: 'Water Fairy', text: 'Your light is what we need.' },
+    ],
+  },
+
+  // ── FLOOR 3: CLOUD MAZE — frozen mid-flight, used as cloud anchors ──
+  3: {
+    'knight-paladin': [
+      { speaker: 'Sky Fairy', text: 'A knight frozen in the clouds!' },
+      { speaker: 'Paladin', text: 'The Skywhale used me as' },
+      { speaker: 'Paladin', text: 'a cloud anchor. I could not move.' },
+      { speaker: 'Paladin', text: 'But I heard everything.' },
+      { speaker: 'Paladin', text: 'I will protect this party.' },
+      { speaker: 'Sky Fairy', text: 'Your heart makes you strong.' },
+    ],
+    'bunny-boulder': [
+      { speaker: 'Sky Fairy', text: 'A boulder bunny stuck in the sky?' },
+      { speaker: 'Boulder', text: 'Yep. Been up here a while.' },
+      { speaker: 'Boulder', text: 'Pretty patient though.' },
+      { speaker: 'Boulder', text: 'Ready to hit things. With rocks.' },
+      { speaker: 'Sky Fairy', text: 'Glad to have you, Boulder.' },
+    ],
+  },
+
+  // ── FLOOR 4: EMBER CAVES — imprisoned in ember cages ──
+  4: {
+    'knight-berserker': [
+      { speaker: 'Fire Fairy', text: 'Someone rages in that ember cage!' },
+      { speaker: 'Berserker', text: 'FINALLY! Pyroclast locked me up' },
+      { speaker: 'Berserker', text: 'because I fought back.' },
+      { speaker: 'Berserker', text: 'BIG MISTAKE.' },
+      { speaker: 'Berserker', text: 'I get STRONGER when I am hurt!' },
+      { speaker: 'Fire Fairy', text: 'Channel that fury. We need it.' },
+    ],
+    'wizard-bookworm': [
+      { speaker: 'Fire Fairy', text: 'A wizard reading in a cage?' },
+      { speaker: 'Bookworm', text: 'I was calculating my escape.' },
+      { speaker: 'Bookworm', text: 'Seventeen possible routes.' },
+      { speaker: 'Bookworm', text: 'Glad you tried number one.' },
+      { speaker: 'Bookworm', text: 'My research buys us more time.' },
+      { speaker: 'Fire Fairy', text: 'A scholar in flames. Welcome.' },
+    ],
+  },
+
+  // ── FLOOR 5: FROZEN PEAK — frozen in ice (fire bunny in ice, ironic) ──
+  5: {
+    'bunny-blaze': [
+      { speaker: 'Ice Fairy', text: 'A fire bunny frozen in ice?' },
+      { speaker: 'Ice Fairy', text: 'That is just cruel.' },
+      { speaker: 'Blaze', text: 'The Theorem froze me because' },
+      { speaker: 'Blaze', text: 'fire asks the hardest questions.' },
+      { speaker: 'Blaze', text: 'Well GUESS WHAT. I am BACK.' },
+      { speaker: 'Blaze', text: 'FEEL THE HEAT!' },
+      { speaker: 'Ice Fairy', text: 'Your fire will light our way.' },
+    ],
+  },
+
+  // ── FLOOR 6: CRYSTAL CAVERNS — embedded in crystal, legendary power sealed ──
+  6: {
+    'knight-greathelm': [
+      { speaker: 'Crystal Fairy', text: 'A legendary knight in crystal!' },
+      { speaker: 'Great Helm', text: 'At last. The Prism sealed me' },
+      { speaker: 'Great Helm', text: 'to contain my power.' },
+      { speaker: 'Great Helm', text: 'A grave error.' },
+      { speaker: 'Great Helm', text: 'I am Unbreakable. You have my sword.' },
+      { speaker: 'Elder Fairy', text: 'A legendary hero returns!' },
+    ],
+    'wizard-grandmage': [
+      { speaker: 'Crystal Fairy', text: 'Ancient magic pulses in there!' },
+      { speaker: 'Grand Mage', text: 'Do you know how LONG I waited?' },
+      { speaker: 'Grand Mage', text: 'The Prism feared my power.' },
+      { speaker: 'Grand Mage', text: 'Insufferable.' },
+      { speaker: 'Grand Mage', text: 'Hard questions fuel my wrath.' },
+      { speaker: 'Grand Mage', text: 'Enemies will KNEEL.' },
+      { speaker: 'Elder Fairy', text: 'Two legends freed. The tide turns.' },
+    ],
+  },
+
+  // ── FLOOR 7: MARKET SQUARE — held as priceless merchandise ──
+  7: {
+    'bunny-duchess': [
+      { speaker: 'Market Fairy', text: 'That bunny is royalty!' },
+      { speaker: 'Duchess', text: 'The indignity. Sold as goods.' },
+      { speaker: 'Duchess', text: 'By royal decree, someone' },
+      { speaker: 'Duchess', text: 'will PAY for this.' },
+      { speaker: 'Duchess', text: 'My command strengthens allies.' },
+      { speaker: 'Duchess', text: 'The crown joins your cause.' },
+      { speaker: 'Market Fairy', text: 'Forgive me, Duchess.' },
+    ],
+  },
+};
+
+/**
+ * Return rescue dialogue lines for heroes just unlocked on a floor.
+ * Returns a flat array of dialogue lines ready for CutsceneScene,
+ * or an empty array if no rescue dialogue exists for the given floor/heroes.
+ *
+ * @param {object} save        The current save data
+ * @param {number} floorId     The floor that was just completed
+ * @param {string[]} heroIds   Array of hero IDs that were just rescued
+ * @returns {{ speaker: string, text: string }[]}
+ */
+export function getRescueDialogue(floorId, heroIds) {
+  const floorRescues = HERO_RESCUE[floorId];
+  if (!floorRescues) return [];
+  const lines = [];
+  for (const id of heroIds) {
+    const heroLines = floorRescues[id];
+    if (heroLines) {
+      lines.push(...heroLines);
+    }
+  }
+  return lines;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// HERO REACTIONS — party-aware cutscene dialogue additions
+// Maps floorId -> heroId -> { text, trigger }
+// trigger: 'intro' = after floor_entry, 'boss' = after floor_boss
+// ══════════════════════════════════════════════════════════════════
+
+export const HERO_REACTIONS = {
+  // ── FLOOR 1: THE GARDEN ──
+  1: {
+    'knight-crusader': { text: '"The Garden cries for justice!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Fascinating botanical corruption..."', trigger: 'intro' },
+    'bunny-pepper': { text: '"Ooh! Dead flowers! SPOOKY! Let\'s GO!"', trigger: 'intro' },
+    'knight-shadow': { text: '"...Something hides in these thorns."', trigger: 'intro' },
+  },
+  // ── FLOOR 2: TIDEPOOL RUINS ──
+  2: {
+    'wizard-bookworm': { text: '"The tidal math inversions match chapter 7 of my research!"', trigger: 'intro' },
+    'bunny-pepper': { text: '"Water goes UP?! That\'s HILARIOUS!"', trigger: 'intro' },
+    'knight-crusader': { text: '"These ruins once held sacred truths."', trigger: 'intro' },
+    'wizard-stargazer': { text: '"The stars reflect strangely in backward tides..."', trigger: 'intro' },
+  },
+  // ── FLOOR 3: CLOUD MAZE ──
+  3: {
+    'bunny-pepper': { text: '"CLOUDS! I wanna BOUNCE on them!"', trigger: 'intro' },
+    'wizard-stargazer': { text: '"We are closer to my domain now. The stars weep."', trigger: 'intro' },
+    'knight-paladin': { text: '"I will shield us from the storm."', trigger: 'intro' },
+    'knight-shadow': { text: '"Good visibility. Bad for hiding."', trigger: 'intro' },
+  },
+  // ── FLOOR 4: EMBER CAVES — Berserker was imprisoned here ──
+  4: {
+    'knight-berserker': { text: '"I remember these cages... NEVER AGAIN!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"The ember patterns match my research!"', trigger: 'intro' },
+    'bunny-pepper': { text: '"HOT HOT HOT! But I\'m FASTER than fire!"', trigger: 'intro' },
+    'knight-crusader': { text: '"Ember, we will free your friend."', trigger: 'intro' },
+    'bunny-blaze': { text: '"This heat... feels like home."', trigger: 'intro' },
+  },
+  // ── FLOOR 5: FROZEN PEAK ──
+  5: {
+    'bunny-blaze': { text: '"ICE?! My NEMESIS! Let me at it!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Cryogenic math stasis. Remarkable."', trigger: 'intro' },
+    'knight-shadow': { text: '"The cold reveals footprints. Someone was here."', trigger: 'intro' },
+    'bunny-pepper': { text: '"B-b-brrr! My ears are FREEZING!"', trigger: 'intro' },
+  },
+  // ── FLOOR 6: CRYSTAL CAVERNS ──
+  6: {
+    'wizard-stargazer': { text: '"These crystals refract starlight beautifully."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Geometric instability. I should take notes."', trigger: 'intro' },
+    'knight-greathelm': { text: '"Prism sealed me here. I owe it a visit."', trigger: 'intro' },
+    'bunny-pepper': { text: '"SHINY! Can I keep one? PLEASE?!"', trigger: 'intro' },
+  },
+  // ── FLOOR 7: MARKET SQUARE — Duchess was sold here ──
+  7: {
+    'bunny-duchess': { text: '"This market... they SOLD me here."', trigger: 'intro' },
+    'knight-crusader': { text: '"Commerce without honor is theft."', trigger: 'intro' },
+    'bunny-pepper': { text: '"FREE SAMPLES?! Oh wait, everything\'s fake."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Counterfeit currency violates seventeen laws."', trigger: 'intro' },
+    'knight-shadow': { text: '"...I know how to spot a fake."', trigger: 'intro' },
+  },
+  // ── FLOOR 8: INFINITY LIBRARY ──
+  8: {
+    'wizard-bookworm': { text: '"I recognize this handwriting... it is the Theorem!"', trigger: 'boss' },
+    'wizard-stargazer': { text: '"The constellations in these pages... they move."', trigger: 'intro' },
+    'bunny-pepper': { text: '"Books?! BORING! ...Wait, this one has PICTURES!"', trigger: 'intro' },
+    'knight-paladin': { text: '"Even words can be weapons. Stay alert."', trigger: 'intro' },
+    'wizard-grandmage': { text: '"These texts... I wrote some of them. Long ago."', trigger: 'intro' },
+  },
+  // ── FLOOR 9: THE MENDING ROOM ──
+  9: {
+    'knight-crusader': { text: '"Justice is not punishment. It is restoration."', trigger: 'intro' },
+    'knight-shadow': { text: '"...The final shadow falls here."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Every equation has an answer. Even this one."', trigger: 'intro' },
+    'bunny-pepper': { text: '"FINAL BOSS! FINAL BOSS! LET\'S GOOOOO!"', trigger: 'intro' },
+    'bunny-duchess': { text: '"By royal decree: we finish this today."', trigger: 'intro' },
+    'knight-berserker': { text: '"No more cages. No more fear. CHARGE!"', trigger: 'boss' },
+  },
+};

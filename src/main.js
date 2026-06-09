@@ -15,6 +15,8 @@ import { EndingScene } from './scenes/EndingScene.js';
 import { SaveSlotScene } from './scenes/SaveSlotScene.js';
 import { MasteryScene } from './scenes/MasteryScene.js';
 import { BossRushScene } from './scenes/BossRushScene.js';
+import { EvolutionScene } from './scenes/EvolutionScene.js';
+import { GalleryScene } from './scenes/GalleryScene.js';
 import { audio } from './systems/audio.js';
 import { loadSave } from './systems/save.js';
 
@@ -42,7 +44,7 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene],
+  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene, EvolutionScene, GalleryScene],
 };
 
 const game = new Phaser.Game(config);
@@ -50,13 +52,21 @@ const game = new Phaser.Game(config);
 // iPad Safari standalone web apps freeze the canvas on background.
 // On resume, save maze state then reload to get a clean canvas.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    // Give Phaser a frame to save state before reloading
+  if (document.hidden) {
+    // Save current scene info so we can resume on return
     const activeScene = game.scene.getScenes(true)[0];
-    if (activeScene && activeScene.saveMazeState) {
-      activeScene.saveMazeState();
+    if (activeScene) {
+      if (activeScene.saveMazeState) activeScene.saveMazeState();
+      const sceneKey = activeScene.scene.key;
+      const slot = activeScene.slot || game.registry?.get('activeSlot') || 1;
+      try {
+        localStorage.setItem('mw_resume', JSON.stringify({
+          scene: sceneKey,
+          slot,
+          floor: activeScene.floorId || activeScene.floor || null,
+        }));
+      } catch (e) { /* ignore */ }
     }
-    setTimeout(() => location.reload(), 50);
   }
 });
 

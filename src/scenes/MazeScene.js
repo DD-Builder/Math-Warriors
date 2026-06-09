@@ -1,17 +1,18 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
-import { getFloor, TILE } from '../data/floors.js';
+import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
-import { spawnHero, getHeroById, ALL_HEROES } from '../data/heroes.js';
-import { spawnEnemy, pickEnemyForFloor } from '../data/enemies.js';
+import { spawnHero, getHeroById, ALL_HEROES, levelBonuses } from '../data/heroes.js';
+import { spawnEnemy, pickEnemyForFloor, FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { makeRng } from '../systems/rng.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, triggerFlash, markDead, markActivated, markVisible, setFloorTheme } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed } from '../ui/levelEngine.js';
+import { generateRatedQuestion } from '../systems/math.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
@@ -38,12 +39,14 @@ import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../syste
  *   - Tap-to-move on adjacent walkable tiles, plus arrow/WASD keys
  *   - Fog of war with a 3-tile reveal radius
  *   - Chests, potions, randomized encounters, a hand-placed boss, and an exit
+ *   - Animated hero walk cycle (bob/squash, facing flip, idle breathing)
+ *     plus footstep dust — see levelEngine LV_drawPartyMember/LV_update
+ *   - Encounters are visible as "lurking monster" shadow blobs with
+ *     blinking eyes once revealed by fog (levelEngine LV_drawEncounterIndicator)
+ *   - Opened chests stay visible and play a brief lid-open animation
  *
  * Deferred to future:
- *   - Animated walking sprites (currently a colored square)
- *   - Real tile artwork (currently rectangles)
- *   - Full papercut backdrop
- *   - Enemy AI / visible enemies before battle (currently invisible tiles)
+ *   - Enemy AI / patrolling enemies before battle
  *   - Scroll pickup that unlocks minimap
  */
 export class MazeScene extends Phaser.Scene {
@@ -57,12 +60,17 @@ export class MazeScene extends Phaser.Scene {
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
 
-    // Hydrate party from save
+    // Hydrate party from save, applying level bonuses
     this.party = (this.save.party || [])
       .map((s) => {
         if (!s || !s.id) return null;
         const h = spawnHero(s.id);
         if (!h) return null;
+        const level = s.level || 1;
+        const bonus = levelBonuses(level);
+        h.maxHp += bonus.maxHp;
+        h.atk += bonus.atk;
+        h.def += bonus.def;
         h.hp = s.hp ?? h.maxHp;
         return h;
       })
@@ -86,6 +94,8 @@ export class MazeScene extends Phaser.Scene {
       this.encountersFought = mazeState.encountersFought || 0;
       this.midExploreShown = mazeState.midExploreShown || false;
       this.fairyTalkShown = mazeState.fairyTalkShown || false;
+      this.mazeTransformed = mazeState.mazeTransformed || false;
+      this.revealedSecrets = mazeState.revealedSecrets || [];
     } else {
       // Fresh entry: reset state
       this.playerX = this.floor.startX;
@@ -99,37 +109,106 @@ export class MazeScene extends Phaser.Scene {
       this.encountersFought = 0;
       this.midExploreShown = false;
       this.fairyTalkShown = false;
+      this.mazeTransformed = false;
+      this.revealedSecrets = [];
 
-      // Hand-placed objects (chests, potions, boss, exit) keep their
-      // designated positions. Encounter (monster) tiles get randomized
-      // each run for surprise. We pick walkable tiles that aren't
-      // occupied by another object or the start position.
-      const handPlaced = this.floor.objects.filter((o) => o.type !== 'encounter');
-      const encounterCount = this.floor.objects.filter((o) => o.type === 'encounter').length;
+      // Build reachable tile set via flood fill from player start
+      const reachable = this.floodFillReachable(this.playerX, this.playerY);
 
-      const occupied = new Set();
-      occupied.add(`${this.playerX},${this.playerY}`);
-      handPlaced.forEach((o) => occupied.add(`${o.x},${o.y}`));
+      // Separate fixed-position items (boss, exit) from randomizable items
+      const fixedTypes = new Set(['boss', 'exit']);
+      const challengeType = this.floor.challenge?.type;
+      const phase2Type = this.floor.challenge?.phase2?.type;
+      const randomizableTypes = new Set([
+        challengeType, phase2Type,
+        'chest', 'potion', 'gold', 'fountain', 'golden', 'mathdoor',
+      ].filter(Boolean));
 
-      // Find all walkable tiles not occupied
-      const candidates = [];
-      for (let y = 0; y < this.floor.height; y++) {
-        for (let x = 0; x < this.floor.width; x++) {
-          if (this.floor.tiles[y][x] === TILE.WALL) continue;
-          if (occupied.has(`${x},${y}`)) continue;
-          // Don't put monsters right next to start either
-          const dx = x - this.playerX;
-          const dy = y - this.playerY;
-          if (Math.abs(dx) + Math.abs(dy) < 2) continue;
-          candidates.push({ x, y });
+      const fixedItems = [];
+      const itemsToRandomize = [];
+
+      for (const o of this.floor.objects) {
+        if (o.type === 'encounter') continue;
+        if (fixedTypes.has(o.type)) {
+          fixedItems.push(o);
+        } else if (randomizableTypes.has(o.type)) {
+          itemsToRandomize.push(o);
+        } else {
+          fixedItems.push(o);
         }
       }
-      // Shuffle and take the first N
-      for (let i = candidates.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+
+      // Build occupied set from fixed items + player start
+      const occupied = new Set();
+      occupied.add(`${this.playerX},${this.playerY}`);
+      fixedItems.forEach((o) => occupied.add(`${o.x},${o.y}`));
+
+      // Find reachable, walkable, unoccupied tiles for randomized placement
+      const placementCandidates = [];
+      for (const key of reachable) {
+        if (occupied.has(key)) continue;
+        const [x, y] = key.split(',').map(Number);
+        const dx = x - this.playerX;
+        const dy = y - this.playerY;
+        if (Math.abs(dx) + Math.abs(dy) < 3) continue;
+        placementCandidates.push({ x, y });
       }
-      const encounters = candidates.slice(0, encounterCount).map((p, idx) => ({
+
+      // Shuffle candidates
+      for (let i = placementCandidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [placementCandidates[i], placementCandidates[j]] = [placementCandidates[j], placementCandidates[i]];
+      }
+
+      // Place randomizable items on reachable tiles
+      const randomizedItems = [];
+      let candIdx = 0;
+      for (const o of itemsToRandomize) {
+        if (candIdx < placementCandidates.length) {
+          const pos = placementCandidates[candIdx++];
+          randomizedItems.push({ ...o, x: pos.x, y: pos.y });
+          occupied.add(`${pos.x},${pos.y}`);
+        } else {
+          randomizedItems.push(o);
+        }
+      }
+
+      // Validate fixed items are reachable; if not, relocate them
+      const validatedFixed = fixedItems.map(o => {
+        if (reachable.has(`${o.x},${o.y}`)) return o;
+        // Item is unreachable — find nearest reachable tile
+        for (const pos of placementCandidates) {
+          const key = `${pos.x},${pos.y}`;
+          if (!occupied.has(key)) {
+            occupied.add(key);
+            return { ...o, x: pos.x, y: pos.y };
+          }
+        }
+        return o;
+      });
+
+      const handPlaced = [...validatedFixed, ...randomizedItems].map((o) => ({
+        ...o,
+        id: `${o.type}-${o.x}-${o.y}`,
+        consumed: false,
+      }));
+
+      // Randomize encounter positions on reachable tiles
+      const encounterCount = this.floor.objects.filter((o) => o.type === 'encounter').length;
+      const encounterCandidates = [];
+      for (const key of reachable) {
+        if (occupied.has(key)) continue;
+        const [x, y] = key.split(',').map(Number);
+        const dx = x - this.playerX;
+        const dy = y - this.playerY;
+        if (Math.abs(dx) + Math.abs(dy) < 2) continue;
+        encounterCandidates.push({ x, y });
+      }
+      for (let i = encounterCandidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [encounterCandidates[i], encounterCandidates[j]] = [encounterCandidates[j], encounterCandidates[i]];
+      }
+      const encounters = encounterCandidates.slice(0, encounterCount).map((p, idx) => ({
         type: 'encounter',
         x: p.x,
         y: p.y,
@@ -137,18 +216,32 @@ export class MazeScene extends Phaser.Scene {
         consumed: false,
       }));
 
-      const placed = handPlaced.map((o) => ({
-        ...o,
-        id: `${o.type}-${o.x}-${o.y}`,
-        consumed: false,
-      }));
-
-      this.objects = [...placed, ...encounters];
+      this.objects = [...handPlaced, ...encounters];
     }
 
     // Movement state
     this.moving = false;
     this.moveQueued = null;
+  }
+
+  floodFillReachable(startX, startY) {
+    const reachable = new Set();
+    const queue = [`${startX},${startY}`];
+    reachable.add(queue[0]);
+    while (queue.length > 0) {
+      const key = queue.shift();
+      const [x, y] = key.split(',').map(Number);
+      const neighbors = [[x-1,y],[x+1,y],[x,y-1],[x,y+1]];
+      for (const [nx, ny] of neighbors) {
+        if (nx < 0 || ny < 0 || nx >= this.floor.width || ny >= this.floor.height) continue;
+        const nk = `${nx},${ny}`;
+        if (reachable.has(nk)) continue;
+        if (this.floor.tiles[ny]?.[nx] === TILE.WALL) continue;
+        reachable.add(nk);
+        queue.push(nk);
+      }
+    }
+    return reachable;
   }
 
   buildInitialFog() {
@@ -164,13 +257,16 @@ export class MazeScene extends Phaser.Scene {
     fadeInScene(this, 250, pal.sky);
     audio.playMusic(`music/floor-${this.floorId}`);
 
-    // Pre-render hero canvases for the level engine party display
+    // Pre-render hero canvas for the level engine — leader only (index 0).
+    // Passing canvases for all party members caused extra followers to render.
     const allArt = [...KNIGHTS, ...WIZARDS, ...BUNNIES];
-    const heroCanvases = this.party.map(h => {
-      const art = allArt.find(a => a.id === h.id);
-      if (art && art.draw) return createHeroCanvas(80, 110, null, art.draw, art.topExt, art.botExt);
-      return null;
-    });
+    const leader = this.party[0];
+    const leaderArt = leader ? allArt.find(a => a.id === leader.id) : null;
+    const heroCanvases = [
+      leaderArt && leaderArt.draw
+        ? createHeroCanvas(80, 110, null, leaderArt.draw, leaderArt.topExt, leaderArt.botExt)
+        : null,
+    ];
 
     // Convert floor objects to level engine format
     const challengeType = this.floor.challenge?.type || 'fairy';
@@ -187,23 +283,33 @@ export class MazeScene extends Phaser.Scene {
       else if (o.type === 'geoshard') engineType = 'geoshard';
       else if (o.type === 'token') engineType = 'token';
       else if (o.type === 'page') engineType = 'page';
+      else if (o.type === 'mathdoor') engineType = 'mathdoor';
+      else if (o.type === 'fountain') engineType = 'fountain';
       return {
         type: engineType,
         tx: o.x, ty: o.y,
         id: o.id,
         alive: !o.consumed,
-        open: !!o.consumed,
+        open: o.type === 'mathdoor' ? !!o.open : !!o.consumed,
         hidden: o.type === 'encounter',
-        visible: o.type === 'exit' ? this.hasKey : true,
+        visible: true,
         kind: 'sprout',
         respawnAt: 0,
         loot: (o.type === challengeType || o.type === 'fairy') ? 'fairy' : undefined,
         fairyCol: '#88aaff',
+        uses: o.uses ?? undefined,
       };
     });
 
     setFloorTheme(this.floorId);
+    LV_setTransformed(this.mazeTransformed);
     initLevel(GAME_WIDTH, GAME_HEIGHT, this.floor.tiles, engineObjs, heroCanvases, this.playerX, this.playerY);
+
+    if (this.revealedSecrets) {
+      for (const s of this.revealedSecrets) {
+        revealSecret(s.tx, s.ty);
+      }
+    }
 
     // Restore state if returning from battle
     if (!this.freshEntry && this.fog) {
@@ -268,6 +374,8 @@ export class MazeScene extends Phaser.Scene {
     this.levelImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     this.buildHUD();
+    this.buildMiniMap();
+    this.startMazeParticles();
 
     this.dialogue = new DialogueOverlay(this);
 
@@ -293,26 +401,6 @@ export class MazeScene extends Phaser.Scene {
   // TILE RENDERING
   // ================================================================
 
-  buildTiles() {
-    this.tileSprites = [];
-    const ts = this.tileSize;
-
-    for (let y = 0; y < this.floor.height; y++) {
-      const row = [];
-      for (let x = 0; x < this.floor.width; x++) {
-        const t = this.floor.tiles[y][x];
-        const sx = this.originX + x * ts + ts / 2;
-        const sy = this.originY + y * ts + ts / 2;
-
-        const texKey = getTileTextureKey(this, this.floorId, t, x, y, ts);
-        const img = this.add.image(sx, sy, texKey);
-        img.setDisplaySize(ts, ts);
-        row.push(img);
-      }
-      this.tileSprites.push(row);
-    }
-  }
-
   addTileDecor(sx, sy, ts, rng, pal) {
     const type = rng();
     const ox = (rng() - 0.5) * ts * 0.5;
@@ -334,30 +422,6 @@ export class MazeScene extends Phaser.Scene {
       const fc = flowerColors[Math.floor(rng() * flowerColors.length)];
       this.add.circle(sx + ox, sy + oy, 3, fc, 0.7);
       this.add.circle(sx + ox, sy + oy, 1.5, 0xf0f080, 0.8);
-    }
-  }
-
-  buildEnvironment() {
-    const ts = this.tileSize;
-    const rng = makeRng(this.floorId * 7777);
-    const fid = this.floorId;
-
-    for (let y = 0; y < this.floor.height; y++) {
-      for (let x = 0; x < this.floor.width; x++) {
-        const t = this.floor.tiles[y][x];
-        if (t !== TILE.WALL) continue;
-        const sx = this.originX + x * ts + ts / 2;
-        const sy = this.originY + y * ts + ts / 2;
-        const r = rng();
-        if (r > 0.6) continue;
-
-        const g = this.add.graphics();
-        if (fid === 1) this.drawGardenWall(g, sx, sy, ts, rng);
-        else if (fid === 2) this.drawTidepoolWall(g, sx, sy, ts, rng);
-        else if (fid === 3) this.drawCloudWall(g, sx, sy, ts, rng);
-        else if (fid === 4) this.drawEmberWall(g, sx, sy, ts, rng);
-        else if (fid === 5) this.drawArcaneWall(g, sx, sy, ts, rng);
-      }
     }
   }
 
@@ -441,18 +505,6 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
   // OBJECT SPRITES
   // ================================================================
-
-  buildObjects() {
-    this.objectSprites = [];
-    for (const obj of this.objects) {
-      if (obj.consumed) {
-        this.objectSprites.push(null);
-        continue;
-      }
-      const sprite = this.createObjectSprite(obj);
-      this.objectSprites.push(sprite);
-    }
-  }
 
   createObjectSprite(obj) {
     const sx = this.originX + obj.x * this.tileSize + this.tileSize / 2;
@@ -568,7 +620,10 @@ export class MazeScene extends Phaser.Scene {
         g.lineStyle(3, 0xc07818, 0.9);
         g.strokeCircle(0, 0, er);
         bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
-        bg.setVisible(this.bossDefeated);
+        // Exit is always visible but dim/dark until golden key obtained
+        if (!this.hasKey) {
+          g.setAlpha(0.3);
+        }
         break;
       }
       default:
@@ -577,64 +632,6 @@ export class MazeScene extends Phaser.Scene {
 
     group.add([bg, icon]);
     return group;
-  }
-
-  // ================================================================
-  // PLAYER SPRITE
-  // ================================================================
-
-  buildPlayer() {
-    // Each party member gets their own container. The leader is at the
-    // current tile; followers trail behind at previous positions.
-    const ts = this.tileSize;
-    const spriteScale = ts / 140 * 0.85;
-    const startSx = this.originX + this.playerX * ts + ts / 2;
-    const startSy = this.originY + this.playerY * ts + ts / 2;
-
-    // Position trail — followers walk where the leader just was.
-    // Initialize all at the starting position.
-    this.posTrail = [];
-    for (let i = 0; i < this.party.length; i++) {
-      this.posTrail.push({ x: this.playerX, y: this.playerY });
-    }
-
-    this.followerSprites = [];
-    // Draw followers first (behind), leader last (on top)
-    for (let i = this.party.length - 1; i >= 0; i--) {
-      const hero = this.party[i];
-      if (!hero) continue;
-      const sx = this.originX + this.posTrail[i].x * ts + ts / 2;
-      const sy = this.originY + this.posTrail[i].y * ts + ts / 2;
-      const container = this.add.container(sx, sy);
-      const sc = i === 0 ? spriteScale : spriteScale * 0.8;
-      const gfx = drawHeroSprite(this, 0, 0, hero, { scale: sc });
-      container.add(gfx);
-      this.followerSprites[i] = container;
-    }
-    // The leader's container is what the camera follows
-    this.playerSprite = this.followerSprites[0];
-  }
-
-  // ================================================================
-  // FOG OF WAR
-  // ================================================================
-
-  buildFogOverlay() {
-    this.fogSprites = [];
-    for (let y = 0; y < this.floor.height; y++) {
-      const row = [];
-      for (let x = 0; x < this.floor.width; x++) {
-        const sx = this.originX + x * this.tileSize + this.tileSize / 2;
-        const sy = this.originY + y * this.tileSize + this.tileSize / 2;
-        const fog = this.add.rectangle(sx, sy, this.tileSize + 1, this.tileSize + 1, 0x000000, 0.92);
-        fog.setVisible(!this.fog[y][x]);
-        row.push(fog);
-      }
-      this.fogSprites.push(row);
-    }
-  }
-
-  revealFog() {
   }
 
   // ================================================================
@@ -768,36 +765,50 @@ export class MazeScene extends Phaser.Scene {
     this._swapOverlay = true;
     this.moving = false;
 
-    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.7).setScrollFactor(0).setInteractive();
+    const OVERLAY_DEPTH = 200;
+
+    // Dark semi-transparent full-screen background overlay
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.85)
+      .setScrollFactor(0).setInteractive().setDepth(OVERLAY_DEPTH);
     const title = this.add.text(GAME_WIDTH / 2, 80, 'SWAP HEROES', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '36px', color: '#f0d040', stroke: '#1a0e04', strokeThickness: 5,
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
 
     const hint = this.add.text(GAME_WIDTH / 2, 130, 'Tap a hero to swap into your party', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '20px', color: '#f0e4cc',
-    }).setOrigin(0.5).setScrollFactor(0);
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
 
     const unlocked = ALL_HEROES.filter(h => isHeroUnlocked(this.save, h.id));
     const partyIds = this.party.map(h => h.id);
-    const cols = 5;
-    const cardW = 160;
-    const cardH = 200;
-    const gap = 14;
-    const gridW = cols * cardW + (cols - 1) * gap;
+
+    // Responsive grid: pick columns based on count, fit cards within screen
+    const maxCols = Math.min(5, unlocked.length);
+    const cols = maxCols;
+    const cardGap = 24;
+    const availableW = GAME_WIDTH - 60;
+    const cardW = Math.min(140, Math.floor((availableW - (cols - 1) * cardGap) / cols));
+    const cardH = 180;
+    const gridW = cols * cardW + (cols - 1) * cardGap;
     const startX = GAME_WIDTH / 2 - gridW / 2 + cardW / 2;
-    const startY = 200;
+    const rows = Math.ceil(unlocked.length / cols);
+    const gridH = rows * cardH + (rows - 1) * cardGap;
+    // Center the grid vertically between hint text and close button area
+    const gridTop = 170;
+    const gridBottom = GAME_HEIGHT - 120;
+    const startY = gridTop + Math.max(0, (gridBottom - gridTop - gridH) / 2) + cardH / 2;
     const objects = [bg, title, hint];
 
     unlocked.forEach((hero, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      const x = startX + col * (cardW + gap);
-      const y = startY + row * (cardH + gap);
+      const x = startX + col * (cardW + cardGap);
+      const y = startY + row * (cardH + cardGap);
       const inParty = partyIds.includes(hero.id);
 
-      const cardBg = this.add.graphics().setScrollFactor(0);
+      const cardBg = this.add.graphics().setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
       cardBg.fillStyle(inParty ? 0xd07818 : 0x2a1808, 0.9);
       cardBg.fillRoundedRect(x - cardW / 2, y - cardH / 2, cardW, cardH, 12);
       if (inParty) {
@@ -806,26 +817,30 @@ export class MazeScene extends Phaser.Scene {
       }
       objects.push(cardBg);
 
-      const sprite = drawHeroSprite(this, x, y - 30, hero, { scale: 0.5 });
-      sprite.setScrollFactor(0);
+      // Hero portrait centered in upper portion of card
+      const portraitY = y - cardH * 0.15;
+      const sprite = drawHeroSprite(this, x, portraitY, hero, { scale: 0.45 });
+      sprite.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(sprite);
 
-      const nameT = this.add.text(x, y + 40, hero.name, {
+      // Hero name below portrait
+      const nameT = this.add.text(x, y + cardH * 0.22, hero.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '16px', color: inParty ? '#fff8e0' : '#f0e4cc',
+        fontSize: '14px', color: inParty ? '#fff8e0' : '#f0e4cc',
         stroke: '#1a0e04', strokeThickness: 2,
-      }).setOrigin(0.5).setScrollFactor(0);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(nameT);
 
-      const badge = this.add.text(x, y + 60, inParty ? 'IN PARTY' : `HP ${hero.maxHp}  ATK ${hero.atk}`, {
+      // "IN PARTY" label or stats below name
+      const badge = this.add.text(x, y + cardH * 0.35, inParty ? 'IN PARTY' : `HP ${hero.maxHp}  ATK ${hero.atk}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
         fontSize: '11px', color: inParty ? '#f0d040' : '#a09070',
-      }).setOrigin(0.5).setScrollFactor(0);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(badge);
 
       if (!inParty) {
         const zone = this.add.rectangle(x, y, cardW, cardH, 0xffffff, 0)
-          .setScrollFactor(0).setInteractive({ useHandCursor: true });
+          .setScrollFactor(0).setInteractive({ useHandCursor: true }).setDepth(OVERLAY_DEPTH + 3);
         zone.on('pointerdown', () => {
           audio.play('ui/click');
           this.showSlotPicker(hero, objects);
@@ -834,7 +849,9 @@ export class MazeScene extends Phaser.Scene {
       }
     });
 
-    const closeBtn = PaperButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 80, 'CLOSE', {
+    // Close button at bottom center with clear space above
+    const closeBtnY = Math.max(startY + rows * (cardH + cardGap) + 40, GAME_HEIGHT - 70);
+    const closeBtn = PaperButton(this, GAME_WIDTH / 2, closeBtnY, 'CLOSE', {
       w: 200, h: 56, color: 0xe84840, fontSize: 20,
       onClick: () => {
         objects.forEach(o => o.destroy());
@@ -843,22 +860,23 @@ export class MazeScene extends Phaser.Scene {
         this._swapOverlay = false;
       },
     });
-    closeBtn.bg.setScrollFactor(0);
-    closeBtn.shadow.setScrollFactor(0);
-    closeBtn.label.setScrollFactor(0);
-    if (closeBtn.zone) closeBtn.zone.setScrollFactor(0);
+    closeBtn.bg.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
+    closeBtn.shadow.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
+    closeBtn.label.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 3);
+    if (closeBtn.zone) closeBtn.zone.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 3);
   }
 
   showSlotPicker(newHero, overlayObjects) {
+    const SLOT_DEPTH = 210;
     const slotObjs = [];
     const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
-      .setScrollFactor(0).setInteractive();
+      .setScrollFactor(0).setInteractive().setDepth(SLOT_DEPTH);
     slotObjs.push(bg);
 
     const title = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 160, `Replace which hero with ${newHero.name}?`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '28px', color: '#f0d040', stroke: '#1a0e04', strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(SLOT_DEPTH + 1);
     slotObjs.push(title);
 
     for (let i = 0; i < this.party.length; i++) {
@@ -867,7 +885,7 @@ export class MazeScene extends Phaser.Scene {
       const sx = GAME_WIDTH / 2 - 200 + i * 200;
       const sy = GAME_HEIGHT / 2;
 
-      const cardBg = this.add.graphics().setScrollFactor(0);
+      const cardBg = this.add.graphics().setScrollFactor(0).setDepth(SLOT_DEPTH + 1);
       cardBg.fillStyle(0x2a1808, 0.9);
       cardBg.fillRoundedRect(sx - 80, sy - 80, 160, 180, 12);
       slotObjs.push(cardBg);
@@ -875,17 +893,17 @@ export class MazeScene extends Phaser.Scene {
       const heroDef = spawnHero(h.id);
       if (heroDef) {
         const spr = drawHeroSprite(this, sx, sy - 20, heroDef, { scale: 0.5 });
-        spr.setScrollFactor(0);
+        spr.setScrollFactor(0).setDepth(SLOT_DEPTH + 2);
         slotObjs.push(spr);
       }
       const nt = this.add.text(sx, sy + 50, h.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
         fontSize: '16px', color: '#f0e4cc', stroke: '#1a0e04', strokeThickness: 2,
-      }).setOrigin(0.5).setScrollFactor(0);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(SLOT_DEPTH + 2);
       slotObjs.push(nt);
 
       const zone = this.add.rectangle(sx, sy, 160, 180, 0xffffff, 0)
-        .setScrollFactor(0).setInteractive({ useHandCursor: true });
+        .setScrollFactor(0).setInteractive({ useHandCursor: true }).setDepth(SLOT_DEPTH + 3);
       zone.on('pointerdown', () => {
         audio.play('ui/confirm');
         slotObjs.forEach(o => o.destroy());
@@ -903,10 +921,10 @@ export class MazeScene extends Phaser.Scene {
         cancelBtn.label.destroy(); if (cancelBtn.zone) cancelBtn.zone.destroy();
       },
     });
-    cancelBtn.bg.setScrollFactor(0);
-    cancelBtn.shadow.setScrollFactor(0);
-    cancelBtn.label.setScrollFactor(0);
-    if (cancelBtn.zone) cancelBtn.zone.setScrollFactor(0);
+    cancelBtn.bg.setScrollFactor(0).setDepth(SLOT_DEPTH + 2);
+    cancelBtn.shadow.setScrollFactor(0).setDepth(SLOT_DEPTH + 1);
+    cancelBtn.label.setScrollFactor(0).setDepth(SLOT_DEPTH + 3);
+    if (cancelBtn.zone) cancelBtn.zone.setScrollFactor(0).setDepth(SLOT_DEPTH + 3);
   }
 
   performSwap(newHero, slotIdx, overlayObjects) {
@@ -931,7 +949,7 @@ export class MazeScene extends Phaser.Scene {
     const candidates = [];
     for (let y = 0; y < this.floor.height; y++) {
       for (let x = 0; x < this.floor.width; x++) {
-        if (this.floor.tiles[y][x] === 0) continue;
+        if (this.floor.tiles[y][x] === TILE.WALL) continue;
         if (occupied.has(`${x},${y}`)) continue;
         if (Math.abs(x - this.playerX) + Math.abs(y - this.playerY) < 3) continue;
         candidates.push({ x, y });
@@ -951,6 +969,7 @@ export class MazeScene extends Phaser.Scene {
         consumed: false,
       };
       this.objects.push(newObj);
+      addObject({ type: phase2.type, tx: p.x, ty: p.y, id: newObj.id, alive: true, open: false, hidden: false, visible: true });
     }
     this.showFloatText(this.playerX, this.playerY - 1, `${phase2.label}s appeared!`, '#f0c040');
     this.saveMazeState();
@@ -969,33 +988,66 @@ export class MazeScene extends Phaser.Scene {
     });
   }
 
-  // ================================================================
-  // TAP-TO-MOVE (touch input for iPad)
-  // ================================================================
 
-  /**
-   * Tapping a tile adjacent to the player moves them one step in
-   * that direction. Tapping further-away tiles is ignored — we only
-   * support 1-tile-at-a-time movement so the player feels the maze
-   * the same way they would with arrow keys.
-   */
-  setupTapToMove() {
-    this.input.on('pointerdown', (pointer) => {
-      // Convert pointer screen coords to tile coords using the maze
-      // tile origin and size.
-      if (this.moving) return;
-      // Convert screen pointer to world coords (accounting for camera scroll)
-      const worldX = pointer.x + this.cameras.main.scrollX;
-      const worldY = pointer.y + this.cameras.main.scrollY;
-      const tileX = Math.floor((worldX - this.originX) / this.tileSize);
-      const tileY = Math.floor((worldY - this.originY) / this.tileSize);
-      // Only adjacent (4-directional) tiles count as movement requests
-      const dx = tileX - this.playerX;
-      const dy = tileY - this.playerY;
-      if (Math.abs(dx) + Math.abs(dy) === 1) {
-        this.tryMove({ dx, dy });
-      }
-    });
+  showMathDoorPrompt(question, doorObj) {
+    if (this._mathDoorActive) return;
+    this._mathDoorActive = true;
+    let answered = false;
+    const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
+    const opSymbol = question.op === '*' ? '×' : question.op;
+    const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, `${question.a} ${opSymbol} ${question.b} = ?`, {
+      fontFamily: '"Fredoka One", sans-serif',
+      fontSize: '48px', color: '#f0e8d0',
+      stroke: '#1a0e04', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(81).setScrollFactor(0);
+    const btnW = 180, btnH = 70, gap = 20;
+    const totalW = 4 * btnW + 3 * gap;
+    const startX = GAME_WIDTH/2 - totalW/2 + btnW/2;
+    const btnY = GAME_HEIGHT * 0.55;
+    const elements = [overlay, qText];
+    for (let i = 0; i < 4; i++) {
+      const x = startX + i * (btnW + gap);
+      const isCorrect = i === question.correctIndex;
+      const ansText = String(question.choices[i]);
+      const bg = this.add.rectangle(x, btnY, btnW, btnH, 0x3888d8, 0.9).setDepth(81).setScrollFactor(0).setInteractive({ useHandCursor: true });
+      const label = this.add.text(x, btnY, ansText, {
+        fontFamily: '"Fredoka One", sans-serif',
+        fontSize: '32px', color: '#ffffff',
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(82).setScrollFactor(0);
+      elements.push(bg, label);
+      bg.on('pointerdown', () => {
+        if (answered) return;
+        answered = true;
+        if (isCorrect) {
+          doorObj.open = true;
+          markDoorOpen(doorObj.id);
+          this.showToast('Door opened!', '#40c040');
+          audio.play('world/chest');
+          elements.forEach(el => { if (el.scene) el.destroy(); });
+          this._mathDoorActive = false;
+          this._touchDir = null;
+        } else {
+          this.showToast('Try again!', '#e04040');
+          elements.forEach(el => { if (el.scene) el.destroy(); });
+          this._mathDoorActive = false;
+          this._touchDir = null;
+          this.time.delayedCall(600, () => {
+            if (!doorObj.open) {
+              const op = FLOOR_OPERATORS[this.floorId] || '+';
+              const newQ = generateRatedQuestion({
+                operator: op,
+                grade: this.save.grade || 3,
+                streak: 0,
+                floor: this.floorId,
+                targetStars: [2, 3],
+              });
+              this.showMathDoorPrompt(newQ, doorObj);
+            }
+          });
+        }
+      });
+    }
   }
 
   // ================================================================
@@ -1003,7 +1055,7 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   update(time) {
-    if (this.dialogue?.active) return;
+    if (this.dialogue?.active || this._mathDoorActive) return;
     const keys = {};
     if (this.cursors.left.isDown || this.wasd.A.isDown || this._touchDir === 'left') keys.ArrowLeft = true;
     if (this.cursors.right.isDown || this.wasd.D.isDown || this._touchDir === 'right') keys.ArrowRight = true;
@@ -1029,6 +1081,7 @@ export class MazeScene extends Phaser.Scene {
     this.playerX = tile.tx;
     this.playerY = tile.ty;
     if (this.playerX !== prevX || this.playerY !== prevY) {
+      this.updateMiniMap();
       this.checkObjectAt(this.playerX, this.playerY);
     }
   }
@@ -1051,9 +1104,36 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   checkObjectAt(x, y) {
+    // Boss blocking — if player hasn't defeated the boss, they can't walk
+    // past the boss tile to reach the golden chest or exit
+    if (!this.bossDefeated) {
+      const bossObj = this.objects.find(o => o.type === 'boss' && !o.consumed);
+      if (bossObj) {
+        // Check if the player is on a tile that's beyond the boss
+        // (i.e., between boss and exit, closer to exit)
+        const exitObj = this.objects.find(o => o.type === 'exit');
+        const goldenObj = this.objects.find(o => o.type === 'golden' && !o.consumed);
+        if ((goldenObj && x === goldenObj.x && y === goldenObj.y) ||
+            (exitObj && x === exitObj.x && y === exitObj.y)) {
+          // Push player back to boss tile
+          this.showFloatText(x, y, 'DEFEAT THE BOSS FIRST!', '#e04040');
+          return;
+        }
+      }
+    }
+
+    // Secret wall reveal
+    if (revealSecret(x, y)) {
+      if (!this.revealedSecrets) this.revealedSecrets = [];
+      this.revealedSecrets.push({ tx: x, ty: y });
+      this.showToast('Secret passage!', '#f0d060');
+      audio.play('world/chest');
+    }
+
     for (let i = 0; i < this.objects.length; i++) {
       const obj = this.objects[i];
       if (obj.consumed || obj.activated) continue;
+      if (obj.type === 'mathdoor' && obj.open) continue;
       if (obj.x !== x || obj.y !== y) continue;
       this.triggerObject(i);
       break;
@@ -1064,6 +1144,44 @@ export class MazeScene extends Phaser.Scene {
     const obj = this.objects[index];
 
     switch (obj.type) {
+      case 'mathdoor': {
+        if (obj.open) return;
+        const operator = FLOOR_OPERATORS[this.floorId] || '+';
+        const question = generateRatedQuestion({
+          operator,
+          grade: this.save.grade || 3,
+          streak: 0,
+          floor: this.floorId,
+          targetStars: [2, 3],
+        });
+        this.showMathDoorPrompt(question, obj);
+        return;
+      }
+      case 'fountain': {
+        if (!obj.uses || obj.uses <= 0) {
+          this.showToast('The fountain is depleted...', '#808080');
+          return;
+        }
+        let totalHealed = 0;
+        for (const hero of this.party) {
+          const healed = hero.maxHp - hero.hp;
+          hero.hp = hero.maxHp;
+          totalHealed += healed;
+        }
+        obj.uses--;
+        updateObjectUses(obj.id, obj.uses);
+        if (totalHealed > 0) {
+          this.showToast(`Party healed! (${obj.uses} uses left)`, '#40c0e0');
+          audio.play('world/chest');
+        } else {
+          this.showToast(`Already at full HP! (${obj.uses} uses left)`, '#40c0e0');
+        }
+        this.save.party = this.party.map(h => ({ id: h.id, name: h.name, hp: h.hp, maxHp: h.maxHp }));
+        writeSave(this.save, this.slot);
+        this.updateHud();
+        this.saveMazeState();
+        return;
+      }
       case 'chest': {
         const gold = obj.loot?.gold ?? 10;
         this.save.gold += gold;
@@ -1154,8 +1272,9 @@ export class MazeScene extends Phaser.Scene {
         } else {
           this.showFloatText(obj.x, obj.y, ch.allDoneMsg, '#f0d040');
           const egs = getGameState();
-          if (egs) egs.fairies = this.challengeProgress;
+          if (egs) { egs.fairies = this.challengeProgress; setGameState(egs); }
           this.showChallengeEffect(obj.type);
+          this.transformFloor();
           const p1Key = `floor${this.floorId}_phase1_done`;
           if (ch.phase2 && !this.phase2Active) {
             this.spawnPhase2Items(ch.phase2);
@@ -1303,16 +1422,50 @@ export class MazeScene extends Phaser.Scene {
     }});
   }
 
+  transformFloor() {
+    // 1. Screen flash
+    const flash = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0.5);
+    flash.setDepth(100).setScrollFactor(0);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 800, onComplete: () => flash.destroy() });
+
+    // 2. Celebration particles burst from center
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2;
+      const dist = 100 + Math.random() * 200;
+      const color = [0x40c040, 0xf0c040, 0x60a0e0][Math.floor(Math.random() * 3)];
+      const p = this.add.circle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 4 + Math.random() * 4, color, 0.8);
+      p.setDepth(101).setScrollFactor(0);
+      this.tweens.add({
+        targets: p,
+        x: GAME_WIDTH / 2 + Math.cos(angle) * dist,
+        y: GAME_HEIGHT / 2 + Math.sin(angle) * dist,
+        alpha: 0, scale: 0.3,
+        duration: 800 + Math.random() * 400,
+        onComplete: () => p.destroy(),
+      });
+    }
+
+    // 3. Toast message
+    this.showToast('The maze transforms!', '#f0c040');
+
+    // 4. Tell level engine to render transformed state
+    LV_setTransformed(true);
+
+    // 5. Save transformed state
+    this.mazeTransformed = true;
+    this.saveMazeState();
+  }
+
   startBattle(isBoss, enemyId) {
     this.saveMazeState();
 
     this.registry.set('battleReturnScene', SCENES.MAZE);
     this.registry.set('battleReturnData', { floor: this.floorId });
-    const d = this.playerX + this.playerY;
-    const variant = this.floorId === 2 ? (d < 14 ? 0 : d < 28 ? 1 : 2)
-                 : this.floorId === 3 ? (d < 16 ? 0 : d < 36 ? 1 : 2)
-                 : Math.floor(Math.random() * 3);
-    this.registry.set('battleVariant', variant);
+    const tileType = this.floor.tiles[this.playerY]?.[this.playerX] ?? TILE.FLOOR;
+    const sceneInfo = getBattleSceneVariant(this.floorId, tileType, isBoss);
+    this.registry.set('battleVariant', sceneInfo.variant);
+    this.registry.set('battleTileType', tileType);
+    this.registry.set('battleSceneName', sceneInfo.name);
 
     const battleData = {
       party: this.party,
@@ -1328,6 +1481,7 @@ export class MazeScene extends Phaser.Scene {
       transitionTo(this, SCENES.CUTSCENE, {
         lines: DIALOGUE[bossKey],
         floorId: this.floorId,
+        trigger: 'boss',
         nextScene: SCENES.BATTLE,
         nextData: battleData,
       }, 300);
@@ -1352,6 +1506,8 @@ export class MazeScene extends Phaser.Scene {
       encountersFought: this.encountersFought || 0,
       midExploreShown: this.midExploreShown || false,
       fairyTalkShown: this.fairyTalkShown || false,
+      mazeTransformed: this.mazeTransformed || false,
+      revealedSecrets: this.revealedSecrets || [],
     };
     this.registry.set(mazeStateKey(this.floorId), state);
     try { localStorage.setItem(`mw_maze_${this.floorId}`, JSON.stringify(state)); } catch (e) { /* ignore */ }
@@ -1385,6 +1541,138 @@ export class MazeScene extends Phaser.Scene {
         });
       },
     });
+  }
+
+  // ================================================================
+  // MINI-MAP
+  // ================================================================
+
+  buildMiniMap() {
+    const mapSize = 100;
+    const mapX = GAME_WIDTH - mapSize - 10;
+    const mapY = 10;
+
+    // Dark background panel
+    this.miniMapBg = this.add.graphics().setScrollFactor(0).setDepth(200);
+    this.miniMapBg.fillStyle(0x1a0e04, 0.75);
+    this.miniMapBg.fillRoundedRect(mapX, mapY, mapSize, mapSize, 8);
+
+    // Graphics object for the map content
+    this.miniMapGfx = this.add.graphics().setScrollFactor(0).setDepth(201);
+
+    this._miniMapX = mapX;
+    this._miniMapY = mapY;
+    this._miniMapSize = mapSize;
+
+    this.updateMiniMap();
+  }
+
+  updateMiniMap() {
+    if (!this.miniMapGfx) return;
+    this.miniMapGfx.clear();
+
+    const mapX = this._miniMapX;
+    const mapY = this._miniMapY;
+    const mapSize = this._miniMapSize;
+    const fw = this.floor.width;
+    const fh = this.floor.height;
+    const gs = getGameState();
+    const fog = gs?.fog || this.fog;
+
+    // Scale tiles to fit the mini-map
+    const dotSize = Math.max(1, Math.min(3, Math.floor(mapSize / Math.max(fw, fh))));
+    const scaleX = mapSize / fw;
+    const scaleY = mapSize / fh;
+
+    for (let ty = 0; ty < fh; ty++) {
+      for (let tx = 0; tx < fw; tx++) {
+        // Only draw revealed tiles
+        if (fog && fog[ty] && !fog[ty][tx]) continue;
+
+        const px = mapX + tx * scaleX;
+        const py = mapY + ty * scaleY;
+        const tile = this.floor.tiles[ty]?.[tx];
+
+        if (tile === TILE.WALL) {
+          this.miniMapGfx.fillStyle(0x3a2810, 0.8);
+        } else {
+          this.miniMapGfx.fillStyle(0xc0b890, 0.7);
+        }
+        this.miniMapGfx.fillRect(px, py, Math.max(dotSize, scaleX), Math.max(dotSize, scaleY));
+      }
+    }
+
+    // Draw challenge items (red dots) if revealed and not consumed
+    for (const obj of this.objects) {
+      if (obj.consumed) continue;
+      if (obj.type === 'encounter') continue;
+      if (obj.type === 'exit' && !this.hasKey) continue;
+
+      // Only draw if tile is revealed
+      if (fog && fog[obj.y] && !fog[obj.y][obj.x]) continue;
+
+      const px = mapX + obj.x * scaleX + scaleX / 2;
+      const py = mapY + obj.y * scaleY + scaleY / 2;
+
+      if (obj.type === 'boss') {
+        this.miniMapGfx.fillStyle(0xe04040, 1);
+      } else if (obj.type === 'exit') {
+        this.miniMapGfx.fillStyle(0xf0c040, 1);
+      } else {
+        this.miniMapGfx.fillStyle(0xe04040, 0.9);
+      }
+      this.miniMapGfx.fillCircle(px, py, Math.max(1.5, dotSize * 0.5));
+    }
+
+    // Player position — bright yellow dot
+    const playerPx = mapX + this.playerX * scaleX + scaleX / 2;
+    const playerPy = mapY + this.playerY * scaleY + scaleY / 2;
+    this.miniMapGfx.fillStyle(0xf0f040, 1);
+    this.miniMapGfx.fillCircle(playerPx, playerPy, Math.max(2, dotSize * 0.7));
+  }
+
+  // ================================================================
+  // ENVIRONMENTAL PARTICLES
+  // ================================================================
+
+  startMazeParticles() {
+    const particleConfig = {
+      1: { colors: [0x4a8830, 0x68a848, 0xf0c040], size: [3, 5], speed: 0.3, name: 'leaf' },
+      2: { colors: [0x40a8d0, 0x60c8e8, 0x80d8f0], size: [2, 4], speed: 0.5, name: 'bubble' },
+      3: { colors: [0xd0dce8, 0xe8f0f8, 0xffffff], size: [4, 8], speed: 0.15, name: 'wisp' },
+      4: { colors: [0xf08020, 0xe04808, 0xf0c040], size: [2, 4], speed: 0.6, name: 'ember' },
+      5: { colors: [0xc8e0f0, 0xe0f0ff, 0xffffff], size: [2, 4], speed: 0.2, name: 'snow' },
+    };
+    const config = particleConfig[this.floorId] || particleConfig[1];
+
+    this.time.addEvent({
+      delay: 600 + Math.random() * 400,
+      loop: true,
+      callback: () => {
+        if (this.scene.isPaused() || !this.scene.isActive()) return;
+        const color = config.colors[Math.floor(Math.random() * config.colors.length)];
+        const size = config.size[0] + Math.random() * (config.size[1] - config.size[0]);
+        const startX = Math.random() * GAME_WIDTH;
+        const startY = -10;
+        const p = this.add.circle(startX, startY, size, color, 0.4 + Math.random() * 0.3);
+        p.setDepth(50);
+
+        const drift = (Math.random() - 0.5) * 100;
+        const duration = 3000 + Math.random() * 2000;
+
+        this.tweens.add({
+          targets: p,
+          y: GAME_HEIGHT + 20,
+          x: startX + drift,
+          alpha: 0,
+          duration,
+          ease: 'Sine.inOut',
+          onComplete: () => p.destroy(),
+        });
+      },
+    });
+
+    this.events.once('shutdown', () => { this.time.removeAllEvents(); });
   }
 
   // ================================================================

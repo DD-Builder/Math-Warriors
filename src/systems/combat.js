@@ -100,8 +100,12 @@ function clamp01(n) {
  * @property {boolean} killed        True if this hit dropped HP to 0
  */
 
-const BASE_HERO_DAMAGE  = 6;
+const BASE_HERO_DAMAGE  = 4;
 const BASE_ENEMY_DAMAGE = 5;
+
+// Hero damage scales linearly with ATK so stat growth (levels, grades,
+// equipment, affinity) is felt directly: every +1 ATK is +1.2 damage.
+const HERO_ATK_SCALE = 1.2;
 
 /**
  * Compute damage for a hero attacking an enemy. Pure — does not mutate.
@@ -117,10 +121,10 @@ export function computeHeroDamage(attacker, target, ctx) {
   const atk = attacker.atk ?? 10;
   const def = target.def ?? 0;
   const zone = getZone(ctx.momentum);
-  const streakBonus = Math.floor((ctx.streak ?? 0) / 3);
+  const streakMult = 1 + Math.min(ctx.streak ?? 0, 10) * 0.05;
 
-  const baseDamage = Math.max(1, Math.round(BASE_HERO_DAMAGE + (atk - 10) * 0.4 - def * 0.3 + streakBonus));
-  const modified = Math.max(1, Math.round(baseDamage * zone.heroMult));
+  const baseDamage = Math.max(1, Math.round(BASE_HERO_DAMAGE + atk * HERO_ATK_SCALE - def * 0.3));
+  const modified = Math.max(1, Math.round(baseDamage * streakMult * zone.heroMult));
   const newHp = Math.max(0, target.hp - modified);
 
   return {
@@ -222,6 +226,66 @@ export function advanceTurn(sequence, currentIndex, party) {
   }
   // Walked the whole sequence and nothing was alive — total party defeat
   return null;
+}
+
+// ------------------------------------------------------------------
+// COMMAND-AWARE DAMAGE
+// ------------------------------------------------------------------
+
+/**
+ * Compute damage for a hero attack using the command system.
+ * Integrates difficulty stars, command multiplier, momentum, and class.
+ *
+ * @param {Combatant} attacker
+ * @param {Combatant} target
+ * @param {object} ctx
+ * @param {number} ctx.momentum
+ * @param {number} [ctx.streak]
+ * @param {number} [ctx.difficultyStars]  1-5 star rating of the question
+ * @param {number} [ctx.commandMult]      Command multiplier (1.0 for FIGHT, 2.0 for MAGIC)
+ * @param {number} [ctx.difficultyMult]   Pre-computed difficulty multiplier
+ * @returns {DamageResult}
+ */
+export function computeCommandDamage(attacker, target, ctx) {
+  const atk = attacker.atk ?? 10;
+  const def = target.def ?? 0;
+  const zone = getZone(ctx.momentum);
+  const streakMult = 1 + Math.min(ctx.streak ?? 0, 10) * 0.05;
+
+  const baseDamage = Math.max(1, Math.round(
+    BASE_HERO_DAMAGE + atk * HERO_ATK_SCALE - def * 0.3
+  ));
+
+  const diffMult = ctx.difficultyMult ?? 1.0;
+  const cmdMult = ctx.commandMult ?? 1.0;
+
+  const modified = Math.max(1, Math.round(
+    baseDamage * streakMult * diffMult * cmdMult * zone.heroMult
+  ));
+  const newHp = Math.max(0, target.hp - modified);
+
+  return {
+    baseDamage,
+    modifiedDamage: modified,
+    newHp,
+    killed: newHp === 0 && target.hp > 0,
+  };
+}
+
+/**
+ * Apply guard damage reduction. Halves incoming damage.
+ * @param {DamageResult} result - Original damage result
+ * @returns {DamageResult}      - Modified result with halved damage
+ */
+export function applyGuardReduction(result, targetHp) {
+  const reduced = Math.max(1, Math.ceil(result.modifiedDamage * 0.5));
+  const newHp = Math.max(0, targetHp - reduced);
+  return {
+    baseDamage: result.baseDamage,
+    modifiedDamage: reduced,
+    newHp,
+    killed: newHp === 0 && targetHp > 0,
+  };
 }
 
 /** Are all party members dead? */

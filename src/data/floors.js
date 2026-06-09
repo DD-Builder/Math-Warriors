@@ -12,16 +12,20 @@
  * Objects declare their tile position and type. Types:
  *
  *   chest      - gives gold on interact
- *   fairy      - fairy chest — freeing all 3 reveals the golden chest
- *   golden     - golden treasure chest — only appears after all fairies freed
- *   encounter  - triggers a random battle when stepped on, then removes itself
- *   boss       - boss battle, guards the golden chest area
- *   exit       - appears after boss defeat; tapping it returns to world map
  *   potion     - pickup, +1 potion
  *   gold       - pickup, +gold
+ *   fairy      - fairy chest — freeing all 3 reveals the golden chest
+ *   golden     - golden treasure chest — only appears after all fairies freed
+ *   encounter  - triggers a random battle when stepped on (randomized position)
+ *   boss       - boss battle, guards the golden chest area
+ *   exit       - appears after boss defeat; returns to world map
+ *   mathdoor   - math-locked gate; solve math problem to open
+ *   fountain   - healing fountain; restores party HP (limited uses)
  *
- * Floor 1 has a bespoke layout; floors 2-5 currently reuse the same
- * shape with a different palette and will get their own maps later.
+ * Floor-specific challenge items (3 per floor):
+ *   fairy, valve, beacon, vent, crystal, geoshard, token, page, fragment
+ *
+ * Tile codes: 0=wall, 1=floor, 2=path, 3=water, 4=secret
  */
 
 export const TILE = {
@@ -58,10 +62,10 @@ const FLOOR_1_TILES = [
   [W,F,F,F,W,F,W,P,F,F,F,F,W,P,W,F,F,F,W],
   [W,F,W,F,W,F,W,W,W,Q,Q,F,W,P,W,W,W,F,W],
   [W,F,W,F,F,F,W,F,W,Q,Q,F,W,P,P,P,W,F,W],
-  [W,F,W,W,W,W,W,F,W,F,F,F,W,W,W,P,W,F,W],
+  [W,F,W,W,W,W,W,F,S,F,F,F,W,W,W,P,W,F,W],
   [W,F,F,F,F,F,F,F,W,F,W,W,W,F,W,P,W,F,W],
   [W,W,W,W,W,W,W,W,W,F,W,F,F,F,W,P,W,F,W],
-  [W,F,F,F,F,F,F,F,F,F,W,F,W,W,W,P,W,W,W],
+  [W,F,F,F,F,F,F,F,F,F,S,F,W,W,W,P,W,W,W],
   [W,F,W,W,W,W,W,W,W,W,W,F,W,F,F,P,F,F,W],
   [W,F,W,F,F,F,F,F,F,F,W,F,W,F,W,W,W,F,W],
   [W,F,F,F,W,W,W,W,W,F,F,F,W,F,F,F,F,F,W],
@@ -81,10 +85,10 @@ const FLOOR_2_TILES = [
   [W,F,F,F,W,F,F,F,W,F,P,P,P,P,W,W,W,W,W,W,W,W],
   [W,F,W,F,F,F,W,F,F,P,P,W,P,P,W,W,W,W,W,W,W,W],
   [W,F,W,W,F,F,F,F,P,P,W,P,W,P,P,W,W,W,W,W,W,W],
-  [W,F,F,F,F,F,W,P,P,W,P,P,W,W,P,W,W,W,W,W,W,W],
+  [W,F,F,F,F,F,S,P,P,W,P,P,W,W,P,W,W,W,W,W,W,W],
   [W,W,F,W,F,F,P,P,W,P,P,W,W,P,P,P,W,W,W,W,W,W],
   [W,F,F,F,F,P,P,W,P,P,W,W,P,P,W,P,P,W,W,W,W,W],
-  [W,W,W,F,P,P,W,P,P,W,P,W,W,P,W,W,P,W,W,W,W,W],
+  [W,W,W,F,P,P,S,P,P,W,P,W,W,P,W,W,P,W,W,W,W,W],
   [W,W,W,P,P,W,P,P,W,P,P,W,W,P,P,W,P,P,Q,Q,W,W],
   [W,W,W,W,P,P,P,W,P,P,W,P,W,W,P,P,Q,Q,Q,W,Q,W],
   [W,W,W,W,W,P,P,P,W,W,P,P,P,W,P,Q,Q,W,Q,Q,Q,W],
@@ -116,7 +120,7 @@ const FLOOR_3_TILES = [
   [W,F,F,F,W,F,F,F,W,F,F,F,F,F,F,W,W,W,W,W,W,W,W,W,W],
   [W,F,W,F,F,F,W,F,F,F,F,W,F,F,F,F,W,W,W,W,W,W,W,W,W],
   [W,F,W,W,F,F,F,F,F,F,W,F,F,W,F,F,F,W,W,W,W,W,W,W,W],
-  [W,F,F,F,F,F,W,F,F,W,F,F,W,F,F,F,F,F,W,W,W,W,W,W,W],
+  [W,F,F,F,F,F,S,F,F,W,F,F,W,F,F,F,F,F,W,W,W,W,W,W,W],
   [W,W,F,W,F,F,F,F,W,F,F,W,F,F,W,F,F,F,F,W,W,W,W,W,W],
   [W,F,F,F,F,F,F,W,F,F,F,F,F,W,F,F,F,F,F,F,W,W,W,W,W],
   [W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,F,W,F,F,F,F,W,W,W,W],
@@ -125,7 +129,7 @@ const FLOOR_3_TILES = [
   [W,W,W,W,W,F,F,F,F,F,W,F,F,F,F,W,F,F,F,W,F,F,F,F,W],
   [W,W,W,W,W,W,F,F,F,W,F,F,F,W,F,F,F,F,W,F,F,F,Q,F,W],
   [W,W,W,W,W,W,W,F,F,F,F,F,W,F,F,F,W,F,F,F,W,F,F,F,W],
-  [W,W,W,W,W,W,W,W,F,F,F,W,F,F,F,F,F,F,W,F,F,F,W,F,W],
+  [W,W,W,W,W,W,W,W,F,F,F,W,F,F,F,F,F,F,S,F,F,F,W,F,W],
   [W,W,W,W,W,W,W,W,W,F,F,F,F,F,W,F,F,W,F,F,F,W,F,F,W],
   [W,W,W,W,W,W,W,W,W,W,F,F,F,W,F,F,F,F,F,W,F,F,F,F,W],
   [W,W,W,W,W,W,W,W,W,W,F,F,W,F,F,F,W,F,F,F,F,F,W,F,W],
@@ -153,13 +157,13 @@ const FLOOR_4_TILES = [
   [W,F,W,F,F,F,F,W,Q,W,F,F,F,W,Q,W,F,F,F,W,F,F,F,F,F,W,F,F,W],
   [W,F,W,F,W,W,W,W,Q,W,W,W,W,W,Q,W,W,W,W,W,F,W,W,W,W,W,F,W,W],
   [W,F,F,F,F,F,F,F,Q,F,F,F,F,F,Q,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W],
+  [W,W,W,W,W,W,W,W,W,S,W,W,W,F,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,F,W],
   [W,F,W,F,F,F,W,F,F,F,W,F,F,F,W,F,W,F,F,F,W,F,F,F,W,F,W,F,W],
   [W,F,W,F,W,W,W,F,W,W,W,F,W,F,W,F,W,F,W,W,W,F,W,F,W,F,W,F,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,W,F,F,F,F,F,F,F,F,F,W,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W],
+  [W,W,W,W,W,W,W,W,W,W,W,F,S,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W],
   [W,F,F,F,F,F,W,F,F,F,F,F,W,F,F,F,W,F,F,F,F,F,W,F,F,F,W,F,W],
@@ -198,7 +202,7 @@ const FLOOR_5_TILES = [
   [W,F,W,F,F,F,F,F,W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W,F,F,F,W,F,F,F,W],
   [W,F,W,F,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W],
+  [W,W,W,W,W,W,W,F,S,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,W,W,F,W,W,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,W,W,F,W],
   [W,F,W,F,F,F,F,F,W,F,W,F,F,F,W,F,W,F,F,F,W,F,F,F,W,F,W,F,F,F,W,F,W],
@@ -208,7 +212,7 @@ const FLOOR_5_TILES = [
   [W,F,F,F,F,Q,F,F,F,F,W,F,F,F,F,F,F,F,F,F,W,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,W,W,F,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
-  [W,W,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W],
+  [W,W,W,W,W,W,W,W,W,F,S,W,W,W,W,W,W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,W,W],
   [W,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,F,W],
   [W,F,W,W,W,F,W,W,W,W,W,F,W,W,W,W,W,W,W,F,W,W,W,W,W,F,W,W,W,F,W,F,W],
   [W,F,F,F,W,F,F,F,F,F,W,F,F,F,F,F,F,F,W,F,F,F,F,F,W,F,F,F,W,F,W,F,W],
@@ -266,12 +270,14 @@ export const FLOORS = [
       { type: 'fairy',     x: 3,  y: 3 },
       { type: 'fairy',     x: 15, y: 11 },
       { type: 'fairy',     x: 9,  y: 20 },
-      { type: 'golden',    x: 9,  y: 3 },
       { type: 'chest',     x: 1,  y: 14, loot: { gold: 20 } },
       { type: 'potion',    x: 11, y: 3 },
       { type: 'gold',      x: 3,  y: 6 },
       { type: 'gold',      x: 15, y: 16 },
       { type: 'gold',      x: 11, y: 23 },
+      { type: 'mathdoor',  x: 7,  y: 6, id: 'f1door1' },
+      { type: 'mathdoor',  x: 15, y: 14, id: 'f1door2' },
+      { type: 'fountain',  x: 9,  y: 14, id: 'f1fountain1', uses: 3 },
       { type: 'encounter', x: 3,  y: 1 },
       { type: 'encounter', x: 15, y: 10 },
       { type: 'encounter', x: 1,  y: 16 },
@@ -280,11 +286,9 @@ export const FLOORS = [
       { type: 'encounter', x: 7,  y: 17 },
       { type: 'encounter', x: 4,  y: 8 },
       { type: 'encounter', x: 17, y: 8 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'boss',      x: 9,  y: 2, enemyId: 'briarking' },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 9,  y: 3, enemyId: 'briarking' },
+      { type: 'golden',    x: 9,  y: 2 },
       { type: 'exit',      x: 9,  y: 1 },
     ],
   },
@@ -300,10 +304,10 @@ export const FLOORS = [
       { type: 'valve',     x: 4,  y: 4 },
       { type: 'valve',     x: 7,  y: 14 },
       { type: 'valve',     x: 16, y: 24 },
-      // Boss & exit in marsh zone (top-left)
-      { type: 'boss',      x: 2,  y: 1, enemyId: 'pressure' },
-      { type: 'golden',    x: 1,  y: 1 },
-      { type: 'exit',      x: 5,  y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 3,  y: 1, enemyId: 'pressure' },
+      { type: 'golden',    x: 2,  y: 1 },
+      { type: 'exit',      x: 1,  y: 1 },
       // Chests across zones
       { type: 'chest',     x: 5,  y: 6,  loot: { gold: 20 } },
       { type: 'chest',     x: 12, y: 17, loot: { gold: 20 } },
@@ -312,6 +316,8 @@ export const FLOORS = [
       { type: 'gold',      x: 13, y: 21 },
       // Potions
       { type: 'potion',    x: 9,  y: 10 },
+      { type: 'mathdoor',  x: 9,  y: 5, id: 'f2door1' },
+      { type: 'fountain',  x: 14, y: 14, id: 'f2fountain1', uses: 3 },
       // Encounters spread across zones
       { type: 'encounter', x: 1,  y: 5 },
       { type: 'encounter', x: 6,  y: 3 },
@@ -321,10 +327,6 @@ export const FLOORS = [
       { type: 'encounter', x: 13, y: 19 },
       { type: 'encounter', x: 18, y: 21 },
       { type: 'encounter', x: 20, y: 26 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
     ],
   },
   {
@@ -339,10 +341,10 @@ export const FLOORS = [
       { type: 'beacon',    x: 5,  y: 5 },
       { type: 'beacon',    x: 10, y: 16 },
       { type: 'beacon',    x: 20, y: 26 },
-      // Boss & exit in calm zone (top-left)
-      { type: 'boss',      x: 2,  y: 1, enemyId: 'skywhale' },
-      { type: 'golden',    x: 1,  y: 1 },
-      { type: 'exit',      x: 7,  y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 3,  y: 1, enemyId: 'skywhale' },
+      { type: 'golden',    x: 2,  y: 1 },
+      { type: 'exit',      x: 1,  y: 1 },
       // Chests across zones
       { type: 'chest',     x: 7,  y: 8, loot: { gold: 25 } },
       { type: 'chest',     x: 18, y: 20, loot: { gold: 25 } },
@@ -351,6 +353,8 @@ export const FLOORS = [
       { type: 'gold',      x: 16, y: 17 },
       // Potions
       { type: 'potion',    x: 10, y: 10 },
+      { type: 'mathdoor',  x: 12, y: 8, id: 'f3door1' },
+      { type: 'fountain',  x: 15, y: 18, id: 'f3fountain1', uses: 3 },
       // Encounters spread across all zones (calm, storm, sunset)
       { type: 'encounter', x: 3,  y: 6 },
       { type: 'encounter', x: 7,  y: 7 },
@@ -361,11 +365,6 @@ export const FLOORS = [
       { type: 'encounter', x: 20, y: 24 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
     ],
   },
   {
@@ -379,11 +378,13 @@ export const FLOORS = [
       { type: 'vent',      x: 3,  y: 3 },
       { type: 'vent',      x: 25, y: 11 },
       { type: 'vent',      x: 14, y: 29 },
-      { type: 'golden',    x: 14, y: 1 },
       { type: 'chest',     x: 5,  y: 13, loot: { gold: 30 } },
       { type: 'chest',     x: 23, y: 25, loot: { gold: 30 } },
       { type: 'potion',    x: 14, y: 17 },
       { type: 'potion',    x: 7,  y: 31 },
+      { type: 'mathdoor',  x: 13, y: 6, id: 'f4door1' },
+      { type: 'mathdoor',  x: 15, y: 24, id: 'f4door2' },
+      { type: 'fountain',  x: 1,  y: 17, id: 'f4fountain1', uses: 3 },
       { type: 'gold',      x: 21, y: 5 },
       { type: 'gold',      x: 3,  y: 21 },
       { type: 'gold',      x: 25, y: 33 },
@@ -396,12 +397,9 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 13 },
       { type: 'encounter', x: 3,  y: 7 },
       { type: 'encounter', x: 25, y: 25 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'boss',      x: 13, y: 1, enemyId: 'pyroclast' },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 14, y: 3, enemyId: 'pyroclast' },
+      { type: 'golden',    x: 14, y: 2 },
       { type: 'exit',      x: 14, y: 1 },
     ],
   },
@@ -414,9 +412,12 @@ export const FLOORS = [
       { type: 'crystal',   x: 5,  y: 5 },
       { type: 'crystal',   x: 20, y: 16 },
       { type: 'crystal',   x: 10, y: 26 },
-      { type: 'golden',    x: 12, y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'absolutezero' },
+      { type: 'golden',    x: 12, y: 2 },
       { type: 'exit',      x: 12, y: 1 },
+      { type: 'mathdoor',  x: 10, y: 15, id: 'f5door1' },
+      { type: 'fountain',  x: 8,  y: 25, id: 'f5fountain1', uses: 3 },
       { type: 'chest',     x: 3, y: 10, loot: { gold: 30 } },
       { type: 'chest',     x: 21, y: 22, loot: { gold: 30 } },
       { type: 'potion',    x: 15, y: 12 },
@@ -430,10 +431,6 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 28 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
     ],
   },
   {
@@ -445,8 +442,9 @@ export const FLOORS = [
       { type: 'geoshard',  x: 5,  y: 5 },
       { type: 'geoshard',  x: 20, y: 16 },
       { type: 'geoshard',  x: 10, y: 26 },
-      { type: 'golden',    x: 12, y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'theprism' },
+      { type: 'golden',    x: 12, y: 2 },
       { type: 'exit',      x: 12, y: 1 },
       { type: 'chest',     x: 3, y: 10, loot: { gold: 35 } },
       { type: 'chest',     x: 21, y: 22, loot: { gold: 35 } },
@@ -461,10 +459,9 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 28 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
+      { type: 'mathdoor',  x: 14, y: 14, id: 'f6door1' },
+      { type: 'mathdoor',  x: 17, y: 22, id: 'f6door2' },
+      { type: 'fountain',  x: 11, y: 19, id: 'f6fountain1', uses: 3 },
     ],
   },
   {
@@ -476,8 +473,9 @@ export const FLOORS = [
       { type: 'token',     x: 5,  y: 5 },
       { type: 'token',     x: 20, y: 16 },
       { type: 'token',     x: 10, y: 26 },
-      { type: 'golden',    x: 12, y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'counterfeiter' },
+      { type: 'golden',    x: 12, y: 2 },
       { type: 'exit',      x: 12, y: 1 },
       { type: 'chest',     x: 3, y: 10, loot: { gold: 40 } },
       { type: 'chest',     x: 21, y: 22, loot: { gold: 40 } },
@@ -494,10 +492,8 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 28 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
+      { type: 'mathdoor',  x: 16, y: 17, id: 'f7door1' },
+      { type: 'fountain',  x: 13, y: 13, id: 'f7fountain1', uses: 3 },
     ],
   },
   {
@@ -509,8 +505,9 @@ export const FLOORS = [
       { type: 'page',      x: 5,  y: 5 },
       { type: 'page',      x: 20, y: 16 },
       { type: 'page',      x: 10, y: 26 },
-      { type: 'golden',    x: 12, y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'theparadox' },
+      { type: 'golden',    x: 12, y: 2 },
       { type: 'exit',      x: 12, y: 1 },
       { type: 'chest',     x: 3, y: 10, loot: { gold: 45 } },
       { type: 'chest',     x: 21, y: 22, loot: { gold: 45 } },
@@ -526,10 +523,8 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 28 },
       { type: 'encounter', x: 3,  y: 29 },
       { type: 'encounter', x: 21, y: 28 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
+      { type: 'mathdoor',  x: 12, y: 8, id: 'f8door1' },
+      { type: 'fountain',  x: 19, y: 19, id: 'f8fountain1', uses: 3 },
     ],
   },
   {
@@ -541,8 +536,9 @@ export const FLOORS = [
       { type: 'fragment',  x: 5,  y: 5 },
       { type: 'fragment',  x: 27, y: 11 },
       { type: 'fragment',  x: 16, y: 33 },
-      { type: 'golden',    x: 16, y: 1 },
-      { type: 'boss',      x: 15, y: 1, enemyId: 'theorem' },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 16, y: 3, enemyId: 'theorem' },
+      { type: 'golden',    x: 16, y: 2 },
       { type: 'exit',      x: 16, y: 1 },
       { type: 'chest',     x: 3,  y: 15, loot: { gold: 50 } },
       { type: 'chest',     x: 29, y: 9, loot: { gold: 50 } },
@@ -562,15 +558,83 @@ export const FLOORS = [
       { type: 'encounter', x: 16, y: 17 },
       { type: 'encounter', x: 3,  y: 37 },
       { type: 'encounter', x: 29, y: 7 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
-      { type: 'encounter', x: 1, y: 1 },
+      { type: 'mathdoor',  x: 17, y: 16, id: 'f9door1' },
+      { type: 'fountain',  x: 9,  y: 23, id: 'f9fountain1', uses: 3 },
     ],
   },
 ];
 
 export function getFloor(id) {
   return FLOORS.find((f) => f.id === id) ?? null;
+}
+
+// ------------------------------------------------------------------
+// BATTLE SCENE VARIANTS
+// ------------------------------------------------------------------
+// Each floor has 2-3 distinct battle backgrounds tied to maze tile types.
+// Boss fights always use variant 2 (the dramatic scene).
+// tileTypes: which TILE codes trigger this variant in the maze.
+
+export const BATTLE_SCENES = {
+  1: [
+    { name: 'Meadow',        variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Pond Clearing',  variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Briar Throne',   variant: 2, tileTypes: [], boss: true },
+  ],
+  2: [
+    { name: 'Shallow Reef',    variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Deep Grotto',     variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Pressure Chamber', variant: 2, tileTypes: [], boss: true },
+  ],
+  3: [
+    { name: 'Cloudtop',       variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Storm Front',    variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Eye of the Storm', variant: 2, tileTypes: [], boss: true },
+  ],
+  4: [
+    { name: 'Lava Tunnel',     variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Caldera',         variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Pyroclasts Forge', variant: 2, tileTypes: [], boss: true },
+  ],
+  5: [
+    { name: 'Ice Shelf',      variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Frozen Lake',    variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Summit Throne',  variant: 2, tileTypes: [], boss: true },
+  ],
+  6: [
+    { name: 'Crystal Gallery',  variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Prism Depths',     variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Prism Chamber',    variant: 2, tileTypes: [], boss: true },
+  ],
+  7: [
+    { name: 'Market Alley',   variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Fountain Square', variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Grand Bazaar',   variant: 2, tileTypes: [], boss: true },
+  ],
+  8: [
+    { name: 'Reading Room',   variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Archive Depths',  variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Theorem Sanctum', variant: 2, tileTypes: [], boss: true },
+  ],
+  9: [
+    { name: 'Mending Hall',    variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
+    { name: 'Dream Pool',      variant: 1, tileTypes: [TILE.WATER] },
+    { name: 'Final Threshold',  variant: 2, tileTypes: [], boss: true },
+  ],
+};
+
+/**
+ * Get the battle scene variant for a given floor, tile type, and boss flag.
+ * @param {number} floorId
+ * @param {number} tileType - TILE constant from the maze
+ * @param {boolean} isBoss
+ * @returns {object} - { name, variant }
+ */
+export function getBattleSceneVariant(floorId, tileType, isBoss) {
+  const scenes = BATTLE_SCENES[floorId] ?? BATTLE_SCENES[1];
+  if (isBoss) {
+    return scenes.find(s => s.boss) ?? scenes[scenes.length - 1];
+  }
+  const match = scenes.find(s => !s.boss && s.tileTypes.includes(tileType));
+  return match ?? scenes[0];
 }

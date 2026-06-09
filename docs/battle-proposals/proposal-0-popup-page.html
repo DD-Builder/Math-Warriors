@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440,height=1080,initial-scale=0.6,user-scalable=yes">
+<title>Battle Redesign — Set 0: Original Ideas A+B+C → Ultimate Proposal 0</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Baloo+2:wght@500;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a0e04; font-family: 'Baloo 2', sans-serif; color: #3a2410; }
+  .page { max-width: 1500px; margin: 0 auto; padding: 20px; }
+  .card { background: #f5ead0; border-radius: 24px; border: 3px solid #d4a840; padding: 48px 60px; margin-bottom: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  h1 { font-family: 'Fredoka One', cursive; font-size: 48px; color: #c06a10; margin-bottom: 4px; }
+  h2 { font-family: 'Fredoka One', cursive; font-size: 32px; color: #c06a10; margin: 32px 0 12px; }
+  h3 { font-family: 'Fredoka One', cursive; font-size: 22px; color: #8a6a30; margin: 20px 0 8px; }
+  h4 { font-family: 'Fredoka One', cursive; font-size: 17px; color: #6a5430; margin: 14px 0 6px; }
+  p, li { font-size: 16px; line-height: 1.7; margin-bottom: 6px; }
+  ul { padding-left: 24px; }
+  .subtitle { font-size: 22px; color: #8a6a30; font-weight: 700; margin-bottom: 20px; }
+  .pill { display: inline-block; padding: 3px 14px; border-radius: 14px; font-size: 13px; font-weight: 700; color: #fff; margin-right: 6px; }
+  .pill.keep { background: #4aa848; }
+  .pill.discard { background: #c04040; }
+  .pill.elevate { background: #d07818; }
+  .callout { background: #fff8e0; border-left: 5px solid #d07818; padding: 16px 24px; border-radius: 0 12px 12px 0; margin: 16px 0; }
+  .versus { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+  .spec-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  .spec-table th, .spec-table td { padding: 8px 14px; text-align: left; border-bottom: 1px solid #d4a840; font-size: 14px; }
+  .spec-table th { color: #c06a10; font-family: 'Fredoka One', cursive; }
+  .divider { height: 4px; background: linear-gradient(90deg, transparent, #d4a840, transparent); margin: 40px 0; border-radius: 2px; }
+  .tag-row { margin: 12px 0; }
+
+  /* ─── MOCKUP ─── */
+  .mockup-title { font-family: 'Fredoka One', cursive; font-size: 32px; color: #f0d040; text-align: center; margin: 30px 0 16px; }
+  .battle-frame {
+    width: 1440px; height: 1080px; position: relative; overflow: hidden;
+    border-radius: 24px; border: 4px solid #3a2410;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6); margin: 0 auto 40px;
+  }
+
+  /* ─── STORYBOOK PAGE BACKGROUND ─── */
+  .page-bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(170deg, #68b8e8 0%, #88d0f0 30%, #48a040 55%, #388828 100%);
+  }
+  .page-border {
+    position: absolute; inset: 12px;
+    border: 3px solid #d4a840; border-radius: 16px;
+    pointer-events: none;
+    box-shadow: inset 0 0 60px rgba(90,60,20,0.15);
+    z-index: 2;
+  }
+  .page-corner {
+    position: absolute; width: 36px; height: 36px;
+    border: 3px solid #c09840; border-radius: 50%; opacity: 0.3; z-index: 3;
+  }
+  .page-corner.tl { top: 20px; left: 20px; }
+  .page-corner.tr { top: 20px; right: 20px; }
+  .page-corner.bl { bottom: 20px; left: 20px; }
+  .page-corner.br { bottom: 20px; right: 20px; }
+
+  /* Paper texture overlay */
+  .paper-texture {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 3px, rgba(180,150,100,0.02) 3px, rgba(180,150,100,0.02) 4px
+    );
+    pointer-events: none; z-index: 1;
+  }
+
+  /* Depth hills (papercut layers) */
+  .depth-hill { position: absolute; left: 0; right: 0; }
+  .depth-hill.far { bottom: 360px; height: 240px; opacity: 0.3;
+    background: #2a6828;
+    clip-path: polygon(0% 100%, 6% 40%, 14% 55%, 22% 28%, 32% 48%, 44% 18%, 54% 38%, 66% 15%, 76% 32%, 86% 22%, 94% 42%, 100% 30%, 100% 100%);
+  }
+  .depth-hill.mid { bottom: 300px; height: 210px; opacity: 0.55;
+    background: #3a8838;
+    clip-path: polygon(0% 100%, 4% 48%, 12% 60%, 20% 32%, 30% 52%, 40% 22%, 50% 42%, 60% 18%, 70% 36%, 80% 26%, 88% 48%, 96% 34%, 100% 50%, 100% 100%);
+  }
+  .depth-hill.near { bottom: 250px; height: 170px; opacity: 0.75;
+    background: #48a840;
+    clip-path: polygon(0% 100%, 5% 52%, 13% 40%, 21% 56%, 31% 32%, 41% 50%, 51% 26%, 61% 44%, 71% 34%, 81% 52%, 91% 38%, 100% 54%, 100% 100%);
+  }
+
+  /* Ground */
+  .ground { position: absolute; bottom: 0; left: 0; right: 0; height: 290px;
+    background: linear-gradient(180deg, #58b848, #48a038, #3a8828); }
+
+  /* ─── TERRITORY LINE ─── */
+  .territory {
+    position: absolute; top: 90px; bottom: 250px; width: 5px; z-index: 10;
+    left: 55%;
+    background: linear-gradient(180deg, #f0d040, #ff9020, #f0d040);
+    box-shadow: 0 0 18px rgba(240,200,40,0.5), 0 0 36px rgba(240,160,20,0.25);
+    border-radius: 3px;
+    transition: left 0.8s cubic-bezier(0.22,1,0.36,1);
+  }
+  .territory::before, .territory::after {
+    content: ''; position: absolute; left: -7px; width: 18px; height: 18px;
+    background: #f0d040; border-radius: 50%;
+    box-shadow: 0 0 12px rgba(240,200,40,0.7);
+  }
+  .territory::before { top: -9px; }
+  .territory::after { bottom: -9px; }
+
+  /* Corruption overlay */
+  .corruption {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 50%, rgba(20,8,30,0.3) 70%, rgba(30,10,40,0.5) 100%);
+    pointer-events: none; z-index: 5;
+    transition: all 0.8s ease;
+  }
+
+  /* ─── POP-UP ELEMENTS ─── */
+  .popup-fold {
+    position: absolute; z-index: 6;
+    transform-origin: bottom center;
+    animation: popUp 0.6s ease-out forwards;
+  }
+  @keyframes popUp {
+    0% { transform: perspective(400px) rotateX(90deg); opacity: 0; }
+    60% { transform: perspective(400px) rotateX(-5deg); opacity: 1; }
+    100% { transform: perspective(400px) rotateX(0deg); opacity: 1; }
+  }
+
+  /* Paper fold shadow effect */
+  .fold-shadow {
+    position: absolute; bottom: 0; left: 10%; right: 10%; height: 8px;
+    background: radial-gradient(ellipse, rgba(0,0,0,0.15) 0%, transparent 70%);
+    z-index: -1;
+  }
+
+  /* ─── HERO SPRITES (pop-up style) ─── */
+  .heroes {
+    position: absolute; bottom: 280px; left: 40px;
+    display: flex; gap: 8px; z-index: 8;
+  }
+  .hero-popup {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    transform-origin: bottom center;
+  }
+  .hero-popup.active-turn {
+    transform: scale(1.12) translateY(-8px);
+    z-index: 9;
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.3));
+    transition: all 0.4s cubic-bezier(0.22,1,0.36,1);
+  }
+  .hero-popup:not(.active-turn) {
+    transform: scale(0.95);
+    filter: brightness(0.85);
+    transition: all 0.4s ease;
+  }
+  .hero-sprite {
+    width: 115px; height: 150px; border-radius: 6px; position: relative;
+    border: 2px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  }
+  /* Paper fold base for pop-up heroes */
+  .hero-base {
+    width: 100px; height: 6px;
+    background: linear-gradient(180deg, rgba(200,180,140,0.6), rgba(160,140,100,0.3));
+    border-radius: 2px;
+  }
+  .hero-name { font-family: 'Fredoka One', cursive; font-size: 14px; color: #fff8e0; text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
+  .hero-hearts { display: flex; gap: 2px; font-size: 15px; }
+  .hf { color: #e04040; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+  .hh { color: #e08060; opacity: 0.6; }
+  .he { color: #5a4030; opacity: 0.25; }
+  .turn-marker {
+    position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 9px solid transparent; border-right: 9px solid transparent;
+    border-top: 13px solid #f0c040;
+    filter: drop-shadow(0 2px 4px rgba(240,192,64,0.6));
+  }
+
+  /* ─── ENEMY (pop-up style) ─── */
+  .enemy-popup {
+    position: absolute; bottom: 310px; right: 80px;
+    display: flex; flex-direction: column; align-items: center; z-index: 8;
+    transform-origin: bottom center;
+    animation: enemyBreathe 2.2s ease-in-out infinite;
+  }
+  @keyframes enemyBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+  .enemy-sprite { width: 250px; height: 280px; border-radius: 16px;
+    border: 2px solid rgba(60,20,80,0.2);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
+  .enemy-base {
+    width: 180px; height: 8px;
+    background: linear-gradient(180deg, rgba(80,40,60,0.4), rgba(60,20,40,0.2));
+    border-radius: 3px; margin-top: 2px;
+  }
+  .enemy-name { font-family: 'Fredoka One', cursive; font-size: 20px; color: #fff8e0; text-shadow: 0 2px 6px rgba(0,0,0,0.7); margin-bottom: 4px; }
+  .enemy-hp { width: 200px; height: 14px; background: #3a2410; border-radius: 7px; overflow: hidden; border: 2px solid #5a3820; margin-top: 6px; }
+  .enemy-hp-fill { height: 100%; width: 65%; background: linear-gradient(90deg, #c04030, #e06040); border-radius: 5px; transition: width 0.5s; }
+  .enemy-hp-txt { font-family: 'Fredoka One', cursive; font-size: 12px; color: #f0e4cc; text-shadow: 0 1px 3px rgba(0,0,0,0.5); margin-top: 2px; }
+
+  /* ─── TOP HUD ─── */
+  .hud-top {
+    position: absolute; top: 16px; left: 30px; right: 30px;
+    display: flex; justify-content: space-between; align-items: flex-start; z-index: 20;
+  }
+  .hud-cluster { display: flex; gap: 10px; align-items: center; }
+  .hud-gear {
+    width: 38px; height: 38px; background: rgba(245,234,208,0.9); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    border: 2px solid #d4a840; cursor: pointer;
+  }
+  .hud-floor {
+    font-family: 'Fredoka One', cursive; font-size: 14px; color: #f0e4cc;
+    background: rgba(26,14,4,0.6); padding: 4px 14px; border-radius: 10px;
+  }
+  .hud-momentum {
+    background: rgba(245,234,208,0.92); border-radius: 12px; padding: 6px 16px;
+    border: 2px solid #d4a840; display: flex; align-items: center; gap: 10px;
+  }
+  .hud-mom-label { font-family: 'Fredoka One', cursive; font-size: 12px; color: #8a6a30; }
+  .hud-mom-bar { width: 240px; height: 14px; background: #e0d4c0; border-radius: 7px; overflow: hidden; }
+  .hud-mom-fill { height: 100%; width: 60%; border-radius: 7px; transition: width 0.6s;
+    background: linear-gradient(90deg, #4090d0, #40c848, #f0c040); }
+  .hud-mom-state { font-family: 'Fredoka One', cursive; font-size: 13px; color: #d07818; }
+  .hud-potion {
+    font-family: 'Fredoka One', cursive; font-size: 14px; color: #fff8e0;
+    background: #4caa5c; padding: 6px 16px; border-radius: 10px;
+    border: 2px solid #388a40; cursor: pointer;
+  }
+
+  /* ─── MATH FLAP (pop-up from page) ─── */
+  .math-flap {
+    position: absolute; bottom: 288px; left: 50%; transform: translateX(-50%); z-index: 15;
+  }
+  .flap-card {
+    background: linear-gradient(145deg, #f5ead0, #fff8e0);
+    border: 3px solid #d4a840; border-radius: 16px;
+    padding: 10px 30px 14px; text-align: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.2), 0 0 30px rgba(212,168,64,0.1);
+    transform: perspective(300px) rotateX(-2deg);
+    position: relative;
+  }
+  .flap-fold {
+    position: absolute; bottom: -6px; left: 20%; right: 20%; height: 6px;
+    background: linear-gradient(180deg, rgba(200,180,140,0.4), transparent);
+    border-radius: 0 0 4px 4px;
+  }
+  .math-stars { font-size: 13px; letter-spacing: 2px; margin-bottom: 2px; }
+  .math-eq { font-family: 'Fredoka One', cursive; font-size: 42px; color: #3a2410; line-height: 1.1; }
+  .math-op { color: #c06a10; }
+  .math-ans { color: #d08020; font-size: 46px; }
+  .math-rule { width: 100px; height: 3px; background: #8a7050; margin: 3px auto; border-radius: 2px; }
+
+  /* ─── ANSWER BUTTONS ─── */
+  .answers {
+    position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 14px; z-index: 20;
+  }
+  .ans-btn {
+    width: 168px; height: 72px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fredoka One', cursive; font-size: 32px; color: #fff8e0;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    cursor: pointer; border: 3px solid rgba(255,255,255,0.12);
+    transition: transform 0.12s;
+  }
+  .ans-btn:active { transform: scale(0.94); }
+  .ans-btn.c1 { background: linear-gradient(135deg, #3888d8, #2878c8); }
+  .ans-btn.c2 { background: linear-gradient(135deg, #e84840, #d03838); }
+  .ans-btn.c3 { background: linear-gradient(135deg, #4aa848, #3a9838); }
+  .ans-btn.c4 { background: linear-gradient(135deg, #9050c8, #7840b0); }
+
+  /* Turn label */
+  .turn-label {
+    position: absolute; bottom: 192px; left: 50%; transform: translateX(-50%);
+    background: rgba(245,234,208,0.9); padding: 5px 20px; border-radius: 10px;
+    font-family: 'Fredoka One', cursive; font-size: 14px; color: #3a2410;
+    border: 2px solid #d4a840; z-index: 16; white-space: nowrap;
+  }
+
+  /* Abilities */
+  .abilities {
+    position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px; z-index: 20;
+  }
+  .ab-btn {
+    font-family: 'Fredoka One', cursive; font-size: 13px; color: #fff8e0;
+    padding: 6px 18px; border-radius: 10px; cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+  }
+  .ab-btn.super { background: #e8a030; }
+  .ab-btn.shield { background: #9050c8; }
+  .ab-btn.hint { background: #4080c0; }
+
+  /* Floating damage */
+  .dmg-float {
+    position: absolute; font-family: 'Fredoka One', cursive; font-size: 28px;
+    text-shadow: 0 3px 6px rgba(0,0,0,0.5); z-index: 25;
+    animation: floatUp 1.2s ease-out forwards; pointer-events: none;
+  }
+  @keyframes floatUp {
+    0% { opacity:1; transform: translateY(0) scale(0.8); }
+    30% { transform: translateY(-25px) scale(1.2); }
+    100% { opacity:0; transform: translateY(-70px) scale(1); }
+  }
+
+  /* Pop-up fold animation for answer feedback */
+  .popup-feedback {
+    position: absolute; font-family: 'Fredoka One', cursive; font-size: 36px;
+    z-index: 30; pointer-events: none;
+    animation: popFeedback 0.8s ease-out forwards;
+  }
+  @keyframes popFeedback {
+    0% { transform: scale(0) rotateX(90deg); opacity: 0; }
+    40% { transform: scale(1.2) rotateX(-5deg); opacity: 1; }
+    100% { transform: scale(1) rotateX(0deg); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- HEADER -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h1>Battle Redesign — Set 0 (The Originals)</h1>
+  <p class="subtitle">Raw ideas A + B + C → one synthesized ultimate proposal</p>
+  <p>These are the three original battle concepts that kicked off the redesign process. Each is now developed to full depth, evaluated, and synthesized into <strong>Ultimate Proposal 0: "The Pop-Up Page."</strong></p>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA A: THE ARENA -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea A: "The Arena"</h2>
+  <p class="subtitle">Classic RPG spectacle — wide battlefield, dramatic attacks, the fight IS the show</p>
+
+  <h3>Visual Concept</h3>
+  <p>A wide-screen battle arena inspired by classic JRPGs (Final Fantasy, Dragon Quest, Paper Mario). Full landscape backdrop themed to the current floor. Heroes arrayed on the left, monster looming on the right. The camera framing is WIDE — the entire scene fits in one grand tableau. Attacks cross the full width of the screen with dramatic animations, particle effects, and screen shakes. The emphasis is on SPECTACLE: every attack should make the player say "whoa."</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>Difficulty-weighted damage replaces answer magnitude.</strong> The current system ties damage to the answer value — solving "73 + 7 = 80" does more damage than "3 + 2 = 5" even if the latter is harder for a kindergartner. The Arena introduces a star rating system (1-5 stars) based on how hard the problem is RELATIVE to the player's grade. A 3-star problem at any grade deals the same relative damage. This makes the game fair across all ages and difficulty levels. The star rating is visible on the math question, so kids can see "this is a hard one" before answering.
+  </div>
+
+  <h3>Layout</h3>
+  <ul>
+    <li><strong>Top 65%:</strong> The arena — full panoramic backdrop themed to the floor, heroes left, enemy right</li>
+    <li><strong>Center overlay:</strong> Math question panel floats above the scene as a bordered UI card</li>
+    <li><strong>Bottom 25%:</strong> Answer buttons (4 choices) + ability bar</li>
+    <li><strong>Top strip:</strong> HUD — floor label, momentum bar, potion button, settings</li>
+  </ul>
+
+  <h3>Arena Surfaces Per Floor</h3>
+  <table class="spec-table">
+    <tr><th>Floor</th><th>Arena</th><th>Visual Signature</th></tr>
+    <tr><td>Garden</td><td>Flower meadow</td><td>Rolling green hills, wildflowers, warm golden light, distant trees</td></tr>
+    <tr><td>Tidepool</td><td>Coral reef shelf</td><td>Turquoise shallows, coral formations, gentle waves, fish swimming past</td></tr>
+    <tr><td>Cloud</td><td>Sky platform</td><td>Cumulus flooring, blue sky backdrop, sun rays, floating islands</td></tr>
+    <tr><td>Ember</td><td>Volcanic crater</td><td>Red-orange rock, lava flows, ember particles, heat shimmer</td></tr>
+    <tr><td>Frozen</td><td>Ice cavern</td><td>Crystal blue ice, stalactites, gentle snow, aurora overhead</td></tr>
+    <tr><td>Crystal</td><td>Gem geode</td><td>Faceted crystal walls, prismatic light, purple-pink glow</td></tr>
+    <tr><td>Market</td><td>Bazaar square</td><td>Cobblestone, market stalls, hanging lanterns, coin piles</td></tr>
+    <tr><td>Library</td><td>Grand hall</td><td>Towering bookshelves, floating pages, warm candle glow</td></tr>
+    <tr><td>Mending</td><td>Equation void</td><td>Mathematical fragments orbiting, all floor colors blending</td></tr>
+  </table>
+
+  <h3>Damage System</h3>
+  <p><code>damage = (5 + hero.atk * 0.4) × difficultyStars × momentumMult × classMult</code></p>
+  <table class="spec-table">
+    <tr><th>Stars</th><th>Criteria (relative to grade)</th><th>Multiplier</th><th>Example (Gr.3)</th></tr>
+    <tr><td>1</td><td>Trivial — well below grade</td><td>1.0x</td><td>5 + 3 = ?</td></tr>
+    <tr><td>2</td><td>Easy — at grade floor</td><td>1.3x</td><td>24 + 9 = ?</td></tr>
+    <tr><td>3</td><td>Moderate — grade-appropriate</td><td>1.6x</td><td>73 + 7 = ? (carry)</td></tr>
+    <tr><td>4</td><td>Challenging — grade+0.5</td><td>2.0x</td><td>48 ÷ 6 = ?</td></tr>
+    <tr><td>5</td><td>Hard — grade+1 concept</td><td>2.5x</td><td>? × 7 = 63</td></tr>
+  </table>
+
+  <h3>Attack Animations</h3>
+  <p>The Arena's emphasis is SPECTACLE — attacks are big, dramatic, screen-filling:</p>
+  <ul>
+    <li><strong>Knights:</strong> Dash across arena, weapon slash with trail particles. Full screen motion from left to right. Impact sends enemy recoiling with screen shake. Paper-tear effect at impact point.</li>
+    <li><strong>Wizards:</strong> Cast from position — projectile launches with growing trail, crosses full arena width. Impact creates elemental burst that fills enemy's area. Colors match wizard's palette.</li>
+    <li><strong>Bunnies:</strong> Speed-dash across arena as a blur, rapid multi-hit combo, dash back. Speed lines fill screen during dash. Impact creates rapid-fire number pops.</li>
+  </ul>
+  <p>Key: attacks travel the FULL WIDTH of the screen, from hero position to enemy position. This is what makes the wide framing pay off — the distance creates anticipation.</p>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Classic RPG layout is instantly familiar — kids who've seen any RPG content will understand</li>
+    <li>Wide framing gives room for dramatic cross-screen attacks</li>
+    <li>Difficulty-weighted damage is the single most important gameplay fix</li>
+    <li>Each floor's arena is visually distinct and memorable</li>
+    <li>Screen shakes and particle effects create visceral "power fantasy" feel</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Static hero lineup (left) vs enemy (right) is conventional — nothing visually novel</li>
+    <li>Math question as a floating UI card feels disconnected from the battle scene</li>
+    <li>Wide layout means heroes and enemy are far apart — less intimate</li>
+    <li>Momentum bar remains abstract — labels (COOL/ZONE/HEAT) require reading</li>
+    <li>No visual indicator of who's "winning" beyond HP bars</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA B: THE DUEL -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea B: "The Duel"</h2>
+  <p class="subtitle">Tug-of-war — the battle is a spatial contest for territory</p>
+
+  <h3>Visual Concept</h3>
+  <p>The screen is split by a glowing TERRITORY LINE. Hero's world on the left is vibrant and alive — warm colors, blooming nature, soft light. Enemy's world on the right is corrupted — dark shadows, decaying versions of the same environment, ominous particles. Every correct math answer pushes the territory line toward the enemy, expanding the hero's bright world. Every wrong answer pushes it back, letting the darkness creep forward. The battle is a visual tug-of-war that you can READ without understanding a single number.</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>Spatial momentum replaces abstract bars.</strong> The current momentum system uses a labeled bar (COOL/ZONE/HEAT) that requires reading and interpretation. The territory line is a SPATIAL metaphor — a 5-year-old instantly understands "my bright side is bigger = I'm winning." The corruption creeping closer to your heroes is viscerally threatening. Pushing it back is viscerally satisfying. No labels needed. No reading required. The entire screen IS the momentum indicator.
+  </div>
+
+  <h3>Layout</h3>
+  <ul>
+    <li><strong>Full screen:</strong> Split environment — hero's vibrant world (left) vs enemy's corrupted world (right)</li>
+    <li><strong>Center:</strong> Glowing territory line dividing the two worlds</li>
+    <li><strong>Left side:</strong> Heroes in their bright world</li>
+    <li><strong>Right side:</strong> Enemy in their dark world</li>
+    <li><strong>Bottom center:</strong> Math question panel + answer buttons</li>
+    <li><strong>Top strip:</strong> Minimal HUD — the territory line IS the main indicator</li>
+  </ul>
+
+  <h3>Territory Mechanics</h3>
+  <table class="spec-table">
+    <tr><th>Event</th><th>Territory Shift</th><th>Visual</th></tr>
+    <tr><td>Correct answer</td><td>+3% toward enemy</td><td>Line pulses gold, hero side expands</td></tr>
+    <tr><td>Wrong answer</td><td>-5% toward heroes</td><td>Line flickers red, corruption creeps forward</td></tr>
+    <tr><td>3-streak</td><td>+5% bonus push</td><td>Line surges with bright flash</td></tr>
+    <tr><td>Territory >70%</td><td>—</td><td>"DOMINATING!" toast, hero damage 1.2x</td></tr>
+    <tr><td>Territory <30%</td><td>—</td><td>"DANGER!" toast, enemy damage 1.15x</td></tr>
+  </table>
+
+  <h3>Dual-World Environments</h3>
+  <div class="versus">
+    <div>
+      <h4>Hero Side (Vibrant)</h4>
+      <ul>
+        <li><strong>Garden:</strong> Lush flowers, golden light, butterflies</li>
+        <li><strong>Tidepool:</strong> Clear turquoise water, healthy coral</li>
+        <li><strong>Cloud:</strong> Fluffy white clouds, golden sun rays</li>
+        <li><strong>Ember:</strong> Warm campfire glow, safe warmth</li>
+        <li><strong>Frozen:</strong> Gentle snow, ice crystal beauty</li>
+        <li><strong>Crystal:</strong> Rainbow refractions, prismatic light</li>
+        <li><strong>Market:</strong> Bustling stalls, shining coins</li>
+        <li><strong>Library:</strong> Warm candlelight, floating pages</li>
+        <li><strong>Mending:</strong> Equation harmony, all colors</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Enemy Side (Corrupted)</h4>
+      <ul>
+        <li><strong>Garden:</strong> Dead thorns, wilted flowers, dark mist</li>
+        <li><strong>Tidepool:</strong> Murky water, bleached coral, oil slick</li>
+        <li><strong>Cloud:</strong> Thunderheads, lightning, angry skies</li>
+        <li><strong>Ember:</strong> Volcanic eruption, ash rain</li>
+        <li><strong>Frozen:</strong> Blizzard whiteout, jagged ice</li>
+        <li><strong>Crystal:</strong> Shattered facets, void seeping</li>
+        <li><strong>Market:</strong> Broken stalls, counterfeit coins</li>
+        <li><strong>Library:</strong> Burnt pages, spreading darkness</li>
+        <li><strong>Mending:</strong> Void cracks, fragments dissolving</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Most intuitive momentum system — zero reading, pure spatial understanding</li>
+    <li>Corruption creeping toward heroes creates genuine emotional stakes</li>
+    <li>Dual-world art doubles the visual variety per floor (vibrant + corrupted)</li>
+    <li>Territory line movement is satisfying — spring physics, overshoot, glow</li>
+    <li>The entire screen tells you who's winning — no need to check any UI element</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Split-world requires twice the background art per floor (18 total)</li>
+    <li>Heroes and enemy on opposite sides of a dividing line feels static</li>
+    <li>The territory line might be ALL the visual interest — attacks feel secondary</li>
+    <li>No clear tie to the "storybook/papercut" aesthetic — could be any game</li>
+    <li>Math question still feels like a separate UI element from the battle</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- RAW IDEA C: THE STORYBOOK -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Raw Idea C: "The Storybook"</h2>
+  <p class="subtitle">Pop-up book aesthetic — the battle unfolds on an illustrated page</p>
+
+  <h3>Visual Concept</h3>
+  <p>The entire battle takes place on a page of an illustrated storybook. A decorative border frames the scene like a book page. Characters are pop-up figures that stand upright from fold-lines at their feet (like a real pop-up book). The background has LAYERS — paper hills at different depths creating parallax. The math question rises from the bottom of the page as a paper flap that folds upward (like a lift-the-flap book). HP is shown as paper hearts (Zelda-style). Everything looks HANDMADE — paper textures, craft aesthetic, warm and inviting.</p>
+
+  <h3>The Core Innovation</h3>
+  <div class="callout">
+    <strong>The math question is a physical part of the page.</strong> Instead of floating as a disconnected UI panel, the question rises from the page as a paper flap — the same material as the world itself. This makes the math feel INTEGRATED with the battle, not bolted on. The flap animation (folding up from the page) draws the eye naturally to the question. Paper hearts replace HP bars, making health instantly countable for K-2 kids. The entire aesthetic says "this is a storybook adventure" — warm, safe, inviting, but still exciting.
+  </div>
+
+  <h3>Pop-Up Elements</h3>
+  <ul>
+    <li><strong>Heroes:</strong> Standing figures with visible fold-lines at their base — they look like they "popped up" from the page. The active hero's figure is taller/closer (popped up more) than inactive heroes (slightly folded back).</li>
+    <li><strong>Enemy:</strong> A larger pop-up figure on the right, with its own fold-line and paper texture overlay.</li>
+    <li><strong>Background:</strong> Multiple paper layers at different depths — distant mountains (faded, flat), mid-ground hills (slightly raised), foreground grass (most 3D). This creates the parallax depth that real pop-up books have.</li>
+    <li><strong>Math flap:</strong> The equation card doesn't float — it FOLDS UP from the bottom of the page. A visible paper fold connects it to the "ground." It has a slight perspective tilt (bottom edge wider than top) mimicking a real flap.</li>
+    <li><strong>Damage numbers:</strong> Appear as rubber-stamped text — slightly imperfect, as if pressed onto the page.</li>
+    <li><strong>Page corners:</strong> Decorative circles at the four corners. Page border with subtle aged-paper texture.</li>
+  </ul>
+
+  <h3>Paper Hearts HP System</h3>
+  <table class="spec-table">
+    <tr><th>State</th><th>Visual</th><th>Animation</th></tr>
+    <tr><td>Full heart</td><td>Solid red ♥ with paper texture</td><td>Gentle paper-fold idle</td></tr>
+    <tr><td>Half heart</td><td>Faded red ♥ (for 10% increments)</td><td>Slight translucency pulse</td></tr>
+    <tr><td>Empty heart</td><td>Dark outline only ♡</td><td>Static, paper-flat</td></tr>
+    <tr><td>Damage</td><td>Heart tears with paper-rip effect</td><td>Rip animation (200ms) + particles</td></tr>
+    <tr><td>Heal</td><td>Heart unfolds from flat → full</td><td>Origami unfold animation (300ms)</td></tr>
+  </table>
+  <p>Five hearts per hero. Each = 20% max HP. K-2 kids count hearts. Grades 3-5 can tap for exact numbers.</p>
+
+  <h3>Attack Animations (Pop-Up Style)</h3>
+  <p>Attacks have a "paper craft" visual quality:</p>
+  <ul>
+    <li><strong>Knights:</strong> Paper figure folds forward at the waist (like a pop-up tab being pulled), weapon cuts across with paper-slash trail. Impact creates paper-tear particles that scatter.</li>
+    <li><strong>Wizards:</strong> Paper figure raises arm, a paper-cutout projectile launches (shaped like a star, flame, etc. but clearly made of paper). Impact unfolds into a paper burst.</li>
+    <li><strong>Bunnies:</strong> Paper figure springs forward (literally — a paper spring extends from their base), rapid hits with speed-line paper strips. Impact creates confetti-like paper scraps.</li>
+  </ul>
+
+  <h3>Strengths</h3>
+  <ul>
+    <li>Most visually distinctive — no other game looks like a pop-up book battle</li>
+    <li>Math flap rising from the page makes the question feel integrated, not bolted on</li>
+    <li>Paper hearts are the most readable HP system for young kids</li>
+    <li>Pop-up hero stepping forward for their turn creates natural focus</li>
+    <li>Perfectly matches Math Warriors' existing papercut aesthetic identity</li>
+    <li>The "craft" quality feels warm and inviting — never intimidating</li>
+  </ul>
+
+  <h3>Weaknesses</h3>
+  <ul>
+    <li>Pop-up book framing might limit visual SCALE — things feel small on a page</li>
+    <li>Paper aesthetic could make attacks feel lightweight — less impact</li>
+    <li>No built-in momentum/territory mechanic — needs to be added from elsewhere</li>
+    <li>The "page border" takes screen space away from the battle area</li>
+    <li>Heavy reliance on paper textures might get visually monotone</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- EVALUATION -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Evaluation: What to Keep, Discard, and Elevate</h2>
+
+  <h3>From A (Arena)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Difficulty-rated damage (1-5 stars) replacing answer magnitude — the single most important gameplay fix
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Floor-specific arena backdrops — 9 distinct environments
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Cross-screen attack animations with screen shake and particles
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Generic RPG layout (heroes left, enemy right, flat) — too conventional
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Floating UI card for math question — disconnected from the scene
+  </div>
+
+  <h3>From B (Duel)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Territory line as spatial momentum — zero-reading-required, universally intuitive
+  </div>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Dual-world split (vibrant vs corrupted) — instant visual stakes
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Corruption overlay that expands/contracts — the darkness is a character
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> No aesthetic identity — the split-world works but needs a visual frame
+  </div>
+
+  <h3>From C (Storybook)</h3>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Pop-up book aesthetic — the defining visual identity of Math Warriors
+  </div>
+  <div class="tag-row">
+    <span class="pill elevate">ELEVATE</span> Math flap rising from the page — integrated, not bolted on
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Paper hearts HP — most readable for K-2
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Active hero "steps forward" (pops up taller) for their turn
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Paper-layer parallax depth
+  </div>
+  <div class="tag-row">
+    <span class="pill keep">KEEP</span> Paper-tear damage particles, paper-craft attack aesthetics
+  </div>
+  <div class="tag-row">
+    <span class="pill discard">DISCARD</span> Page border (eats too much screen space — keep corners as subtle framing only)
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>The Synthesis Insight</h3>
+  <div class="callout">
+    <p>These three ideas fit together like puzzle pieces:</p>
+    <ul>
+      <li><strong>A provides the gameplay engine:</strong> difficulty-rated damage and floor-specific environments</li>
+      <li><strong>B provides the spatial language:</strong> territory line and dual-world create visual stakes without reading</li>
+      <li><strong>C provides the aesthetic identity:</strong> pop-up book framing makes it uniquely Math Warriors</li>
+    </ul>
+    <p>The synthesis: a <strong>pop-up storybook page where the territory line divides a vibrant pop-up world from a corrupted paper world.</strong> Heroes are pop-up figures. The math flap rises from the page. Paper hearts show HP. Difficulty stars rate each problem. Attacks have paper-craft visual quality with the dramatic SCALE of the arena. The page border is minimal (just corners) to maximize the battle space.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- ULTIMATE PROPOSAL 0 -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>Ultimate Proposal 0: "The Pop-Up Page"</h2>
+  <p class="subtitle">A storybook battle where the page itself is alive, split between light and shadow.</p>
+
+  <h3>Core Concept</h3>
+  <p>The battle takes place on an illustrated storybook page. A glowing territory line divides the page — the hero's side is a vibrant pop-up world with paper layers, blooming paper flowers, and warm light. The enemy's side is the same world CORRUPTED — paper torn, colors drained, shadows creeping. Heroes are pop-up figures that stand from fold-lines. The active hero "pops up" taller, stepping forward into focus. The math question rises from the bottom of the page as a paper flap. Paper hearts show HP. Difficulty stars rate each problem. Every correct answer pushes the light forward. Every wrong answer lets the darkness creep back.</p>
+
+  <h3>What each source idea contributes</h3>
+  <ul>
+    <li><strong>From A (Arena):</strong> Difficulty-rated damage (1-5 stars), floor-specific environments, dramatic cross-screen attacks</li>
+    <li><strong>From B (Duel):</strong> Territory line as spatial momentum, dual vibrant/corrupted worlds, corruption overlay</li>
+    <li><strong>From C (Storybook):</strong> Pop-up book aesthetic, math flap, paper hearts, active hero focus, paper-layer parallax</li>
+  </ul>
+
+  <h3>The Pop-Up Focus System</h3>
+  <p>The active hero "pops up" during their turn — scaling 12% larger and sliding forward 8px. Other heroes fold back slightly (95% scale, dimmed). This creates the intimate focus of The Duel (B) within the party layout of The Arena (A), using the physical vocabulary of The Storybook (C).</p>
+  <table class="spec-table">
+    <tr><th>Hero State</th><th>Visual</th><th>Transition</th></tr>
+    <tr><td>Active turn</td><td>112% scale, +8px forward, full brightness, turn arrow above, drop shadow</td><td>0.4s spring ease</td></tr>
+    <tr><td>Waiting</td><td>95% scale, dimmed to 85% brightness, no arrow</td><td>0.4s ease</td></tr>
+    <tr><td>KO'd</td><td>Folded flat (paper figure collapsed), grayscale</td><td>0.6s fold-down animation</td></tr>
+  </table>
+
+  <h3>Territory Line Mechanics</h3>
+  <ul>
+    <li>Starts at 50% (center)</li>
+    <li>Correct answer: +3% toward enemy</li>
+    <li>Wrong answer: -5% toward heroes (wrong stings more — creates urgency)</li>
+    <li>3-streak bonus: +5% surge</li>
+    <li>At 70%+: hero damage 1.2x ("DOMINATING!" toast)</li>
+    <li>At 30% or below: enemy damage 1.15x ("DANGER!" warning)</li>
+    <li>Spring physics animation (0.8s, cubic-bezier overshoot)</li>
+    <li>Corruption overlay width adjusts with line position</li>
+  </ul>
+
+  <h3>Math Flap Design</h3>
+  <p>The math question rises from the page as a paper flap:</p>
+  <ul>
+    <li>A visible fold-shadow at the base connects it to the page "surface"</li>
+    <li>Slight perspective tilt (bottom wider than top) mimics real pop-up</li>
+    <li>Parchment background with aged-paper texture</li>
+    <li>Difficulty stars (1-5) at the top of the flap</li>
+    <li>Equation in stacked format (operand / operator / line / answer blank)</li>
+    <li>The flap FOLDS UP when a new question appears (300ms pop-up animation)</li>
+    <li>On correct: flap glows green briefly, then folds down and new one pops up</li>
+    <li>On wrong: flap shakes (paper rattle effect), stays up for next attempt or enemy turn</li>
+  </ul>
+
+  <h3>Damage Formula</h3>
+  <p><code>damage = (5 + hero.atk * 0.4) × difficultyStars × territoryMult × classMult</code></p>
+  <ul>
+    <li><strong>difficultyStars:</strong> 1.0x - 2.5x (from A's star rating system)</li>
+    <li><strong>territoryMult:</strong> 0.85 - 1.2x (from B's territory position)</li>
+    <li><strong>classMult:</strong> Knight 1.3x single hit, Wizard 1.0-1.5x scaling, Bunny 1.0x split across hits</li>
+  </ul>
+  <p>Answer magnitude is <strong>completely removed</strong>. Damage is about difficulty, territory control, and hero stats.</p>
+
+  <h3>Attack Animations — Paper-Craft Spectacle</h3>
+  <p>The challenge: attacks need the SCALE of Arena (A) with the CRAFT quality of Storybook (C). Solution: attacks cross the full screen with dramatic motion, but every visual effect uses paper/craft vocabulary — paper-tear particles, paper-cut trails, origami bursts instead of generic sparkles.</p>
+
+  <div class="versus">
+    <div>
+      <h4>Knights — Paper-Blade Melee (700ms)</h4>
+      <ul>
+        <li><strong>Shadow:</strong> Dark paper-slash — purple arc with paper-tear particles at impact, cut marks visible on the page</li>
+        <li><strong>Crusader:</strong> Paper shield charge — gold paper shield folds out, impacts with radial paper-ring shockwave</li>
+        <li><strong>Paladin:</strong> Origami lance — golden paper spear unfolds mid-flight, cross-shaped paper flash on impact</li>
+        <li><strong>Berserker:</strong> Paper axes — two rapid paper-cuts in X pattern, confetti-like paper scraps scatter</li>
+        <li><strong>Great Helm:</strong> Paper warhammer — overhead arc, ground cracks spread as paper tears</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Wizards — Paper-Craft Projectile (800ms)</h4>
+      <ul>
+        <li><strong>Stargazer:</strong> Paper star constellation — tiny paper stars spiral into starburst, origami explosion</li>
+        <li><strong>Toadstool:</strong> Paper poison orb — green paper ball arcs, paper-splash on impact</li>
+        <li><strong>Spellblade:</strong> Paper crescent — folded paper blade wave fires across the page</li>
+        <li><strong>Bookworm:</strong> Page storm — torn paper pages vortex across the full width</li>
+        <li><strong>Grand Mage:</strong> Prismatic paper beam — rainbow paper strips weave into beam</li>
+      </ul>
+    </div>
+  </div>
+  <div>
+    <h4>Bunnies — Paper-Spring Combo (600ms)</h4>
+    <ul>
+      <li><strong>Pepper:</strong> Paper-spring punch combo — springs extend from base, blur dash with paper speed-lines</li>
+      <li><strong>Nova:</strong> Paper spark shots — 3 crackling paper pellets fire in succession</li>
+      <li><strong>Boulder:</strong> Paper ground slam — springs up (paper accordion fold), crashes down with paper-wave ring</li>
+      <li><strong>Blaze:</strong> Paper fire kicks — curling paper edges (heat effect), ember paper scraps trail each kick</li>
+      <li><strong>Duchess:</strong> Paper flourish — spinning paper-fan slash, paper rose petal confetti burst</li>
+    </ul>
+  </div>
+
+  <h3>Monster Attacks (Paper-Craft, Per Monster)</h3>
+  <table class="spec-table">
+    <tr><th>Monster</th><th>Attack Animation</th></tr>
+    <tr><td>Sproutling</td><td>Paper vine whip — paper strip extends and snaps at hero</td></tr>
+    <tr><td>Thornwall</td><td>Paper thorn burst — folded paper spikes shoot outward</td></tr>
+    <tr><td>Puffshroom</td><td>Paper spore cloud — tiny paper dots expand toward heroes</td></tr>
+    <tr><td>Briar King</td><td>Paper crown thorns + paper roots crack up from page surface</td></tr>
+    <tr><td>Drifter</td><td>Paper tentacle reach — paper strip wraps hero briefly</td></tr>
+    <tr><td>Skywhale</td><td>Paper gust — torn page edges blow toward heroes</td></tr>
+    <tr><td>Pyroclast</td><td>Paper lava eruption — orange curling paper from below</td></tr>
+    <tr><td>Absolute Zero</td><td>Paper ice wave — white paper crystals spread across ground</td></tr>
+    <tr><td>The Theorem</td><td>Paper equation shrapnel — writes numbers that shatter into paper fragments</td></tr>
+  </table>
+
+  <h3>Floor Backgrounds (Paper-Layer Parallax, 9×2)</h3>
+  <p>Each floor has two states (vibrant hero side / corrupted enemy side) rendered as layered paper cutouts at multiple depths:</p>
+  <ul>
+    <li><strong>Far layer (30% opacity):</strong> Silhouette mountains/structures — single-color paper cutout</li>
+    <li><strong>Mid layer (55% opacity):</strong> Trees/formations — two-tone paper with slight detail</li>
+    <li><strong>Near layer (75% opacity):</strong> Foreground elements — full detail paper cutouts</li>
+    <li><strong>Ground:</strong> Solid ground with paper grain texture</li>
+  </ul>
+  <p>The corruption side mirrors these layers but with torn edges, desaturated colors, and dark overlays. The territory line is where the vibrant paper seamlessly blends into the corrupted paper.</p>
+
+  <h3>Paper Hearts HP</h3>
+  <ul>
+    <li>5 hearts per hero, each = 20% max HP</li>
+    <li>Full: solid red ♥ with paper texture grain</li>
+    <li>Half: faded red ♥</li>
+    <li>Empty: dark outline ♡</li>
+    <li>Damage: paper-rip tear animation (200ms)</li>
+    <li>Heal: origami unfold from flat → full (300ms)</li>
+  </ul>
+
+  <h3>Math Engine Upgrades</h3>
+  <ul>
+    <li><strong>Difficulty rating function:</strong> Rate 1-5 stars based on operator complexity, number magnitude relative to grade, carry/borrow operations, missing operand position</li>
+    <li><strong>Anti-pattern detection:</strong> No 3+ same operand in last 10 problems, no 2+ consecutive same-operator, shuffle answer positions</li>
+    <li><strong>Per-operator accuracy tracking:</strong> Separate accuracy for +, -, ×, ÷ — weight weak operators higher in problem selection</li>
+    <li><strong>Monster-scaled difficulty mix:</strong> Regular 60/30/10 (med/easy/hard), Elite 50/20/30, Boss 40/10/50</li>
+    <li><strong>First-strike mechanic:</strong> 15% chance enemy poses question first — correct = preemptive strike, wrong = enemy attacks first</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- MOCKUP -->
+<!-- ════════════════════════════════════════════════ -->
+</div>
+
+<div class="mockup-title">INTERACTIVE MOCKUP — "The Pop-Up Page" (Floor 1: Garden, Shadow's Turn)</div>
+
+<div class="battle-frame" id="bf">
+  <!-- Storybook page background -->
+  <div class="page-bg"></div>
+  <div class="paper-texture"></div>
+
+  <!-- Page framing (corners only — no full border, saves space) -->
+  <div class="page-corner tl"></div>
+  <div class="page-corner tr"></div>
+  <div class="page-corner bl"></div>
+  <div class="page-corner br"></div>
+  <div class="page-border"></div>
+
+  <!-- Paper depth layers -->
+  <div class="depth-hill far"></div>
+  <div class="depth-hill mid"></div>
+  <div class="depth-hill near"></div>
+
+  <!-- Ground -->
+  <div class="ground"></div>
+
+  <!-- Corruption overlay -->
+  <div class="corruption" id="corruption"></div>
+
+  <!-- Territory line -->
+  <div class="territory" id="territory"></div>
+
+  <!-- Top HUD -->
+  <div class="hud-top">
+    <div class="hud-cluster">
+      <div class="hud-gear">⚙</div>
+      <div class="hud-floor">QUEST 1 — The Garden</div>
+    </div>
+    <div class="hud-momentum">
+      <span class="hud-mom-label">TERRITORY</span>
+      <div class="hud-mom-bar"><div class="hud-mom-fill" id="momFill"></div></div>
+      <span class="hud-mom-state" id="momState">PUSHING</span>
+    </div>
+    <div class="hud-potion">POTION 2</div>
+  </div>
+
+  <!-- Heroes (pop-up figures) -->
+  <div class="heroes">
+    <div class="hero-popup active-turn" id="hero0">
+      <div class="hero-sprite" style="background: linear-gradient(135deg, #2a2040, #4a3060);">
+        <div class="turn-marker"></div>
+      </div>
+      <div class="hero-base"></div>
+      <div class="hero-name">SHADOW</div>
+      <div class="hero-hearts">
+        <span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hh">♥</span>
+      </div>
+    </div>
+    <div class="hero-popup" id="hero1">
+      <div class="hero-sprite" style="background: linear-gradient(135deg, #1a2858, #3050a0);"></div>
+      <div class="hero-base"></div>
+      <div class="hero-name">STARGAZER</div>
+      <div class="hero-hearts">
+        <span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="he">♥</span>
+      </div>
+    </div>
+    <div class="hero-popup" id="hero2">
+      <div class="hero-sprite" style="background: linear-gradient(135deg, #c0a080, #e8c8a0);"></div>
+      <div class="hero-base"></div>
+      <div class="hero-name">PEPPER</div>
+      <div class="hero-hearts">
+        <span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span><span class="hf">♥</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enemy (pop-up figure) -->
+  <div class="enemy-popup">
+    <div class="enemy-name">BRIAR KING</div>
+    <div class="enemy-sprite" style="background: radial-gradient(circle at 40% 35%, #508030, #3a6020, #2a4810); border-radius: 30% 30% 45% 45%;"></div>
+    <div class="enemy-base"></div>
+    <div class="enemy-hp"><div class="enemy-hp-fill" id="eHpBar"></div></div>
+    <div class="enemy-hp-txt" id="eHpTxt">476 / 732</div>
+  </div>
+
+  <!-- Turn label -->
+  <div class="turn-label" id="turnLbl">Shadow's turn — answer to attack!</div>
+
+  <!-- Math flap (pop-up from page) -->
+  <div class="math-flap">
+    <div class="flap-card">
+      <div class="flap-fold"></div>
+      <div class="math-stars">
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#f0c040;">★</span>
+        <span style="color:#d0c8b0;">☆</span>
+        <span style="color:#d0c8b0;">☆</span>
+      </div>
+      <div class="math-eq">&nbsp;&nbsp;73</div>
+      <div class="math-eq"><span class="math-op">+ 7</span></div>
+      <div class="math-rule"></div>
+      <div class="math-ans">?</div>
+    </div>
+  </div>
+
+  <!-- Answer buttons -->
+  <div class="answers">
+    <div class="ans-btn c1" data-v="80">80</div>
+    <div class="ans-btn c2" data-v="83">83</div>
+    <div class="ans-btn c3" data-v="78">78</div>
+    <div class="ans-btn c4" data-v="85">85</div>
+  </div>
+
+  <!-- Abilities -->
+  <div class="abilities">
+    <div class="ab-btn super">Shadow Strike</div>
+    <div class="ab-btn shield">Shield Bash</div>
+    <div class="ab-btn hint">HINT</div>
+  </div>
+
+  <!-- Decorative damage float -->
+  <div class="dmg-float" style="color:#f0c040; top:270px; right:150px;">+18</div>
+</div>
+
+<div class="page">
+<div class="card">
+  <h2>Implementation Scope</h2>
+  <table class="spec-table">
+    <tr><th>System</th><th>Files</th><th>Effort</th></tr>
+    <tr><td>Pop-up page frame (corners, paper texture, fold aesthetics)</td><td>BattleScene.js, papercut.js</td><td>Medium — subtle but pervasive art direction</td></tr>
+    <tr><td>Territory line + corruption overlay</td><td>BattleScene.js</td><td>High — position tracking, spring animation, visual transitions</td></tr>
+    <tr><td>Dual-world backgrounds (9 floors × vibrant + corrupted)</td><td>papercut.js</td><td>High — 18 background states as paper-layer parallax</td></tr>
+    <tr><td>Pop-up hero focus system (active scales up, others dim)</td><td>BattleScene.js</td><td>Medium — scale/translate transitions per hero</td></tr>
+    <tr><td>Math flap (fold-up animation, fold-down on answer)</td><td>BattleScene.js</td><td>Medium — perspective transform animation</td></tr>
+    <tr><td>Paper hearts HP</td><td>BattleScene.js</td><td>Medium — heart icons with tear/unfold animations</td></tr>
+    <tr><td>Difficulty rating engine</td><td>math.js (new rateDifficulty)</td><td>Medium — factor analysis per problem</td></tr>
+    <tr><td>New damage formula</td><td>combat.js, BattleScene.js</td><td>Low — replace answer*0.8 with difficulty*territory*class</td></tr>
+    <tr><td>Hero attack animations (15 heroes, paper-craft style)</td><td>BattleScene.js</td><td>High — 15 unique sequences with paper-particle effects</td></tr>
+    <tr><td>Monster attack animations (9 floor types)</td><td>BattleScene.js</td><td>High — per-monster with paper-craft visual language</td></tr>
+    <tr><td>Anti-pattern math engine</td><td>math.js</td><td>Medium — tracking, diversity, per-operator accuracy</td></tr>
+    <tr><td>First-strike mechanic</td><td>BattleScene.js, combat.js</td><td>Low — 15% chance pre-battle question</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Key Distinction from Proposals 1 and 2</h2>
+  <div class="callout">
+    <p><strong>Proposal 1 (Spell Circle)</strong> is MECHANIC-focused — the rune circle is a visible accumulation system that makes streaks the central spectacle.</p>
+    <p><strong>Proposal 2 (Living World)</strong> is EMOTION-focused — the environment responds to performance, creating emotional feedback loops.</p>
+    <p><strong>Proposal 0 (Pop-Up Page)</strong> is IDENTITY-focused — the pop-up storybook aesthetic makes every battle uniquely Math Warriors. The paper-craft visual language (fold lines, paper tears, origami effects) is a signature that no other game has. The territory line and difficulty system provide the gameplay improvements, but the PRESENTATION is the star. This is the proposal that leans hardest into what makes Math Warriors special: it's a storybook come to life.</p>
+  </div>
+</div>
+
+<div class="card" style="text-align:center;">
+  <h2>Proposal 0 of 3 Complete</h2>
+  <p style="font-size:20px; color:#8a6a30;">
+    Raw ideas A (Arena) + B (Duel) + C (Storybook) → <strong>Ultimate: "The Pop-Up Page"</strong>
+  </p>
+  <p>Previously completed:</p>
+  <p>D+E+F → <strong>Proposal 1: "The Spell Circle"</strong> (mechanic-focused)</p>
+  <p>G+H+I → <strong>Proposal 2: "The Living World"</strong> (emotion-focused)</p>
+  <p style="margin-top: 12px;">Next: Raw ideas J + K + L → Ultimate Proposal 3</p>
+</div>
+</div>
+
+<!-- Interactive script -->
+<script>
+let terr = 55;
+let eHp = 65;
+let streak = 0;
+
+document.querySelectorAll('.ans-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const correct = btn.dataset.v === '80';
+
+    if (correct) {
+      streak++;
+      const push = streak >= 3 ? 8 : 3;
+      terr = Math.min(85, terr + push);
+      eHp = Math.max(3, eHp - 9);
+      btn.style.background = '#40c040';
+    } else {
+      streak = 0;
+      terr = Math.max(18, terr - 5);
+      btn.style.background = '#c04040';
+    }
+
+    // Territory line
+    document.getElementById('territory').style.left = terr + '%';
+
+    // Corruption overlay
+    document.getElementById('corruption').style.background =
+      `linear-gradient(90deg, transparent ${terr - 8}%, rgba(20,8,30,0.3) ${terr + 12}%, rgba(30,10,40,0.5) 100%)`;
+
+    // Momentum bar + label
+    document.getElementById('momFill').style.width = terr + '%';
+    const state = terr > 70 ? 'DOMINATING!' : terr > 45 ? 'PUSHING' : terr > 30 ? 'HOLDING' : 'DANGER!';
+    const stateEl = document.getElementById('momState');
+    stateEl.textContent = state;
+    stateEl.style.color = terr > 70 ? '#f0c040' : terr > 45 ? '#d07818' : terr > 30 ? '#8a6a30' : '#c04040';
+
+    // Enemy HP
+    document.getElementById('eHpBar').style.width = eHp + '%';
+    document.getElementById('eHpTxt').textContent = Math.round(732 * eHp / 100) + ' / 732';
+
+    // Turn label
+    if (streak >= 3) {
+      document.getElementById('turnLbl').textContent = streak + '-STREAK! Territory surging forward!';
+      document.getElementById('turnLbl').style.background = 'rgba(240,200,64,0.9)';
+      document.getElementById('turnLbl').style.color = '#3a1808';
+    } else {
+      document.getElementById('turnLbl').textContent = "Shadow's turn — answer to attack!";
+      document.getElementById('turnLbl').style.background = '';
+      document.getElementById('turnLbl').style.color = '';
+    }
+
+    setTimeout(() => { btn.style.background = ''; }, 350);
+  });
+});
+</script>
+
+</body>
+</html>

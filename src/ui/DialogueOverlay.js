@@ -2,11 +2,12 @@
  * DialogueOverlay — story text box with typewriter animation.
  *
  * Shows a panel at the bottom with speaker name and typed text.
+ * Panel dynamically sizes to fit text content.
  * A visible CONTINUE button advances to the next line.
  * All maze input is blocked while dialogue is active.
  */
 
-import { PaperPanel, PaperButton, TEXT, safeArea } from './paperUI.js';
+import { PaperButton, TEXT, safeArea } from './paperUI.js';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 
 export class DialogueOverlay {
@@ -22,16 +23,13 @@ export class DialogueOverlay {
     this.timer = null;
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const panelH = 180;
-    const panelY = area.bottom - panelH / 2 - 10;
+    this._area = area;
+    this._maxWrapW = area.w - 280;
+    this._maxRatio = 3.5;
 
-    const panel = PaperPanel(scene, area.cx, panelY, area.w - 40, panelH, {
-      color: 0x1a0e04, alpha: 0.92, radius: 18,
-    });
-    this.panelBg = panel.bg;
-    this.panelShadow = panel.shadow;
+    this.panelGfx = scene.add.graphics();
 
-    this.nameText = scene.add.text(area.left + 40, panelY - 58, '', {
+    this.nameText = scene.add.text(0, 0, '', {
       ...TEXT.heading(),
       fontSize: '28px',
       color: '#f0d040',
@@ -39,17 +37,16 @@ export class DialogueOverlay {
       strokeThickness: 4,
     });
 
-    this.bodyText = scene.add.text(area.left + 40, panelY - 22, '', {
+    this.bodyText = scene.add.text(0, 0, '', {
       ...TEXT.body(),
       fontSize: '24px',
       color: '#f0e4cc',
-      wordWrap: { width: area.w - 280 },
+      wordWrap: { width: this._maxWrapW },
       lineSpacing: 8,
     });
 
     const btnX = area.right - 130;
-    const btnY = panelY + 48;
-    this.continueBtn = PaperButton(scene, btnX, btnY, 'TAP', {
+    this.continueBtn = PaperButton(scene, btnX, 0, 'TAP', {
       w: 200, h: 50, color: 0xc07818, fontSize: 18,
       onClick: () => {
         if (!this.active) return;
@@ -62,7 +59,7 @@ export class DialogueOverlay {
     });
 
     this.allObjects = [
-      this.panelBg, this.panelShadow, this.nameText, this.bodyText,
+      this.panelGfx, this.nameText, this.bodyText,
       this.continueBtn.bg, this.continueBtn.shadow, this.continueBtn.label, this.continueBtn.zone,
     ];
     this.hide();
@@ -97,7 +94,36 @@ export class DialogueOverlay {
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';
     this.charIdx = 0;
+
+    this.bodyText.setText(this.fullText);
+    const textW = Math.min(this.bodyText.width, this._maxWrapW);
+    const textH = this.bodyText.height;
     this.bodyText.setText('');
+
+    const area = this._area;
+    const padX = 40, padTop = 44, padBottom = 20;
+    let panelW = Math.min(textW + padX * 2 + 40, area.w - 40);
+    panelW = Math.max(panelW, 400);
+    let panelH = textH + padTop + padBottom + 20;
+    panelH = Math.max(panelH, 100);
+    if (panelW / panelH > this._maxRatio) panelH = Math.ceil(panelW / this._maxRatio);
+
+    const panelY = area.bottom - panelH / 2 - 10;
+
+    this.panelGfx.clear();
+    this.panelGfx.fillStyle(0x000000, 0.15);
+    this.panelGfx.fillRoundedRect(area.cx - panelW / 2 + 4, panelY - panelH / 2 + 6, panelW, panelH, 18);
+    this.panelGfx.fillStyle(0x1a0e04, 0.92);
+    this.panelGfx.fillRoundedRect(area.cx - panelW / 2, panelY - panelH / 2, panelW, panelH, 18);
+
+    this.nameText.setPosition(area.cx - panelW / 2 + padX, panelY - panelH / 2 + 10);
+    this.bodyText.setPosition(area.cx - panelW / 2 + padX, panelY - panelH / 2 + padTop);
+
+    const btnY = panelY + panelH / 2 - 30;
+    ['bg', 'shadow', 'label', 'zone'].forEach(k => {
+      if (this.continueBtn[k]) this.continueBtn[k].y = btnY;
+    });
+
     this.typing = true;
 
     if (this.timer) this.timer.remove();

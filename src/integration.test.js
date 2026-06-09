@@ -296,28 +296,29 @@ describe('floor operators → math generation', () => {
 // ================================================================
 
 describe('enemy HP scaling', () => {
+  // HP is anchored to stats-based damage: a typical hero (ATK ≈ 16 + grade)
+  // deals ~(4 + atk*1.2 - enemyDef*0.3) per correct answer.
+  const avgHitFor = (e, grade) =>
+    Math.max(8, Math.round(4 + (16 + grade) * 1.2 - (e.def || 0) * 0.3));
+
   for (let f = 1; f <= TOTAL_FLOORS; f++) {
-    it(`floor ${f} mobs scale to ~4 problems at grade 3`, () => {
+    it(`floor ${f} mobs scale to ~4-5 hits at grade 3`, () => {
       const enemies = getEnemiesForFloor(f).filter(e => e.id !== FLOOR_BOSS_MAP[f]);
       for (const e of enemies) {
         const hp = computeEnemyHp(e, 3, false);
-        const op = FLOOR_OPERATORS[f] || '+';
-        const avg = Math.max(1, expectedAnswer(op, 3));
-        const problems = hp / avg;
+        const problems = hp / avgHitFor(e, 3);
         assert.ok(problems >= 2, `${e.id}: too few problems (${problems.toFixed(1)})`);
         assert.ok(problems <= 10, `${e.id}: too many problems (${problems.toFixed(1)})`);
       }
     });
 
-    it(`floor ${f} boss scales to ~15 problems at grade 3`, () => {
+    it(`floor ${f} boss scales to ~14 hits at grade 3`, () => {
       const bossId = FLOOR_BOSS_MAP[f];
       const boss = getEnemyById(bossId);
       const hp = computeEnemyHp(boss, 3, true);
-      const op = FLOOR_OPERATORS[f] || '+';
-      const avg = Math.max(1, expectedAnswer(op, 3));
-      const problems = hp / avg;
-      assert.ok(problems >= 6, `${bossId}: boss too easy (${problems.toFixed(1)} problems)`);
-      assert.ok(problems <= 30, `${bossId}: boss too hard (${problems.toFixed(1)} problems)`);
+      const problems = hp / avgHitFor(boss, 3);
+      assert.ok(problems >= 8, `${bossId}: boss too easy (${problems.toFixed(1)} problems)`);
+      assert.ok(problems <= 20, `${bossId}: boss too hard (${problems.toFixed(1)} problems)`);
     });
   }
 

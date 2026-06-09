@@ -12,7 +12,6 @@
  * in systems/abilities.js; scenes trigger them via invokeAbility().
  */
 
-import { expectedAnswer } from '../systems/math.js';
 
 /**
  * Helper: build an enemy record. Keeps the roster data compact.
@@ -36,10 +35,10 @@ function mk(id, name, floor, maxHp, atk, def, ability, displayColor) {
 // ------------------------------------------------------------------
 
 export const FLOOR_1 = [
-  mk('sproutling',   'Sproutling',    1, 16, 8,  3, 'sporulate',   0x3a8a20),
-  mk('thornwall',    'Thornwall',     1, 22, 10, 6, 'accumulate',  0x1e5010),
-  mk('blossomfiend', 'Blossom Fiend', 1, 18, 11, 4, 'sweet_add',   0xc02880),
-  mk('puffshroom',   'Puffshroom',    1, 24, 9,  5, 'pressure',    0x7040c0),
+  mk('sproutling',   'Sproutling',    1, 16, 11, 3, 'sporulate',   0x3a8a20),
+  mk('thornwall',    'Thornwall',     1, 22, 12, 6, 'accumulate',  0x1e5010),
+  mk('blossomfiend', 'Blossom Fiend', 1, 18, 13, 4, 'sweet_add',   0xc02880),
+  mk('puffshroom',   'Puffshroom',    1, 24, 12, 5, 'pressure',    0x7040c0),
   mk('briarking',    'Briar King',    1, 36, 14, 8, 'crown_tally', 0x1a3c10),
 ];
 
@@ -48,10 +47,10 @@ export const FLOOR_1 = [
 // ------------------------------------------------------------------
 
 export const FLOOR_2 = [
-  mk('drifter',     'Drifter',       2, 18, 10, 4, 'sting_drain',  0x1848a0),
-  mk('gulper',      'Gulper',        2, 26, 12, 5, 'consume',      0x102840),
-  mk('inkspitter',  'Inkspitter',    2, 20, 11, 5, 'ink_cloud',    0x081820),
-  mk('abyssaleel',  'Abyssal Eel',   2, 28, 13, 6, 'drain_current',0x102848),
+  mk('drifter',     'Drifter',       2, 18, 12, 4, 'sting_drain',  0x1848a0),
+  mk('gulper',      'Gulper',        2, 26, 13, 5, 'consume',      0x102840),
+  mk('inkspitter',  'Inkspitter',    2, 20, 12, 5, 'ink_cloud',    0x081820),
+  mk('abyssaleel',  'Abyssal Eel',   2, 28, 14, 6, 'drain_current',0x102848),
   mk('pressure',    'The Pressure',  2, 42, 16, 9, 'abs_reduction',0x08101c),
 ];
 
@@ -210,11 +209,18 @@ export function spawnEnemy(idOrEnemy, opts = {}) {
  * correct answers. Pulled out for unit testing.
  */
 export function computeEnemyHp(def, grade, isBoss) {
-  const op = FLOOR_OPERATORS[def.floor] || '+';
-  const avg = Math.max(1, expectedAnswer(op, grade));
+  // Damage is stats-based (4 + atk*1.2 - def*0.3), so HP is anchored
+  // to the damage a typical party deals per correct answer — NOT the
+  // math answer magnitude. A typical lead hero runs ATK ≈ 16 + grade
+  // (base stats plus expected level pacing per grade tier).
+  const heroAtk = 16 + grade;
+  const avgHit = Math.max(8, Math.round(4 + heroAtk * 1.2 - (def.def || 0) * 0.3));
 
-  // Base target in "problems to defeat"
-  const problemsTarget = isBoss ? 22 : 5;
+  // Target battle length in correct answers, tuned per grade so young
+  // kids (slow readers) get short fights and older kids get meatier ones.
+  const problemsTarget = isBoss
+    ? (grade <= 1 ? 10 : grade <= 3 ? 14 : 18)
+    : (grade <= 1 ? 4 : 5);
 
   // Relative difficulty within floor: use the original maxHp as a
   // weight against the floor's median original maxHp. Gives variety
@@ -223,9 +229,7 @@ export function computeEnemyHp(def, grade, isBoss) {
   const medianOriginalHp = median(floorPool.map((e) => e.maxHp)) || def.maxHp;
   const weight = isBoss ? 1 : clamp(def.maxHp / medianOriginalHp, 0.75, 1.4);
 
-  const hp = Math.round(avg * problemsTarget * weight);
-  // Floor at a minimum that still takes at least a couple problems even
-  // when the expected answer is tiny (K-grade subtraction avg ~2).
+  const hp = Math.round(avgHit * problemsTarget * weight);
   const minMob = isBoss ? Math.max(80, 40 + grade * 15) : 12;
   return Math.max(minMob, hp);
 }
