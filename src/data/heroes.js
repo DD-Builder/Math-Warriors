@@ -1139,6 +1139,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Shadow: "..."', 'Stargazer: "The stars see what shadows hide."'],
     dialogueA: ['Shadow: "You see too much."', 'Stargazer: "And you hide too much. We balance."'],
+    dialogueB: ['Shadow: "We work well."', 'Stargazer: "The stars agree!"'],
+    dialogueS: ['Shadow: "I trust you."', 'Stargazer: "And I trust the shadows."'],
   },
   {
     heroes: ['knight-crusader', 'wizard-grandmage'],
@@ -1147,6 +1149,8 @@ export const HERO_BONDS = [
     multiplier: 4.5,
     dialogueC: ['Crusader: "Lend me your flame."', 'Grand Mage: "Try not to waste it."'],
     dialogueA: ['Crusader: "Your power serves justice."', 'Grand Mage: "Justice? I just like explosions."'],
+    dialogueB: ['Crusader: "Your flames are holy."', 'Grand Mage: "Flattery. Continue."'],
+    dialogueS: ['Crusader: "Brother in arms."', 'Grand Mage: "...Fine. Brother."'],
   },
   {
     heroes: ['knight-paladin', 'wizard-bookworm'],
@@ -1155,6 +1159,8 @@ export const HERO_BONDS = [
     multiplier: 3.5,
     dialogueC: ['Paladin: "I will protect you."', 'Bookworm: "Um, thanks."'],
     dialogueA: ['Paladin: "Your knowledge saves lives."', 'Bookworm: "And your shield saves mine!"'],
+    dialogueB: ['Paladin: "Read to me sometime?"', 'Bookworm: "I have just the book!"'],
+    dialogueS: ['Paladin: "My shield is yours."', 'Bookworm: "And my spells are yours."'],
   },
   {
     heroes: ['knight-berserker', 'wizard-spellblade'],
@@ -1163,6 +1169,8 @@ export const HERO_BONDS = [
     multiplier: 4.5,
     dialogueC: ['Berserker: "OUTTA MY WAY!"', 'Spellblade: "After you, big guy."'],
     dialogueA: ['Berserker: "You fight good!"', 'Spellblade: "I know."'],
+    dialogueB: ['Berserker: "More smashing!"', 'Spellblade: "More style, please."'],
+    dialogueS: ['Berserker: "You make me better."', 'Spellblade: "Likewise, big guy."'],
   },
   // --- Cross-class: Knight + Bunny ---
   {
@@ -1172,6 +1180,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Great Helm: "Your Highness."', 'Duchess: "You may rise."'],
     dialogueA: ['Great Helm: "A worthy liege."', 'Duchess: "A worthy champion."'],
+    dialogueB: ['Great Helm: "Command me."', 'Duchess: "Gladly."'],
+    dialogueS: ['Great Helm: "My life for yours."', 'Duchess: "Together, always."'],
   },
   {
     heroes: ['knight-shadow', 'bunny-pepper'],
@@ -1180,6 +1190,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Shadow: "Be quiet."', 'Pepper: "NEVER!"'],
     dialogueA: ['Shadow: "You are... loud."', 'Pepper: "And YOU need to loosen up!"'],
+    dialogueB: ['Shadow: "You are fast."', 'Pepper: "You are SNEAKY!"'],
+    dialogueS: ['Shadow: "Stay close, Pepper."', 'Pepper: "BFFs FOREVER!"'],
   },
   {
     heroes: ['knight-crusader', 'bunny-boulder'],
@@ -1188,6 +1200,8 @@ export const HERO_BONDS = [
     multiplier: 3.5,
     dialogueC: ['Crusader: "Ready yourself!"', 'Boulder: "Yep."'],
     dialogueA: ['Crusader: "Your strength is a gift!"', 'Boulder: "Cool. Thanks."'],
+    dialogueB: ['Crusader: "Stand firm!"', 'Boulder: "Always do."'],
+    dialogueS: ['Crusader: "You are my rock."', 'Boulder: "Literally."'],
   },
   {
     heroes: ['knight-paladin', 'bunny-nova'],
@@ -1196,6 +1210,8 @@ export const HERO_BONDS = [
     multiplier: 3.5,
     dialogueC: ['Paladin: "Stay close."', 'Nova: "Ooh, shiny!"'],
     dialogueA: ['Paladin: "You light up the dark."', 'Nova: "Aww, you too!"'],
+    dialogueB: ['Paladin: "Your light inspires."', 'Nova: "Your shield rocks!"'],
+    dialogueS: ['Paladin: "Shine on, Nova."', 'Nova: "Always, for you!"'],
   },
   // --- Cross-class: Wizard + Bunny ---
   {
@@ -1205,6 +1221,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Toadstool: "Hee hee, catch!"', 'Blaze: "Burn, baby!"'],
     dialogueA: ['Toadstool: "You make everything better!"', 'Blaze: "Everything is better on fire!"'],
+    dialogueB: ['Toadstool: "More booms please!"', 'Blaze: "You got it, shroomy!"'],
+    dialogueS: ['Toadstool: "Best fire friend!"', 'Blaze: "Best spore pal!"'],
   },
   {
     heroes: ['wizard-stargazer', 'bunny-nova'],
@@ -1213,6 +1231,8 @@ export const HERO_BONDS = [
     multiplier: 4.5,
     dialogueC: ['Stargazer: "A star descends."', 'Nova: "Wheee!"'],
     dialogueA: ['Stargazer: "You shine so brightly."', 'Nova: "Right back at you!"'],
+    dialogueB: ['Stargazer: "Our light merges."', 'Nova: "Double sparkle power!"'],
+    dialogueS: ['Stargazer: "My constellation."', 'Nova: "My stargazer!"'],
   },
   {
     heroes: ['wizard-bookworm', 'bunny-pepper'],
@@ -1221,6 +1241,8 @@ export const HERO_BONDS = [
     multiplier: 3.5,
     dialogueC: ['Bookworm: "Hold still please."', 'Pepper: "CAN\'T! WON\'T!"'],
     dialogueA: ['Bookworm: "Fascinating velocity."', 'Pepper: "Big words! Let\'s GO!"'],
+    dialogueB: ['Bookworm: "You deliver well."', 'Pepper: "SPEED READING!"'],
+    dialogueS: ['Bookworm: "My favorite chapter."', 'Pepper: "Aww! ZOOM HUG!"'],
   },
   // --- Personality contrast pairs ---
   {
@@ -1230,6 +1252,8 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Paladin: "Please be careful."', 'Berserker: "NO PROMISES!"'],
     dialogueA: ['Paladin: "I believe in you."', 'Berserker: "...thanks."'],
+    dialogueB: ['Paladin: "Temper your rage."', 'Berserker: "You temper yours!"'],
+    dialogueS: ['Paladin: "I need your fire."', 'Berserker: "I need your calm."'],
   },
   {
     heroes: ['wizard-grandmage', 'wizard-toadstool'],
@@ -1238,5 +1262,7 @@ export const HERO_BONDS = [
     multiplier: 4,
     dialogueC: ['Grand Mage: "Stand back, fungus."', 'Toadstool: "Ooh, grumpy!"'],
     dialogueA: ['Grand Mage: "Your methods are... unorthodox."', 'Toadstool: "That means fun, right?"'],
+    dialogueB: ['Grand Mage: "Acceptable brews."', 'Toadstool: "High praise! Hee!"'],
+    dialogueS: ['Grand Mage: "You... grew on me."', 'Toadstool: "Like a mushroom!"'],
   },
 ];

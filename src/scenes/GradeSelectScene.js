@@ -46,12 +46,12 @@ export class GradeSelectScene extends Phaser.Scene {
 
     // RAINBOW distinct colors — 6 truly different hues
     const grades = [
-      { id: 0, label: 'K', name: 'Kindergarten', hint: 'Counting',           color: 0xe84840 }, // red
-      { id: 1, label: '1', name: '1st Grade',    hint: 'Add + subtract 10',  color: 0xf58840 }, // orange
-      { id: 2, label: '2', name: '2nd Grade',    hint: 'Intro multiplication', color: 0xf0c040 }, // yellow
-      { id: 3, label: '3', name: '3rd Grade',    hint: 'Times tables',       color: 0x4aa848 }, // green
-      { id: 4, label: '4', name: '4th Grade',    hint: 'Multi-digit',        color: 0x3888d8 }, // blue
-      { id: 5, label: '5', name: '5th Grade',    hint: 'Full arithmetic',    color: 0x9050c8 }, // purple
+      { id: 0, label: 'K', name: 'Kindergarten', hint: 'Count the flowers in the\nmagical garden!',           color: 0xe84840 },
+      { id: 1, label: '1', name: '1st Grade',    hint: 'Add and subtract to\nsave the kingdom!',  color: 0xf58840 },
+      { id: 2, label: '2', name: '2nd Grade',    hint: 'Help warriors solve\ntricky puzzles!', color: 0xf0c040 },
+      { id: 3, label: '3', name: '3rd Grade',    hint: 'Multiply your power\nagainst the bosses!',       color: 0x4aa848 },
+      { id: 4, label: '4', name: '4th Grade',    hint: 'Divide and conquer\nthe crystal caves!',        color: 0x3888d8 },
+      { id: 5, label: '5', name: '5th Grade',    hint: 'Master fractions,\ngeometry, and more!',    color: 0x9050c8 },
     ];
 
     // Grid: 3x2, centered vertically between header and CONFIRM button
@@ -123,21 +123,48 @@ export class GradeSelectScene extends Phaser.Scene {
 
   selectGrade(id) {
     this.selectedGrade = id;
+
+    // Clean up old selection indicators
+    if (this._selectionGfx) this._selectionGfx.destroy();
+    if (this._checkGfx) this._checkGfx.destroy();
+    if (this._checkText) this._checkText.destroy();
+    this._selectionGfx = null;
+    this._checkGfx = null;
+    this._checkText = null;
+
     for (const [gid, entry] of Object.entries(this.gradeCards)) {
       const isSelected = Number(gid) === id;
       const { x, y, w, h, color, seed } = entry;
-      // Re-paint with the same seed so the hand-cut wobble survives
-      // the selection-state change.
+
       paintPaperRect(entry.card.bg, entry.card.shadow, x, y, w, h, color, {
         radius: 12,
         shadowOff: isSelected ? 3 : 5,
-        shadowAlpha: isSelected ? 0.4 : 0.25,
-        strokeColor: isSelected ? COLORS.goldL : 0x000000,
-        strokeAlpha: isSelected ? 0.9 : 0.15,
-        strokeWidth: isSelected ? 4 : 2,
+        shadowAlpha: isSelected ? 0.5 : 0.25,
+        strokeColor: isSelected ? 0xf0d060 : 0x000000,
+        strokeAlpha: isSelected ? 1.0 : 0.15,
+        strokeWidth: isSelected ? 6 : 2,
         organic: true,
         seed,
       });
+
+      // Dim unselected cards
+      if (entry.card.bg) entry.card.bg.setAlpha(isSelected ? 1.0 : 0.65);
+
+      if (isSelected) {
+        // Gold checkmark circle inside the card's top-right
+        const ckX = x + w / 2 - 22;
+        const ckY = y - h / 2 + 22;
+        this._checkGfx = this.add.graphics();
+        this._checkGfx.fillStyle(0xf0d060, 1);
+        this._checkGfx.fillCircle(ckX, ckY, 16);
+        this._checkGfx.lineStyle(3, 0x3a2410, 1);
+        this._checkGfx.strokeCircle(ckX, ckY, 16);
+        this._checkText = this.add.text(ckX, ckY, '✓', {
+          fontFamily: '"Fredoka One", sans-serif',
+          fontSize: '20px',
+          color: '#3a2410',
+        }).setOrigin(0.5);
+      }
     }
   }
 }

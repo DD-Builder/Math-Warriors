@@ -60,17 +60,17 @@ const SYNTH_SOUNDS = {
   'ui/back': () => playTone(400, 0.08, 'sine', 0.25, 300),
 
   // Battle feedback
-  'battle/correct': () => { playTone(523, 0.12, 'sine', 0.35); setTimeout(() => playTone(659, 0.12, 'sine', 0.35), 80); setTimeout(() => playTone(784, 0.1, 'sine', 0.3), 160); },
-  'battle/wrong': () => playTone(200, 0.2, 'square', 0.15),
-  'battle/hit': () => { playNoise(0.06, 0.4); playTone(300, 0.08, 'sine', 0.2, 100); },
+  'battle/correct': () => { playTone(523, 0.08, 'sine', 0.35); setTimeout(() => playTone(659, 0.08, 'sine', 0.35), 80); },
+  'battle/wrong': () => { playTone(330, 0.1, 'sawtooth', 0.15); setTimeout(() => playTone(262, 0.1, 'sawtooth', 0.15), 100); },
+  'battle/hit': () => { playNoise(0.05, 0.4); playTone(200 + Math.random() * 200, 0.05, 'sine', 0.2, 100); },
   'battle/hit_hero': () => { playNoise(0.08, 0.3); playTone(250, 0.1, 'sine', 0.15, 150); },
   'battle/hit-hero': () => { playNoise(0.08, 0.3); playTone(250, 0.1, 'sine', 0.15, 150); },
   'battle/hit-enemy': () => { playNoise(0.06, 0.4); playTone(300, 0.08, 'sine', 0.2, 100); },
   'battle/heal': () => { playTone(800, 0.15, 'sine', 0.25, 1200); setTimeout(() => playTone(1000, 0.12, 'sine', 0.2, 1400), 100); },
-  'battle/victory': () => { [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f, 0.25, 'sine', 0.35), i*120)); },
+  'battle/victory': () => { [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f, 0.1, 'sine', 0.35), i*100)); },
   'battle/defeat': () => { [400,350,300,250].forEach((f,i) => setTimeout(() => playTone(f, 0.3, 'triangle', 0.25), i*150)); },
-  'battle/level_up': () => { [523,659,784,1047,1319].forEach((f,i) => setTimeout(() => playTone(f, 0.15, 'sine', 0.3), i*80)); },
-  'battle/level-up': () => { [523,659,784,1047,1319].forEach((f,i) => setTimeout(() => playTone(f, 0.15, 'sine', 0.3), i*80)); },
+  'battle/level_up': () => { [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f, 0.1, 'sine', 0.3), i*100)); },
+  'battle/level-up': () => { [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f, 0.1, 'sine', 0.3), i*100)); },
 
   // World interactions
   'world/chest': () => { playNoise(0.04, 0.2); setTimeout(() => { playTone(600, 0.1, 'sine', 0.3); setTimeout(() => playTone(800, 0.1, 'sine', 0.3), 80); }, 50); },

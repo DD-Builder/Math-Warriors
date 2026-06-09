@@ -539,42 +539,55 @@ export class BattleScene extends Phaser.Scene {
 
     const enemyCount = this.enemies.length;
     const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
-    const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
-    const leftAnchor = GAME_WIDTH * 0.12 + spacing / 2;
+
+    // Fixed hero positions with generous spacing — hero 0 (front) leftmost/lowest,
+    // hero 2 (back) rightmost/highest for depth perspective.
+    // At least 160px horizontal and 40px vertical between each hero.
+    const heroPositions = [
+      { x: 200, y: groundY },       // Hero 0 — front, leftmost, lowest
+      { x: 380, y: groundY - 40 },  // Hero 1 — middle
+      { x: 540, y: groundY - 80 },  // Hero 2 — back, rightmost, highest
+    ];
+
+    // Approximate sprite height for layout calculations
+    const spriteH = 80;
 
     this.heroSprites = this.party.map((hero, i) => {
-      const xStagger = (1 - i) * 15;  // hero 0: +15, hero 1: 0, hero 2: -15
-      const x = leftAnchor + i * spacing + xStagger;
-      const stagger = 30;
-      const baseY = groundY - 90;
-      const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
+      const { x, y: heroY } = heroPositions[i];
 
-      const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
-      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
-      body.setDepth(12);
+      const depthScale = 1 - (2 - i) * 0.06;  // hero 0: 1.0, hero 1: 0.94, hero 2: 0.88
+      const body = drawHeroSprite(this, x, heroY, hero, { scale: heroScale * depthScale });
+      body.setDepth(12 + (2 - i));  // front hero has highest depth
 
-      const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
+      // Turn indicator triangle — topmost, well above the name
+      const indicator = this.add.triangle(x, heroY - 110, 0, 0, 16, 0, 8, 14, COLORS.goldL)
+        .setVisible(false).setDepth(15);
+
+      // Name label ABOVE the hero sprite with clear gap
+      const name = this.add.text(x, heroY - 90, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '20px',
+        fontSize: '18px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
         strokeThickness: 3,
       }).setOrigin(0.5).setDepth(14);
 
-      const hpBarBg = this.add.rectangle(x, y + 80, 150, 14, COLORS.ink)
+      // HP bar BELOW the hero sprite with clear gap
+      const hpBarY = heroY + spriteH / 2 + 5;
+      const hpBarBg = this.add.rectangle(x, hpBarY, 130, 12, COLORS.ink)
         .setStrokeStyle(2, COLORS.paperD).setDepth(13);
-      const hpBarFill = this.add.rectangle(x - 73, y + 80, 146, 10, 0x40c040)
+      const hpBarFill = this.add.rectangle(x - 63, hpBarY, 126, 8, 0x40c040)
         .setOrigin(0, 0.5).setDepth(13);
-      const hpText = this.add.text(x, y + 96, `${hero.hp}/${hero.maxHp}`, {
+
+      // HP text BELOW the HP bar with clear gap
+      const hpTextY = heroY + spriteH / 2 + 22;
+      const hpText = this.add.text(x, hpTextY, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '14px',
+        fontSize: '13px',
         color: COLORS_CSS.paper,
       }).setOrigin(0.5).setDepth(14);
 
-      const indicator = this.add.triangle(x, y - 160, 0, 0, 20, 0, 10, 20, COLORS.goldL)
-        .setVisible(false).setDepth(15);
-
-      return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y };
+      return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y: heroY };
     });
 
     // Idle bob — gentle sine wave on each hero
@@ -624,7 +637,7 @@ export class BattleScene extends Phaser.Scene {
       const monsterScale = enemy.isBoss ? 1.02 : monsterScaleByCount;
       const x = centerX + positions[ei].dx;
       const monsterDisplayH = 640 * monsterScale;
-      const y = groundY - monsterDisplayH * 0.50 + positions[ei].dy;
+      const y = groundY - monsterDisplayH * 0.40 + positions[ei].dy;
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
@@ -682,7 +695,7 @@ export class BattleScene extends Phaser.Scene {
 
   setUIDepth(obj, depth) {
     if (!obj) return;
-    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track']) {
+    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track', 'barBg', 'barFill']) {
       if (obj[key] && obj[key].setDepth) obj[key].setDepth(depth);
     }
     if (obj.setDepth) obj.setDepth(depth);
@@ -694,9 +707,9 @@ export class BattleScene extends Phaser.Scene {
     // lives in a tight bottom strip.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    const ansH = 80;
-    const ansY = area.bottom - ansH / 2 - 6;
-    const eqY = ansY - ansH / 2 - 80;
+    const ansH = 74;
+    const ansY = area.bottom - ansH / 2 - 4;
+    const eqY = ansY - ansH / 2 - 55;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -906,9 +919,9 @@ export class BattleScene extends Phaser.Scene {
     // Toast (floats above the UI panel)
     this.toast = this.add.text(area.cx, area.top + 90, '', {
       ...TEXT.heading(),
-      fontSize: '26px',
-      backgroundColor: '#1a0e04',
-      padding: { x: 20, y: 10 },
+      fontSize: '28px',
+      stroke: '#1a0e04',
+      strokeThickness: 6,
     }).setOrigin(0.5).setAlpha(0).setDepth(50);
 
     // --- DEPTH FIX: Set all UI elements above parallax background (depths 0-8) ---
@@ -945,31 +958,44 @@ export class BattleScene extends Phaser.Scene {
     });
 
     // End overlay (hidden by default)
+    // Use safeArea-relative Y positions to prevent overlap
+    const endArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const endTop = -(GAME_HEIGHT / 2) + endArea.top;
+    const endBottom = (GAME_HEIGHT / 2) - (GAME_HEIGHT - endArea.bottom);
+
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
     const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, COLORS.ink, 0.92);
-    const endTitle = this.add.text(0, -160, '', {
+
+    // Layout: top-to-bottom with clear gaps (relative to container center)
+    const victoryTitleY = endTop + 80;
+    const victorySubY = victoryTitleY + 60;
+    const victoryRewardsY = victorySubY + 50;
+    const victoryBtnY = endBottom - 60;
+
+    const endTitle = this.add.text(0, victoryTitleY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '72px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
       strokeThickness: 6,
     }).setOrigin(0.5);
-    const endSub = this.add.text(0, -50, '', {
+    const endSub = this.add.text(0, victorySubY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '28px',
+      fontSize: '26px',
       color: COLORS_CSS.paper,
       align: 'center',
     }).setOrigin(0.5);
-    const endRewards = this.add.text(0, 30, '', {
+    const endRewards = this.add.text(0, victoryRewardsY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '22px',
+      fontSize: '20px',
       color: COLORS_CSS.goldL,
       align: 'center',
-    }).setOrigin(0.5);
-    const endBtnBg = this.add.rectangle(0, 140, 380, 80, COLORS.scarlet)
+      lineSpacing: 6,
+    }).setOrigin(0.5, 0);
+    const endBtnBg = this.add.rectangle(0, victoryBtnY, 380, 80, COLORS.scarlet)
       .setStrokeStyle(4, COLORS.ink)
       .setInteractive({ useHandCursor: true });
-    const endBtnLabel = this.add.text(0, 140, 'CONTINUE', {
+    const endBtnLabel = this.add.text(0, victoryBtnY, 'CONTINUE', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '24px',
       color: COLORS_CSS.paper,
@@ -992,6 +1018,8 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay.titleText = endTitle;
     this.endOverlay.subText = endSub;
     this.endOverlay.rewardsText = endRewards;
+    this.endOverlay._rewardsY = victoryRewardsY;
+    this.endOverlay._btnY = victoryBtnY;
   }
 
   // ================================================================
@@ -2591,29 +2619,63 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * Arcing damage number: pops up with a slight horizontal drift,
-   * scales up then fades. More satisfying than a straight float.
+   * Arcing damage number: pops up with a scale-pop animation,
+   * white flash behind, then floats upward and fades. Big and dramatic.
    *
-   * @param {string} prefix  '+' for hero damage (gold), '-' for enemy damage (red)
+   * @param {string} prefix  '+' for hero damage (green), '-' for enemy damage (red)
+   * @param {boolean} isSuper  true for super/team attacks — uses larger size and gold color
    */
-  floatDamageNumber(x, y, amount, color, prefix = '-') {
+  floatDamageNumber(x, y, amount, color, prefix = '-', isSuper = false) {
+    // Determine if this is hero damage (orange-yellow) or enemy damage (red)
+    const isHeroDamage = prefix === '+';
+    const fontSize = isSuper ? '64px' : '48px';
+    const displayColor = isSuper ? '#ffd040' : (isHeroDamage ? '#f0a030' : '#e04040');
+
+    // White flash circle behind the number
+    const flash = this.add.circle(x, y, isSuper ? 30 : 20, 0xffffff, 0.9).setDepth(49);
+    this.tweens.add({
+      targets: flash,
+      scale: isSuper ? 4 : 3,
+      alpha: 0,
+      duration: 300,
+      ease: 'Cubic.out',
+      onComplete: () => flash.destroy(),
+    });
+
     const t = this.add.text(x, y, `${prefix}${amount}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '28px',
+      fontSize,
       fontStyle: 'bold',
-      color,
-      stroke: '#000000',
-      strokeThickness: 4,
-    }).setOrigin(0.5).setScale(0.5);
+      color: displayColor,
+      stroke: '#1a0800',
+      strokeThickness: 5,
+    }).setOrigin(0.5).setScale(0.3).setDepth(50);
 
+    // Scale pop: 0.3 → 1.5 over 150ms (Back.out ease), settle to 1.0 over 100ms
     this.tweens.add({
       targets: t,
-      y: y - 60,
-      alpha: 0,
-      scale: 1.2,
-      duration: 800,
-      ease: 'Cubic.out',
-      onComplete: () => t.destroy(),
+      scale: 1.5,
+      duration: 150,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: t,
+          scale: 1.0,
+          duration: 100,
+          ease: 'Sine.out',
+          onComplete: () => {
+            // Float upward and fade over 1.8 seconds total linger time
+            this.tweens.add({
+              targets: t,
+              y: y - 60,
+              alpha: 0,
+              duration: 1800,
+              ease: 'Cubic.out',
+              onComplete: () => t.destroy(),
+            });
+          },
+        });
+      },
     });
   }
 
@@ -2728,13 +2790,13 @@ export class BattleScene extends Phaser.Scene {
 
     const text = this.add.text(hs.x, hs.y - 140, cry, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
+      fontSize: '22px',
       fontStyle: 'italic',
-      color: colorHex,
-      stroke: '#000000',
-      strokeThickness: 3,
+      color: '#fff8e0',
+      stroke: '#1a0e04',
+      strokeThickness: 4,
       align: 'center',
-      wordWrap: { width: 200 },
+      wordWrap: { width: 220 },
     }).setOrigin(0.5).setAlpha(0).setDepth(50);
 
     this.tweens.add({
@@ -2748,8 +2810,8 @@ export class BattleScene extends Phaser.Scene {
           targets: text,
           alpha: 0,
           y: hs.y - 170,
-          duration: 700,
-          delay: 1000,
+          duration: 300,
+          delay: 2200,
           ease: 'Cubic.in',
           onComplete: () => text.destroy(),
         });
@@ -3187,11 +3249,18 @@ export class BattleScene extends Phaser.Scene {
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
 
-      // XP filling bar animation below rewards text
+      // Calculate dynamic Y positions based on actual rewards text height
+      // rewardsText origin is (0.5, 0) so it extends downward from _rewardsY
+      const rY = this.endOverlay._rewardsY || 0;
+      const btnYPos = this.endOverlay._btnY || 200;
+      const rewardsTextHeight = this.endOverlay.rewardsText.height || 80;
+      const xpBarY = rY + rewardsTextHeight + 30;
+
+      // XP filling bar animation — positioned below rewards text
       const barW = 280, barH = 16;
-      const barBg = this.add.rectangle(0, 90, barW, barH, 0x3a2410, 0.7).setOrigin(0.5);
-      const barFill = this.add.rectangle(-barW / 2, 90, 0, barH - 4, 0xf0c040).setOrigin(0, 0.5);
-      const xpLabel = this.add.text(0, 110, `+${xpEarned} XP`, {
+      const barBg = this.add.rectangle(0, xpBarY, barW, barH, 0x3a2410, 0.7).setOrigin(0.5);
+      const barFill = this.add.rectangle(-barW / 2, xpBarY, 0, barH - 4, 0xf0c040).setOrigin(0, 0.5);
+      const xpLabel = this.add.text(0, xpBarY + 18, `+${xpEarned} XP`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '16px',
         color: COLORS_CSS.goldL,
@@ -3206,10 +3275,15 @@ export class BattleScene extends Phaser.Scene {
         delay: 200,
       });
 
-      // Show newly unlocked achievements with gold badge icons
+      // Show newly unlocked achievements — position between XP bar and button
       if (newAchievements.length > 0) {
-        newAchievements.forEach((ach, i) => {
-          const ay = 200 + i * 36;
+        const achStartY = xpBarY + 50;
+        const achSpacing = 32;
+        // Limit achievements so they don't overlap the button
+        const maxAch = Math.min(newAchievements.length, Math.floor((btnYPos - achStartY - 20) / achSpacing));
+        for (let i = 0; i < maxAch; i++) {
+          const ach = newAchievements[i];
+          const ay = achStartY + i * achSpacing;
           const badge = this.add.circle(-120, ay, 10, 0xf0c040);
           const star = this.add.text(-120, ay, '*', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -3231,7 +3305,7 @@ export class BattleScene extends Phaser.Scene {
               this.showToast(`Achievement: ${ach.name}!`, COLORS_CSS.goldL);
             }
           });
-        });
+        }
       }
     });
   }
@@ -3364,7 +3438,7 @@ export class BattleScene extends Phaser.Scene {
     const targetIdx = this.currentTarget;
     const targetEnemy = this.enemies[targetIdx] || this.enemy;
     const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
-    const baseDmg = 5 + ((hero.atk || 10) * 0.5);
+    const baseDmg = 8 + ((hero.atk || 10) * 0.8);
     const dmg = Math.round(baseDmg * mult);
 
     const heroSprite = this.heroSprites[heroIdx];
@@ -3373,20 +3447,61 @@ export class BattleScene extends Phaser.Scene {
 
     audio.play('battle/correct');
     this.showToast(`${move ? move.name : 'SUPER'}! ${dmg} DMG!`, '#f0c040');
-    // --- Battle cry: super move ---
     this.showBattleCry(hero, 'superMove');
+
+    const cls = hero.class || 'knight';
+    const tx = targetSprite.body?.x || 900;
+    const ty = targetSprite.body?.y || 400;
+
+    if (cls === 'wizard' && heroSprite?.body) {
+      heroSprite.body.setTint(0xc080ff);
+      const sx = heroSprite.body.x;
+      const sy = heroSprite.body.y;
+      const superColors = [0xc080ff, 0x80c0ff, 0xf0d060, 0xff80c0];
+      for (let i = 0; i < 3; i++) {
+        this.time.delayedCall(i * 150, () => {
+          const orb = this.add.circle(sx, sy, 18 - i * 3, superColors[i % superColors.length], 0.9).setDepth(45);
+          this.tweens.add({
+            targets: orb, x: tx, y: ty, scale: 2.5 - i * 0.3, alpha: 0, duration: 400,
+            ease: 'Quad.in',
+            onComplete: () => { orb.destroy(); },
+          });
+        });
+      }
+      this.time.delayedCall(500, () => {
+        heroSprite.body.clearTint();
+        for (let i = 0; i < 20; i++) {
+          const angle = (i / 20) * Math.PI * 2;
+          const p = this.add.circle(tx, ty, 4, superColors[i % superColors.length], 0.8).setDepth(45);
+          this.tweens.add({
+            targets: p,
+            x: tx + Math.cos(angle) * 120,
+            y: ty + Math.sin(angle) * 120,
+            alpha: 0, scale: 0.3, duration: 400,
+            onComplete: () => p.destroy(),
+          });
+        }
+        this.cameras.main.shake(300, 0.02);
+        this.floatDamageNumber(tx, ty - 60, dmg, '#ffd040', '+', true);
+        targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+        this.updateEnemyHp(targetIdx);
+        this.time.delayedCall(300, () => this.afterSuperDamage(targetIdx, targetSprite));
+      });
+      return;
+    }
 
     if (heroSprite?.body) {
       heroSprite.body.setTint(0xffff80);
       this.tweens.add({
         targets: heroSprite.body, x: lungeX, duration: 200, ease: 'Power2',
         onComplete: () => {
-          this.burstParticles(targetSprite.body?.x || lungeX + 80, targetSprite.body?.y || heroSprite.body.y, 0xf0c040);
+          this.burstParticles(tx, ty, 0xf0c040);
           this.cameras.main.shake(200, 0.015);
           heroSprite.body.clearTint();
 
           targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
           this.updateEnemyHp(targetIdx);
+          this.floatDamageNumber(tx, ty - 60, dmg, '#ffd040', '+', true);
 
           this.tweens.add({
             targets: heroSprite.body, x: origX, duration: 200, ease: 'Power2',
@@ -3398,6 +3513,7 @@ export class BattleScene extends Phaser.Scene {
       this.cameras.main.shake(150, 0.01);
       targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
       this.updateEnemyHp(targetIdx);
+      this.floatDamageNumber(tx, ty - 60, dmg, '#ffd040', '+', true);
       this.afterSuperDamage(targetIdx, targetSprite);
     }
   }
@@ -3469,9 +3585,10 @@ export class BattleScene extends Phaser.Scene {
     let totalDmg = 0;
     for (const hero of this.party) {
       if (!hero || hero.hp <= 0) continue;
-      const baseDmg = 5 + ((hero.atk || 10) * 0.5);
-      totalDmg += Math.round(baseDmg * 3);
+      const baseDmg = 8 + ((hero.atk || 10) * 0.8);
+      totalDmg += baseDmg;
     }
+    totalDmg = Math.round(totalDmg * 3);
 
     this.showToast(`TEAM ATTACK! ${totalDmg} DMG!`, '#e04040');
     audio.play('battle/correct');
@@ -3501,9 +3618,84 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.time.delayedCall(delay + 300, () => {
-      this.cameras.main.shake(300, 0.02);
+      this.cameras.main.shake(400, 0.03);
       targetEnemy.hp = Math.max(0, targetEnemy.hp - totalDmg);
       this.updateEnemyHp(targetIdx);
+
+      // One big combined damage number at 72px gold with impact effect
+      const impactX = targetSprite.body?.x || targetSprite.x;
+      const impactY = targetSprite.body?.y || targetSprite.y;
+
+      // Impact flash ring
+      const ring = this.add.circle(impactX, impactY, 20, 0xffd040, 0.9).setDepth(49);
+      this.tweens.add({
+        targets: ring,
+        scale: 5,
+        alpha: 0,
+        duration: 400,
+        ease: 'Cubic.out',
+        onComplete: () => ring.destroy(),
+      });
+
+      // "BOOM" text
+      const boomText = this.add.text(impactX, impactY + 40, 'BOOM!', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '36px',
+        fontStyle: 'bold',
+        color: '#ff4020',
+        stroke: '#1a0800',
+        strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(51).setScale(0.5);
+      this.tweens.add({
+        targets: boomText,
+        scale: 1.3,
+        alpha: 0,
+        y: impactY + 10,
+        duration: 600,
+        ease: 'Cubic.out',
+        onComplete: () => boomText.destroy(),
+      });
+
+      // Extra burst particles for team attack
+      this.burstParticles(impactX, impactY, 0xffd040);
+      this.burstParticles(impactX, impactY, 0xe04040);
+
+      // Big 72px gold damage number
+      const dmgText = this.add.text(impactX, impactY - 80, `+${totalDmg}`, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '72px',
+        fontStyle: 'bold',
+        color: '#ffd040',
+        stroke: '#1a0800',
+        strokeThickness: 5,
+      }).setOrigin(0.5).setScale(0.3).setDepth(50);
+
+      // Pop animation: 0.3 → 1.5 over 150ms, settle to 1.0 over 100ms
+      this.tweens.add({
+        targets: dmgText,
+        scale: 1.5,
+        duration: 150,
+        ease: 'Back.out',
+        onComplete: () => {
+          this.tweens.add({
+            targets: dmgText,
+            scale: 1.0,
+            duration: 100,
+            ease: 'Sine.out',
+            onComplete: () => {
+              this.tweens.add({
+                targets: dmgText,
+                y: impactY - 140,
+                alpha: 0,
+                duration: 1800,
+                ease: 'Cubic.out',
+                onComplete: () => dmgText.destroy(),
+              });
+            },
+          });
+        },
+      });
+
       this.afterSuperDamage(targetIdx, targetSprite);
     });
   }
