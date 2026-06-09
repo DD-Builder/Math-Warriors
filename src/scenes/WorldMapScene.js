@@ -172,10 +172,12 @@ export class WorldMapScene extends Phaser.Scene {
       color: '#fff8e0',
     }).setOrigin(0.5).setDepth(11);
 
+    // Always draw a diorama — locked nodes get a dimmed version with a padlock on top
     if (locked) {
+      this.drawMiniDiorama(x, y, radius - 8, info.id, 0.4);
       this.drawPaperPadlock(x, y, 30);
     } else {
-      this.drawMiniDiorama(x, y, radius - 12, info.id);
+      this.drawMiniDiorama(x, y, radius - 8, info.id, 1.0);
     }
 
     // --- Star rating for completed nodes (Item 48) ---
@@ -277,8 +279,9 @@ export class WorldMapScene extends Phaser.Scene {
     }
   }
 
-  drawMiniDiorama(cx, cy, r, floorId) {
+  drawMiniDiorama(cx, cy, r, floorId, alphaScale = 1.0) {
     const gfx = this.add.graphics().setDepth(11);
+    if (alphaScale < 1) gfx.setAlpha(alphaScale);
     const palettes = {
       1: { sky: 0x68b8e8, skyTop: 0x4090d0, ground: 0x48a040, accent: 0xf06888, detail: 0x388828, sun: 0xf0e040 },
       2: { sky: 0x2878c0, skyTop: 0x184898, ground: 0x2070a0, accent: 0xf0a848, detail: 0x186898, sun: 0xf0c848 },
@@ -479,16 +482,22 @@ export class WorldMapScene extends Phaser.Scene {
     const pos = this.nodePositions[this.mapHeroNodeIndex];
     if (!pos) return;
 
+    // Position hero slightly below and to the left of the node, as if approaching it
+    const heroOffX = -20;
+    const heroOffY = 100 + 20;  // radius + offset below the orb
+    const heroX = pos.x + heroOffX;
+    const heroY = pos.y + heroOffY;
+
     // Use the lead hero from the party if available
     const leadHero = this.save.party && this.save.party[0]
       ? getHeroById(this.save.party[0].id)
       : null;
 
     if (leadHero) {
-      this.mapHero = drawHeroSprite(this, pos.x, pos.y - 40, leadHero, { scale: 0.3 });
+      this.mapHero = drawHeroSprite(this, heroX, heroY, leadHero, { scale: 0.4 });
     } else {
       // Fallback: small colored circle
-      this.mapHero = this.add.circle(pos.x, pos.y - 40, 12, 0xf0c040);
+      this.mapHero = this.add.circle(heroX, heroY, 12, 0xf0c040);
     }
     this.mapHero.setDepth(15);
 
@@ -554,8 +563,9 @@ export class WorldMapScene extends Phaser.Scene {
       return;
     }
 
-    // Offset y by -40 for the hero sprite position (above the node center)
-    const heroOffset = -40;
+    // Offset hero position: slightly left and below the node orb
+    const heroOffX = -20;
+    const heroOffY = 100 + 20;  // radius + below offset
     const totalDuration = 1000; // ~1 second for the full walk
     const segDuration = totalDuration / (allPoints.length - 1);
 

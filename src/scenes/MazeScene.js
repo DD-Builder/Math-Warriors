@@ -862,15 +862,16 @@ export class MazeScene extends Phaser.Scene {
   }
 
   showSlotPicker(newHero, overlayObjects) {
+    const SLOT_DEPTH = 210;
     const slotObjs = [];
     const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
-      .setScrollFactor(0).setInteractive();
+      .setScrollFactor(0).setInteractive().setDepth(SLOT_DEPTH);
     slotObjs.push(bg);
 
     const title = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 160, `Replace which hero with ${newHero.name}?`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '28px', color: '#f0d040', stroke: '#1a0e04', strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(SLOT_DEPTH + 1);
     slotObjs.push(title);
 
     for (let i = 0; i < this.party.length; i++) {
@@ -879,7 +880,7 @@ export class MazeScene extends Phaser.Scene {
       const sx = GAME_WIDTH / 2 - 200 + i * 200;
       const sy = GAME_HEIGHT / 2;
 
-      const cardBg = this.add.graphics().setScrollFactor(0);
+      const cardBg = this.add.graphics().setScrollFactor(0).setDepth(SLOT_DEPTH + 1);
       cardBg.fillStyle(0x2a1808, 0.9);
       cardBg.fillRoundedRect(sx - 80, sy - 80, 160, 180, 12);
       slotObjs.push(cardBg);
@@ -887,17 +888,17 @@ export class MazeScene extends Phaser.Scene {
       const heroDef = spawnHero(h.id);
       if (heroDef) {
         const spr = drawHeroSprite(this, sx, sy - 20, heroDef, { scale: 0.5 });
-        spr.setScrollFactor(0);
+        spr.setScrollFactor(0).setDepth(SLOT_DEPTH + 2);
         slotObjs.push(spr);
       }
       const nt = this.add.text(sx, sy + 50, h.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
         fontSize: '16px', color: '#f0e4cc', stroke: '#1a0e04', strokeThickness: 2,
-      }).setOrigin(0.5).setScrollFactor(0);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(SLOT_DEPTH + 2);
       slotObjs.push(nt);
 
       const zone = this.add.rectangle(sx, sy, 160, 180, 0xffffff, 0)
-        .setScrollFactor(0).setInteractive({ useHandCursor: true });
+        .setScrollFactor(0).setInteractive({ useHandCursor: true }).setDepth(SLOT_DEPTH + 3);
       zone.on('pointerdown', () => {
         audio.play('ui/confirm');
         slotObjs.forEach(o => o.destroy());
@@ -915,10 +916,10 @@ export class MazeScene extends Phaser.Scene {
         cancelBtn.label.destroy(); if (cancelBtn.zone) cancelBtn.zone.destroy();
       },
     });
-    cancelBtn.bg.setScrollFactor(0);
-    cancelBtn.shadow.setScrollFactor(0);
-    cancelBtn.label.setScrollFactor(0);
-    if (cancelBtn.zone) cancelBtn.zone.setScrollFactor(0);
+    cancelBtn.bg.setScrollFactor(0).setDepth(SLOT_DEPTH + 2);
+    cancelBtn.shadow.setScrollFactor(0).setDepth(SLOT_DEPTH + 1);
+    cancelBtn.label.setScrollFactor(0).setDepth(SLOT_DEPTH + 3);
+    if (cancelBtn.zone) cancelBtn.zone.setScrollFactor(0).setDepth(SLOT_DEPTH + 3);
   }
 
   performSwap(newHero, slotIdx, overlayObjects) {
