@@ -15,7 +15,9 @@ import {
   advanceTurn,
   isPartyDefeated,
   pickRandomLivingHero,
+  computeCommandDamage,
 } from './combat.js';
+import { computeEnemyHp, getEnemyById } from '../data/enemies.js';
 
 // ------------------------------------------------------------------
 // ZONES
@@ -302,5 +304,79 @@ describe('pickRandomLivingHero', () => {
     assert.equal(pickRandomLivingHero(party, () => 0).id, 'a');
     // Deterministic RNG that returns 0.99 → last element
     assert.equal(pickRandomLivingHero(party, () => 0.99).id, 'b');
+  });
+});
+
+// ------------------------------------------------------------------
+// DAMAGE MATRIX — design-band regression for hits-to-kill
+// ------------------------------------------------------------------
+// Pairs computeEnemyHp (HP budget per grade) with computeCommandDamage
+// (per-correct-answer damage) and asserts the resulting battle length
+// stays inside the design bands for a typical hero:
+//   ATK = 16 + grade (the same pacing assumption computeEnemyHp uses),
+//   ZONE momentum (0.5), streak 0, difficulty 1.0, FIGHT command 1.0.
+//
+//   minions: 2-8 correct answers to defeat
+//   bosses:  8-22 correct answers to defeat
+
+describe('damage matrix: hits-to-kill stays in design bands', () => {
+  const GRADES = [0, 1, 2, 3, 4, 5];
+  const TYPICAL_CTX = { momentum: 0.5, streak: 0, difficultyMult: 1.0, commandMult: 1.0 };
+
+  // Representative enemies: early mob, mid-game tanky mob, final boss.
+  const CASES = [
+    { id: 'sproutling', isBoss: false, label: 'floor 1 Sproutling (minion)' },
+    { id: 'glacial',    isBoss: false, label: 'floor 5 Glacial Golem (minion)' },
+    { id: 'theorem',    isBoss: true,  label: 'floor 9 The Theorem (boss)' },
+  ];
+
+  function hitsToKill(atk, enemyDef, grade, isBoss) {
+    const hp = computeEnemyHp(enemyDef, grade, isBoss);
+    const target = { hp, maxHp: hp, def: enemyDef.def };
+    const perHit = computeCommandDamage({ hp: 50, maxHp: 50, atk }, target, TYPICAL_CTX).modifiedDamage;
+    return Math.ceil(hp / perHit);
+  }
+
+  for (const { id, isBoss, label } of CASES) {
+    const enemyDef = getEnemyById(id);
+    const [lo, hi] = isBoss ? [8, 22] : [2, 8];
+
+    test(`${label}: ${lo}-${hi} hits across grades 0-5 at typical ATK`, () => {
+      assert.ok(enemyDef, `enemy ${id} should exist in the roster`);
+      for (const grade of GRADES) {
+        const hits = hitsToKill(16 + grade, enemyDef, grade, isBoss);
+        assert.ok(
+          hits >= lo && hits <= hi,
+          `grade ${grade}: ${id} took ${hits} hits, expected ${lo}-${hi}`
+        );
+      }
+    });
+  }
+
+  test('monotonicity: more ATK never means more hits-to-kill', () => {
+    for (const { id, isBoss } of CASES) {
+      const enemyDef = getEnemyById(id);
+      for (const grade of GRADES) {
+        let prevHits = Infinity;
+        for (let atk = 10; atk <= 40; atk++) {
+          const hits = hitsToKill(atk, enemyDef, grade, isBoss);
+          assert.ok(
+            hits <= prevHits,
+            `${id} grade ${grade}: hits rose from ${prevHits} to ${hits} when ATK rose to ${atk}`
+          );
+          prevHits = hits;
+        }
+      }
+    }
+  });
+
+  test('per-hit damage itself is monotone nondecreasing in ATK', () => {
+    const target = { hp: 100, maxHp: 100, def: 12 };
+    let prev = 0;
+    for (let atk = 1; atk <= 50; atk++) {
+      const dmg = computeCommandDamage({ hp: 50, maxHp: 50, atk }, target, TYPICAL_CTX).modifiedDamage;
+      assert.ok(dmg >= prev, `damage dropped from ${prev} to ${dmg} at ATK ${atk}`);
+      prev = dmg;
+    }
   });
 });

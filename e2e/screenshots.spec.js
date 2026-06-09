@@ -77,10 +77,13 @@ test('capture all scene screenshots', async ({ page }) => {
   // Maze after exploring a bit
   await page.evaluate(() => {
     const s = window.__MW.game.scene.getScene('MazeScene');
-    // Reveal more of the maze
-    for (let y = 1; y < 14; y++) {
-      for (let x = 1; x < 14; x++) {
-        s.revealFog(x, y, 0);
+    // Reveal more of the maze (older builds exposed revealFog; newer
+    // builds handle fog internally — skip gracefully if absent).
+    if (s && typeof s.revealFog === 'function') {
+      for (let y = 1; y < 14; y++) {
+        for (let x = 1; x < 14; x++) {
+          s.revealFog(x, y, 0);
+        }
       }
     }
   });
