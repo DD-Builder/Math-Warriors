@@ -543,15 +543,15 @@ export class BattleScene extends Phaser.Scene {
     const leftAnchor = GAME_WIDTH * 0.12 + spacing / 2;
 
     this.heroSprites = this.party.map((hero, i) => {
-      const xStagger = (1 - i) * 15;  // hero 0: +15, hero 1: 0, hero 2: -15
+      const xStagger = (1 - i) * 20;  // hero 0: +20 (front), hero 1: 0, hero 2: -20 (back)
       const x = leftAnchor + i * spacing + xStagger;
-      const stagger = 30;
-      const baseY = groundY - 90;
-      const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
+      const stagger = 45;  // increased Y stagger between heroes for depth perspective
+      const baseY = groundY - 40;  // moved down so heroes stand near the ground
+      const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest/front), hero 2 highest (farthest/back)
 
-      const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
+      const depthScale = 1 - (2 - i) * 0.06;  // hero 0: 1.0, hero 1: 0.94, hero 2: 0.88 — more size perspective
       const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
-      body.setDepth(12);
+      body.setDepth(12 + (2 - i));  // front hero has highest depth
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -624,7 +624,7 @@ export class BattleScene extends Phaser.Scene {
       const monsterScale = enemy.isBoss ? 1.02 : monsterScaleByCount;
       const x = centerX + positions[ei].dx;
       const monsterDisplayH = 640 * monsterScale;
-      const y = groundY - monsterDisplayH * 0.50 + positions[ei].dy;
+      const y = groundY - monsterDisplayH * 0.40 + positions[ei].dy;
       const w = 200, h = 220;
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
@@ -694,9 +694,9 @@ export class BattleScene extends Phaser.Scene {
     // lives in a tight bottom strip.
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
-    const ansH = 80;
-    const ansY = area.bottom - ansH / 2 - 6;
-    const eqY = ansY - ansH / 2 - 80;
+    const ansH = 74;
+    const ansY = area.bottom - ansH / 2 - 4;
+    const eqY = ansY - ansH / 2 - 55;
 
     // === TOP: floor name + momentum bar (slim) ===
     const topY = area.top + 22;
@@ -907,9 +907,9 @@ export class BattleScene extends Phaser.Scene {
     // Toast (floats above the UI panel)
     this.toast = this.add.text(area.cx, area.top + 90, '', {
       ...TEXT.heading(),
-      fontSize: '26px',
-      backgroundColor: '#1a0e04',
-      padding: { x: 20, y: 10 },
+      fontSize: '28px',
+      stroke: '#1a0e04',
+      strokeThickness: 6,
     }).setOrigin(0.5).setAlpha(0).setDepth(50);
 
     // --- DEPTH FIX: Set all UI elements above parallax background (depths 0-8) ---
@@ -2601,11 +2601,11 @@ export class BattleScene extends Phaser.Scene {
    * @param {string} prefix  '+' for hero damage (green), '-' for enemy damage (red)
    */
   floatDamageNumber(x, y, amount, color, prefix = '-') {
-    // Determine if this is hero damage (green) or enemy damage (red)
+    // Determine if this is hero damage (orange-yellow) or enemy damage (red)
     const isHeroDamage = prefix === '+';
     const isCritical = this.momentum > 0.66;
     const fontSize = isCritical ? '56px' : '42px';
-    const displayColor = isHeroDamage ? '#40e040' : '#e04040';
+    const displayColor = isHeroDamage ? '#f0a030' : '#e04040';
 
     // White flash circle behind the number
     const flash = this.add.circle(x, y, 20, 0xffffff, 0.9).setDepth(49);
@@ -2623,7 +2623,7 @@ export class BattleScene extends Phaser.Scene {
       fontSize,
       fontStyle: 'bold',
       color: displayColor,
-      stroke: '#000000',
+      stroke: '#1a0800',
       strokeThickness: 4,
     }).setOrigin(0.5).setScale(0.5).setDepth(50);
 
@@ -2762,13 +2762,13 @@ export class BattleScene extends Phaser.Scene {
 
     const text = this.add.text(hs.x, hs.y - 140, cry, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '18px',
+      fontSize: '22px',
       fontStyle: 'italic',
-      color: colorHex,
-      stroke: '#000000',
-      strokeThickness: 3,
+      color: '#fff8e0',
+      stroke: '#1a0e04',
+      strokeThickness: 4,
       align: 'center',
-      wordWrap: { width: 200 },
+      wordWrap: { width: 220 },
     }).setOrigin(0.5).setAlpha(0).setDepth(50);
 
     this.tweens.add({

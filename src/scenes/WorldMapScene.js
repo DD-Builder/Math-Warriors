@@ -119,9 +119,9 @@ export class WorldMapScene extends Phaser.Scene {
 
   buildFloorNodes() {
     const nodeLayout = [
-      { rx: 0.22, ry: 0.70 },
-      { rx: 0.50, ry: 0.42 },
-      { rx: 0.78, ry: 0.62 },
+      { rx: 0.20, ry: 0.72 },
+      { rx: 0.50, ry: 0.36 },
+      { rx: 0.80, ry: 0.64 },
     ];
 
     this.nodePositions = [];
@@ -152,44 +152,44 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   createFloorNode(x, y, info, locked, complete, saved, isActive) {
-    const radius = 56;
+    const radius = 100;
 
-    this.add.circle(x + 4, y + 6, radius, 0x000000, 0.3).setDepth(10);
+    this.add.circle(x + 5, y + 8, radius, 0x000000, 0.3).setDepth(10);
 
     const nodeColor = locked ? 0x8a8070 : info.color;
     const ring = this.add.circle(x, y, radius, nodeColor).setDepth(10);
-    ring.setStrokeStyle(4, locked ? 0x5a5040 : 0xfff8e0);
+    ring.setStrokeStyle(5, locked ? 0x5a5040 : 0xfff8e0);
 
-    const inner = this.add.circle(x, y, radius - 6, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1).setDepth(10);
+    const inner = this.add.circle(x, y, radius - 8, locked ? 0x5a5040 : 0xffffff, locked ? 0.8 : 1).setDepth(10);
 
-    const numX = x - radius * 0.7;
-    const numY = y - radius * 0.7;
-    this.add.circle(numX, numY, 16, locked ? 0x5a5040 : 0xd07818)
-      .setStrokeStyle(2, 0xfff8e0).setDepth(11);
+    const numX = x - radius * 0.65;
+    const numY = y - radius * 0.65;
+    this.add.circle(numX, numY, 22, locked ? 0x5a5040 : 0xd07818)
+      .setStrokeStyle(3, 0xfff8e0).setDepth(11);
     this.add.text(numX, numY, `${info.id}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
+      fontSize: '22px',
       color: '#fff8e0',
     }).setOrigin(0.5).setDepth(11);
 
     if (locked) {
-      this.drawPaperPadlock(x, y, 24);
+      this.drawPaperPadlock(x, y, 30);
     } else {
-      this.drawMiniDiorama(x, y, radius - 10, info.id);
+      this.drawMiniDiorama(x, y, radius - 12, info.id);
     }
 
     // --- Star rating for completed nodes (Item 48) ---
     if (complete) {
       const acc = saved.bestAccuracy || 0;
       const earnedStars = acc >= 95 ? 3 : acc >= 80 ? 2 : 1;
-      const starY = y - radius * 0.65;
-      const starSpacing = 18;
-      const starStartX = x + radius * 0.65 - starSpacing;
+      const starY = y - radius * 0.60;
+      const starSpacing = 24;
+      const starStartX = x + radius * 0.60 - starSpacing;
       for (let s = 0; s < 3; s++) {
         const sx = starStartX + s * starSpacing;
         const isEarned = s < earnedStars;
         this.add.text(sx, starY, '⭐', {
-          fontSize: '14px',
+          fontSize: '18px',
           alpha: isEarned ? 1 : 0.3,
         }).setOrigin(0.5).setDepth(12).setAlpha(isEarned ? 1 : 0.3);
       }
@@ -226,7 +226,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     // --- Beacon glow for active/current node (Item 22) ---
     if (isActive && !locked) {
-      const beacon = this.add.circle(x, y, radius + 10, 0xf0d060, 0.1).setDepth(9);
+      const beacon = this.add.circle(x, y, radius + 14, 0xf0d060, 0.1).setDepth(9);
       this.tweens.add({
         targets: beacon,
         alpha: 0.3,
@@ -237,22 +237,22 @@ export class WorldMapScene extends Phaser.Scene {
       });
     }
 
-    const labelY = y + radius + 24;
-    const labelW = 200;
-    const labelH = 50;
+    const labelY = y + radius + 28;
+    const labelW = 260;
+    const labelH = 56;
     PaperPanel(this, x, labelY, labelW, labelH, {
       color: locked ? 0xc8b898 : 0xffffff,
       alpha: 0.95,
-      radius: 12,
+      radius: 14,
     });
     this.add.text(x, labelY - 10, info.name, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '14px',
+      fontSize: '16px',
       color: locked ? '#3a2010' : '#d07818',
     }).setOrigin(0.5);
-    this.add.text(x, labelY + 10, info.tagline, {
+    this.add.text(x, labelY + 12, info.tagline, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: locked ? '#8a7a60' : '#5a3820',
     }).setOrigin(0.5);
 
@@ -280,46 +280,111 @@ export class WorldMapScene extends Phaser.Scene {
   drawMiniDiorama(cx, cy, r, floorId) {
     const gfx = this.add.graphics().setDepth(11);
     const palettes = {
-      1: { sky: 0x68b8e8, ground: 0x48a040, accent: 0xf06888, detail: 0x388828 },
-      2: { sky: 0x2878c0, ground: 0x2070a0, accent: 0xf0a848, detail: 0x186898 },
-      3: { sky: 0x88c8f8, ground: 0xb8e0f0, accent: 0xffd040, detail: 0xa0d0f0 },
-      4: { sky: 0x4a1818, ground: 0x6a2810, accent: 0xf0a020, detail: 0x882818 },
-      5: { sky: 0x88c8f0, ground: 0x90c8e0, accent: 0xd0f0ff, detail: 0x5898b8 },
-      6: { sky: 0x281850, ground: 0x4838a0, accent: 0xd0a0ff, detail: 0x5840b0 },
-      7: { sky: 0xd8a858, ground: 0x8a6828, accent: 0xf0c040, detail: 0xa07830 },
-      8: { sky: 0x3a2010, ground: 0x4a3018, accent: 0xc8a050, detail: 0x5a4020 },
-      9: { sky: 0x382060, ground: 0x4030a0, accent: 0xf0c0ff, detail: 0x5840c0 },
+      1: { sky: 0x68b8e8, skyTop: 0x4090d0, ground: 0x48a040, accent: 0xf06888, detail: 0x388828, sun: 0xf0e040 },
+      2: { sky: 0x2878c0, skyTop: 0x184898, ground: 0x2070a0, accent: 0xf0a848, detail: 0x186898, sun: 0xf0c848 },
+      3: { sky: 0x88c8f8, skyTop: 0x5898d8, ground: 0xb8e0f0, accent: 0xffd040, detail: 0xa0d0f0, sun: 0xfff0a0 },
+      4: { sky: 0x4a1818, skyTop: 0x2a0808, ground: 0x6a2810, accent: 0xf0a020, detail: 0x882818, sun: 0xf06020 },
+      5: { sky: 0x88c8f0, skyTop: 0x5898c0, ground: 0x90c8e0, accent: 0xd0f0ff, detail: 0x5898b8, sun: 0xe0f0ff },
+      6: { sky: 0x281850, skyTop: 0x100830, ground: 0x4838a0, accent: 0xd0a0ff, detail: 0x5840b0, sun: 0xc0c0f0 },
+      7: { sky: 0xd8a858, skyTop: 0xb08838, ground: 0x8a6828, accent: 0xf0c040, detail: 0xa07830, sun: 0xf0d860 },
+      8: { sky: 0x3a2010, skyTop: 0x1a1008, ground: 0x4a3018, accent: 0xc8a050, detail: 0x5a4020, sun: 0xc8a050 },
+      9: { sky: 0x382060, skyTop: 0x180840, ground: 0x4030a0, accent: 0xf0c0ff, detail: 0x5840c0, sun: 0xe0a0f0 },
     };
     const p = palettes[floorId] || palettes[1];
 
-    gfx.fillStyle(p.sky, 1);
+    // Sky gradient — fill the full circle with a richer sky
+    gfx.fillStyle(p.skyTop, 1);
     gfx.fillCircle(cx, cy, r);
-
-    gfx.fillStyle(p.ground, 1);
+    // Lower sky — lighter band
+    gfx.fillStyle(p.sky, 0.85);
     gfx.beginPath();
-    gfx.arc(cx, cy, r, 0.2 * Math.PI, 0.8 * Math.PI, false);
+    gfx.arc(cx, cy, r, -0.15 * Math.PI, 1.15 * Math.PI, false);
     gfx.lineTo(cx, cy + r);
     gfx.closePath();
     gfx.fillPath();
 
-    for (let i = 0; i < 3; i++) {
-      const dx = (i - 1) * r * 0.45;
-      const baseY = cy + r * 0.15;
-      const peakH = r * (0.35 + (i % 2) * 0.15);
-      gfx.fillStyle(p.detail, 0.85);
-      gfx.fillTriangle(cx + dx - r * 0.25, baseY, cx + dx, baseY - peakH, cx + dx + r * 0.25, baseY);
+    // Sun or moon
+    const isMoon = floorId === 6 || floorId === 9;
+    const celestialX = cx + r * 0.35;
+    const celestialY = cy - r * 0.50;
+    const celestialR = r * 0.14;
+    gfx.fillStyle(p.sun, 0.9);
+    gfx.fillCircle(celestialX, celestialY, celestialR);
+    if (!isMoon) {
+      // Sun rays
+      gfx.fillStyle(p.sun, 0.25);
+      gfx.fillCircle(celestialX, celestialY, celestialR * 1.8);
+    } else {
+      // Moon crescent — cut a circle out
+      gfx.fillStyle(p.skyTop, 1);
+      gfx.fillCircle(celestialX + celestialR * 0.4, celestialY - celestialR * 0.3, celestialR * 0.8);
     }
 
-    for (let i = 0; i < 5; i++) {
-      const angle = -0.8 + i * 0.4;
-      const dist = r * (0.3 + (i % 3) * 0.15);
+    // Clouds (small wispy shapes in the sky area)
+    gfx.fillStyle(0xffffff, 0.25);
+    gfx.fillEllipse(cx - r * 0.4, cy - r * 0.35, r * 0.3, r * 0.1);
+    gfx.fillEllipse(cx - r * 0.3, cy - r * 0.38, r * 0.2, r * 0.08);
+    gfx.fillStyle(0xffffff, 0.18);
+    gfx.fillEllipse(cx + r * 0.05, cy - r * 0.25, r * 0.25, r * 0.08);
+
+    // Ground — rolling hills fill the bottom half
+    gfx.fillStyle(p.ground, 1);
+    gfx.beginPath();
+    gfx.arc(cx, cy, r, 0.15 * Math.PI, 0.85 * Math.PI, false);
+    gfx.lineTo(cx, cy + r);
+    gfx.closePath();
+    gfx.fillPath();
+
+    // Background hills — behind the main terrain
+    for (let i = 0; i < 4; i++) {
+      const dx = (i - 1.5) * r * 0.4;
+      const baseY = cy + r * 0.1;
+      const peakH = r * (0.30 + (i % 2) * 0.18);
+      gfx.fillStyle(p.detail, 0.7);
+      gfx.fillTriangle(cx + dx - r * 0.28, baseY, cx + dx, baseY - peakH, cx + dx + r * 0.28, baseY);
+    }
+
+    // Trees — small triangular evergreens
+    const treePositions = [
+      { dx: -r * 0.45, dy: r * 0.15, h: r * 0.28 },
+      { dx: -r * 0.2,  dy: r * 0.22, h: r * 0.22 },
+      { dx: r * 0.15,  dy: r * 0.18, h: r * 0.25 },
+      { dx: r * 0.40,  dy: r * 0.24, h: r * 0.20 },
+    ];
+    for (const tree of treePositions) {
+      const tx = cx + tree.dx;
+      const ty = cy + tree.dy;
+      // Trunk
+      gfx.fillStyle(p.detail, 0.6);
+      gfx.fillRect(tx - 1.5, ty - tree.h * 0.2, 3, tree.h * 0.3);
+      // Canopy — layered triangles
+      gfx.fillStyle(p.detail, 0.9);
+      const cw = tree.h * 0.5;
+      gfx.fillTriangle(tx - cw, ty - tree.h * 0.15, tx, ty - tree.h, tx + cw, ty - tree.h * 0.15);
+      gfx.fillTriangle(tx - cw * 0.8, ty - tree.h * 0.4, tx, ty - tree.h * 0.85, tx + cw * 0.8, ty - tree.h * 0.4);
+    }
+
+    // Accent dots — flowers, sparkles, creatures
+    for (let i = 0; i < 7; i++) {
+      const angle = -0.7 + i * 0.35;
+      const dist = r * (0.35 + (i % 3) * 0.12);
       const ax = cx + Math.cos(angle) * dist;
-      const ay = cy + Math.sin(angle) * dist - r * 0.2;
-      gfx.fillStyle(p.accent, 0.8);
-      gfx.fillCircle(ax, ay, r * 0.06 + i * 0.8);
+      const ay = cy + Math.sin(angle) * dist - r * 0.1;
+      gfx.fillStyle(p.accent, 0.85);
+      gfx.fillCircle(ax, ay, r * 0.04 + i * 0.6);
     }
 
-    gfx.lineStyle(2, p.detail, 0.5);
+    // Path/road winding through the scene
+    gfx.lineStyle(r * 0.04, p.accent, 0.35);
+    gfx.beginPath();
+    gfx.moveTo(cx - r * 0.5, cy + r * 0.45);
+    gfx.lineTo(cx - r * 0.15, cy + r * 0.2);
+    gfx.lineTo(cx + r * 0.2, cy + r * 0.3);
+    gfx.lineTo(cx + r * 0.4, cy + r * 0.15);
+    gfx.strokePath();
+
+    // Border ring
+    gfx.lineStyle(2.5, p.detail, 0.6);
     gfx.strokeCircle(cx, cy, r);
   }
 

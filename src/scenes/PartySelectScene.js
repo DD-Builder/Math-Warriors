@@ -197,8 +197,11 @@ export class PartySelectScene extends Phaser.Scene {
       return;
     }
 
+    // --- CLEAN CARD LAYOUT ---
+    // Portrait takes top 60% of card, centered
+    const portraitY = y - h * 0.15;
     const stage = getEvolutionStage(this.save, hero.id);
-    const portrait = drawHeroSprite(this, x, y - h * 0.08, hero, { scale: 0.85, evolutionStage: stage });
+    const portrait = drawHeroSprite(this, x, portraitY, hero, { scale: 0.85, evolutionStage: stage });
 
     // Gentle idle bob tween on the portrait
     this.tweens.add({
@@ -211,9 +214,9 @@ export class PartySelectScene extends Phaser.Scene {
       delay: Math.random() * 1000,
     });
 
-    // Show evolved name instead of base name
+    // Hero name in bold below the portrait (16px)
     const evolvedName = getEvolvedName(this.save, hero.id);
-    const name = this.add.text(x, y + h * 0.17, evolvedName.toUpperCase(), {
+    const name = this.add.text(x, y + h * 0.22, evolvedName.toUpperCase(), {
       ...TEXT.heading(),
       fontSize: '16px',
       color: '#2a1808',
@@ -221,75 +224,43 @@ export class PartySelectScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    // Evolution stage dots (1-3)
-    const dotsY = y + h * 0.24;
-    const dotGfx = this.add.graphics();
-    for (let d = 0; d < 3; d++) {
-      const dx = x - 12 + d * 12;
-      if (d < stage) {
-        dotGfx.fillStyle(0xf0c040, 1);
-        dotGfx.fillCircle(dx, dotsY, 4);
-        dotGfx.lineStyle(1, 0xd0a020, 1);
-        dotGfx.strokeCircle(dx, dotsY, 4);
-      } else {
-        dotGfx.fillStyle(0xc8b898, 0.6);
-        dotGfx.fillCircle(dx, dotsY, 4);
-        dotGfx.lineStyle(1, 0x8a7a60, 0.5);
-        dotGfx.strokeCircle(dx, dotsY, 4);
-      }
-    }
-
-    const trait = this.add.text(x, y + h * 0.30, hero.trait, {
+    // Trait text — small italic below the name, inside the card
+    const trait = this.add.text(x, y + h * 0.33, hero.trait, {
       ...TEXT.body(),
       fontSize: '11px',
       color: '#3a2410',
+      fontStyle: 'italic',
       align: 'center',
       wordWrap: { width: w - 24 },
     }).setOrigin(0.5, 0);
 
-    // Signature ability name
-    const sig = hero.signature;
-    const sigText = sig ? this.add.text(x, y + h * 0.39, sig.name, {
+    // Stats displayed BELOW the card (not inside it) — 10px below card bottom edge
+    const statsY = y + h / 2 + 10;
+    const statSpacing = w / 3;
+    const statStartX = x - statSpacing;
+    const hpText = this.add.text(statStartX, statsY, `HP ${hero.maxHp}`, {
       ...TEXT.stat(),
-      fontSize: '9px',
-      color: sig.type === 'passive' ? '#2a7a2a' : '#c06a10',
-      fontStyle: 'italic',
-    }).setOrigin(0.5) : null;
-
-    const stats = this.add.text(x, y + h * 0.46, `HP ${hero.maxHp}  ATK ${hero.atk}  DEF ${hero.def}`, {
-      ...TEXT.stat(),
-      fontSize: '11px',
+      fontSize: '14px',
       color: '#4a3018',
-    }).setOrigin(0.5);
+    }).setOrigin(0.5, 0);
+    const atkText = this.add.text(x, statsY, `ATK ${hero.atk}`, {
+      ...TEXT.stat(),
+      fontSize: '14px',
+      color: '#4a3018',
+    }).setOrigin(0.5, 0);
+    const defText = this.add.text(statStartX + statSpacing * 2, statsY, `DEF ${hero.def}`, {
+      ...TEXT.stat(),
+      fontSize: '14px',
+      color: '#4a3018',
+    }).setOrigin(0.5, 0);
 
-    const rarCol = getRarityColor(hero.rarity);
-    const rarBadge = this.add.graphics();
-    rarBadge.fillStyle(rarCol.glow, 0.9);
-    rarBadge.fillRoundedRect(x - 30, y - h / 2 + 6, 60, 18, 6);
-    const rarText = this.add.text(x, y - h / 2 + 15, getRarityLabel(hero.rarity), {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '9px', color: '#ffffff',
-    }).setOrigin(0.5);
-
-    // "NEW!" badge for freshly unlocked heroes not yet viewed
-    let newBadgeGfx = null;
-    let newBadgeText = null;
+    // Subtle gold dot for new/unviewed heroes (6px circle, top-left corner)
+    let newDotGfx = null;
     const viewed = Array.isArray(this.save.viewedHeroes) ? this.save.viewedHeroes : [];
     if (!viewed.includes(hero.id)) {
-      newBadgeGfx = this.add.graphics();
-      newBadgeGfx.fillStyle(0xe84040, 0.95);
-      newBadgeGfx.fillRoundedRect(x - w / 2 + 6, y - h / 2 + 6, 50, 22, 8);
-      newBadgeText = this.add.text(x - w / 2 + 31, y - h / 2 + 17, 'NEW!', {
-        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '11px', color: '#ffffff',
-      }).setOrigin(0.5);
-      this.tweens.add({
-        targets: [newBadgeGfx, newBadgeText],
-        scaleX: 1.1, scaleY: 1.1,
-        duration: 600,
-        yoyo: true, repeat: -1,
-        ease: 'Sine.inOut',
-      });
+      newDotGfx = this.add.graphics();
+      newDotGfx.fillStyle(0xf0c040, 1);
+      newDotGfx.fillCircle(x - w / 2 + 12, y - h / 2 + 12, 6);
     }
 
     // Evolve badge — check if eligible for Stage 2 or Stage 3
@@ -344,11 +315,9 @@ export class PartySelectScene extends Phaser.Scene {
 
     const cardElements = [card.shadow, card.bg];
     if (evolveGlow) cardElements.push(evolveGlow);
-    cardElements.push(portrait, name, dotGfx, trait, stats, rarBadge, rarText);
-    if (sigText) cardElements.push(sigText);
+    cardElements.push(portrait, name, trait, hpText, atkText, defText);
     if (evolveBadge) cardElements.push(evolveBadge);
-    if (newBadgeGfx) cardElements.push(newBadgeGfx);
-    if (newBadgeText) cardElements.push(newBadgeText);
+    if (newDotGfx) cardElements.push(newDotGfx);
     cardElements.push(card.zone);
     this.heroCardContainer.add(cardElements);
 

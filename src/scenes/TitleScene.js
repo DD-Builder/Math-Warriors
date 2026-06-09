@@ -173,8 +173,7 @@ export class TitleScene extends Phaser.Scene {
         w: 420, h: 80, color: 0x4aa848, fontSize: 34,
         onClick: () => {
           audio.play('ui/confirm');
-          this.registry.set('activeSlot', lastPlayedSlot.slot);
-          transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
+          transitionTo(this, SCENES.SAVE_SELECT, undefined, 300);
         },
       }), 10);
       dp(PaperButton(this, area.cx, H * 0.68, 'NEW GAME', {
