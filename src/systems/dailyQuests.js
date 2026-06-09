@@ -119,8 +119,3 @@ export function getLoginReward(save) {
   return { ...reward, streakDay: day, totalStreak: save.loginStreak };
 }
 
-function allQuestsComplete(save) {
-  const state = getQuestProgress(save);
-  const quests = getDailyQuests();
-  return state.quests.every((p, i) => p.claimed || p.progress >= quests[i].target);
-}

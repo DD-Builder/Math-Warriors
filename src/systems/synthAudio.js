@@ -85,8 +85,6 @@ const SYNTH_SOUNDS = {
   },
 };
 
-/** Backward-compatible alias used by audio.js */
-export const SYNTH_SFX = SYNTH_SOUNDS;
 
 export function playSynth(key) {
   try { const fn = SYNTH_SOUNDS[key]; if (fn) fn(); } catch (e) { /* ignore audio errors */ }

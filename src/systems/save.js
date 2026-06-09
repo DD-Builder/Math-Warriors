@@ -498,12 +498,6 @@ export function listSlots() {
   return meta;
 }
 
-function renameSlot(slot, name) {
-  const save = loadSave(slot);
-  save.slotName = name;
-  writeSave(save, slot);
-}
-
 export function getActiveSlot(scene) {
   return scene?.registry?.get('activeSlot') || 1;
 }

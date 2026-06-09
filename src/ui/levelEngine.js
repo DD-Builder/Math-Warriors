@@ -1765,7 +1765,7 @@ export function setGameState(gs) {
  * Trigger a red flash effect (e.g. on encounter).
  * @param {number} amount - Flash intensity (frames)
  */
-export function triggerFlash(amount) {
+function triggerFlash(amount) {
   _gs.flash = amount || 8;
 }
 
@@ -1835,7 +1835,7 @@ export function LV_setTransformed(val) {
  * @param {number} ty - Tile Y
  * @param {number} newType - New tile type (LV_TW, LV_TF, etc.)
  */
-export function LV_setTile(tx, ty, newType) {
+function LV_setTile(tx, ty, newType) {
   if (ty >= 0 && ty < _ROWS && tx >= 0 && tx < _COLS) {
     _map[ty][tx] = newType;
   }
