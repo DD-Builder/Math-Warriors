@@ -175,18 +175,26 @@ export class CutsceneScene extends Phaser.Scene {
     this.bodyText.setText('');
     this.typing = true;
 
-    [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText].forEach(o => o.setAlpha(0));
-    this.tweens.add({
-      targets: [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText],
-      alpha: 1, duration: 250, ease: 'Sine.out',
+    // Entrance animation: slide from x-30 and fade in
+    [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText].forEach(o => {
+      const finalX = o.x;
+      o.setAlpha(0);
+      o.x = finalX - 30;
+      this.tweens.add({
+        targets: o,
+        alpha: 1,
+        x: finalX,
+        duration: 250,
+        ease: 'Sine.out',
+      });
     });
 
     this.artContainer.list.forEach(obj => {
       if (obj.setAlpha) {
         const finalX = obj.x;
         obj.setAlpha(0);
-        obj.x = finalX - 80;
-        this.tweens.add({ targets: obj, alpha: 1, x: finalX, duration: 350, ease: 'Back.out' });
+        obj.x = finalX - 30;
+        this.tweens.add({ targets: obj, alpha: 1, x: finalX, duration: 250, ease: 'Sine.out' });
       }
     });
 

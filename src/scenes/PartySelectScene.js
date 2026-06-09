@@ -197,7 +197,19 @@ export class PartySelectScene extends Phaser.Scene {
       return;
     }
 
-    const portrait = drawHeroSprite(this, x, y - h * 0.08, hero, { scale: 0.85 });
+    const stage = getEvolutionStage(this.save, hero.id);
+    const portrait = drawHeroSprite(this, x, y - h * 0.08, hero, { scale: 0.85, evolutionStage: stage });
+
+    // Gentle idle bob tween on the portrait
+    this.tweens.add({
+      targets: portrait,
+      y: portrait.y - 2,
+      duration: 1500 + Math.random() * 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+      delay: Math.random() * 1000,
+    });
 
     // Show evolved name instead of base name
     const evolvedName = getEvolvedName(this.save, hero.id);
@@ -210,7 +222,6 @@ export class PartySelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Evolution stage dots (1-3)
-    const stage = getEvolutionStage(this.save, hero.id);
     const dotsY = y + h * 0.24;
     const dotGfx = this.add.graphics();
     for (let d = 0; d < 3; d++) {
@@ -259,6 +270,27 @@ export class PartySelectScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '9px', color: '#ffffff',
     }).setOrigin(0.5);
+
+    // "NEW!" badge for freshly unlocked heroes not yet viewed
+    let newBadgeGfx = null;
+    let newBadgeText = null;
+    const viewed = Array.isArray(this.save.viewedHeroes) ? this.save.viewedHeroes : [];
+    if (!viewed.includes(hero.id)) {
+      newBadgeGfx = this.add.graphics();
+      newBadgeGfx.fillStyle(0xe84040, 0.95);
+      newBadgeGfx.fillRoundedRect(x - w / 2 + 6, y - h / 2 + 6, 50, 22, 8);
+      newBadgeText = this.add.text(x - w / 2 + 31, y - h / 2 + 17, 'NEW!', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '11px', color: '#ffffff',
+      }).setOrigin(0.5);
+      this.tweens.add({
+        targets: [newBadgeGfx, newBadgeText],
+        scaleX: 1.1, scaleY: 1.1,
+        duration: 600,
+        yoyo: true, repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    }
 
     // Evolve badge — check if eligible for Stage 2 or Stage 3
     const partyEntry = (this.save.party || []).find(p => p.id === hero.id);
@@ -315,6 +347,8 @@ export class PartySelectScene extends Phaser.Scene {
     cardElements.push(portrait, name, dotGfx, trait, stats, rarBadge, rarText);
     if (sigText) cardElements.push(sigText);
     if (evolveBadge) cardElements.push(evolveBadge);
+    if (newBadgeGfx) cardElements.push(newBadgeGfx);
+    if (newBadgeText) cardElements.push(newBadgeText);
     cardElements.push(card.zone);
     this.heroCardContainer.add(cardElements);
 
@@ -330,11 +364,12 @@ export class PartySelectScene extends Phaser.Scene {
 
   buildPartyStrip(area) {
     const stripX = area.left + 20;
-    const stripY = area.bottom - 110;
+    const stripY = area.bottom - 100;
 
-    this.add.text(stripX, stripY - 60, 'YOUR PARTY', {
+    // "YOUR PARTY" label above the slots, left-aligned and raised higher
+    this.add.text(stripX, stripY - 72, 'YOUR PARTY', {
       ...TEXT.heading(),
-      fontSize: '18px',
+      fontSize: '16px',
       color: '#3a2410',
     }).setOrigin(0, 0.5);
 
@@ -367,9 +402,10 @@ export class PartySelectScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       if (isLead) {
-        this.add.text(sx, sy - slotH / 2 - 10, 'LEAD', {
+        // Position LEAD label inside the slot top, not above it
+        this.add.text(sx, sy - slotH / 2 + 10, 'LEAD', {
           ...TEXT.stat(),
-          fontSize: '11px',
+          fontSize: '9px',
           color: '#d07818',
         }).setOrigin(0.5);
       }
@@ -389,7 +425,8 @@ export class PartySelectScene extends Phaser.Scene {
       if (sel) {
         const hero = this.classes[sel.class][sel.index];
         slot.portrait.setFillStyle(0xd0c8b0, 0.3);
-        slot.heroSprite = drawHeroSprite(this, slot.sx, slot.sy - 12, hero, { scale: 0.45 });
+        const slotEvoStage = getEvolutionStage(this.save, hero.id);
+        slot.heroSprite = drawHeroSprite(this, slot.sx, slot.sy - 12, hero, { scale: 0.45, evolutionStage: slotEvoStage });
         const evoName = getEvolvedName(this.save, hero.id);
         slot.nameTxt.setText(evoName.toUpperCase());
         slot.nameTxt.setColor('#3a2410');
@@ -482,7 +519,7 @@ export class PartySelectScene extends Phaser.Scene {
         return { id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp, xp: 0, level: 1 };
       });
       writeSave(save, this.slot);
-      transitionTo(this, this.returnScene, undefined, 300);
+      transitionTo(this, this.returnScene, undefined, 300, 'wipe');
       return;
     }
 
@@ -503,15 +540,23 @@ export class PartySelectScene extends Phaser.Scene {
         floorId: 1,
         nextScene: SCENES.WORLD_MAP,
         nextData: undefined,
-      }, 300);
+      }, 300, 'wipe');
     } else {
-      transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
+      transitionTo(this, SCENES.WORLD_MAP, undefined, 300, 'wipe');
     }
   }
 
   showHeroDetail(hero) {
     if (this._detailOpen) return;
     this._detailOpen = true;
+
+    // Mark hero as viewed (removes NEW badge next time)
+    if (!Array.isArray(this.save.viewedHeroes)) this.save.viewedHeroes = [];
+    if (!this.save.viewedHeroes.includes(hero.id)) {
+      this.save.viewedHeroes.push(hero.id);
+      writeSave(this.save, this.slot);
+    }
+
     const elements = [];
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const cx = area.cx, cy = area.cy;
@@ -532,7 +577,8 @@ export class PartySelectScene extends Phaser.Scene {
     elements.push(panel);
 
     // --- HEADER (always visible) ---
-    const portrait = drawHeroSprite(this, cx - pw / 2 + 70, cy - ph / 2 + 80, hero, { scale: 0.7 });
+    const detailEvoStage = getEvolutionStage(this.save, hero.id);
+    const portrait = drawHeroSprite(this, cx - pw / 2 + 70, cy - ph / 2 + 80, hero, { scale: 0.7, evolutionStage: detailEvoStage });
     portrait.setDepth(952);
     elements.push(portrait);
 
@@ -635,10 +681,13 @@ export class PartySelectScene extends Phaser.Scene {
       w: 180, h: 46, color: 0xd07818, fontSize: 18, textColor: '#fff8e0',
       onClick: () => {
         clearContent();
+        clearContent();
         elements.forEach(e => { if (e && e.destroy) e.destroy(); });
         closeBtn.bg.destroy(); closeBtn.shadow.destroy();
         closeBtn.label.destroy(); if (closeBtn.zone) closeBtn.zone.destroy();
         this._detailOpen = false;
+        // Rebuild grid to remove NEW badge after viewing
+        this.rebuildHeroGrid();
       },
     });
     closeBtn.bg.setDepth(953);

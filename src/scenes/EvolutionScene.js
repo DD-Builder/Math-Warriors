@@ -97,11 +97,35 @@ export class EvolutionScene extends Phaser.Scene {
       ease: 'Sine.out',
     });
 
-    // ---- Phase 2: Energy gathering (starts at 1s for stage2, 1s for stage3) ----
-    const gatherDelay = 1000;
+    // ---- Phase 1.5: Building anticipation — heartbeat pulse ----
+    const pulseDelay = 900;
+    const pulseDuration = 2000;
+    const heroColor = hero.displayColor || 0x2e4e88;
+
+    this.time.delayedCall(pulseDelay, () => {
+      // Heartbeat pulse: scale 1.0 -> 1.05 -> 1.0 at increasing speed
+      const pulseSpeeds = [500, 420, 340, 280, 220, 180, 150, 130];
+      let elapsed = 0;
+      for (let pi = 0; pi < pulseSpeeds.length; pi++) {
+        const dur = pulseSpeeds[pi];
+        this.time.delayedCall(elapsed, () => {
+          this.tweens.add({
+            targets: heroSprite,
+            scaleX: 1.05,
+            scaleY: 1.05,
+            duration: dur / 2,
+            yoyo: true,
+            ease: 'Sine.inOut',
+          });
+        });
+        elapsed += dur;
+      }
+    });
+
+    // ---- Phase 2: Energy gathering (starts after pulse) ----
+    const gatherDelay = pulseDelay + pulseDuration + 200;
     const gatherDuration = isStage3 ? 2000 : 1500;
     const particleCount = isStage3 ? 45 : 30;
-    const heroColor = hero.displayColor || 0x2e4e88;
 
     this.time.delayedCall(gatherDelay, () => {
       audio.play('ui/confirm');
@@ -117,27 +141,36 @@ export class EvolutionScene extends Phaser.Scene {
         ease: 'Sine.in',
       });
 
-      // Energy particles flowing inward
+      // Energy particles spiraling inward (rotation added to path)
       const colors = [0xffffff, 0xf0d060, heroColor];
       for (let i = 0; i < particleCount; i++) {
-        const angle = Math.random() * Math.PI * 2;
+        const startAngle = Math.random() * Math.PI * 2;
         const dist = 350 + Math.random() * 200;
-        const startX = cx + Math.cos(angle) * dist;
-        const startY = cy + Math.sin(angle) * dist;
+        const startX = cx + Math.cos(startAngle) * dist;
+        const startY = cy + Math.sin(startAngle) * dist;
         const size = 2 + Math.random() * 4;
         const color = colors[Math.floor(Math.random() * colors.length)];
 
         const p = this.add.circle(startX, startY, size, color, 0.7 + Math.random() * 0.3);
+        const totalDur = gatherDuration * 0.6 + Math.random() * gatherDuration * 0.4;
+        const delay = Math.random() * gatherDuration * 0.4;
+        const spiralDir = Math.random() > 0.5 ? 1 : -1;
+        const spiralSpeed = 2 + Math.random() * 3; // rotations during travel
 
         this.tweens.add({
           targets: p,
-          x: cx,
-          y: heroSpriteY,
           alpha: 0,
           scale: 0.3,
-          duration: gatherDuration * 0.6 + Math.random() * gatherDuration * 0.4,
-          delay: Math.random() * gatherDuration * 0.4,
+          duration: totalDur,
+          delay,
           ease: 'Cubic.easeIn',
+          onUpdate: (tween) => {
+            const progress = tween.progress;
+            const curDist = dist * (1 - progress);
+            const curAngle = startAngle + spiralDir * spiralSpeed * progress * Math.PI * 2;
+            p.x = cx + Math.cos(curAngle) * curDist;
+            p.y = heroSpriteY + Math.sin(curAngle) * curDist;
+          },
           onComplete: () => p.destroy(),
         });
       }
@@ -242,6 +275,40 @@ export class EvolutionScene extends Phaser.Scene {
         ease: 'Back.out',
       });
 
+      // Light rays emanating from the hero after flash reveal
+      const rayCount = 8;
+      for (let ri = 0; ri < rayCount; ri++) {
+        const rayAngle = (ri / rayCount) * Math.PI * 2;
+        const rayLen = 20;
+        const rayX = cx + Math.cos(rayAngle) * 10;
+        const rayY = heroSpriteY + Math.sin(rayAngle) * 10;
+        const ray = this.add.rectangle(rayX, rayY, 3, rayLen, 0xffffff, 0.7);
+        ray.setOrigin(0.5, 0);
+        ray.setRotation(rayAngle - Math.PI / 2);
+        ray.setAlpha(0);
+
+        this.tweens.add({
+          targets: ray,
+          alpha: 0.6,
+          scaleY: 8,
+          duration: 600,
+          delay: 100 + ri * 40,
+          ease: 'Cubic.out',
+          onComplete: () => {
+            this.tweens.add({
+              targets: ray,
+              alpha: 0,
+              duration: 800,
+              ease: 'Sine.in',
+              onComplete: () => ray.destroy(),
+            });
+          },
+        });
+      }
+
+      // Dramatic pause (500ms) before showing the new name
+      const nameRevealDelay = 700;
+
       // New name and title
       const newNameText = this.add.text(cx, heroSpriteY + 100 + (newScale - 1) * 40, d.evolvedName.toUpperCase(), {
         ...TEXT.title(),
@@ -262,7 +329,7 @@ export class EvolutionScene extends Phaser.Scene {
         targets: [newNameText, newTitleText],
         alpha: 1,
         duration: 600,
-        delay: 200,
+        delay: nameRevealDelay,
         ease: 'Sine.out',
       });
 
@@ -448,6 +515,43 @@ export class EvolutionScene extends Phaser.Scene {
             });
           }
         });
+
+        // Golden sparkle border around the AMAZING button
+        const btnX = cx;
+        const btnY = area.bottom - 50;
+        const sparkleCount = 12;
+        for (let si = 0; si < sparkleCount; si++) {
+          const createSparkle = () => {
+            // Position along the button border perimeter
+            const side = Math.random();
+            let sx, sy;
+            if (side < 0.25) { sx = btnX - 130 + Math.random() * 260; sy = btnY - 32; }
+            else if (side < 0.5) { sx = btnX - 130 + Math.random() * 260; sy = btnY + 32; }
+            else if (side < 0.75) { sx = btnX - 130; sy = btnY - 32 + Math.random() * 64; }
+            else { sx = btnX + 130; sy = btnY - 32 + Math.random() * 64; }
+
+            const sp = this.add.circle(sx, sy, 2 + Math.random() * 2, 0xf0d060, 0);
+            this.tweens.add({
+              targets: sp,
+              alpha: 0.8,
+              scale: 1.5,
+              duration: 200 + Math.random() * 200,
+              yoyo: true,
+              ease: 'Sine.inOut',
+              onComplete: () => {
+                sp.destroy();
+                if (this.scene.isActive()) {
+                  this.time.delayedCall(Math.random() * 600, () => {
+                    if (this.scene.isActive()) createSparkle();
+                  });
+                }
+              },
+            });
+          };
+          this.time.delayedCall(si * 150, () => {
+            if (this.scene.isActive()) createSparkle();
+          });
+        }
       });
     });
   }

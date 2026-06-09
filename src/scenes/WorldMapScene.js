@@ -7,6 +7,7 @@ import { drawPapercutBackground, drawWorldMapGarden, drawWorldMapCaves, drawWorl
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
+import { getEvolutionStage } from '../systems/evolution.js';
 import { getDailyChallenge, isDailyChallengeCompleted, markDailyChallengeComplete } from '../systems/dailyChallenge.js';
 import { getDailyQuests, getQuestProgress, claimQuestReward, getLoginReward } from '../systems/dailyQuests.js';
 import { DIALOGUE } from '../data/dialogue.js';
@@ -49,6 +50,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.buildBackgrounds();
     this.buildFloorNodes();
     this.buildPaths();
+    this.buildMapHero();
     this.buildHUD();
     this.buildQuestPanel();
     this.showLoginReward();
@@ -89,10 +91,18 @@ export class WorldMapScene extends Phaser.Scene {
       }
 
       if (s > this.maxScreen) {
+        const screenNames = ['', 'CRYSTAL CAVES', 'STARLIT HIGHLANDS'];
         this.add.rectangle(
           offsetX + SCREEN_W / 2, GAME_HEIGHT / 2,
-          SCREEN_W, GAME_HEIGHT, 0x000000, 0.6
+          SCREEN_W, GAME_HEIGHT, 0x000000, 0.35
         );
+        this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2 - 60, screenNames[s] || '', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '32px',
+          color: '#f0d040',
+          stroke: '#1a0e04',
+          strokeThickness: 5,
+        }).setOrigin(0.5);
         this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2, '🔒', {
           fontSize: '80px',
         }).setOrigin(0.5);
@@ -116,6 +126,13 @@ export class WorldMapScene extends Phaser.Scene {
 
     this.nodePositions = [];
 
+    // Find the highest unlocked, incomplete node (active/current node)
+    let activeNodeIndex = -1;
+    for (let i = 8; i >= 0; i--) {
+      const f = this.save.floors[i];
+      if (f.unlocked && !f.complete) { activeNodeIndex = i; break; }
+    }
+
     for (let i = 0; i < 9; i++) {
       const screen = Math.floor(i / 3);
       const slot = i % 3;
@@ -128,12 +145,13 @@ export class WorldMapScene extends Phaser.Scene {
       const saved = this.save.floors[i];
       const locked = !saved.unlocked;
       const complete = saved.complete;
+      const isActive = i === activeNodeIndex;
 
-      this.createFloorNode(x, y, info, locked, complete);
+      this.createFloorNode(x, y, info, locked, complete, saved, isActive);
     }
   }
 
-  createFloorNode(x, y, info, locked, complete) {
+  createFloorNode(x, y, info, locked, complete, saved, isActive) {
     const radius = 56;
 
     this.add.circle(x + 4, y + 6, radius, 0x000000, 0.3).setDepth(10);
@@ -160,10 +178,63 @@ export class WorldMapScene extends Phaser.Scene {
       this.drawMiniDiorama(x, y, radius - 10, info.id);
     }
 
+    // --- Star rating for completed nodes (Item 48) ---
     if (complete) {
-      this.add.text(x + radius * 0.65, y - radius * 0.65, '⭐', {
-        fontSize: '28px',
-      }).setOrigin(0.5);
+      const acc = saved.bestAccuracy || 0;
+      const earnedStars = acc >= 95 ? 3 : acc >= 80 ? 2 : 1;
+      const starY = y - radius * 0.65;
+      const starSpacing = 18;
+      const starStartX = x + radius * 0.65 - starSpacing;
+      for (let s = 0; s < 3; s++) {
+        const sx = starStartX + s * starSpacing;
+        const isEarned = s < earnedStars;
+        this.add.text(sx, starY, '⭐', {
+          fontSize: '14px',
+          alpha: isEarned ? 1 : 0.3,
+        }).setOrigin(0.5).setDepth(12).setAlpha(isEarned ? 1 : 0.3);
+      }
+    }
+
+    // --- Particle effects for completed nodes (Item 22) ---
+    if (complete && !locked) {
+      const themeColor = info.color;
+      const r = (themeColor >> 16) & 0xff;
+      const g = (themeColor >> 8) & 0xff;
+      const b = themeColor & 0xff;
+      this.time.addEvent({
+        delay: 2000,
+        loop: true,
+        callback: () => {
+          const count = 3 + Math.floor(Math.random() * 2); // 3-4 particles
+          for (let p = 0; p < count; p++) {
+            const px = x + (Math.random() - 0.5) * radius * 1.2;
+            const py = y + (Math.random() - 0.5) * radius * 0.6;
+            const size = 2 + Math.random();
+            const sparkle = this.add.circle(px, py, size, themeColor, 0.8).setDepth(13);
+            this.tweens.add({
+              targets: sparkle,
+              y: py - 20,
+              alpha: 0,
+              duration: 800 + Math.random() * 400,
+              ease: 'Sine.out',
+              onComplete: () => sparkle.destroy(),
+            });
+          }
+        },
+      });
+    }
+
+    // --- Beacon glow for active/current node (Item 22) ---
+    if (isActive && !locked) {
+      const beacon = this.add.circle(x, y, radius + 10, 0xf0d060, 0.1).setDepth(9);
+      this.tweens.add({
+        targets: beacon,
+        alpha: 0.3,
+        duration: 1500,
+        ease: 'Sine.inOut',
+        yoyo: true,
+        repeat: -1,
+      });
     }
 
     const labelY = y + radius + 24;
@@ -196,15 +267,18 @@ export class WorldMapScene extends Phaser.Scene {
         repeat: -1,
       });
       ring.on('pointerup', () => {
-        if (this._navLocked) return;
+        if (this._navLocked || this._mapHeroWalking) return;
         audio.play('ui/confirm');
-        this.enterFloor(info.id);
+        const targetNodeIndex = info.id - 1; // floor IDs are 1-based, node indices 0-based
+        this.walkHeroToNode(targetNodeIndex, () => {
+          this.enterFloor(info.id);
+        });
       });
     }
   }
 
   drawMiniDiorama(cx, cy, r, floorId) {
-    const gfx = this.add.graphics();
+    const gfx = this.add.graphics().setDepth(11);
     const palettes = {
       1: { sky: 0x68b8e8, ground: 0x48a040, accent: 0xf06888, detail: 0x388828 },
       2: { sky: 0x2878c0, ground: 0x2070a0, accent: 0xf0a848, detail: 0x186898 },
@@ -322,6 +396,152 @@ export class WorldMapScene extends Phaser.Scene {
     gfx.strokePath();
   }
 
+  /**
+   * Place a small hero sprite on the world map at the last completed
+   * floor node (or floor 1 if no progress). The sprite is stored as
+   * this.mapHero so it can be animated when the player taps a node.
+   */
+  buildMapHero() {
+    // Determine starting node: last completed floor, or 0 (floor 1) if none
+    this.mapHeroNodeIndex = 0;
+    for (let i = 8; i >= 0; i--) {
+      if (this.save.floors[i]?.complete) {
+        this.mapHeroNodeIndex = i;
+        break;
+      }
+    }
+
+    const pos = this.nodePositions[this.mapHeroNodeIndex];
+    if (!pos) return;
+
+    // Use the lead hero from the party if available
+    const leadHero = this.save.party && this.save.party[0]
+      ? getHeroById(this.save.party[0].id)
+      : null;
+
+    if (leadHero) {
+      this.mapHero = drawHeroSprite(this, pos.x, pos.y - 40, leadHero, { scale: 0.3 });
+    } else {
+      // Fallback: small colored circle
+      this.mapHero = this.add.circle(pos.x, pos.y - 40, 12, 0xf0c040);
+    }
+    this.mapHero.setDepth(15);
+
+    // Idle bob tween
+    this._mapHeroBob = this.tweens.add({
+      targets: this.mapHero,
+      y: this.mapHero.y - 3,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
+
+    this._mapHeroWalking = false;
+  }
+
+  /**
+   * Animate the map hero along the path between nodes, then invoke
+   * the callback when arrival is complete.
+   */
+  walkHeroToNode(targetNodeIndex, onComplete) {
+    if (!this.mapHero) {
+      onComplete();
+      return;
+    }
+
+    const fromIndex = this.mapHeroNodeIndex;
+    if (fromIndex === targetNodeIndex) {
+      onComplete();
+      return;
+    }
+
+    this._mapHeroWalking = true;
+
+    // Stop idle bob during walk
+    if (this._mapHeroBob) {
+      this._mapHeroBob.stop();
+    }
+
+    // Build the full path of points from current node to target node
+    const step = fromIndex < targetNodeIndex ? 1 : -1;
+    let allPoints = [];
+    let idx = fromIndex;
+    while (idx !== targetNodeIndex) {
+      const nextIdx = idx + step;
+      const from = this.nodePositions[idx];
+      const to = this.nodePositions[nextIdx];
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2 - 40;
+      // step>0 => forward along path, step<0 => backward
+      const pts = step > 0
+        ? this.sampleBezier(from.x, from.y, midX, midY, to.x, to.y, 16)
+        : this.sampleBezier(to.x, to.y, midX, midY, from.x, from.y, 16).reverse();
+      // Skip the first point of subsequent segments to avoid duplicates
+      if (allPoints.length > 0) pts.shift();
+      allPoints = allPoints.concat(pts);
+      idx = nextIdx;
+    }
+
+    if (allPoints.length < 2) {
+      this._mapHeroWalking = false;
+      onComplete();
+      return;
+    }
+
+    // Offset y by -40 for the hero sprite position (above the node center)
+    const heroOffset = -40;
+    const totalDuration = 1000; // ~1 second for the full walk
+    const segDuration = totalDuration / (allPoints.length - 1);
+
+    // Flip sprite based on direction
+    const targetX = this.nodePositions[targetNodeIndex].x;
+    const startX = this.nodePositions[fromIndex].x;
+    if (this.mapHero.setFlipX) {
+      this.mapHero.setFlipX(targetX < startX);
+    }
+
+    // Create a chain of tweens using timeline-like approach
+    let pointIndex = 0;
+    const walkStep = () => {
+      pointIndex++;
+      if (pointIndex >= allPoints.length) {
+        // Arrived at destination
+        this.mapHeroNodeIndex = targetNodeIndex;
+        this._mapHeroWalking = false;
+        // Restart idle bob
+        this._mapHeroBob = this.tweens.add({
+          targets: this.mapHero,
+          y: this.mapHero.y - 3,
+          duration: 600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+        onComplete();
+        return;
+      }
+
+      const pt = allPoints[pointIndex];
+      // Bobbing: oscillate 3px using sine of progress
+      const bobPhase = (pointIndex / allPoints.length) * Math.PI * 6;
+      const bob = Math.sin(bobPhase) * 3;
+
+      this.tweens.add({
+        targets: this.mapHero,
+        x: pt.x,
+        y: pt.y + heroOffset + bob,
+        duration: segDuration,
+        ease: 'Linear',
+        onComplete: walkStep,
+      });
+    };
+
+    // Position at first point and start walking
+    this.mapHero.setPosition(allPoints[0].x, allPoints[0].y + heroOffset);
+    walkStep();
+  }
+
   buildHUD() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
 
@@ -376,7 +596,8 @@ export class WorldMapScene extends Phaser.Scene {
         if (slot) {
           const heroDef = getHeroById(slot.id);
           if (heroDef) {
-            const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35 });
+            const wmEvoStage = getEvolutionStage(this.save, heroDef.id);
+            const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35, evolutionStage: wmEvoStage });
             img.setScrollFactor(0);
           }
         }
@@ -392,8 +613,27 @@ export class WorldMapScene extends Phaser.Scene {
       });
     }
 
-    const skillsBtn = PaperButton(this, area.cx - 100, area.bottom - 36, 'SKILLS', {
-      w: 150, h: 56, color: 0x4080c0, fontSize: 18,
+    // Bottom toolbar: 5 buttons evenly distributed across safe area width
+    const bottomY = area.bottom - 36;
+    const bBtnW = 130;
+    const bBtnH = 50;
+    const bBtnGap = 16;
+    const bTotalW = 5 * bBtnW + 4 * bBtnGap;
+    const bStartX = area.cx - bTotalW / 2 + bBtnW / 2;
+
+    const dailyCompleted = isDailyChallengeCompleted(this.save);
+    const dailyBtn = PaperButton(this, bStartX, bottomY, 'DAILY', {
+      w: bBtnW, h: bBtnH, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 16,
+      textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        this.onDailyChallenge();
+      },
+    });
+    this.setScrollFactorDeep(dailyBtn, 0);
+
+    const skillsBtn = PaperButton(this, bStartX + (bBtnW + bBtnGap), bottomY, 'SKILLS', {
+      w: bBtnW, h: bBtnH, color: 0x4080c0, fontSize: 16,
       textColor: '#fff8e0',
       onClick: () => {
         audio.play('ui/click');
@@ -402,8 +642,8 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(skillsBtn, 0);
 
-    const shopBtn = PaperButton(this, area.cx + 100, area.bottom - 36, 'SHOP', {
-      w: 160, h: 56, color: 0xd07818, fontSize: 20,
+    const shopBtn = PaperButton(this, bStartX + 2 * (bBtnW + bBtnGap), bottomY, 'SHOP', {
+      w: bBtnW, h: bBtnH, color: 0xd07818, fontSize: 16,
       textColor: '#fff8e0',
       onClick: () => {
         audio.play('ui/click');
@@ -412,25 +652,24 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(shopBtn, 0);
 
-    const settingsBtn = PaperButton(this, area.right - 60, area.bottom - 36, '⚙', {
-      w: 100, h: 50, color: 0x4a6ca8, fontSize: 24,
+    const galleryBtn = PaperButton(this, bStartX + 3 * (bBtnW + bBtnGap), bottomY, 'GALLERY', {
+      w: bBtnW, h: bBtnH, color: 0x9050c8, fontSize: 15,
+      textColor: '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.GALLERY, undefined, 200);
+      },
+    });
+    this.setScrollFactorDeep(galleryBtn, 0);
+
+    const settingsBtn = PaperButton(this, bStartX + 4 * (bBtnW + bBtnGap), bottomY, '⚙', {
+      w: bBtnW, h: bBtnH, color: 0x4a6ca8, fontSize: 20,
       onClick: () => {
         audio.play('ui/click');
         transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.WORLD_MAP }, 200);
       },
     });
     this.setScrollFactorDeep(settingsBtn, 0);
-
-    const dailyCompleted = isDailyChallengeCompleted(this.save);
-    const dailyBtn = PaperButton(this, area.left + 130, area.bottom - 36, 'DAILY', {
-      w: 180, h: 50, color: dailyCompleted ? 0x8a8070 : 0xd07818, fontSize: 18,
-      textColor: dailyCompleted ? '#6a4c28' : '#fff8e0',
-      onClick: () => {
-        audio.play('ui/click');
-        this.onDailyChallenge();
-      },
-    });
-    this.setScrollFactorDeep(dailyBtn, 0);
 
     const arrowStyle = { w: 110, h: 60, color: 0xd0a040, fontSize: 20, textColor: '#fff8e0' };
     this.leftArrow = PaperButton(this, area.left + 65, area.cy, 'PREV', {
@@ -697,9 +936,9 @@ export class WorldMapScene extends Phaser.Scene {
         floorId,
         nextScene: SCENES.MAZE,
         nextData: { floor: floorId },
-      }, 300);
+      }, 300, 'circle');
     } else {
-      transitionTo(this, SCENES.MAZE, { floor: floorId }, 300);
+      transitionTo(this, SCENES.MAZE, { floor: floorId }, 300, 'circle');
     }
   }
 
@@ -724,7 +963,8 @@ export class WorldMapScene extends Phaser.Scene {
     panel.strokeRoundedRect(cx - pw / 2, cy - ph / 2, pw, ph, 22);
     elements.push(panel);
 
-    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1 });
+    const wmDetailEvoStage = getEvolutionStage(this.save, hero.id);
+    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1, evolutionStage: wmDetailEvoStage });
     portrait.setScrollFactor(0).setDepth(952);
     elements.push(portrait);
 

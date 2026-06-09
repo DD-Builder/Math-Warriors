@@ -946,31 +946,44 @@ export class BattleScene extends Phaser.Scene {
     });
 
     // End overlay (hidden by default)
+    // Use safeArea-relative Y positions to prevent overlap
+    const endArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const endTop = -(GAME_HEIGHT / 2) + endArea.top;
+    const endBottom = (GAME_HEIGHT / 2) - (GAME_HEIGHT - endArea.bottom);
+
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
     const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, COLORS.ink, 0.92);
-    const endTitle = this.add.text(0, -160, '', {
+
+    // Layout: top-to-bottom with clear gaps (relative to container center)
+    const victoryTitleY = endTop + 80;
+    const victorySubY = victoryTitleY + 60;
+    const victoryRewardsY = victorySubY + 50;
+    const victoryBtnY = endBottom - 60;
+
+    const endTitle = this.add.text(0, victoryTitleY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '72px',
       color: COLORS_CSS.goldL,
       stroke: COLORS_CSS.ink,
       strokeThickness: 6,
     }).setOrigin(0.5);
-    const endSub = this.add.text(0, -50, '', {
+    const endSub = this.add.text(0, victorySubY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '28px',
+      fontSize: '26px',
       color: COLORS_CSS.paper,
       align: 'center',
     }).setOrigin(0.5);
-    const endRewards = this.add.text(0, 30, '', {
+    const endRewards = this.add.text(0, victoryRewardsY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '22px',
+      fontSize: '20px',
       color: COLORS_CSS.goldL,
       align: 'center',
-    }).setOrigin(0.5);
-    const endBtnBg = this.add.rectangle(0, 140, 380, 80, COLORS.scarlet)
+      lineSpacing: 6,
+    }).setOrigin(0.5, 0);
+    const endBtnBg = this.add.rectangle(0, victoryBtnY, 380, 80, COLORS.scarlet)
       .setStrokeStyle(4, COLORS.ink)
       .setInteractive({ useHandCursor: true });
-    const endBtnLabel = this.add.text(0, 140, 'CONTINUE', {
+    const endBtnLabel = this.add.text(0, victoryBtnY, 'CONTINUE', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '24px',
       color: COLORS_CSS.paper,
@@ -993,6 +1006,8 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay.titleText = endTitle;
     this.endOverlay.subText = endSub;
     this.endOverlay.rewardsText = endRewards;
+    this.endOverlay._rewardsY = victoryRewardsY;
+    this.endOverlay._btnY = victoryBtnY;
   }
 
   // ================================================================
@@ -2580,29 +2595,63 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * Arcing damage number: pops up with a slight horizontal drift,
-   * scales up then fades. More satisfying than a straight float.
+   * Arcing damage number: pops up with a scale-pop animation,
+   * white flash behind, then floats upward and fades. Big and dramatic.
    *
-   * @param {string} prefix  '+' for hero damage (gold), '-' for enemy damage (red)
+   * @param {string} prefix  '+' for hero damage (green), '-' for enemy damage (red)
    */
   floatDamageNumber(x, y, amount, color, prefix = '-') {
+    // Determine if this is hero damage (green) or enemy damage (red)
+    const isHeroDamage = prefix === '+';
+    const isCritical = this.momentum > 0.66;
+    const fontSize = isCritical ? '56px' : '42px';
+    const displayColor = isHeroDamage ? '#40e040' : '#e04040';
+
+    // White flash circle behind the number
+    const flash = this.add.circle(x, y, 20, 0xffffff, 0.9).setDepth(49);
+    this.tweens.add({
+      targets: flash,
+      scale: 3,
+      alpha: 0,
+      duration: 300,
+      ease: 'Cubic.out',
+      onComplete: () => flash.destroy(),
+    });
+
     const t = this.add.text(x, y, `${prefix}${amount}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '28px',
+      fontSize,
       fontStyle: 'bold',
-      color,
+      color: displayColor,
       stroke: '#000000',
       strokeThickness: 4,
-    }).setOrigin(0.5).setScale(0.5);
+    }).setOrigin(0.5).setScale(0.5).setDepth(50);
 
+    // Scale pop: 0.5 → 1.3 → 1.0 over 200ms, then float up and fade
     this.tweens.add({
       targets: t,
-      y: y - 60,
-      alpha: 0,
-      scale: 1.2,
-      duration: 800,
-      ease: 'Cubic.out',
-      onComplete: () => t.destroy(),
+      scale: 1.3,
+      duration: 120,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: t,
+          scale: 1.0,
+          duration: 80,
+          ease: 'Sine.out',
+          onComplete: () => {
+            // Float upward 45px and fade over 1 second
+            this.tweens.add({
+              targets: t,
+              y: y - 45,
+              alpha: 0,
+              duration: 1000,
+              ease: 'Cubic.out',
+              onComplete: () => t.destroy(),
+            });
+          },
+        });
+      },
     });
   }
 
@@ -2713,7 +2762,7 @@ export class BattleScene extends Phaser.Scene {
 
     const text = this.add.text(hs.x, hs.y - 140, cry, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
+      fontSize: '18px',
       fontStyle: 'italic',
       color: colorHex,
       stroke: '#000000',
@@ -2733,8 +2782,8 @@ export class BattleScene extends Phaser.Scene {
           targets: text,
           alpha: 0,
           y: hs.y - 170,
-          duration: 700,
-          delay: 1000,
+          duration: 300,
+          delay: 2200,
           ease: 'Cubic.in',
           onComplete: () => text.destroy(),
         });
@@ -3114,11 +3163,18 @@ export class BattleScene extends Phaser.Scene {
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
 
-      // XP filling bar animation below rewards text
+      // Calculate dynamic Y positions based on actual rewards text height
+      // rewardsText origin is (0.5, 0) so it extends downward from _rewardsY
+      const rY = this.endOverlay._rewardsY || 0;
+      const btnYPos = this.endOverlay._btnY || 200;
+      const rewardsTextHeight = this.endOverlay.rewardsText.height || 80;
+      const xpBarY = rY + rewardsTextHeight + 30;
+
+      // XP filling bar animation — positioned below rewards text
       const barW = 280, barH = 16;
-      const barBg = this.add.rectangle(0, 90, barW, barH, 0x3a2410, 0.7).setOrigin(0.5);
-      const barFill = this.add.rectangle(-barW / 2, 90, 0, barH - 4, 0xf0c040).setOrigin(0, 0.5);
-      const xpLabel = this.add.text(0, 110, `+${xpEarned} XP`, {
+      const barBg = this.add.rectangle(0, xpBarY, barW, barH, 0x3a2410, 0.7).setOrigin(0.5);
+      const barFill = this.add.rectangle(-barW / 2, xpBarY, 0, barH - 4, 0xf0c040).setOrigin(0, 0.5);
+      const xpLabel = this.add.text(0, xpBarY + 18, `+${xpEarned} XP`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '16px',
         color: COLORS_CSS.goldL,
@@ -3133,10 +3189,15 @@ export class BattleScene extends Phaser.Scene {
         delay: 200,
       });
 
-      // Show newly unlocked achievements with gold badge icons
+      // Show newly unlocked achievements — position between XP bar and button
       if (newAchievements.length > 0) {
-        newAchievements.forEach((ach, i) => {
-          const ay = 200 + i * 36;
+        const achStartY = xpBarY + 50;
+        const achSpacing = 32;
+        // Limit achievements so they don't overlap the button
+        const maxAch = Math.min(newAchievements.length, Math.floor((btnYPos - achStartY - 20) / achSpacing));
+        for (let i = 0; i < maxAch; i++) {
+          const ach = newAchievements[i];
+          const ay = achStartY + i * achSpacing;
           const badge = this.add.circle(-120, ay, 10, 0xf0c040);
           const star = this.add.text(-120, ay, '*', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -3158,7 +3219,7 @@ export class BattleScene extends Phaser.Scene {
               this.showToast(`Achievement: ${ach.name}!`, COLORS_CSS.goldL);
             }
           });
-        });
+        }
       }
     });
   }
