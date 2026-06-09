@@ -3,7 +3,7 @@ import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperButton, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
 import { DIALOGUE } from '../data/dialogue.js';

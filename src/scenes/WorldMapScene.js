@@ -1,14 +1,14 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
-import { loadSave, writeSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
-import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES, levelBonuses, getAvailableSupers, LEVEL_THRESHOLDS, getRarityColor, getRarityLabel } from '../data/heroes.js';
+import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
+import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
+import { spawnHero, getHeroById, KNIGHTS, WIZARDS, BUNNIES, levelBonuses, LEVEL_THRESHOLDS, getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
-import { drawPapercutBackground, drawWorldMapGarden, drawWorldMapCaves, drawWorldMapStarlitHighlands } from '../systems/papercut.js';
+import { drawWorldMapGarden, drawWorldMapCaves, drawWorldMapStarlitHighlands } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { getEvolutionStage } from '../systems/evolution.js';
-import { getDailyChallenge, isDailyChallengeCompleted, markDailyChallengeComplete } from '../systems/dailyChallenge.js';
+import { getDailyChallenge, isDailyChallengeCompleted } from '../systems/dailyChallenge.js';
 import { getDailyQuests, getQuestProgress, claimQuestReward, getLoginReward } from '../systems/dailyQuests.js';
 import { DIALOGUE } from '../data/dialogue.js';
 

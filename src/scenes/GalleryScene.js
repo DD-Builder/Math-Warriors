@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { ALL_HEROES, getHeroById } from '../data/heroes.js';
+import { ALL_HEROES } from '../data/heroes.js';
 import { loadSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
 import { getEvolutionStage, getEvolvedName } from '../systems/evolution.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
-import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperPanel, PaperButton, safeArea } from '../ui/paperUI.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { audio } from '../systems/audio.js';

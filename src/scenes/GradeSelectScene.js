@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { PaperCard, PaperButton, PaperPanel, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
+import { PaperCard, PaperButton, PaperPanel, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { scatterPapercutDecor } from '../ui/titleArt.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 

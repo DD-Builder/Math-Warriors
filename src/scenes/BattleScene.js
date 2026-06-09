@@ -83,6 +83,8 @@ export class BattleScene extends Phaser.Scene {
 
   init(data) {
     this._answerProcessing = false;
+    this._counterAttackDefeated = false;
+    this._activeHintDismiss = null;
 
     // Party: use provided or default to one of each class
     if (data?.party && data.party.length === 3) {
@@ -1515,6 +1517,13 @@ export class BattleScene extends Phaser.Scene {
   nextTurn() {
     if (this.phase === 'end') return;
 
+    // Auto-dismiss any active hint overlay so it doesn't block the
+    // next turn's UI. The hint overlay sits at depth 150 and intercepts
+    // all pointer events, which causes a perceived freeze if left open.
+    if (this._activeHintDismiss) {
+      this._activeHintDismiss();
+    }
+
     if (isPartyDefeated(this.party)) return this.showDefeat();
     if (this.allEnemiesDead()) return this.showVictory();
 
@@ -1959,6 +1968,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.phase !== 'question' || !this.currentQuestion) return;
     if (this._answerProcessing) return;
     this._answerProcessing = true;
+    this._counterAttackDefeated = false;
     this.locked = true;
     this.clearBossTimer();
     hidePanelFx(this.panelFx);
@@ -2327,6 +2337,7 @@ export class BattleScene extends Phaser.Scene {
         });
 
         this.time.delayedCall(300, () => {
+          if (this._shuttingDown || this.phase === 'end') return;
           const heroIdx = this.currentTurn.heroIndex;
           const target = this.party[heroIdx];
           const counterEnemy = this.enemies[this.currentTarget] || this.enemy;
@@ -2334,22 +2345,26 @@ export class BattleScene extends Phaser.Scene {
           if (this.guardActive[heroIdx]) {
             result = applyGuardReduction(result, target.hp);
           }
-          let dmg = result.modifiedDamage;
-          dmg = onHeroDamageReceived(target, counterEnemy, dmg, {
+          const sigResult = onHeroDamageReceived(target, counterEnemy, result.modifiedDamage, {
             party: this.party,
             battleState: this.signatureState,
+            heroIndex: heroIdx,
           });
-          result.modifiedDamage = dmg;
+          if (sigResult.damage !== result.modifiedDamage) {
+            result.modifiedDamage = sigResult.damage;
+            result.newHp = Math.max(0, target.hp - result.modifiedDamage);
+          }
           applyDamageResult(target, result);
           checkLastStand(target, heroIdx, this.signatureState);
-          checkPaladinGuard(target, this.party, this.signatureState);
+          checkPaladinGuard(target, heroIdx, this.party, this.signatureState);
           if (result.modifiedDamage > 0) this.battleDamageTaken = true;
           this.hitFlash();
           this.flashHero(target, result);
           this.updateHeroHp(target);
           this.shakeCamera(0.01, 250);
           audio.play('battle/hit-hero');
-          if (this.isPartyDefeated()) {
+          if (isPartyDefeated(this.party)) {
+            this._counterAttackDefeated = true;
             this.time.delayedCall(600, () => this.showDefeat());
           }
         });
@@ -2362,7 +2377,26 @@ export class BattleScene extends Phaser.Scene {
     const advanceDelay = activeCommand === COMMANDS.MAGIC ? 950 : 750;
     this.time.delayedCall(advanceDelay, () => {
       this._answerProcessing = false;
+      // Don't advance if the counter-attack already triggered defeat,
+      // if we're already at end phase, or if the scene is shutting down.
+      if (this._counterAttackDefeated || this.phase === 'end' || this._shuttingDown) return;
       this.nextTurn();
+    });
+
+    // Safety net: if locked is still true after 10 seconds, force-unlock.
+    // This catches any remaining edge case where a timer or callback was
+    // killed, an exception was swallowed, or a race condition left the
+    // game in a non-interactive state.
+    this.time.delayedCall(10000, () => {
+      if (this.locked && this.phase !== 'end' && !this._shuttingDown) {
+        console.warn('[BattleScene] Safety net: force-unlocking after 10s');
+        this.locked = false;
+        this._answerProcessing = false;
+        this._counterAttackDefeated = false;
+        if (this.phase === 'question') {
+          this.nextTurn();
+        }
+      }
     });
   }
 
@@ -2865,10 +2899,20 @@ export class BattleScene extends Phaser.Scene {
     const dismissHint = () => {
       if (dismissed) return;
       dismissed = true;
+      this._activeHintDismiss = null;
       if (dismissTimer) dismissTimer.remove();
       elements.forEach(el => { if (el && el.scene) el.destroy(); });
-      this.locked = false;
+      // Only unlock if we're still in a phase that should accept input.
+      // If the turn already advanced (advanceDelay fired), unlocking here
+      // would corrupt enemy-turn or end-phase lock state.
+      if (this.phase === 'question' || this.phase === 'command') {
+        this.locked = false;
+      }
     };
+
+    // Store the dismiss function so nextTurn() can auto-dismiss the overlay
+    // if the turn advances while the hint is still showing.
+    this._activeHintDismiss = dismissHint;
 
     overlayBg.on('pointerdown', dismissHint);
     if (gotItBtn.zone) gotItBtn.zone.on('pointerdown', dismissHint);

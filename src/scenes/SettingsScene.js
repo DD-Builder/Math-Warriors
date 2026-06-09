@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { loadSave, writeSave, clearSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';

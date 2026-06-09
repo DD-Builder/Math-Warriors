@@ -5,7 +5,6 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { FLOOR_OPERATORS } from '../data/enemies.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
 
 /**

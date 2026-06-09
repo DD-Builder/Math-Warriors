@@ -69,7 +69,7 @@ export const SOUNDS = {
 // via `scene.game.registry.get('audio')` or via the convenience
 // `audio` export that's lazy-initialized.
 
-import { SYNTH_SFX, playSynth, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic } from './synthAudio.js';
+import { playSynth, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic } from './synthAudio.js';
 
 class AudioManager {
   constructor() {
