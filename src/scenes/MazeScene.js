@@ -618,7 +618,10 @@ export class MazeScene extends Phaser.Scene {
         g.lineStyle(3, 0xc07818, 0.9);
         g.strokeCircle(0, 0, er);
         bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
-        bg.setVisible(this.bossDefeated);
+        // Exit is always visible but dim/dark until golden key obtained
+        if (!this.hasKey) {
+          g.setAlpha(0.3);
+        }
         break;
       }
       default:

@@ -835,18 +835,28 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
   else if (tt === LV_TP) fns.path(sx, sy, ts, tx, ty);
   else if (tt === LV_TQ) fns.water(sx, sy, ts, tx, ty, t);
   else if (tt === LV_TS) {
+    // Secret passage — render as wall but with subtle visual hints
     fns.wall(sx, sy, ts, tx, ty);
+    // Slightly lighter overlay (5-10% lighter than normal wall)
+    _G.save();
+    _G.globalAlpha = 0.08;
+    _G.fillStyle = '#ffffff';
+    _G.fillRect(sx, sy, ts + 1, ts + 1);
+    _G.restore();
+    // Subtle crack line (1px, slightly darker) — hints at breakable wall
     var sr = mkRng(tx * 61 + ty * 89);
-    _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.1;
-    _G.strokeStyle = '#f0d060';
+    _G.save();
+    _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.08;
+    _G.strokeStyle = '#1a0e04';
     _G.lineWidth = 1;
     _G.beginPath();
     var cx = sx + ts * (0.3 + sr() * 0.4);
-    _G.moveTo(cx, sy + ts * 0.2);
-    _G.lineTo(cx + ts * 0.05, sy + ts * 0.5);
-    _G.lineTo(cx - ts * 0.03, sy + ts * 0.8);
+    _G.moveTo(cx, sy + ts * 0.15);
+    _G.lineTo(cx + ts * 0.06, sy + ts * 0.45);
+    _G.lineTo(cx - ts * 0.04, sy + ts * 0.75);
+    _G.lineTo(cx + ts * 0.02, sy + ts * 0.9);
     _G.stroke();
-    _G.globalAlpha = 1;
+    _G.restore();
   }
   else fns.floor(sx, sy, ts, tx, ty);
 }
@@ -1262,39 +1272,66 @@ function LV_drawExit(sx, sy, ts, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var dw = ts * 0.6, dh = ts * 0.85;
   var dx = x - dw / 2, dy = y - dh / 2 - ts * 0.05;
-  // Golden glow behind door
-  _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
-  var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
-  gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
-  _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
-  // Door frame — gold rectangle with arched top
-  LV_cut('#c08018', 6, function () {
-    _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
-    _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
-    _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
-    _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
-    _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
-    _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
-  });
-  // Light from doorway
-  var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
-  _G.save(); _G.globalAlpha = pulse;
-  var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
-  lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
-  _G.fillStyle = lg;
-  _G.beginPath();
-  _G.moveTo(dx + ts * 0.12, dy + dh);
-  _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
-  _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
-  _G.lineTo(dx + dw - ts * 0.12, dy + dh);
-  _G.fill(); _G.restore();
-  // Keyhole or handle
-  LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
-  // Sparkle particles orbiting
-  for (var p = 0; p < 4; p++) {
-    var pa = (p / 4) * Math.PI * 2 + t * 1.5;
-    var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
-    _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
+  var hasKey = _gs && _gs.hasKey;
+
+  if (hasKey) {
+    // GLOWING / LIT UP exit — golden key obtained
+    // Golden glow behind door
+    _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
+    var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
+    gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
+    _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
+    // Door frame — gold rectangle with arched top
+    LV_cut('#c08018', 6, function () {
+      _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
+      _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
+      _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
+      _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
+      _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
+      _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
+    });
+    // Light from doorway
+    var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
+    _G.save(); _G.globalAlpha = pulse;
+    var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
+    lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
+    _G.fillStyle = lg;
+    _G.beginPath();
+    _G.moveTo(dx + ts * 0.12, dy + dh);
+    _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
+    _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
+    _G.lineTo(dx + dw - ts * 0.12, dy + dh);
+    _G.fill(); _G.restore();
+    // Keyhole or handle
+    LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+    // Sparkle particles orbiting
+    for (var p = 0; p < 4; p++) {
+      var pa = (p / 4) * Math.PI * 2 + t * 1.5;
+      var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
+      _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
+    }
+  } else {
+    // DIM / DARK exit — key not yet obtained
+    // Dark door frame (no glow)
+    LV_cut('#3a2810', 6, function () {
+      _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
+      _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
+      _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
+      _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
+      _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
+      _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
+    });
+    // Dark interior — no light
+    _G.save(); _G.globalAlpha = 0.4;
+    _G.fillStyle = '#1a0e04';
+    _G.beginPath();
+    _G.moveTo(dx + ts * 0.12, dy + dh);
+    _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
+    _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
+    _G.lineTo(dx + dw - ts * 0.12, dy + dh);
+    _G.fill(); _G.restore();
+    // Dim keyhole
+    LV_cut('#4a3010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
   }
 }
 
