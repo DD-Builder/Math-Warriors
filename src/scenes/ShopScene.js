@@ -177,10 +177,10 @@ export class ShopScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       const canAfford = this.save.gold >= tier.setCost && !!lead;
-      PaperButton(this, x, cardY + 86, 'BUY SET', {
-        w: 140, h: 44, fontSize: 16,
+      PaperButton(this, x, cardY + 86, canAfford ? 'BUY SET' : 'NEED GOLD', {
+        w: 140, h: 44, fontSize: canAfford ? 16 : 14,
         color: canAfford ? 0xe84840 : 0x808080,
-        textColor: canAfford ? '#fff8e0' : '#a0a0a0',
+        textColor: canAfford ? '#fff8e0' : '#505050',
         onClick: () => this.buyGearTier(tier),
       });
     });
@@ -266,7 +266,8 @@ export class ShopScene extends Phaser.Scene {
   refreshBuyButtons() {
     this.itemCards.forEach(({ buyBtn, item }) => {
       const canAfford = this.save.gold >= item.cost;
-      buyBtn.label.setColor(canAfford ? '#fff8e0' : '#a0a0a0');
+      buyBtn.label.setText(canAfford ? 'BUY' : 'NEED GOLD');
+      buyBtn.label.setColor(canAfford ? '#fff8e0' : '#505050');
     });
   }
 

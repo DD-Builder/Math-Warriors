@@ -1126,7 +1126,7 @@ export class WorldMapScene extends Phaser.Scene {
     allSupers.forEach((s, i) => {
       const sy = supersY + 28 + i * 30;
       const unlocked = level >= (s.unlockLevel || 1);
-      const icon = unlocked ? '⚔' : '🔒';
+      const icon = unlocked ? '>' : '?';
       const txt = this.add.text(cx - 100, sy, `${icon}  ${s.name}`, {
         ...TEXT.body(), fontSize: '15px',
         color: unlocked ? '#3a2410' : '#8a7a60',
