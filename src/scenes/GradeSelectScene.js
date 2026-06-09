@@ -46,12 +46,12 @@ export class GradeSelectScene extends Phaser.Scene {
 
     // RAINBOW distinct colors — 6 truly different hues
     const grades = [
-      { id: 0, label: 'K', name: 'Kindergarten', hint: 'Counting',           color: 0xe84840 }, // red
-      { id: 1, label: '1', name: '1st Grade',    hint: 'Add + subtract 10',  color: 0xf58840 }, // orange
-      { id: 2, label: '2', name: '2nd Grade',    hint: 'Intro multiplication', color: 0xf0c040 }, // yellow
-      { id: 3, label: '3', name: '3rd Grade',    hint: 'Times tables',       color: 0x4aa848 }, // green
-      { id: 4, label: '4', name: '4th Grade',    hint: 'Multi-digit',        color: 0x3888d8 }, // blue
-      { id: 5, label: '5', name: '5th Grade',    hint: 'Full arithmetic',    color: 0x9050c8 }, // purple
+      { id: 0, label: 'K', name: 'Kindergarten', hint: 'Count the flowers in the magical garden!',     color: 0xe84840 }, // red
+      { id: 1, label: '1', name: '1st Grade',    hint: 'Add and subtract to save the kingdom!',        color: 0xf58840 }, // orange
+      { id: 2, label: '2', name: '2nd Grade',    hint: 'Help warriors solve tricky puzzles!',          color: 0xf0c040 }, // yellow
+      { id: 3, label: '3', name: '3rd Grade',    hint: 'Multiply your power against the bosses!',      color: 0x4aa848 }, // green
+      { id: 4, label: '4', name: '4th Grade',    hint: 'Divide and conquer the crystal caves!',        color: 0x3888d8 }, // blue
+      { id: 5, label: '5', name: '5th Grade',    hint: 'Master fractions, geometry, and more!',        color: 0x9050c8 }, // purple
     ];
 
     // Grid: 3x2, centered vertically between header and CONFIRM button

@@ -59,9 +59,17 @@ export class BossRushScene extends Phaser.Scene {
       return;
     }
 
-    // If rush is in progress (not complete, not defeated), launch next boss
+    // If rush is in progress (not complete, not defeated), show inter-boss overlay then launch
     if (rushState && rushState.currentBoss < 9) {
-      this.launchBossFight(rushState);
+      if (rushState.currentBoss > 0 && !rushState._overlayShown) {
+        rushState._overlayShown = true;
+        this.showInterBossOverlay(area, rushState, () => {
+          rushState._overlayShown = false;
+          this.launchBossFight(rushState);
+        });
+      } else {
+        this.launchBossFight(rushState);
+      }
       return;
     }
 
@@ -113,6 +121,16 @@ export class BossRushScene extends Phaser.Scene {
         color: '#f0e4cc',
       }).setOrigin(0.5);
     });
+
+    // Best time display (from save if available)
+    const bestTime = save.stats?.bestBossRushTime;
+    if (bestTime) {
+      const bMin = Math.floor(bestTime / 60000);
+      const bSec = Math.floor((bestTime % 60000) / 1000);
+      this.add.text(area.cx, area.cy + 160, `Best Time: ${bMin}m ${bSec}s`, {
+        ...TEXT.body(), fontSize: '18px', color: '#f0d040',
+      }).setOrigin(0.5);
+    }
 
     // Current party display
     const partyNames = (save.party || [])
@@ -203,6 +221,50 @@ export class BossRushScene extends Phaser.Scene {
       enemyId: boss.id,
       bossRush: true,
     }, 300);
+  }
+
+  showInterBossOverlay(area, rushState, onComplete) {
+    const bossIdx = rushState.currentBoss;
+    const boss = BOSS_ORDER[bossIdx];
+    const elapsed = Date.now() - rushState.startTime;
+    const min = Math.floor(elapsed / 60000);
+    const sec = Math.floor((elapsed % 60000) / 1000);
+    const timeStr = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+
+    // Timer at top
+    this.add.text(area.cx, area.top + 40, timeStr, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '32px', color: '#f0e4cc',
+      stroke: '#1a0e04', strokeThickness: 4,
+    }).setOrigin(0.5);
+
+    // Boss counter
+    this.add.text(area.cx, area.top + 80, `Boss ${bossIdx + 1}/9`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '22px', color: '#c0b090',
+      stroke: '#1a0e04', strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    // "NEXT: [boss name]" overlay
+    const nextText = this.add.text(area.cx, area.cy, `NEXT: ${boss.name}`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '48px', color: '#f0d040',
+      stroke: '#3a1808', strokeThickness: 6,
+    }).setOrigin(0.5).setAlpha(0).setScale(0.7);
+
+    this.tweens.add({
+      targets: nextText, alpha: 1, scale: 1,
+      duration: 300, ease: 'Back.out',
+      onComplete: () => {
+        this.time.delayedCall(1500, () => {
+          this.tweens.add({
+            targets: nextText, alpha: 0,
+            duration: 200, ease: 'Cubic.in',
+            onComplete: () => { nextText.destroy(); onComplete(); },
+          });
+        });
+      },
+    });
   }
 
   showResults(area, rushState, save, slot) {

@@ -48,7 +48,7 @@ export function createSignatureState(party) {
     const hero = party[i];
     if (!hero || !hero.signature) continue;
 
-    if (hero.signature.effect === 'revealWrong') {
+    if (hero.signature.effect === 'revealWrong' && (hero.level || 1) >= 5) {
       state.revealWrongActive = true;
     }
     if (hero.signature.effect === 'timerBonus') {

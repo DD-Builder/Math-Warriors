@@ -86,8 +86,9 @@ export class SaveSlotScene extends Phaser.Scene {
         ...TEXT.body(), fontSize: '18px', color: '#c0a878',
       }).setOrigin(0.5);
 
+      const save = loadSave(slot);
+
       if (meta.partyNames.length > 0) {
-        const save = loadSave(slot);
         const heroY = top + 150;
         for (let hi = 0; hi < save.party.length; hi++) {
           const hero = save.party[hi];
@@ -105,24 +106,37 @@ export class SaveSlotScene extends Phaser.Scene {
       const infoStyle = { ...TEXT.body(), fontSize: '20px', color: '#e0d0b0' };
       this.add.text(x, infoY, `Floor: ${meta.floorsComplete}/9`, infoStyle).setOrigin(0.5);
 
-      const barW = 260;
-      const barH = 16;
-      const barX = x - barW / 2;
-      const barY = infoY + 25;
+      // 9 small circles showing floor progress
+      const dotRadius = 4;
+      const dotGap = 4;
+      const dotDiameter = dotRadius * 2;
+      const totalDotsW = 9 * dotDiameter + 8 * dotGap;
+      const dotStartX = x - totalDotsW / 2 + dotRadius;
+      const dotY = infoY + 30;
       const gfx = this.add.graphics();
-      gfx.fillStyle(0x1a0e04, 0.6);
-      gfx.fillRoundedRect(barX, barY, barW, barH, 6);
-      const pct = Math.min(1, meta.floorsComplete / 9);
-      if (pct > 0) {
-        gfx.fillStyle(0x4aa848, 1);
-        gfx.fillRoundedRect(barX, barY, barW * pct, barH, 6);
+      for (let fi = 0; fi < 9; fi++) {
+        const dx = dotStartX + fi * (dotDiameter + dotGap);
+        const floorData = save.floors?.[fi];
+        if (floorData?.complete) {
+          // Gold filled
+          gfx.fillStyle(0xf0d060, 1);
+          gfx.fillCircle(dx, dotY, dotRadius);
+        } else if (floorData?.unlocked) {
+          // White hollow (stroke only)
+          gfx.lineStyle(2, 0xffffff, 1);
+          gfx.strokeCircle(dx, dotY, dotRadius);
+        } else {
+          // Dark gray
+          gfx.fillStyle(0x404040, 1);
+          gfx.fillCircle(dx, dotY, dotRadius);
+        }
       }
 
-      this.add.text(x, barY + 35, `Gold: ${meta.gold}`, infoStyle).setOrigin(0.5);
+      this.add.text(x, dotY + 35, `Gold: ${meta.gold}`, infoStyle).setOrigin(0.5);
 
       if (meta.lastPlayed) {
         const ago = this.timeAgo(meta.lastPlayed);
-        this.add.text(x, barY + 65, `Last played: ${ago}`, {
+        this.add.text(x, dotY + 65, `Last played: ${ago}`, {
           ...TEXT.stat(), fontSize: '14px', color: '#908060',
         }).setOrigin(0.5);
       }
