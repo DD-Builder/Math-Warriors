@@ -1061,14 +1061,6 @@ export function computeLevel(xp) {
   return level;
 }
 
-/**
- * XP needed to reach the next level from current level.
- */
-export function xpToNextLevel(level) {
-  const next = Math.min(level + 1, LEVEL_THRESHOLDS.length - 1);
-  return LEVEL_THRESHOLDS[next] || 9999;
-}
-
 const RARITY_COLORS = {
   common:    { glow: 0xa0a0a0, label: '#b0b0b0', border: 0x909090 },
   rare:      { glow: 0x4488e0, label: '#60a0f0', border: 0x3070c0 },
@@ -1111,7 +1103,7 @@ export function getHeroSkins(heroId) {
 // ------------------------------------------------------------------
 
 /** Get the signature ability data for a hero. Returns null if not found. */
-export function getHeroSignature(heroId) {
+function getHeroSignature(heroId) {
   const hero = getHeroById(heroId);
   return hero?.signature ?? null;
 }

@@ -23,7 +23,7 @@
 // `file: null` means "we haven't recorded/licensed this sound yet"
 // and the system will silently no-op when it's requested.
 
-export const SOUNDS = {
+const SOUNDS = {
   // UI
   'ui/click':         { file: null, volume: 0.7, category: 'sfx' },
   'ui/hover':         { file: null, volume: 0.4, category: 'sfx' },

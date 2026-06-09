@@ -8,7 +8,7 @@
  * Cooldowns are tracked per-hero in BattleScene.abilityCooldowns.
  */
 
-export const HERO_ABILITIES = {
+const HERO_ABILITIES = {
   knight: [
     { id: 'shield_bash', name: 'Shield Bash', desc: 'Block 50% of next enemy attack', cooldown: 3 },
     { id: 'rally', name: 'Rally', desc: 'All heroes gain +2 ATK for 3 turns', cooldown: 4 },

@@ -60,13 +60,14 @@ export class MasteryScene extends Phaser.Scene {
         borderGfx.strokeRoundedRect(cx - cardW / 2 + 2, cy - cardH / 2 + 2, cardW - 4, cardH - 4, 14);
       }
 
-      const iconColors = {
-        '+': '➕', '-': '➖', '*': '✖️', '/': '➗',
-        frac: '🔢', geo: '📐', money: '💰', word: '📖',
+      const iconLabels = {
+        '+': '+', '-': '−', '*': '×', '/': '÷',
+        frac: '#', geo: '△', money: '$', word: 'Aa',
       };
 
-      this.add.text(cx, cy - 60, iconColors[s.id] || '📊', {
-        fontSize: '36px',
+      this.add.text(cx, cy - 60, iconLabels[s.id] || '?', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+        fontSize: '40px', color: '#3a2410',
       }).setOrigin(0.5);
 
       this.add.text(cx, cy - 25, s.label, {
@@ -75,7 +76,7 @@ export class MasteryScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       this.add.text(cx, cy + 5, `Standard: ${s.standard}`, {
-        ...TEXT.stat(), fontSize: '11px', color: '#8a7a60',
+        ...TEXT.stat(), fontSize: '13px', color: '#8a7a60',
       }).setOrigin(0.5);
 
       const barW = 220;
@@ -107,7 +108,7 @@ export class MasteryScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       this.add.text(cx, cy + 88, `${s.total} questions`, {
-        ...TEXT.stat(), fontSize: '10px', color: '#8a7a60',
+        ...TEXT.stat(), fontSize: '13px', color: '#8a7a60',
       }).setOrigin(0.5);
     }
 

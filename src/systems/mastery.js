@@ -20,10 +20,6 @@ const SKILLS = [
 
 const WINDOW = 30;
 
-export function getSkills() {
-  return SKILLS;
-}
-
 function ensureSkillStats(save) {
   if (!save.skillStats) save.skillStats = {};
   for (const s of SKILLS) {

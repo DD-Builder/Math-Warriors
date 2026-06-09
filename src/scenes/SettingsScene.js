@@ -102,13 +102,14 @@ export class SettingsScene extends Phaser.Scene {
       ...TEXT.heading(),
       fontSize: '30px',
       color: '#d07818',
+      stroke: '#3a2410', strokeThickness: 2,
     }).setOrigin(0.5, 0.5);
     PaperButton(this, area.cx + 100, gradeY, '-', {
-      w: 52, h: 52, color: 0x4a6ca8, fontSize: 28,
+      w: 64, h: 64, color: 0x4a6ca8, fontSize: 28,
       onClick: () => this.changeGrade(-1),
     });
     PaperButton(this, area.cx + 170, gradeY, '+', {
-      w: 52, h: 52, color: 0x4a6ca8, fontSize: 28,
+      w: 64, h: 64, color: 0x4a6ca8, fontSize: 28,
       onClick: () => this.changeGrade(1),
     });
 
@@ -167,7 +168,7 @@ export class SettingsScene extends Phaser.Scene {
       const btnX = cx - 40 + i * 115;
       const isActive = Math.abs(current - lvl.value) < 0.05;
       PaperButton(this, btnX, y, lvl.label, {
-        w: 100, h: 46, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,
+        w: 100, h: 54, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,
         textColor: isActive ? '#fff8e0' : '#3a2410',
         onClick: () => {
           onChange(lvl.value);
@@ -196,7 +197,7 @@ export class SettingsScene extends Phaser.Scene {
       const btnX = cx - 40 + i * 115;
       const isActive = current === opt.value;
       PaperButton(this, btnX, y, opt.label, {
-        w: 100, h: 46, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,
+        w: 100, h: 54, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,
         textColor: isActive ? '#fff8e0' : '#3a2410',
         onClick: () => {
           onChange(opt.value);
@@ -227,7 +228,7 @@ export class SettingsScene extends Phaser.Scene {
       const btnX = cx - 40 + i * 115;
       const isActive = current === opt.value;
       PaperButton(this, btnX, y, opt.label, {
-        w: 100, h: 46, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 13,
+        w: 100, h: 54, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 13,
         textColor: isActive ? '#fff8e0' : '#3a2410',
         onClick: () => {
           this.save.settings.sessionTimer = opt.value;

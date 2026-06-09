@@ -6,7 +6,7 @@
  * state and returns true if the achievement should be unlocked.
  */
 
-export const ACHIEVEMENTS = [
+const ACHIEVEMENTS = [
   { id: 'first_blood', name: 'First Blood', desc: 'Win your first battle', check: (s) => (s.stats.totalBattles || 0) >= 1 },
   { id: 'streak_5', name: 'Streak Master', desc: 'Get a 5x streak', check: (s) => (s.stats.bestStreak || 0) >= 5 },
   { id: 'streak_8', name: 'ON FIRE!', desc: 'Get an 8x streak', check: (s) => (s.stats.bestStreak || 0) >= 8 },

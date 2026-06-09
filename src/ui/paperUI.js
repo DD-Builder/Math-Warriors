@@ -392,7 +392,7 @@ export function safeArea(gameW, gameH) {
 }
 
 /** Distribute N items evenly across a width, centered at cx. */
-export function distributeX(count, totalWidth, cx) {
+function distributeX(count, totalWidth, cx) {
   if (count <= 1) return [cx];
   const spacing = totalWidth / (count - 1);
   const startX = cx - totalWidth / 2;

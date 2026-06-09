@@ -33,12 +33,13 @@ const config = {
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
   },
-  // Clamp DPR to prevent the prototype's canvas-memory blowup on Retina iPads.
-  // Phaser respects resolution but we override it via the scale manager below.
+  // Render at the device's native resolution for crisp text on Retina
+  // displays. Cap at 2x to prevent canvas-memory blowup on 3x iPads.
   render: {
     antialias: true,
     pixelArt: false,
     roundPixels: false,
+    resolution: Math.min(window.devicePixelRatio || 1, 2),
   },
   // Input: touch + mouse, no keyboard lock
   input: {

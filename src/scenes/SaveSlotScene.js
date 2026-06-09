@@ -25,7 +25,8 @@ export class SaveSlotScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.add.text(area.cx, area.top + 100, 'Choose a slot to play', {
-      ...TEXT.body(), fontSize: '22px', color: '#e8d8c0',
+      ...TEXT.body(), fontSize: '24px', color: '#ffffff',
+      stroke: '#3a1a00', strokeThickness: 3,
     }).setOrigin(0.5);
 
     const slots = listSlots();
@@ -97,7 +98,8 @@ export class SaveSlotScene extends Phaser.Scene {
           const heroDef = spawnHero(hero.id);
           if (heroDef) drawHeroSprite(this, hx, heroY, heroDef, { scale: 0.4 });
           this.add.text(hx, heroY + 50, hero.name || '', {
-            ...TEXT.stat(), fontSize: '12px', color: '#d0c0a0',
+            ...TEXT.stat(), fontSize: '16px', color: '#f0e0c0',
+            stroke: '#1a0e04', strokeThickness: 2,
           }).setOrigin(0.5);
         }
       }
@@ -137,7 +139,7 @@ export class SaveSlotScene extends Phaser.Scene {
       if (meta.lastPlayed) {
         const ago = this.timeAgo(meta.lastPlayed);
         this.add.text(x, dotY + 65, `Last played: ${ago}`, {
-          ...TEXT.stat(), fontSize: '14px', color: '#908060',
+          ...TEXT.stat(), fontSize: '15px', color: '#908060',
         }).setOrigin(0.5);
       }
 

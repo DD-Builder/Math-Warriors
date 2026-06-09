@@ -575,7 +575,7 @@ export function getFloor(id) {
 // Boss fights always use variant 2 (the dramatic scene).
 // tileTypes: which TILE codes trigger this variant in the maze.
 
-export const BATTLE_SCENES = {
+const BATTLE_SCENES = {
   1: [
     { name: 'Meadow',        variant: 0, tileTypes: [TILE.FLOOR, TILE.PATH] },
     { name: 'Pond Clearing',  variant: 1, tileTypes: [TILE.WATER] },

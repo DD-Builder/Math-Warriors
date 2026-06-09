@@ -29,23 +29,6 @@ export function applySpriteFilter(canvas, floorId) {
   return canvas;
 }
 
-/**
- * Returns overlay configuration for scene-level effects (applied to the
- * whole battle/maze view). Returns null for floors with no overlay.
- *
- * @param {number} floorId - Floor number (1-9)
- * @returns {object|null} Overlay config or null
- */
-export function getFloorOverlayConfig(floorId) {
-  const configs = {
-    2: { grain: 0.03, saturation: 0.85, contrast: 1.05, warmth: -5 },
-    3: { grain: 0.06, saturation: 0.7, contrast: 0.9, warmth: 10, paperTexture: true },
-    4: { pixelSize: 3, paletteSize: 16, contrast: 1.2, warmth: -10 },
-    5: { grain: 0.02, saturation: 0.9, contrast: 1.3, warmth: -15, vignette: 0.4 },
-  };
-  return configs[floorId] || null;
-}
-
 // ================================================================
 // INDIVIDUAL FILTER IMPLEMENTATIONS
 // ================================================================

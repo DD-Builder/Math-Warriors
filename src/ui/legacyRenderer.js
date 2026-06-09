@@ -285,7 +285,7 @@ export function createMonsterCanvas(size, bgColor, drawFn, t) {
 }
 
 // ─── OPERATOR SYMBOL DRAW HELPER ────────────────────────────────
-export function drawOpSym(G, cx, cy, op, sz, col, alpha) {
+function drawOpSym(G, cx, cy, op, sz, col, alpha) {
   G.save(); G.fillStyle = col; G.strokeStyle = col;
   G.globalAlpha = alpha || 1; G.lineWidth = sz * 0.3; G.lineCap = 'round';
   if (op === '+') {

@@ -109,9 +109,7 @@ export class WorldMapScene extends Phaser.Scene {
           stroke: '#1a0e04',
           strokeThickness: 5,
         }).setOrigin(0.5);
-        this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2, '🔒', {
-          fontSize: '80px',
-        }).setOrigin(0.5);
+        this.drawPaperPadlock(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2, 60);
         this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2 + 60, `Beat Floor ${s * 3} to unlock`, {
           ...TEXT.heading(),
           fontSize: '24px',
@@ -196,10 +194,19 @@ export class WorldMapScene extends Phaser.Scene {
       for (let s = 0; s < 3; s++) {
         const sx = starStartX + s * starSpacing;
         const isEarned = s < earnedStars;
-        this.add.text(sx, starY, '⭐', {
-          fontSize: '18px',
-          alpha: isEarned ? 1 : 0.3,
-        }).setOrigin(0.5).setDepth(12).setAlpha(isEarned ? 1 : 0.3);
+        const gfx = this.add.graphics().setDepth(12);
+        const r = 8;
+        const ri = 4;
+        gfx.fillStyle(isEarned ? 0xf0d060 : 0x606060, isEarned ? 1 : 0.3);
+        gfx.beginPath();
+        for (let si = 0; si < 10; si++) {
+          const angle = (si * Math.PI / 5) - Math.PI / 2;
+          const radius2 = si % 2 === 0 ? r : ri;
+          if (si === 0) gfx.moveTo(sx + Math.cos(angle) * radius2, starY + Math.sin(angle) * radius2);
+          else gfx.lineTo(sx + Math.cos(angle) * radius2, starY + Math.sin(angle) * radius2);
+        }
+        gfx.closePath();
+        gfx.fillPath();
       }
     }
 
@@ -257,10 +264,12 @@ export class WorldMapScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: locked ? '#3a2010' : '#d07818',
+      stroke: locked ? undefined : '#3a2410',
+      strokeThickness: locked ? 0 : 2,
     }).setOrigin(0.5);
     this.add.text(x, labelY + 12, info.tagline, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '13px',
+      fontSize: '15px',
       color: locked ? '#8a7a60' : '#5a3820',
     }).setOrigin(0.5);
 
@@ -653,6 +662,7 @@ export class WorldMapScene extends Phaser.Scene {
     const goldIcon = this.add.text(area.left + 228, area.top + 45, '💰', { fontSize: '22px' }).setOrigin(0, 0.5).setScrollFactor(0);
     const goldText = this.add.text(area.left + 258, area.top + 38, `${this.save.gold}`, {
       ...TEXT.heading(), fontSize: '20px', color: '#d07818',
+      stroke: '#3a2410', strokeThickness: 2,
     }).setOrigin(0, 0.5).setScrollFactor(0);
     const potIcon = this.add.text(area.left + 330, area.top + 45, '🧪', { fontSize: '22px' }).setOrigin(0, 0.5).setScrollFactor(0);
     const potText = this.add.text(area.left + 360, area.top + 38, `${this.save.potions}`, {
@@ -1116,7 +1126,7 @@ export class WorldMapScene extends Phaser.Scene {
     allSupers.forEach((s, i) => {
       const sy = supersY + 28 + i * 30;
       const unlocked = level >= (s.unlockLevel || 1);
-      const icon = unlocked ? '⚔' : '🔒';
+      const icon = unlocked ? '>' : '?';
       const txt = this.add.text(cx - 100, sy, `${icon}  ${s.name}`, {
         ...TEXT.body(), fontSize: '15px',
         color: unlocked ? '#3a2410' : '#8a7a60',

@@ -57,6 +57,7 @@ export function makeDefaultSave() {
     ],
     heroEvolution: {},
     heroBonds: {},
+    ownedSkins: [],
     viewedHeroes: [],
     pendingRescueDialogue: [],
     settings: {
@@ -254,6 +255,9 @@ function normalize(save) {
     if (typeof bond.battles !== 'number' || !Number.isFinite(bond.battles)) continue;
     if (bond.rank != null && typeof bond.rank !== 'string') continue;
     out.heroBonds[pairKey] = { battles: bond.battles, rank: typeof bond.rank === 'string' ? bond.rank : null };
+  }
+  if (!Array.isArray(out.ownedSkins)) {
+    out.ownedSkins = [];
   }
   if (!Array.isArray(out.viewedHeroes)) {
     out.viewedHeroes = [];
@@ -492,12 +496,6 @@ export function listSlots() {
     meta[i].exists = hasData;
   }
   return meta;
-}
-
-export function renameSlot(slot, name) {
-  const save = loadSave(slot);
-  save.slotName = name;
-  writeSave(save, slot);
 }
 
 export function getActiveSlot(scene) {
