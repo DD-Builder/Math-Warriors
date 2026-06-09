@@ -541,11 +541,12 @@ export class BattleScene extends Phaser.Scene {
     const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
 
     // Fixed hero positions with generous spacing — hero 0 (front) leftmost/lowest,
-    // hero 2 (back) rightmost/highest for depth perspective
+    // hero 2 (back) rightmost/highest for depth perspective.
+    // At least 160px horizontal and 40px vertical between each hero.
     const heroPositions = [
       { x: 200, y: groundY },       // Hero 0 — front, leftmost, lowest
-      { x: 360, y: groundY - 45 },  // Hero 1 — middle
-      { x: 520, y: groundY - 90 },  // Hero 2 — back, rightmost, highest
+      { x: 380, y: groundY - 40 },  // Hero 1 — middle
+      { x: 540, y: groundY - 80 },  // Hero 2 — back, rightmost, highest
     ];
 
     // Approximate sprite height for layout calculations
@@ -558,8 +559,12 @@ export class BattleScene extends Phaser.Scene {
       const body = drawHeroSprite(this, x, heroY, hero, { scale: heroScale * depthScale });
       body.setDepth(12 + (2 - i));  // front hero has highest depth
 
+      // Turn indicator triangle — topmost, well above the name
+      const indicator = this.add.triangle(x, heroY - 110, 0, 0, 16, 0, 8, 14, COLORS.goldL)
+        .setVisible(false).setDepth(15);
+
       // Name label ABOVE the hero sprite with clear gap
-      const name = this.add.text(x, heroY - spriteH / 2 - 22, hero.name.toUpperCase(), {
+      const name = this.add.text(x, heroY - 90, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '18px',
         color: COLORS_CSS.paper,
@@ -567,24 +572,20 @@ export class BattleScene extends Phaser.Scene {
         strokeThickness: 3,
       }).setOrigin(0.5).setDepth(14);
 
-      // HP bar BELOW the hero sprite
-      const hpBarY = heroY + spriteH / 2 + 8;
+      // HP bar BELOW the hero sprite with clear gap
+      const hpBarY = heroY + spriteH / 2 + 5;
       const hpBarBg = this.add.rectangle(x, hpBarY, 130, 12, COLORS.ink)
         .setStrokeStyle(2, COLORS.paperD).setDepth(13);
       const hpBarFill = this.add.rectangle(x - 63, hpBarY, 126, 8, 0x40c040)
         .setOrigin(0, 0.5).setDepth(13);
 
-      // HP text BELOW the HP bar
-      const hpTextY = hpBarY + 14;
+      // HP text BELOW the HP bar with clear gap
+      const hpTextY = heroY + spriteH / 2 + 22;
       const hpText = this.add.text(x, hpTextY, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '13px',
         color: COLORS_CSS.paper,
       }).setOrigin(0.5).setDepth(14);
-
-      // Turn indicator triangle ABOVE the name
-      const indicator = this.add.triangle(x, heroY - spriteH / 2 - 42, 0, 0, 16, 0, 8, 14, COLORS.goldL)
-        .setVisible(false).setDepth(15);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y: heroY };
     });

@@ -581,7 +581,9 @@ export class WorldMapScene extends Phaser.Scene {
     const walkStep = () => {
       pointIndex++;
       if (pointIndex >= allPoints.length) {
-        // Arrived at destination
+        // Arrived at destination — snap to offset position beside the node
+        const destPos = this.nodePositions[targetNodeIndex];
+        this.mapHero.setPosition(destPos.x + heroOffX, destPos.y + heroOffY);
         this.mapHeroNodeIndex = targetNodeIndex;
         this._mapHeroWalking = false;
         // Restart idle bob
@@ -604,8 +606,8 @@ export class WorldMapScene extends Phaser.Scene {
 
       this.tweens.add({
         targets: this.mapHero,
-        x: pt.x,
-        y: pt.y + heroOffset + bob,
+        x: pt.x + heroOffX,
+        y: pt.y + heroOffY + bob,
         duration: segDuration,
         ease: 'Linear',
         onComplete: walkStep,
@@ -613,7 +615,7 @@ export class WorldMapScene extends Phaser.Scene {
     };
 
     // Position at first point and start walking
-    this.mapHero.setPosition(allPoints[0].x, allPoints[0].y + heroOffset);
+    this.mapHero.setPosition(allPoints[0].x + heroOffX, allPoints[0].y + heroOffY);
     walkStep();
   }
 
