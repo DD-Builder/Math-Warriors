@@ -32,7 +32,7 @@ import { createParallaxBackground, shiftParallaxLayers, startAtmosphericParticle
 import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } from '../systems/envResponsive.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
-import { playFightAnimation, playMagicAnimation, playFizzleAnimation } from '../systems/attackAnimations.js';
+import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnightSuper, playBunnySuper, playWizardSuper } from '../systems/attackAnimations.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
@@ -569,6 +569,9 @@ export class BattleScene extends Phaser.Scene {
         .setStrokeStyle(2, COLORS.paperD).setDepth(13);
       const hpBarFill = this.add.rectangle(x - 73, y + 80, 146, 10, 0x40c040)
         .setOrigin(0, 0.5).setDepth(13);
+      // 1px white stroke around HP bar for clarity
+      const hpStroke = this.add.rectangle(x, y + 80, 150, 14)
+        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
       const hpText = this.add.text(x, y + 96, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '14px',
@@ -578,7 +581,7 @@ export class BattleScene extends Phaser.Scene {
       const indicator = this.add.triangle(x, y - 160, 0, 0, 20, 0, 10, 20, COLORS.goldL)
         .setVisible(false).setDepth(15);
 
-      return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y };
+      return { hero, body, name, hpBarBg, hpBarFill, hpText, hpStroke, indicator, x, y };
     });
 
     // Idle bob — gentle sine wave on each hero
@@ -652,6 +655,9 @@ export class BattleScene extends Phaser.Scene {
         .setStrokeStyle(2, COLORS.paperD).setDepth(13);
       const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (enemy.hp / enemy.maxHp), 14, 0xc04030)
         .setOrigin(0, 0.5).setDepth(13);
+      // 1px white stroke around HP bar for clarity
+      const hpStroke = this.add.rectangle(x, hpY, w + 20, 20)
+        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
       const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '15px',
@@ -660,7 +666,7 @@ export class BattleScene extends Phaser.Scene {
         strokeThickness: 3,
       }).setOrigin(0.5).setDepth(14);
 
-      const spriteData = { body, name, hpBarBg, hpBarFill, hpText, x, y };
+      const spriteData = { body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y };
       this.enemySprites.push(spriteData);
 
       // Enemy idle pulse — very subtle breathing
@@ -1023,11 +1029,6 @@ export class BattleScene extends Phaser.Scene {
       [COMMANDS.MAGIC]: 0x8040c0,
       [COMMANDS.GUARD]: 0x308830,
     };
-    const cmdIcons = {
-      [COMMANDS.FIGHT]: '⚔️',
-      [COMMANDS.MAGIC]: '✨',
-      [COMMANDS.GUARD]: '🛡️',
-    };
     const cmdLabels = {
       [COMMANDS.FIGHT]: 'FIGHT',
       [COMMANDS.MAGIC]: 'MAGIC',
@@ -1037,7 +1038,7 @@ export class BattleScene extends Phaser.Scene {
     for (let i = 0; i < cmds.length; i++) {
       const cmd = cmds[i];
       const x = startX + i * (btnW + gap);
-      const btn = PaperButton(this, x, cmdY, `${cmdIcons[cmd]} ${cmdLabels[cmd]}`, {
+      const btn = PaperButton(this, x, cmdY, cmdLabels[cmd], {
         w: btnW, h: btnH,
         color: cmdColors[cmd],
         fontSize: 20,
@@ -1082,13 +1083,12 @@ export class BattleScene extends Phaser.Scene {
     const startX = area.cx - totalW / 2 + btnW / 2;
 
     const cmdColors = { [COMMANDS.FIGHT]: 0x3080d0, [COMMANDS.MAGIC]: 0x8040c0, [COMMANDS.GUARD]: 0x308830 };
-    const cmdIcons = { [COMMANDS.FIGHT]: '⚔️', [COMMANDS.MAGIC]: '✨', [COMMANDS.GUARD]: '🛡️' };
     const cmdLabels = { [COMMANDS.FIGHT]: 'FIGHT', [COMMANDS.MAGIC]: 'MAGIC', [COMMANDS.GUARD]: 'GUARD' };
 
     for (let i = 0; i < allowedCmds.length; i++) {
       const cmd = allowedCmds[i];
       const x = startX + i * (btnW + gap);
-      const btn = PaperButton(this, x, cmdY, `${cmdIcons[cmd]} ${cmdLabels[cmd]}`, {
+      const btn = PaperButton(this, x, cmdY, cmdLabels[cmd], {
         w: btnW, h: btnH, color: cmdColors[cmd], fontSize: 20,
         onClick: () => {
           if (this.phase !== 'command') return;
@@ -2547,7 +2547,7 @@ export class BattleScene extends Phaser.Scene {
         break;
       case 'fury_combo':
         this.furyCharges = 2;
-        this.showToast(`${hero.name}: Fury Combo! Next 2 hits at 1.5x`, '#e86898');
+        this.showToast(`${hero.name}: Fury Combo! Next 2 hits at 1.5x`, '#f0a030');
         // Does not consume turn — re-enable answering
         this.locked = false;
         this.hideAbilityButton();
@@ -3414,29 +3414,24 @@ export class BattleScene extends Phaser.Scene {
     // --- Battle cry: super move ---
     this.showBattleCry(hero, 'superMove');
 
-    if (heroSprite?.body) {
-      heroSprite.body.setTint(0xffff80);
-      this.tweens.add({
-        targets: heroSprite.body, x: lungeX, duration: 200, ease: 'Power2',
-        onComplete: () => {
-          this.burstParticles(targetSprite.body?.x || lungeX + 80, targetSprite.body?.y || heroSprite.body.y, 0xf0c040);
-          this.cameras.main.shake(200, 0.015);
-          heroSprite.body.clearTint();
+    const tx = targetSprite.x;
+    const ty = targetSprite.y;
+    const cls = hero.class || 'knight';
+    const superResult = { modifiedDamage: dmg };
+    const superCb = {
+      onHit: () => {
+        targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+        this.updateEnemyHp(targetIdx);
+      },
+      onComplete: () => this.afterSuperDamage(targetIdx, targetSprite),
+    };
 
-          targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
-          this.updateEnemyHp(targetIdx);
-
-          this.tweens.add({
-            targets: heroSprite.body, x: origX, duration: 200, ease: 'Power2',
-            onComplete: () => this.afterSuperDamage(targetIdx, targetSprite),
-          });
-        },
-      });
+    if (cls === 'knight') {
+      playKnightSuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
+    } else if (cls === 'wizard') {
+      playWizardSuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
     } else {
-      this.cameras.main.shake(150, 0.01);
-      targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
-      this.updateEnemyHp(targetIdx);
-      this.afterSuperDamage(targetIdx, targetSprite);
+      playBunnySuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
     }
   }
 

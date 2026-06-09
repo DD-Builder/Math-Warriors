@@ -44,6 +44,7 @@ export class ShopScene extends Phaser.Scene {
 
     this.goldLabel = this.add.text(area.cx, area.top + 100, '', {
       ...TEXT.heading(), fontSize: '28px', color: '#d07818',
+      stroke: '#3a2410', strokeThickness: 2,
     }).setOrigin(0.5);
     this.updateGoldLabel();
 
@@ -110,10 +111,10 @@ export class ShopScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       const canAfford = this.save.gold >= item.cost;
-      const buyBtn = PaperButton(this, x, cardY + 70, 'BUY', {
-        w: 140, h: 46, fontSize: 18,
+      const buyBtn = PaperButton(this, x, cardY + 70, canAfford ? 'BUY' : 'NEED GOLD', {
+        w: 140, h: 46, fontSize: canAfford ? 18 : 14,
         color: canAfford ? 0xe84840 : 0x808080,
-        textColor: canAfford ? '#fff8e0' : '#a0a0a0',
+        textColor: canAfford ? '#fff8e0' : '#505050',
         onClick: () => this.buyItem(item, i),
       });
 

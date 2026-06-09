@@ -78,6 +78,371 @@ export function playFizzleAnimation(scene, heroSprite) {
       onComplete: () => sp.destroy(),
     });
   }
+
+  // Red screen tint flash
+  const W = 1500, H = 1100;
+  const cx = 720, cy = 540;
+  const redTint = scene.add.rectangle(cx, cy, W, H, 0xff0000, 0.08).setDepth(25);
+  scene.tweens.add({
+    targets: redTint,
+    alpha: 0,
+    duration: 150,
+    onComplete: () => redTint.destroy(),
+  });
+
+  // Hero recoil
+  if (heroSprite.body) {
+    scene.tweens.add({
+      targets: heroSprite.body,
+      x: heroSprite.body.x - 10,
+      duration: 80,
+      yoyo: true,
+    });
+  }
+
+  // "FIZZLE!" floating text
+  const fizzleText = scene.add.text(hx, hy - 10, 'FIZZLE!', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: '28px',
+    fontStyle: 'bold',
+    color: '#c080f0',
+    stroke: '#000000',
+    strokeThickness: 4,
+  }).setOrigin(0.5).setDepth(30);
+  scene.tweens.add({
+    targets: fizzleText,
+    y: hy - 60,
+    alpha: 0,
+    duration: 700,
+    ease: 'Cubic.out',
+    onComplete: () => fizzleText.destroy(),
+  });
+}
+
+/**
+ * Play a knight SUPER move animation — gold charge + oversized slash.
+ * ~1000ms total.
+ */
+export function playKnightSuper(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
+  const origSX = heroSprite.body ? heroSprite.body.scaleX : 1;
+  const origSY = heroSprite.body ? heroSprite.body.scaleY : 1;
+
+  // 0-300ms: Gold glow charge + scale up
+  if (heroSprite.body) {
+    heroSprite.body.setTint(0xffd040);
+    scene.tweens.add({
+      targets: heroSprite.body,
+      scaleX: origSX * 1.1,
+      scaleY: origSY * 1.1,
+      duration: 300,
+      ease: 'Cubic.in',
+    });
+  }
+
+  // 300-550ms: Lunge to enemy (fast 250ms)
+  scene.time.delayedCall(300, () => {
+    if (heroSprite.body) {
+      heroSprite.body.clearTint();
+      scene.tweens.add({
+        targets: heroSprite.body,
+        x: enemyX - 60,
+        scaleX: origSX,
+        scaleY: origSY,
+        duration: 250,
+        ease: 'Back.out',
+        onComplete: () => {
+          // 550ms: IMPACT
+          hitPause(scene, { body: heroSprite.body }, 80);
+
+          // Screen shake (stronger than normal: 0.02 vs 0.008)
+          scene.cameras.main.shake(180, 0.02);
+
+          // White flash
+          const whiteFlash = scene.add.rectangle(enemyX, enemyY, 140, 160, 0xffffff, 0.6);
+          whiteFlash.setDepth(21);
+          scene.tweens.add({ targets: whiteFlash, alpha: 0, duration: 120, onComplete: () => whiteFlash.destroy() });
+
+          // Impact ring — 80px (vs 50px normal)
+          impactRing(scene, enemyX, enemyY, 0xffd040, 80);
+
+          // 40 golden sparks (vs 32 normal)
+          for (let i = 0; i < 40; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 25 + Math.random() * 50;
+            const size = 4 + Math.random() * 3;
+            const sparkColor = Math.random() > 0.5 ? 0xfff8c0 : 0xffd040;
+            const sp = scene.add.circle(enemyX, enemyY, size, sparkColor);
+            sp.setDepth(20);
+            scene.tweens.add({
+              targets: sp,
+              x: enemyX + Math.cos(angle) * dist,
+              y: enemyY + Math.sin(angle) * dist + 15,
+              alpha: 0, scale: 0.3,
+              duration: 350 + Math.random() * 200,
+              ease: 'Cubic.out',
+              onComplete: () => sp.destroy(),
+            });
+          }
+
+          // Oversized slash arcs (2x width/radius)
+          const slash1 = drawSlashArc(scene, enemyX, enemyY, 8, 0xf0e8c0, 0.95, 0, 0);
+          scene.tweens.add({ targets: slash1, alpha: 0, duration: 300, onComplete: () => slash1.destroy() });
+
+          scene.time.delayedCall(30, () => {
+            const slash2 = drawSlashArc(scene, enemyX, enemyY, 10, 0xffe880, 0.85, 10, -6);
+            scene.tweens.add({ targets: slash2, alpha: 0, duration: 300, onComplete: () => slash2.destroy() });
+          });
+
+          scene.time.delayedCall(60, () => {
+            const slash3 = drawSlashArc(scene, enemyX, enemyY, 12, 0xffd040, 0.75, -10, 10);
+            scene.tweens.add({ targets: slash3, alpha: 0, duration: 300, onComplete: () => slash3.destroy() });
+          });
+
+          // Enemy hit reaction
+          enemyHitReaction(scene, targetSprite, result.modifiedDamage);
+
+          if (cb.onHit) cb.onHit();
+
+          // Return home
+          scene.tweens.add({
+            targets: heroSprite.body,
+            x: heroSprite.x,
+            duration: 250,
+            delay: 100,
+            ease: 'Sine.in',
+            onComplete: () => { if (cb.onComplete) cb.onComplete(); },
+          });
+        },
+      });
+    } else {
+      if (cb.onHit) cb.onHit();
+      if (cb.onComplete) cb.onComplete();
+    }
+  });
+}
+
+/**
+ * Play a bunny SUPER move animation — dash + 5-hit rapid combo + convergence explosion.
+ * ~1200ms total.
+ */
+export function playBunnySuper(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
+  const origY = heroSprite.y;
+
+  // 0-100ms: Dash to enemy
+  scene.tweens.add({
+    targets: heroSprite.body,
+    x: enemyX - 50,
+    duration: 100,
+    ease: 'Quad.out',
+    onComplete: () => {
+      // 100-600ms: 5-hit rapid combo
+      let hit = 0;
+      const positions = [
+        { x: enemyX - 30, y: enemyY - 30 },
+        { x: enemyX + 30, y: enemyY - 10 },
+        { x: enemyX - 20, y: enemyY + 20 },
+        { x: enemyX + 20, y: enemyY - 20 },
+        { x: enemyX, y: enemyY },
+      ];
+      const afterimages = [];
+
+      const doHit = () => {
+        if (hit >= 5) {
+          // 600-800ms: Backflip away
+          scene.tweens.add({
+            targets: heroSprite.body,
+            x: heroSprite.x + 60, y: origY - 80,
+            duration: 100, ease: 'Quad.out',
+            onComplete: () => {
+              scene.tweens.add({
+                targets: heroSprite.body,
+                x: heroSprite.x, y: origY,
+                duration: 100, ease: 'Quad.in',
+                onComplete: () => {
+                  // 800-1000ms: Afterimages converge
+                  scene.time.delayedCall(50, () => {
+                    for (const ai of afterimages) {
+                      scene.tweens.add({
+                        targets: ai, x: enemyX, y: enemyY, alpha: 0.8,
+                        duration: 100, ease: 'Cubic.in',
+                        onComplete: () => ai.destroy(),
+                      });
+                    }
+
+                    // 1000-1200ms: Convergence explosion (bigger than normal)
+                    scene.time.delayedCall(120, () => {
+                      const flash = scene.add.rectangle(720, 540, 1500, 1100, 0xe86898, 0.3);
+                      flash.setDepth(21);
+                      scene.tweens.add({ targets: flash, alpha: 0, duration: 150, onComplete: () => flash.destroy() });
+
+                      // 35 particles on final burst
+                      sparkBurst(scene, enemyX, enemyY, 35, [0xe86898, 0xf090b0, 0xff80c0], true);
+
+                      impactRing(scene, enemyX, enemyY, 0xe86898, 120);
+                      scene.cameras.main.shake(150, 0.012);
+
+                      enemyHitReaction(scene, targetSprite, result.modifiedDamage);
+
+                      if (cb.onHit) cb.onHit();
+
+                      scene.time.delayedCall(150, () => {
+                        if (cb.onComplete) cb.onComplete();
+                      });
+                    });
+                  });
+                },
+              });
+            },
+          });
+          return;
+        }
+
+        const pos = positions[hit];
+        const isLastHit = hit === 4;
+
+        // Speed lines
+        for (let sl = 0; sl < 4; sl++) {
+          const lineY = origY + (pos.y - enemyY) + (Math.random() - 0.5) * 30;
+          const lineX = (heroSprite.body ? heroSprite.body.x : heroSprite.x) - 10 - sl * 12;
+          const speedLine = scene.add.graphics();
+          speedLine.setDepth(19);
+          speedLine.lineStyle(1.5, 0xffffff, 0.4);
+          speedLine.beginPath();
+          speedLine.moveTo(lineX, lineY);
+          speedLine.lineTo(lineX - 25 - Math.random() * 15, lineY);
+          speedLine.strokePath();
+          scene.tweens.add({ targets: speedLine, alpha: 0, duration: 100, onComplete: () => speedLine.destroy() });
+        }
+
+        scene.tweens.add({
+          targets: heroSprite.body,
+          x: pos.x, y: pos.y - 20,
+          duration: 60, ease: 'Linear',
+          onComplete: () => {
+            // Afterimage
+            const ghost = scene.add.circle(pos.x, pos.y - 20, 22, 0xe86898, 0.5);
+            ghost.setDepth(19);
+            afterimages.push(ghost);
+
+            // Per-hit spark burst
+            const sparkCount = isLastHit ? 20 : 8;
+            sparkBurst(scene, enemyX, enemyY, sparkCount, [0xe86898, 0xf090b0, 0xff80c0]);
+
+            // Per-hit impact burst
+            const burst = scene.add.circle(enemyX, enemyY, 5, 0xe86898, 0.7);
+            burst.setDepth(20);
+            scene.tweens.add({
+              targets: burst, radius: isLastHit ? 35 : 20, alpha: 0,
+              duration: 100, ease: 'Cubic.out',
+              onComplete: () => burst.destroy(),
+            });
+
+            impactRing(scene, enemyX, enemyY, 0xe86898, isLastHit ? 50 : 25);
+
+            if (isLastHit) {
+              scene.cameras.main.shake(80, 0.005);
+            }
+
+            hit++;
+            scene.time.delayedCall(40, doHit);
+          },
+        });
+      };
+      doHit();
+    },
+  });
+}
+
+/**
+ * Play a wizard SUPER move animation — 3 staggered orbs + magic circle + explosion.
+ * ~1100ms total.
+ */
+export function playWizardSuper(scene, heroSprite, targetSprite, enemyX, enemyY, result, cb) {
+  const orbColors = [0x8040c0, 0xc080f0, 0x6020a0];
+  const heroX = heroSprite.x;
+  const heroY = heroSprite.y - 30;
+
+  // 0-300ms: 3 staggered magic orbs fire toward enemy
+  for (let i = 0; i < 3; i++) {
+    scene.time.delayedCall(i * 100, () => {
+      const offsetY = (i - 1) * 30;
+      const orb = scene.add.circle(heroX + 40, heroY + offsetY, 12, orbColors[i], 0.9);
+      orb.setDepth(20);
+
+      // Orb glow
+      const glow = scene.add.circle(heroX + 40, heroY + offsetY, 20, orbColors[i], 0.3);
+      glow.setDepth(19);
+
+      scene.tweens.add({
+        targets: [orb, glow],
+        x: enemyX,
+        y: enemyY,
+        duration: 300,
+        ease: 'Cubic.in',
+        onComplete: () => {
+          orb.destroy();
+          glow.destroy();
+
+          // Small spark burst per orb hit
+          sparkBurst(scene, enemyX, enemyY, 8, [orbColors[i], 0xffffff]);
+          impactRing(scene, enemyX, enemyY, orbColors[i], 40);
+        },
+      });
+    });
+  }
+
+  // 300-500ms: Magic circle under enemy
+  scene.time.delayedCall(300, () => {
+    const mcGfx = scene.add.graphics();
+    mcGfx.setDepth(19);
+    mcGfx.lineStyle(3, 0xc080f0, 0.7);
+    mcGfx.strokeCircle(enemyX, enemyY + 30, 70);
+    mcGfx.lineStyle(2, 0x8040c0, 0.5);
+    mcGfx.strokeCircle(enemyX, enemyY + 30, 50);
+    mcGfx.lineStyle(1, 0xffffff, 0.3);
+    mcGfx.strokeCircle(enemyX, enemyY + 30, 30);
+
+    scene.tweens.add({
+      targets: mcGfx,
+      rotation: Math.PI * 2,
+      duration: 600,
+      ease: 'Linear',
+    });
+
+    // 500-700ms: All 3 orbs arrived — BIG detonation
+    scene.time.delayedCall(200, () => {
+      // Flash
+      const flash = scene.add.rectangle(720, 540, 1500, 1100, 0xc080f0, 0.3);
+      flash.setDepth(21);
+      scene.tweens.add({ targets: flash, alpha: 0, duration: 200, onComplete: () => flash.destroy() });
+
+      // Heavy screen shake
+      scene.cameras.main.shake(200, 0.018);
+
+      // 30-particle explosion
+      sparkBurst(scene, enemyX, enemyY, 30, [0xc080f0, 0x8040c0, 0x6020a0, 0xffffff], true);
+
+      // Large impact ring
+      impactRing(scene, enemyX, enemyY, 0xc080f0, 100);
+      scene.time.delayedCall(50, () => impactRing(scene, enemyX, enemyY, 0x8040c0, 150));
+
+      // Enemy hit reaction
+      enemyHitReaction(scene, targetSprite, result.modifiedDamage);
+
+      if (cb.onHit) cb.onHit();
+
+      // Fade magic circle
+      scene.tweens.add({
+        targets: mcGfx, alpha: 0, duration: 300, delay: 100,
+        onComplete: () => mcGfx.destroy(),
+      });
+
+      // 700-1100ms: Settle
+      scene.time.delayedCall(400, () => {
+        if (cb.onComplete) cb.onComplete();
+      });
+    });
+  });
 }
 
 // ================================================================
