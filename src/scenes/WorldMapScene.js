@@ -613,8 +613,8 @@ export class WorldMapScene extends Phaser.Scene {
       });
     }
 
-    const skillsBtn = PaperButton(this, area.cx - 100, area.bottom - 36, 'SKILLS', {
-      w: 150, h: 56, color: 0x4080c0, fontSize: 18,
+    const skillsBtn = PaperButton(this, area.cx - 160, area.bottom - 36, 'SKILLS', {
+      w: 140, h: 56, color: 0x4080c0, fontSize: 18,
       textColor: '#fff8e0',
       onClick: () => {
         audio.play('ui/click');
@@ -623,8 +623,8 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(skillsBtn, 0);
 
-    const shopBtn = PaperButton(this, area.cx + 100, area.bottom - 36, 'SHOP', {
-      w: 160, h: 56, color: 0xd07818, fontSize: 20,
+    const shopBtn = PaperButton(this, area.cx, area.bottom - 36, 'SHOP', {
+      w: 140, h: 56, color: 0xd07818, fontSize: 20,
       textColor: '#fff8e0',
       onClick: () => {
         audio.play('ui/click');
@@ -632,6 +632,16 @@ export class WorldMapScene extends Phaser.Scene {
       },
     });
     this.setScrollFactorDeep(shopBtn, 0);
+
+    const galleryBtn = PaperButton(this, area.cx + 160, area.bottom - 36, 'GALLERY', {
+      w: 140, h: 56, color: 0x9050c8, fontSize: 18,
+      textColor: '#fff8e0',
+      onClick: () => {
+        audio.play('ui/click');
+        transitionTo(this, SCENES.GALLERY, undefined, 200);
+      },
+    });
+    this.setScrollFactorDeep(galleryBtn, 0);
 
     const settingsBtn = PaperButton(this, area.right - 60, area.bottom - 36, '⚙', {
       w: 100, h: 50, color: 0x4a6ca8, fontSize: 24,
