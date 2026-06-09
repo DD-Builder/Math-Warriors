@@ -132,11 +132,11 @@ export class SaveSlotScene extends Phaser.Scene {
         }
       }
 
-      this.add.text(x, barY + 35, `Gold: ${meta.gold}`, infoStyle).setOrigin(0.5);
+      this.add.text(x, dotY + 35, `Gold: ${meta.gold}`, infoStyle).setOrigin(0.5);
 
       if (meta.lastPlayed) {
         const ago = this.timeAgo(meta.lastPlayed);
-        this.add.text(x, barY + 65, `Last played: ${ago}`, {
+        this.add.text(x, dotY + 65, `Last played: ${ago}`, {
           ...TEXT.stat(), fontSize: '14px', color: '#908060',
         }).setOrigin(0.5);
       }

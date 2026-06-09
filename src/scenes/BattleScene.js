@@ -2211,7 +2211,7 @@ export class BattleScene extends Phaser.Scene {
         this.showToast('CRITICAL HIT!', COLORS_CSS.goldL);
         confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 12);
       } else {
-        this.showToast('CORRECT!', COLORS_CSS.greenL);
+        this.showToast('CORRECT!', '#40c040');
         confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
       }
 
@@ -2553,21 +2553,23 @@ export class BattleScene extends Phaser.Scene {
             result = applyGuardReduction(result, target.hp);
           }
           let dmg = result.modifiedDamage;
-          dmg = onHeroDamageReceived(target, counterEnemy, dmg, {
+          const sigResult2 = onHeroDamageReceived(target, counterEnemy, dmg, {
             party: this.party,
             battleState: this.signatureState,
+            heroIndex: heroIdx,
           });
-          result.modifiedDamage = dmg;
+          result.modifiedDamage = sigResult2.damage;
+          result.newHp = Math.max(0, target.hp - result.modifiedDamage);
           applyDamageResult(target, result);
           checkLastStand(target, heroIdx, this.signatureState);
-          checkPaladinGuard(target, this.party, this.signatureState);
+          checkPaladinGuard(target, heroIdx, this.party, this.signatureState);
           if (result.modifiedDamage > 0) this.battleDamageTaken = true;
           this.hitFlash();
           this.flashHero(target, result);
           this.updateHeroHp(target);
           this.shakeCamera(0.01, 250);
           audio.play('battle/hit-hero');
-          if (this.isPartyDefeated()) {
+          if (isPartyDefeated(this.party)) {
             this.time.delayedCall(600, () => this.showDefeat());
           }
         });
@@ -2622,7 +2624,7 @@ export class BattleScene extends Phaser.Scene {
     writeSave(this.save, this.slot);
 
     audio.play('battle/correct');
-    this.showToast(`+${actualHealed} HP`, COLORS_CSS.greenL);
+    this.showToast(`+${actualHealed} HP`, '#40c040');
     const potionHeroIdx = this.party.indexOf(activeHero);
     const potionHs = this.heroSprites[potionHeroIdx];
     this.floatDamageNumber(potionHs.x, potionHs.y - 80, actualHealed, '#40ff60', '+');
