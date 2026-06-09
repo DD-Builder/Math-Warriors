@@ -9,11 +9,11 @@
  */
 
 export const DIFFICULTY_MULTIPLIERS = {
-  1: 0.6,
-  2: 0.8,
+  1: 0.8,
+  2: 0.9,
   3: 1.0,
-  4: 1.3,
-  5: 1.6,
+  4: 1.25,
+  5: 1.5,
 };
 
 // Grade max operands (mirrors GRADE_TABLE in math.js — kept separate to avoid circular import)

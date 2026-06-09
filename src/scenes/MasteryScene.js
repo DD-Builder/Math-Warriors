@@ -49,9 +49,16 @@ export class MasteryScene extends Phaser.Scene {
       const color = getMasteryColor(s.level);
       const levelLabel = getMasteryLabel(s.level);
 
-      PaperPanel(this, cx, cy, cardW, cardH, {
+      const panel = PaperPanel(this, cx, cy, cardW, cardH, {
         color: 0xf5ead0, alpha: 0.92, radius: 16,
       });
+
+      // Gold border on mastered domains
+      if (levelLabel === 'MASTERED') {
+        const borderGfx = this.add.graphics();
+        borderGfx.lineStyle(4, 0xf0d060, 1);
+        borderGfx.strokeRoundedRect(cx - cardW / 2 + 2, cy - cardH / 2 + 2, cardW - 4, cardH - 4, 14);
+      }
 
       const iconColors = {
         '+': '➕', '-': '➖', '*': '✖️', '/': '➗',

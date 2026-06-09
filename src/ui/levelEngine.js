@@ -255,6 +255,17 @@ function LV_drawWall(sx, sy, ts, tx, ty) {
       LV_cut(cbc, 2, function () { _G.arc(cbx, cby, ts * 0.07, 0, Math.PI * 2); });
     }
   }
+  // Stone block detail: 2 thin horizontal lines + 1 vertical line
+  _G.save();
+  _G.strokeStyle = 'rgba(0,0,0,0.15)';
+  _G.lineWidth = 1;
+  _G.beginPath();
+  _G.moveTo(sx, sy + ts / 3); _G.lineTo(sx + ts, sy + ts / 3);
+  _G.moveTo(sx, sy + ts * 2 / 3); _G.lineTo(sx + ts, sy + ts * 2 / 3);
+  var vx = sx + (tx * 7 + ty * 13) % ts;
+  _G.moveTo(vx, sy); _G.lineTo(vx, sy + ts);
+  _G.stroke();
+  _G.restore();
 }
 
 function LV_drawFloor(sx, sy, ts, tx, ty) {
@@ -273,6 +284,15 @@ function LV_drawFloor(sx, sy, ts, tx, ty) {
       LV_cut('#50a838', 0, function() { _G.arc(lx, ly, ts * 0.04, 0, Math.PI * 2); });
     }
   }
+  // Subtle grain dots
+  _G.save();
+  _G.fillStyle = 'rgba(0,0,0,0.08)';
+  for (var gi = 0; gi < 4; gi++) {
+    var gx = sx + (tx * 31 + ty * 17 + gi * 7) % ts;
+    var gy = sy + (tx * 13 + ty * 41 + gi * 11) % ts;
+    _G.beginPath(); _G.arc(gx, gy, 1, 0, Math.PI * 2); _G.fill();
+  }
+  _G.restore();
 }
 
 function LV_drawPath(sx, sy, ts, tx, ty) {
@@ -282,12 +302,32 @@ function LV_drawPath(sx, sy, ts, tx, ty) {
     var st = stones[si]; var sr = mkRng(tx * 41 + ty * 83 + si * 11);
     LV_cut(si % 2 === 0 ? LV_PAL.stone : LV_PAL.stoneD, 2, (function (st2, sr2) { return function () { LV_wobRect(st2[0] + sr2() * 2, st2[1] + sr2() * 2, st2[2] - sr2() * 2, st2[3] - sr2() * 2, mkRng(si * 7 + tx + ty), 1.5); }; })(st, sr));
   }
+  // Cobblestone highlights: 3 small lighter circles down the center
+  _G.save();
+  _G.fillStyle = 'rgba(255,255,255,0.1)';
+  for (var ci = 0; ci < 3; ci++) {
+    _G.beginPath();
+    _G.arc(sx + ts * 0.5, sy + ts * (0.2 + ci * 0.3), 2, 0, Math.PI * 2);
+    _G.fill();
+  }
+  _G.restore();
 }
 
 function LV_drawWater(sx, sy, ts, tx, ty, t) {
   LV_cut(LV_PAL.pond0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   LV_cut(LV_PAL.pond1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
   LV_cut(LV_PAL.pondHL, 0, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.18 + Math.sin(t * 2 + ty) * ts * 0.04, ts * 0.35, ts * 0.05); });
+  // Sine-wave ripple line
+  _G.save();
+  _G.strokeStyle = 'rgba(106,176,200,0.15)';
+  _G.lineWidth = 1;
+  _G.beginPath();
+  for (var wp = 0; wp <= ts; wp += 2) {
+    var wy = sy + ts * 0.5 + 2 * Math.sin(wp * 0.3 + tx * 0.5);
+    if (wp === 0) _G.moveTo(sx + wp, wy); else _G.lineTo(sx + wp, wy);
+  }
+  _G.stroke();
+  _G.restore();
 }
 
 // ─── FLOOR 2: TIDEPOOL TILES (zone-aware) ───────────────────────
@@ -795,18 +835,28 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
   else if (tt === LV_TP) fns.path(sx, sy, ts, tx, ty);
   else if (tt === LV_TQ) fns.water(sx, sy, ts, tx, ty, t);
   else if (tt === LV_TS) {
+    // Secret passage — render as wall but with subtle visual hints
     fns.wall(sx, sy, ts, tx, ty);
+    // Slightly lighter overlay (5-10% lighter than normal wall)
+    _G.save();
+    _G.globalAlpha = 0.08;
+    _G.fillStyle = '#ffffff';
+    _G.fillRect(sx, sy, ts + 1, ts + 1);
+    _G.restore();
+    // Subtle crack line (1px, slightly darker) — hints at breakable wall
     var sr = mkRng(tx * 61 + ty * 89);
-    _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.1;
-    _G.strokeStyle = '#f0d060';
+    _G.save();
+    _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.08;
+    _G.strokeStyle = '#1a0e04';
     _G.lineWidth = 1;
     _G.beginPath();
     var cx = sx + ts * (0.3 + sr() * 0.4);
-    _G.moveTo(cx, sy + ts * 0.2);
-    _G.lineTo(cx + ts * 0.05, sy + ts * 0.5);
-    _G.lineTo(cx - ts * 0.03, sy + ts * 0.8);
+    _G.moveTo(cx, sy + ts * 0.15);
+    _G.lineTo(cx + ts * 0.06, sy + ts * 0.45);
+    _G.lineTo(cx - ts * 0.04, sy + ts * 0.75);
+    _G.lineTo(cx + ts * 0.02, sy + ts * 0.9);
     _G.stroke();
-    _G.globalAlpha = 1;
+    _G.restore();
   }
   else fns.floor(sx, sy, ts, tx, ty);
 }
@@ -1222,39 +1272,66 @@ function LV_drawExit(sx, sy, ts, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var dw = ts * 0.6, dh = ts * 0.85;
   var dx = x - dw / 2, dy = y - dh / 2 - ts * 0.05;
-  // Golden glow behind door
-  _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
-  var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
-  gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
-  _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
-  // Door frame — gold rectangle with arched top
-  LV_cut('#c08018', 6, function () {
-    _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
-    _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
-    _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
-    _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
-    _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
-    _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
-  });
-  // Light from doorway
-  var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
-  _G.save(); _G.globalAlpha = pulse;
-  var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
-  lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
-  _G.fillStyle = lg;
-  _G.beginPath();
-  _G.moveTo(dx + ts * 0.12, dy + dh);
-  _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
-  _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
-  _G.lineTo(dx + dw - ts * 0.12, dy + dh);
-  _G.fill(); _G.restore();
-  // Keyhole or handle
-  LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
-  // Sparkle particles orbiting
-  for (var p = 0; p < 4; p++) {
-    var pa = (p / 4) * Math.PI * 2 + t * 1.5;
-    var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
-    _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
+  var hasKey = _gs && _gs.hasKey;
+
+  if (hasKey) {
+    // GLOWING / LIT UP exit — golden key obtained
+    // Golden glow behind door
+    _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
+    var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
+    gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
+    _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
+    // Door frame — gold rectangle with arched top
+    LV_cut('#c08018', 6, function () {
+      _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
+      _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
+      _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
+      _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
+      _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
+      _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
+    });
+    // Light from doorway
+    var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
+    _G.save(); _G.globalAlpha = pulse;
+    var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
+    lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
+    _G.fillStyle = lg;
+    _G.beginPath();
+    _G.moveTo(dx + ts * 0.12, dy + dh);
+    _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
+    _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
+    _G.lineTo(dx + dw - ts * 0.12, dy + dh);
+    _G.fill(); _G.restore();
+    // Keyhole or handle
+    LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+    // Sparkle particles orbiting
+    for (var p = 0; p < 4; p++) {
+      var pa = (p / 4) * Math.PI * 2 + t * 1.5;
+      var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
+      _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
+    }
+  } else {
+    // DIM / DARK exit — key not yet obtained
+    // Dark door frame (no glow)
+    LV_cut('#3a2810', 6, function () {
+      _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
+      _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
+      _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
+      _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
+      _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
+      _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
+    });
+    // Dark interior — no light
+    _G.save(); _G.globalAlpha = 0.4;
+    _G.fillStyle = '#1a0e04';
+    _G.beginPath();
+    _G.moveTo(dx + ts * 0.12, dy + dh);
+    _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
+    _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
+    _G.lineTo(dx + dw - ts * 0.12, dy + dh);
+    _G.fill(); _G.restore();
+    // Dim keyhole
+    LV_cut('#4a3010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
   }
 }
 
@@ -1508,7 +1585,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
     x: (startX + 0.5) * LV_TILE,
     y: (startY + 0.5) * LV_TILE,
     vx: 0, vy: 0,
-    speed: 2.8,
+    speed: 4.2,
     facing: 'down',
     animT: 0
   };

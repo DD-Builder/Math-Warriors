@@ -86,8 +86,9 @@ export class SaveSlotScene extends Phaser.Scene {
         ...TEXT.body(), fontSize: '18px', color: '#c0a878',
       }).setOrigin(0.5);
 
+      const save = loadSave(slot);
+
       if (meta.partyNames.length > 0) {
-        const save = loadSave(slot);
         const heroY = top + 150;
         for (let hi = 0; hi < save.party.length; hi++) {
           const hero = save.party[hi];
@@ -105,24 +106,37 @@ export class SaveSlotScene extends Phaser.Scene {
       const infoStyle = { ...TEXT.body(), fontSize: '20px', color: '#e0d0b0' };
       this.add.text(x, infoY, `Floor: ${meta.floorsComplete}/9`, infoStyle).setOrigin(0.5);
 
-      const barW = 260;
-      const barH = 16;
-      const barX = x - barW / 2;
-      const barY = infoY + 25;
+      // 9 small circles showing floor progress
+      const dotRadius = 4;
+      const dotGap = 4;
+      const dotDiameter = dotRadius * 2;
+      const totalDotsW = 9 * dotDiameter + 8 * dotGap;
+      const dotStartX = x - totalDotsW / 2 + dotRadius;
+      const dotY = infoY + 30;
       const gfx = this.add.graphics();
-      gfx.fillStyle(0x1a0e04, 0.6);
-      gfx.fillRoundedRect(barX, barY, barW, barH, 6);
-      const pct = Math.min(1, meta.floorsComplete / 9);
-      if (pct > 0) {
-        gfx.fillStyle(0x4aa848, 1);
-        gfx.fillRoundedRect(barX, barY, barW * pct, barH, 6);
+      for (let fi = 0; fi < 9; fi++) {
+        const dx = dotStartX + fi * (dotDiameter + dotGap);
+        const floorData = save.floors?.[fi];
+        if (floorData?.complete) {
+          // Gold filled
+          gfx.fillStyle(0xf0d060, 1);
+          gfx.fillCircle(dx, dotY, dotRadius);
+        } else if (floorData?.unlocked) {
+          // White hollow (stroke only)
+          gfx.lineStyle(2, 0xffffff, 1);
+          gfx.strokeCircle(dx, dotY, dotRadius);
+        } else {
+          // Dark gray
+          gfx.fillStyle(0x404040, 1);
+          gfx.fillCircle(dx, dotY, dotRadius);
+        }
       }
 
-      this.add.text(x, barY + 35, `Gold: ${meta.gold}`, infoStyle).setOrigin(0.5);
+      this.add.text(x, dotY + 35, `Gold: ${meta.gold}`, infoStyle).setOrigin(0.5);
 
       if (meta.lastPlayed) {
         const ago = this.timeAgo(meta.lastPlayed);
-        this.add.text(x, barY + 65, `Last played: ${ago}`, {
+        this.add.text(x, dotY + 65, `Last played: ${ago}`, {
           ...TEXT.stat(), fontSize: '14px', color: '#908060',
         }).setOrigin(0.5);
       }
@@ -221,14 +235,14 @@ export class SaveSlotScene extends Phaser.Scene {
     };
 
     const rows = [
-      'ABCDEFGHIJ',
-      'KLMNOPQRST',
-      'UVWXYZ 123',
+      'QWERTYUIOP',
+      'ASDFGHJKL',
+      'ZXCVBNM',
     ];
 
-    const btnSize = 64;
-    const btnGap = 8;
-    const startY = 300;
+    const btnSize = 60;
+    const btnGap = 6;
+    const startY = 280;
 
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r];
@@ -239,7 +253,7 @@ export class SaveSlotScene extends Phaser.Scene {
         const bx = rowStartX + c * (btnSize + btnGap);
         const by = startY + r * (btnSize + btnGap);
         const btn = PaperButton(this, bx, by, ch, {
-          w: btnSize, h: btnSize, color: 0x3a2810, fontSize: 24,
+          w: btnSize, h: btnSize, color: 0x3a2810, fontSize: 22,
           onClick: () => {
             if (currentName.length < MAX_LEN) {
               currentName += ch;
@@ -253,7 +267,36 @@ export class SaveSlotScene extends Phaser.Scene {
       }
     }
 
-    const controlY = startY + 3 * (btnSize + btnGap) + 20;
+    // Hardware keyboard support
+    const keyHandler = (event) => {
+      const key = event.key;
+      if (key === 'Backspace') {
+        if (currentName.length > 0) {
+          currentName = currentName.slice(0, -1);
+          updatePreview();
+          audio.play('ui/click');
+        }
+        event.preventDefault();
+      } else if (key === 'Enter') {
+        const name = currentName.trim() || `Slot ${slot}`;
+        audio.play('ui/confirm');
+        this.closePicker();
+        this.startNewGame(slot, name);
+        event.preventDefault();
+      } else if (key === 'Escape') {
+        audio.play('ui/back');
+        this.closePicker();
+        event.preventDefault();
+      } else if (key.length === 1 && /[a-zA-Z0-9 ]/.test(key) && currentName.length < MAX_LEN) {
+        currentName += key.toUpperCase();
+        updatePreview();
+        audio.play('ui/click');
+      }
+    };
+    window.addEventListener('keydown', keyHandler);
+    this._pickerKeyHandler = keyHandler;
+
+    const controlY = startY + 3 * (btnSize + btnGap) + 10;
 
     const delBtn = PaperButton(this, GAME_WIDTH / 2 - 160, controlY, 'DELETE', {
       w: 180, h: 60, color: 0xc06030, fontSize: 20,
@@ -292,6 +335,10 @@ export class SaveSlotScene extends Phaser.Scene {
   }
 
   closePicker() {
+    if (this._pickerKeyHandler) {
+      window.removeEventListener('keydown', this._pickerKeyHandler);
+      this._pickerKeyHandler = null;
+    }
     if (this._pickerObjects) {
       this._pickerObjects.forEach(o => { if (o && o.destroy) o.destroy(); });
       this._pickerObjects = null;

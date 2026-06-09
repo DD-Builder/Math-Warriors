@@ -52,6 +52,7 @@ export const SCENES = {
   MASTERY: 'MasteryScene',
   BOSS_RUSH: 'BossRushScene',
   EVOLUTION: 'EvolutionScene',
+  GALLERY: 'GalleryScene',
 };
 
 // Safe margin from screen edges (pixels). All UI MUST stay inside this.
