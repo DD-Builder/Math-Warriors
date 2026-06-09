@@ -697,11 +697,43 @@ function LV_drawWall_ice(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.18 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.6); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.32 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
   if (r() < 0.2) { LV_cut(P.accent, 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.06, 0, Math.PI * 2); }); }
+  // Angular crystalline edge highlights on ice walls
+  _G.save();
+  _G.strokeStyle = 'rgba(255,255,255,0.15)';
+  _G.lineWidth = 1;
+  var ir5 = mkRng(tx * 47 + ty * 59 + 605);
+  // Short diagonal white strokes at tile edges
+  var edgeX = ir5() < 0.5 ? sx + ts * 0.05 : sx + ts * 0.85;
+  var edgeY = sy + ts * (0.1 + ir5() * 0.3);
+  _G.beginPath(); _G.moveTo(edgeX, edgeY); _G.lineTo(edgeX + ts * 0.1, edgeY + ts * 0.15); _G.stroke();
+  if (ir5() < 0.6) {
+    edgeX = ir5() < 0.5 ? sx + ts * 0.9 : sx + ts * 0.1;
+    edgeY = sy + ts * (0.5 + ir5() * 0.3);
+    _G.beginPath(); _G.moveTo(edgeX, edgeY); _G.lineTo(edgeX - ts * 0.08, edgeY + ts * 0.12); _G.stroke();
+  }
+  _G.restore();
 }
 function LV_drawFloor_ice(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[5], r = mkRng(tx * 19 + ty * 53 + 602);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+  // Ice crack lines on floor tiles (1-2 white lines, 0.15 alpha)
+  _G.save();
+  _G.strokeStyle = 'rgba(255,255,255,0.15)';
+  _G.lineWidth = 1;
+  var cr5 = mkRng(tx * 43 + ty * 71 + 607);
+  var crackCount = 1 + Math.floor(cr5() * 2);
+  for (var cci = 0; cci < crackCount; cci++) {
+    var cx1 = sx + ts * (0.1 + cr5() * 0.3);
+    var cy1 = sy + ts * (0.1 + cr5() * 0.3);
+    var angle5 = cr5() * Math.PI;
+    var clen = ts * (0.3 + cr5() * 0.3);
+    _G.beginPath();
+    _G.moveTo(cx1, cy1);
+    _G.lineTo(cx1 + Math.cos(angle5) * clen, cy1 + Math.sin(angle5) * clen);
+    _G.stroke();
+  }
+  _G.restore();
   // Transformation: thawed grass patches (green on ice)
   if (_transformed && r() < 0.22) {
     var fr5 = mkRng(tx * 67 + ty * 31 + 99);
@@ -729,11 +761,43 @@ function LV_drawWall_crystal(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.5); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
   if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); }
+  // Faceted crystal diagonal lines on walls
+  _G.save();
+  _G.strokeStyle = 'rgba(200,160,255,0.12)';
+  _G.lineWidth = 1;
+  var cr6 = mkRng(tx * 43 + ty * 67 + 706);
+  for (var ci = 0; ci < 2; ci++) {
+    _G.beginPath();
+    _G.moveTo(sx + cr6() * ts * 0.3, sy + cr6() * ts * 0.2);
+    _G.lineTo(sx + ts * (0.5 + cr6() * 0.5), sy + ts * (0.5 + cr6() * 0.5));
+    _G.stroke();
+  }
+  _G.restore();
 }
 function LV_drawFloor_crystal(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[6], r = mkRng(tx * 19 + ty * 53 + 702);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+  // Diamond/hexagonal outlines on crystal floor tiles
+  _G.save();
+  _G.strokeStyle = 'rgba(200,160,255,0.12)';
+  _G.lineWidth = 1;
+  var dr6 = mkRng(tx * 37 + ty * 59 + 703);
+  for (var di = 0; di < 2; di++) {
+    var dcx = sx + ts * (0.2 + dr6() * 0.6);
+    var dcy = sy + ts * (0.2 + dr6() * 0.6);
+    var dsz = ts * 0.08;
+    _G.beginPath();
+    _G.moveTo(dcx, dcy - dsz);
+    _G.lineTo(dcx + dsz * 0.87, dcy - dsz * 0.5);
+    _G.lineTo(dcx + dsz * 0.87, dcy + dsz * 0.5);
+    _G.lineTo(dcx, dcy + dsz);
+    _G.lineTo(dcx - dsz * 0.87, dcy + dsz * 0.5);
+    _G.lineTo(dcx - dsz * 0.87, dcy - dsz * 0.5);
+    _G.closePath();
+    _G.stroke();
+  }
+  _G.restore();
   // Transformation: prismatic sparkle dots
   if (_transformed && r() < 0.2) {
     var fr6 = mkRng(tx * 67 + ty * 31 + 99);
@@ -761,11 +825,30 @@ function LV_drawWall_market(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.18 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.6); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.32 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
   if (r() < 0.15) { LV_cut(P.accent, 0, function () { _G.rect(sx + ts * 0.3, sy + ts * 0.15, ts * 0.4, ts * 0.15); }); }
+  // Gold window-like rectangles on market walls (15% chance)
+  var wr7 = mkRng(tx * 53 + ty * 79 + 805);
+  if (wr7() < 0.15) {
+    _G.save();
+    _G.fillStyle = 'rgba(232,192,72,0.18)';
+    var wx = sx + ts * (0.25 + wr7() * 0.3);
+    var wy = sy + ts * (0.15 + wr7() * 0.2);
+    _G.fillRect(wx, wy, ts * 0.18, ts * 0.12);
+    _G.restore();
+  }
 }
 function LV_drawFloor_market(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[7], r = mkRng(tx * 19 + ty * 53 + 802);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.45) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+  // Cobblestone 3x3 sub-grid pattern on market floor tiles
+  _G.save();
+  _G.strokeStyle = 'rgba(80,60,30,0.15)';
+  _G.lineWidth = 0.8;
+  for (var gi = 1; gi < 3; gi++) {
+    _G.beginPath(); _G.moveTo(sx + ts * gi / 3, sy); _G.lineTo(sx + ts * gi / 3, sy + ts); _G.stroke();
+    _G.beginPath(); _G.moveTo(sx, sy + ts * gi / 3); _G.lineTo(sx + ts, sy + ts * gi / 3); _G.stroke();
+  }
+  _G.restore();
   // Transformation: gold coin glints on the floor
   if (_transformed && r() < 0.2) {
     var fr7 = mkRng(tx * 67 + ty * 31 + 99);
@@ -792,11 +875,33 @@ function LV_drawWall_library(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.55); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
   if (r() < 0.18) { LV_cut(P.rune, 0, function () { _G.rect(sx + ts * 0.25, sy + ts * 0.1, ts * 0.5, ts * 0.08); }); }
+  // Horizontal rune-like lines on library walls (2-3 strokes)
+  _G.save();
+  _G.strokeStyle = 'rgba(192,152,72,0.15)';
+  _G.lineWidth = 0.8;
+  var lr8 = mkRng(tx * 47 + ty * 61 + 905);
+  var lineCount = 2 + Math.floor(lr8() * 2);
+  for (var li = 0; li < lineCount; li++) {
+    var ly = sy + ts * (0.25 + li * 0.22 + lr8() * 0.05);
+    _G.beginPath(); _G.moveTo(sx + ts * 0.1, ly); _G.lineTo(sx + ts * 0.9, ly); _G.stroke();
+  }
+  _G.restore();
 }
 function LV_drawFloor_library(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[8], r = mkRng(tx * 19 + ty * 53 + 902);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+  // Subtle text-like marks (tiny horizontal dashes) on library floor
+  _G.save();
+  _G.strokeStyle = 'rgba(160,128,48,0.12)';
+  _G.lineWidth = 0.6;
+  var tr8 = mkRng(tx * 41 + ty * 73 + 906);
+  for (var ti = 0; ti < 4; ti++) {
+    var tdx = sx + ts * (0.15 + tr8() * 0.7);
+    var tdy = sy + ts * (0.15 + tr8() * 0.7);
+    _G.beginPath(); _G.moveTo(tdx, tdy); _G.lineTo(tdx + ts * 0.06 + tr8() * ts * 0.04, tdy); _G.stroke();
+  }
+  _G.restore();
   // Transformation: glowing page-light dots
   if (_transformed && r() < 0.18) {
     var fr8 = mkRng(tx * 67 + ty * 31 + 99);
@@ -815,7 +920,70 @@ function LV_drawWater_library(sx, sy, ts, tx, ty, t) {
   LV_cut(P.accent, 0, function () { _G.arc(sx + ts * (0.35 + Math.sin(t * 1.5 + ty) * 0.1), sy + ts * 0.5, ts * 0.05, 0, Math.PI * 2); });
 }
 
-// ─── FLOOR 10: MENDING ROOM reuses arcane tile fns (floor 5 key=9) ──
+// ─── FLOOR 10: MENDING ROOM (The Mending Room, arcane variant) ──
+
+function LV_drawWall_mending(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[9], r = mkRng(tx * 31 + ty * 97 + 1001);
+  LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.5); });
+  LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
+  if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); _G.save(); _G.globalAlpha = 0.15; _G.fillStyle = P.accent || '#c060f0'; _G.beginPath(); _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
+  // Glowing rune circles on mending walls
+  var mr9 = mkRng(tx * 53 + ty * 71 + 1005);
+  if (mr9() < 0.25) {
+    _G.save();
+    _G.strokeStyle = P.rune || '#8040d0';
+    _G.lineWidth = 1;
+    _G.globalAlpha = 0.1;
+    var mcx = sx + ts * (0.3 + mr9() * 0.4);
+    var mcy = sy + ts * (0.2 + mr9() * 0.3);
+    _G.beginPath(); _G.arc(mcx, mcy, ts * 0.1, 0, Math.PI * 2); _G.stroke();
+    _G.restore();
+  }
+}
+function LV_drawFloor_mending(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[9], r = mkRng(tx * 19 + ty * 53 + 1002);
+  LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
+  // Equation-like symbols (+, x, =) on mending floor tiles
+  _G.save();
+  _G.strokeStyle = 'rgba(192,96,240,0.15)';
+  _G.lineWidth = 1;
+  var er9 = mkRng(tx * 37 + ty * 61 + 1003);
+  var sym = Math.floor(er9() * 3);
+  var ecx = sx + ts * (0.3 + er9() * 0.4);
+  var ecy = sy + ts * (0.3 + er9() * 0.4);
+  var esz = ts * 0.06;
+  _G.beginPath();
+  if (sym === 0) { // +
+    _G.moveTo(ecx - esz, ecy); _G.lineTo(ecx + esz, ecy);
+    _G.moveTo(ecx, ecy - esz); _G.lineTo(ecx, ecy + esz);
+  } else if (sym === 1) { // x
+    _G.moveTo(ecx - esz, ecy - esz); _G.lineTo(ecx + esz, ecy + esz);
+    _G.moveTo(ecx + esz, ecy - esz); _G.lineTo(ecx - esz, ecy + esz);
+  } else { // =
+    _G.moveTo(ecx - esz, ecy - esz * 0.4); _G.lineTo(ecx + esz, ecy - esz * 0.4);
+    _G.moveTo(ecx - esz, ecy + esz * 0.4); _G.lineTo(ecx + esz, ecy + esz * 0.4);
+  }
+  _G.stroke();
+  _G.restore();
+  // Transformation: glowing rune wisps
+  if (_transformed && r() < 0.2) {
+    var fr9 = mkRng(tx * 67 + ty * 31 + 99);
+    LV_cut(P.rune || '#8040d0', 0, function() { _G.arc(sx + ts * (0.2 + fr9() * 0.6), sy + ts * (0.2 + fr9() * 0.6), ts * 0.05 + fr9() * ts * 0.02, 0, Math.PI * 2); });
+  }
+}
+function LV_drawPath_mending(sx, sy, ts, tx, ty) {
+  var P = FLOOR_PALS[9];
+  LV_cut(P.path0, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.pathS : P.pathL, 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
+}
+function LV_drawWater_mending(sx, sy, ts, tx, ty, t) {
+  var P = FLOOR_PALS[9];
+  LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+  LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
+  LV_cut(P.accent || '#c060f0', 0, function () { _G.arc(sx + ts * (0.4 + Math.sin(t * 2 + ty * 0.5) * 0.1), sy + ts * 0.45, ts * 0.08 + Math.sin(t * 3) * ts * 0.02, 0, Math.PI * 2); });
+}
 
 // ─── THEME DISPATCH ─────────────────────────────────────────────
 
@@ -828,7 +996,7 @@ var _tileFns = {
   6: { wall: LV_drawWall_crystal, floor: LV_drawFloor_crystal, path: LV_drawPath_crystal, water: LV_drawWater_crystal },
   7: { wall: LV_drawWall_market, floor: LV_drawFloor_market, path: LV_drawPath_market, water: LV_drawWater_market },
   8: { wall: LV_drawWall_library, floor: LV_drawFloor_library, path: LV_drawPath_library, water: LV_drawWater_library },
-  9: { wall: LV_drawWall_arcane, floor: LV_drawFloor_arcane, path: LV_drawPath_arcane, water: LV_drawWater_arcane },
+  9: { wall: LV_drawWall_mending, floor: LV_drawFloor_mending, path: LV_drawPath_mending, water: LV_drawWater_mending },
 };
 
 function _drawTile(tt, sx, sy, ts, tx, ty, t) {

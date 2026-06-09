@@ -222,7 +222,7 @@ export class TitleScene extends Phaser.Scene {
       onClick: () => transitionTo(this, SCENES.TUTORIAL, undefined, 200),
     }), 10);
     this.add.text(area.right, area.bottom+40, `v${VERSION}`,
-      { ...TEXT.stat(), fontSize: '11px', color: '#8a7a60' }).setOrigin(1,1).setAlpha(0.3).setDepth(10);
+      { ...TEXT.stat(), fontSize: '13px', color: '#8a7a60' }).setOrigin(1,1).setAlpha(0.4).setDepth(10);
   }
 }
 

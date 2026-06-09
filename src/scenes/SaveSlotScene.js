@@ -132,6 +132,9 @@ export class SaveSlotScene extends Phaser.Scene {
           gfx.fillStyle(0x404040, 1);
           gfx.fillCircle(dx, dotY, dotRadius);
         }
+        // Dark stroke border for better contrast
+        gfx.lineStyle(1, 0x1a0e04, 0.5);
+        gfx.strokeCircle(dx, dotY, dotRadius);
       }
 
       this.add.text(x, dotY + 35, `Gold: ${meta.gold}`, infoStyle).setOrigin(0.5);
@@ -153,7 +156,7 @@ export class SaveSlotScene extends Phaser.Scene {
       });
 
       PaperButton(this, x + 70, y + h / 2 - 60, 'DELETE', {
-        w: 140, h: 60, color: 0xc03030, fontSize: 18,
+        w: 140, h: 60, color: 0x9c2020, fontSize: 18,
         onClick: () => {
           audio.play('ui/click');
           this.confirmDelete(slot, meta.name || `Slot ${slot}`);
@@ -181,7 +184,7 @@ export class SaveSlotScene extends Phaser.Scene {
     const cleanup = () => panel.forEach(o => o.destroy());
 
     const yesBtn = PaperButton(this, GAME_WIDTH / 2 - 120, GAME_HEIGHT / 2 + 50, 'DELETE', {
-      w: 200, h: 60, color: 0xc03030, fontSize: 22,
+      w: 200, h: 60, color: 0x9c2020, fontSize: 22,
       onClick: () => {
         audio.play('ui/confirm');
         clearSave(slot);

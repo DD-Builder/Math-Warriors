@@ -121,7 +121,7 @@ export class CutsceneScene extends Phaser.Scene {
     });
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    this.advanceBtn = PaperButton(this, area.right - 130, area.bottom - 50, 'TAP', {
+    this.advanceBtn = PaperButton(this, area.right - 130, area.bottom - 50, 'NEXT ▶', {
       w: 200, h: 60, color: 0xc07818, fontSize: 22,
       onClick: () => this.onTap(),
     });

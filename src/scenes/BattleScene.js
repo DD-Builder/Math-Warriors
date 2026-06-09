@@ -1123,6 +1123,18 @@ export class BattleScene extends Phaser.Scene {
     this.setUIDepth(btn, 28);
     if (btn.label?.setDepth) btn.label.setDepth(29);
     this.commandButtons.push(btn);
+
+    // Golden glow circle behind combo button
+    const comboGlow = this.add.circle(area.cx, comboY, 50, 0xf0d060, 0.15).setDepth(27);
+    this.tweens.add({
+      targets: comboGlow,
+      alpha: { from: 0.08, to: 0.25 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
+    this._comboGlow = comboGlow;
   }
 
   executeCombo() {
@@ -1629,12 +1641,31 @@ export class BattleScene extends Phaser.Scene {
     const color = pct > 0.5 ? 0x4aa848 : pct > 0.25 ? 0xe8a030 : 0xe84040;
     this.bossTimerBar.fillStyle(color, 0.9);
     this.bossTimerBar.fillRoundedRect(bx, barY, barW * pct, 10, 4);
+
+    // Pulsing red tint overlay when < 25% time remaining
+    if (pct < 0.25 && !this._bossTimerUrgencyGlow) {
+      this._bossTimerUrgencyGlow = this.add.rectangle(
+        area.cx, barY + 5, barW + 10, 20, 0xff0000, 0.06
+      ).setDepth(29);
+      this.tweens.add({
+        targets: this._bossTimerUrgencyGlow,
+        alpha: { from: 0.06, to: 0.15 },
+        duration: 400,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    } else if (pct >= 0.25 && this._bossTimerUrgencyGlow) {
+      this._bossTimerUrgencyGlow.destroy();
+      this._bossTimerUrgencyGlow = null;
+    }
   }
 
   clearBossTimer() {
     if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
     if (this.bossTimerUpdate) { this.bossTimerUpdate.remove(); this.bossTimerUpdate = null; }
     if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
+    if (this._bossTimerUrgencyGlow) { this._bossTimerUrgencyGlow.destroy(); this._bossTimerUrgencyGlow = null; }
   }
 
   /**
@@ -2415,6 +2446,25 @@ export class BattleScene extends Phaser.Scene {
       this.potionBtn.shadow.setAlpha(alpha * 0.7);
       this.potionBtn.label.setAlpha(alpha);
     }
+
+    // Green pulse glow behind potion button when any hero HP < 50%
+    const anyLowHp = this.party && this.party.some(h => h && h.hp > 0 && h.hp < h.maxHp * 0.5);
+    if (anyLowHp && canUse && !this._potionGlow) {
+      const btnX = this.potionBtn.bg.x || (safeArea(GAME_WIDTH, GAME_HEIGHT).right - 80);
+      const btnY = this.potionBtn.bg.y || this.potionBtn.label.y;
+      this._potionGlow = this.add.circle(btnX, btnY, 50, 0x40c040, 0.15).setDepth(27);
+      this.tweens.add({
+        targets: this._potionGlow,
+        alpha: { from: 0.08, to: 0.25 },
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    } else if ((!anyLowHp || !canUse) && this._potionGlow) {
+      this._potionGlow.destroy();
+      this._potionGlow = null;
+    }
   }
 
   usePotion() {
@@ -2792,7 +2842,12 @@ export class BattleScene extends Phaser.Scene {
     const colorNum = hero.displayColor || 0xffffff;
     const colorHex = '#' + colorNum.toString(16).padStart(6, '0');
 
-    const text = this.add.text(hs.x, hs.y - 140, cry, {
+    // Clamp bubble Y so it never overlaps the equation panel
+    const eqPanelTop = this.eqCenterY ? (this.eqCenterY - 55) : (GAME_HEIGHT * 0.35);
+    const maxBubbleY = eqPanelTop - 80;
+    const bubbleY = Math.min(hs.y - 140, maxBubbleY);
+
+    const text = this.add.text(hs.x, bubbleY, cry, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       fontStyle: 'italic',
@@ -2806,14 +2861,14 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.add({
       targets: text,
       alpha: 1,
-      y: hs.y - 155,
+      y: bubbleY - 15,
       duration: 300,
       ease: 'Cubic.out',
       onComplete: () => {
         this.tweens.add({
           targets: text,
           alpha: 0,
-          y: hs.y - 170,
+          y: bubbleY - 30,
           duration: 700,
           delay: 1000,
           ease: 'Cubic.in',
@@ -3193,6 +3248,30 @@ export class BattleScene extends Phaser.Scene {
       this.endOverlay.titleText.setText('VICTORY!');
       this.endOverlay.subText.setText(`${defeatedNames} defeated!`);
 
+      // Confetti burst: 30 small rectangles radiating from title position
+      if (!this.reducedMotion) {
+        const confettiColors = [0xe84040, 0x3888d8, 0x4aa848, 0xf0c040, 0x9050c8];
+        for (let ci = 0; ci < 30; ci++) {
+          const cc = confettiColors[ci % confettiColors.length];
+          const rect = this.add.rectangle(0, -160, 4, 8, cc).setDepth(201);
+          const angle = (ci / 30) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+          const speed = 120 + Math.random() * 180;
+          const vx = Math.cos(angle) * speed;
+          const vy = Math.sin(angle) * speed - 80;
+          this.endOverlay.add(rect);
+          this.tweens.add({
+            targets: rect,
+            x: rect.x + vx * 1.5,
+            y: rect.y + vy * 1.5 + 300,
+            angle: (Math.random() - 0.5) * 720,
+            alpha: 0,
+            duration: 1500,
+            ease: 'Cubic.out',
+            onComplete: () => rect.destroy(),
+          });
+        }
+      }
+
       // Enhanced victory stats
       const bestStreak = save.stats.bestStreak || this.streak;
       let rewardText = `Accuracy: ${accuracy}%`;
@@ -3350,6 +3429,24 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay.titleText.setText('RETREAT!');
     this.endOverlay.subText.setText(`Your party retreats to camp.\n${msg}`);
     this.endOverlay.rewardsText.setText(`You got ${this.battleCorrect} correct this battle!`);
+
+    // Encouragement quote below defeat message
+    const encouragements = [
+      "You'll get them next time!",
+      "Practice makes perfect!",
+      "Every hero falls before they rise!",
+      "Keep trying — you're getting stronger!",
+      "Math warriors never give up!",
+    ];
+    const encourageText = encouragements[Math.floor(Math.random() * encouragements.length)];
+    const encourageLabel = this.add.text(0, 80, encourageText, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '20px',
+      fontStyle: 'italic',
+      color: '#f0e4cc',
+    }).setOrigin(0.5).setDepth(201);
+    this.endOverlay.add(encourageLabel);
+
     this.endOverlay.setVisible(true);
     this.endOverlay.setAlpha(1);
   }

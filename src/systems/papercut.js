@@ -628,6 +628,29 @@ export function drawPapercutBackground(scene, floorId, width, height, seed = 42)
     }
   }
 
+  // Floor 7 Market: simple market stall shapes in background
+  if (floorId === 7) {
+    const stallPositions = [
+      { x: width * 0.12, y: height * 0.72 },
+      { x: width * 0.50, y: height * 0.74 },
+      { x: width * 0.85, y: height * 0.73 },
+    ];
+    for (const sp of stallPositions) {
+      const sw = 40 + rng() * 20;
+      const sh = 25 + rng() * 10;
+      // Stall body (warm brown rectangle)
+      gfx.fillStyle(0x8a6020, 0.6);
+      gfx.fillRect(sp.x - sw / 2, sp.y, sw, sh);
+      // Stall roof (tan triangle)
+      gfx.fillStyle(0xc8a050, 0.7);
+      gfx.fillTriangle(
+        sp.x - sw / 2 - 6, sp.y,
+        sp.x + sw / 2 + 6, sp.y,
+        sp.x, sp.y - sh * 0.7
+      );
+    }
+  }
+
   // Ground plane — floor-specific
   const groundY = height * 0.82;
 
