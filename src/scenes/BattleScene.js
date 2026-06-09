@@ -682,7 +682,7 @@ export class BattleScene extends Phaser.Scene {
 
   setUIDepth(obj, depth) {
     if (!obj) return;
-    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track']) {
+    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track', 'barBg', 'barFill']) {
       if (obj[key] && obj[key].setDepth) obj[key].setDepth(depth);
     }
     if (obj.setDepth) obj.setDepth(depth);
@@ -3361,15 +3361,55 @@ export class BattleScene extends Phaser.Scene {
 
     audio.play('battle/correct');
     this.showToast(`${move ? move.name : 'SUPER'}! ${dmg} DMG!`, '#f0c040');
-    // --- Battle cry: super move ---
     this.showBattleCry(hero, 'superMove');
+
+    const cls = hero.class || 'knight';
+    const tx = targetSprite.body?.x || 900;
+    const ty = targetSprite.body?.y || 400;
+
+    if (cls === 'wizard' && heroSprite?.body) {
+      heroSprite.body.setTint(0xc080ff);
+      const sx = heroSprite.body.x;
+      const sy = heroSprite.body.y;
+      const superColors = [0xc080ff, 0x80c0ff, 0xf0d060, 0xff80c0];
+      for (let i = 0; i < 3; i++) {
+        this.time.delayedCall(i * 150, () => {
+          const orb = this.add.circle(sx, sy, 18 - i * 3, superColors[i % superColors.length], 0.9).setDepth(45);
+          this.tweens.add({
+            targets: orb, x: tx, y: ty, scale: 2.5 - i * 0.3, alpha: 0, duration: 400,
+            ease: 'Quad.in',
+            onComplete: () => { orb.destroy(); },
+          });
+        });
+      }
+      this.time.delayedCall(500, () => {
+        heroSprite.body.clearTint();
+        for (let i = 0; i < 20; i++) {
+          const angle = (i / 20) * Math.PI * 2;
+          const p = this.add.circle(tx, ty, 4, superColors[i % superColors.length], 0.8).setDepth(45);
+          this.tweens.add({
+            targets: p,
+            x: tx + Math.cos(angle) * 120,
+            y: ty + Math.sin(angle) * 120,
+            alpha: 0, scale: 0.3, duration: 400,
+            onComplete: () => p.destroy(),
+          });
+        }
+        this.cameras.main.shake(300, 0.02);
+        this.floatDamageNumber(tx, ty - 60, dmg, '#c080ff');
+        targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+        this.updateEnemyHp(targetIdx);
+        this.time.delayedCall(300, () => this.afterSuperDamage(targetIdx, targetSprite));
+      });
+      return;
+    }
 
     if (heroSprite?.body) {
       heroSprite.body.setTint(0xffff80);
       this.tweens.add({
         targets: heroSprite.body, x: lungeX, duration: 200, ease: 'Power2',
         onComplete: () => {
-          this.burstParticles(targetSprite.body?.x || lungeX + 80, targetSprite.body?.y || heroSprite.body.y, 0xf0c040);
+          this.burstParticles(tx, ty, 0xf0c040);
           this.cameras.main.shake(200, 0.015);
           heroSprite.body.clearTint();
 
