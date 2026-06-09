@@ -137,7 +137,15 @@ export class TitleScene extends Phaser.Scene {
     // ── RENDER ─────────────────────────────────────────────────
     const key = 'title-' + Date.now();
     this.textures.addCanvas(key, cv);
-    this.add.image(W / 2, H / 2, key).setDepth(0);
+    const bgImage = this.add.image(W / 2, H / 2, key).setDepth(0);
+
+    // ── PARALLAX on pointer move ──────────────────────────────────
+    this.input.on('pointermove', (pointer) => {
+      const dx = (pointer.x - W / 2) / W;
+      const dy = (pointer.y - H / 2) / H;
+      bgImage.x = W / 2 + dx * 10;
+      bgImage.y = H / 2 + dy * 5;
+    });
 
     // ── BUTTERFLIES ───────────────────────────────────────────
     for (let i = 0; i < 6; i++) {

@@ -79,6 +79,9 @@ export class ShopScene extends Phaser.Scene {
       const x = startX + i * (cardW + gap);
       const card = PaperCard(this, x, cardY, cardW, cardH, item.icon, {});
 
+      // Draw item icon above the name
+      this.drawItemIcon(x, cardY - 80, item.id);
+
       this.add.text(x, cardY - 60, item.name, {
         ...TEXT.heading(), fontSize: '16px', color: '#fff8e0',
         stroke: '#1a0e04', strokeThickness: 2,
@@ -178,6 +181,58 @@ export class ShopScene extends Phaser.Scene {
       targets: t, alpha: 0, delay: 1200, duration: 400,
       onComplete: () => t.destroy(),
     });
+  }
+
+  drawItemIcon(x, y, itemId) {
+    const g = this.add.graphics();
+    switch (itemId) {
+      case 'potion': {
+        // Green circle with white + cross
+        g.fillStyle(0x4aa848, 1);
+        g.fillCircle(x, y, 12);
+        g.fillStyle(0xffffff, 1);
+        g.fillRect(x - 5, y - 1, 10, 2);
+        g.fillRect(x - 1, y - 5, 2, 10);
+        break;
+      }
+      case 'atkBoost': {
+        // Small orange upward triangle
+        g.fillStyle(0xf0a040, 1);
+        g.fillTriangle(x, y - 10, x - 10, y + 8, x + 10, y + 8);
+        break;
+      }
+      case 'defBoost': {
+        // Small blue shield (rounded rect)
+        g.fillStyle(0x3888d8, 1);
+        g.fillRoundedRect(x - 10, y - 12, 20, 24, 6);
+        g.lineStyle(2, 0x2060a0, 1);
+        g.strokeRoundedRect(x - 10, y - 12, 20, 24, 6);
+        break;
+      }
+      case 'maxHpUp': {
+        // Small red heart (two circles + triangle)
+        g.fillStyle(0xe04040, 1);
+        g.fillCircle(x - 5, y - 3, 6);
+        g.fillCircle(x + 5, y - 3, 6);
+        g.fillTriangle(x - 11, y - 1, x + 11, y - 1, x, y + 10);
+        break;
+      }
+      case 'revive': {
+        // Yellow rect with 2 horizontal lines (scroll)
+        g.fillStyle(0xf0d040, 1);
+        g.fillRoundedRect(x - 8, y - 10, 16, 20, 3);
+        g.lineStyle(2, 0x8a6828, 1);
+        g.beginPath();
+        g.moveTo(x - 4, y - 3);
+        g.lineTo(x + 4, y - 3);
+        g.strokePath();
+        g.beginPath();
+        g.moveTo(x - 4, y + 3);
+        g.lineTo(x + 4, y + 3);
+        g.strokePath();
+        break;
+      }
+    }
   }
 
   switchTab(tab) {

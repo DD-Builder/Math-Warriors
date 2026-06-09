@@ -91,10 +91,18 @@ export class WorldMapScene extends Phaser.Scene {
       }
 
       if (s > this.maxScreen) {
+        const screenNames = ['', 'CRYSTAL CAVES', 'STARLIT HIGHLANDS'];
         this.add.rectangle(
           offsetX + SCREEN_W / 2, GAME_HEIGHT / 2,
-          SCREEN_W, GAME_HEIGHT, 0x000000, 0.6
+          SCREEN_W, GAME_HEIGHT, 0x000000, 0.35
         );
+        this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2 - 60, screenNames[s] || '', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '32px',
+          color: '#f0d040',
+          stroke: '#1a0e04',
+          strokeThickness: 5,
+        }).setOrigin(0.5);
         this.add.text(offsetX + SCREEN_W / 2, GAME_HEIGHT / 2, '🔒', {
           fontSize: '80px',
         }).setOrigin(0.5);

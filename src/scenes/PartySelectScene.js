@@ -200,6 +200,17 @@ export class PartySelectScene extends Phaser.Scene {
     const stage = getEvolutionStage(this.save, hero.id);
     const portrait = drawHeroSprite(this, x, y - h * 0.08, hero, { scale: 0.85, evolutionStage: stage });
 
+    // Gentle idle bob tween on the portrait
+    this.tweens.add({
+      targets: portrait,
+      y: portrait.y - 2,
+      duration: 1500 + Math.random() * 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+      delay: Math.random() * 1000,
+    });
+
     // Show evolved name instead of base name
     const evolvedName = getEvolvedName(this.save, hero.id);
     const name = this.add.text(x, y + h * 0.17, evolvedName.toUpperCase(), {

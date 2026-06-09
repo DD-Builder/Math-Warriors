@@ -208,6 +208,27 @@ export class BattleScene extends Phaser.Scene {
       hero.hp += bondBonus.hp || 0;
     }
 
+    // --- Party Synergy Bonuses (Item 37) ---
+    const classes = this.party.map(h => h.class);
+    const classSet = new Set(classes);
+    this._synergyName = null;
+    if (classes.length === 3 && classSet.size === 1) {
+      if (classes[0] === 'knight') {
+        this.party.forEach(h => { h.def += 3; });
+        this._synergyName = 'Phalanx! +3 DEF';
+      } else if (classes[0] === 'wizard') {
+        this.party.forEach(h => { h.atk += 3; });
+        this._synergyName = 'Arcane Circle! +3 ATK';
+      } else {
+        this.party.forEach(h => { h.atk += 2; h.def += 2; });
+        this._synergyName = 'Warren! +2 ATK, +2 DEF';
+      }
+    } else if (classSet.size === 3) {
+      this.party.forEach(h => { h.atk += 1; h.def += 1; h.maxHp += 3; h.hp += 3; });
+      this._synergyName = 'Balance! +1 ATK, +1 DEF, +3 HP';
+    }
+    this._synergyToastShown = false;
+
     // --- Copy hero levels from save data ---
     for (let i = 0; i < this.party.length && i < 3; i++) {
       const saveHero = this.save.party?.[i];
@@ -244,6 +265,9 @@ export class BattleScene extends Phaser.Scene {
     // Track whether any hero took damage this battle (for perfectBattle achievement)
     this.battleDamageTaken = false;
 
+    // Daily challenge flag
+    this.isDaily = !!this.registry.get('dailyChallengeActive');
+
     // Boss Rush mode
     this.bossRush = !!data?.bossRush;
 
@@ -269,6 +293,22 @@ export class BattleScene extends Phaser.Scene {
     this.buildEnemySprite();
     this.buildUI();
     this.buildCommandMenu();
+
+    // --- Daily Challenge Visual Frame (Item 21) ---
+    if (this.isDaily) {
+      const goldFrame = 0xf0d060;
+      this.add.rectangle(GAME_WIDTH / 2, 1.5, GAME_WIDTH, 3, goldFrame).setDepth(5);
+      this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 1.5, GAME_WIDTH, 3, goldFrame).setDepth(5);
+      this.add.rectangle(1.5, GAME_HEIGHT / 2, 3, GAME_HEIGHT, goldFrame).setDepth(5);
+      this.add.rectangle(GAME_WIDTH - 1.5, GAME_HEIGHT / 2, 3, GAME_HEIGHT, goldFrame).setDepth(5);
+      this.add.text(GAME_WIDTH / 2, 28, 'DAILY CHALLENGE', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '18px',
+        color: '#f0d060',
+        stroke: '#1a0e04',
+        strokeThickness: 4,
+      }).setOrigin(0.5, 0.5).setDepth(6);
+    }
 
     audio.playMusic('music/battle');
 
@@ -992,6 +1032,12 @@ export class BattleScene extends Phaser.Scene {
       }
     });
 
+    // --- Screen Vignette (Item 26) ---
+    this.add.rectangle(GAME_WIDTH / 2, 30, GAME_WIDTH, 60, 0x000000, 0.08).setDepth(1);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - 30, GAME_WIDTH, 60, 0x000000, 0.08).setDepth(1);
+    this.add.rectangle(20, GAME_HEIGHT / 2, 40, GAME_HEIGHT, 0x000000, 0.06).setDepth(1);
+    this.add.rectangle(GAME_WIDTH - 20, GAME_HEIGHT / 2, 40, GAME_HEIGHT, 0x000000, 0.06).setDepth(1);
+
     // --- Turn Order Queue (Item 31) ---
     this.buildTurnOrderQueue();
 
@@ -1615,6 +1661,12 @@ export class BattleScene extends Phaser.Scene {
       this.showToast(getTutorialText('FIRST_BATTLE'), COLORS_CSS.goldL);
     }
 
+    // --- Party Synergy Toast (Item 37) ---
+    if (this._synergyName && !this._synergyToastShown) {
+      this._synergyToastShown = true;
+      this.showToast(this._synergyName, '#f0d040');
+    }
+
     // Clear guard from previous round
     this.guardActive[this.currentTurn.heroIndex] = false;
 
@@ -1778,6 +1830,14 @@ export class BattleScene extends Phaser.Scene {
   renderStackedEquation(q) {
     if (!q || !this.eqLines) return;
     const opSym = q.op === '*' ? '\u00d7' : q.op === '/' ? '\u00f7' : q.op;
+
+    // --- Operation-Themed Equation Colors (Item 39) ---
+    const opColors = {
+      1: '#40a040', 2: '#4080d0', 3: '#d08020', 4: '#c04040',
+      5: '#8040a0', 6: '#8040a0', 7: '#8040a0', 8: '#8040a0', 9: '#8040a0',
+    };
+    const opColor = opColors[this.floor] || '#c06a10';
+    this.eqLines.opB.setColor(opColor);
 
     if (q.format === 'missing') {
       this.eqLines.a.setText(`  ?`);
