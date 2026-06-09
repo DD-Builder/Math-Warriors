@@ -760,36 +760,50 @@ export class MazeScene extends Phaser.Scene {
     this._swapOverlay = true;
     this.moving = false;
 
-    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.7).setScrollFactor(0).setInteractive();
+    const OVERLAY_DEPTH = 200;
+
+    // Dark semi-transparent full-screen background overlay
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.85)
+      .setScrollFactor(0).setInteractive().setDepth(OVERLAY_DEPTH);
     const title = this.add.text(GAME_WIDTH / 2, 80, 'SWAP HEROES', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '36px', color: '#f0d040', stroke: '#1a0e04', strokeThickness: 5,
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
 
     const hint = this.add.text(GAME_WIDTH / 2, 130, 'Tap a hero to swap into your party', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '20px', color: '#f0e4cc',
-    }).setOrigin(0.5).setScrollFactor(0);
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
 
     const unlocked = ALL_HEROES.filter(h => isHeroUnlocked(this.save, h.id));
     const partyIds = this.party.map(h => h.id);
-    const cols = 5;
-    const cardW = 160;
-    const cardH = 200;
-    const gap = 14;
-    const gridW = cols * cardW + (cols - 1) * gap;
+
+    // Responsive grid: pick columns based on count, fit cards within screen
+    const maxCols = Math.min(5, unlocked.length);
+    const cols = maxCols;
+    const cardGap = 24;
+    const availableW = GAME_WIDTH - 60;
+    const cardW = Math.min(140, Math.floor((availableW - (cols - 1) * cardGap) / cols));
+    const cardH = 180;
+    const gridW = cols * cardW + (cols - 1) * cardGap;
     const startX = GAME_WIDTH / 2 - gridW / 2 + cardW / 2;
-    const startY = 200;
+    const rows = Math.ceil(unlocked.length / cols);
+    const gridH = rows * cardH + (rows - 1) * cardGap;
+    // Center the grid vertically between hint text and close button area
+    const gridTop = 170;
+    const gridBottom = GAME_HEIGHT - 120;
+    const startY = gridTop + Math.max(0, (gridBottom - gridTop - gridH) / 2) + cardH / 2;
     const objects = [bg, title, hint];
 
     unlocked.forEach((hero, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      const x = startX + col * (cardW + gap);
-      const y = startY + row * (cardH + gap);
+      const x = startX + col * (cardW + cardGap);
+      const y = startY + row * (cardH + cardGap);
       const inParty = partyIds.includes(hero.id);
 
-      const cardBg = this.add.graphics().setScrollFactor(0);
+      const cardBg = this.add.graphics().setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
       cardBg.fillStyle(inParty ? 0xd07818 : 0x2a1808, 0.9);
       cardBg.fillRoundedRect(x - cardW / 2, y - cardH / 2, cardW, cardH, 12);
       if (inParty) {
@@ -798,26 +812,30 @@ export class MazeScene extends Phaser.Scene {
       }
       objects.push(cardBg);
 
-      const sprite = drawHeroSprite(this, x, y - 30, hero, { scale: 0.5 });
-      sprite.setScrollFactor(0);
+      // Hero portrait centered in upper portion of card
+      const portraitY = y - cardH * 0.15;
+      const sprite = drawHeroSprite(this, x, portraitY, hero, { scale: 0.45 });
+      sprite.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(sprite);
 
-      const nameT = this.add.text(x, y + 40, hero.name, {
+      // Hero name below portrait
+      const nameT = this.add.text(x, y + cardH * 0.22, hero.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '16px', color: inParty ? '#fff8e0' : '#f0e4cc',
+        fontSize: '14px', color: inParty ? '#fff8e0' : '#f0e4cc',
         stroke: '#1a0e04', strokeThickness: 2,
-      }).setOrigin(0.5).setScrollFactor(0);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(nameT);
 
-      const badge = this.add.text(x, y + 60, inParty ? 'IN PARTY' : `HP ${hero.maxHp}  ATK ${hero.atk}`, {
+      // "IN PARTY" label or stats below name
+      const badge = this.add.text(x, y + cardH * 0.35, inParty ? 'IN PARTY' : `HP ${hero.maxHp}  ATK ${hero.atk}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
         fontSize: '11px', color: inParty ? '#f0d040' : '#a09070',
-      }).setOrigin(0.5).setScrollFactor(0);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(badge);
 
       if (!inParty) {
         const zone = this.add.rectangle(x, y, cardW, cardH, 0xffffff, 0)
-          .setScrollFactor(0).setInteractive({ useHandCursor: true });
+          .setScrollFactor(0).setInteractive({ useHandCursor: true }).setDepth(OVERLAY_DEPTH + 3);
         zone.on('pointerdown', () => {
           audio.play('ui/click');
           this.showSlotPicker(hero, objects);
@@ -826,7 +844,9 @@ export class MazeScene extends Phaser.Scene {
       }
     });
 
-    const closeBtn = PaperButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 80, 'CLOSE', {
+    // Close button at bottom center with clear space above
+    const closeBtnY = Math.max(startY + rows * (cardH + cardGap) + 40, GAME_HEIGHT - 70);
+    const closeBtn = PaperButton(this, GAME_WIDTH / 2, closeBtnY, 'CLOSE', {
       w: 200, h: 56, color: 0xe84840, fontSize: 20,
       onClick: () => {
         objects.forEach(o => o.destroy());
@@ -835,10 +855,10 @@ export class MazeScene extends Phaser.Scene {
         this._swapOverlay = false;
       },
     });
-    closeBtn.bg.setScrollFactor(0);
-    closeBtn.shadow.setScrollFactor(0);
-    closeBtn.label.setScrollFactor(0);
-    if (closeBtn.zone) closeBtn.zone.setScrollFactor(0);
+    closeBtn.bg.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
+    closeBtn.shadow.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
+    closeBtn.label.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 3);
+    if (closeBtn.zone) closeBtn.zone.setScrollFactor(0).setDepth(OVERLAY_DEPTH + 3);
   }
 
   showSlotPicker(newHero, overlayObjects) {

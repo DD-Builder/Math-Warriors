@@ -2599,19 +2599,19 @@ export class BattleScene extends Phaser.Scene {
    * white flash behind, then floats upward and fades. Big and dramatic.
    *
    * @param {string} prefix  '+' for hero damage (green), '-' for enemy damage (red)
+   * @param {boolean} isSuper  true for super/team attacks — uses larger size and gold color
    */
-  floatDamageNumber(x, y, amount, color, prefix = '-') {
+  floatDamageNumber(x, y, amount, color, prefix = '-', isSuper = false) {
     // Determine if this is hero damage (orange-yellow) or enemy damage (red)
     const isHeroDamage = prefix === '+';
-    const isCritical = this.momentum > 0.66;
-    const fontSize = isCritical ? '56px' : '42px';
-    const displayColor = isHeroDamage ? '#f0a030' : '#e04040';
+    const fontSize = isSuper ? '64px' : '48px';
+    const displayColor = isSuper ? '#ffd040' : (isHeroDamage ? '#f0a030' : '#e04040');
 
     // White flash circle behind the number
-    const flash = this.add.circle(x, y, 20, 0xffffff, 0.9).setDepth(49);
+    const flash = this.add.circle(x, y, isSuper ? 30 : 20, 0xffffff, 0.9).setDepth(49);
     this.tweens.add({
       targets: flash,
-      scale: 3,
+      scale: isSuper ? 4 : 3,
       alpha: 0,
       duration: 300,
       ease: 'Cubic.out',
@@ -2624,28 +2624,28 @@ export class BattleScene extends Phaser.Scene {
       fontStyle: 'bold',
       color: displayColor,
       stroke: '#1a0800',
-      strokeThickness: 4,
-    }).setOrigin(0.5).setScale(0.5).setDepth(50);
+      strokeThickness: 5,
+    }).setOrigin(0.5).setScale(0.3).setDepth(50);
 
-    // Scale pop: 0.5 → 1.3 → 1.0 over 200ms, then float up and fade
+    // Scale pop: 0.3 → 1.5 over 150ms (Back.out ease), settle to 1.0 over 100ms
     this.tweens.add({
       targets: t,
-      scale: 1.3,
-      duration: 120,
+      scale: 1.5,
+      duration: 150,
       ease: 'Back.out',
       onComplete: () => {
         this.tweens.add({
           targets: t,
           scale: 1.0,
-          duration: 80,
+          duration: 100,
           ease: 'Sine.out',
           onComplete: () => {
-            // Float upward 45px and fade over 1 second
+            // Float upward and fade over 1.8 seconds total linger time
             this.tweens.add({
               targets: t,
-              y: y - 45,
+              y: y - 60,
               alpha: 0,
-              duration: 1000,
+              duration: 1800,
               ease: 'Cubic.out',
               onComplete: () => t.destroy(),
             });
@@ -3352,7 +3352,7 @@ export class BattleScene extends Phaser.Scene {
     const targetIdx = this.currentTarget;
     const targetEnemy = this.enemies[targetIdx] || this.enemy;
     const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
-    const baseDmg = 5 + ((hero.atk || 10) * 0.5);
+    const baseDmg = 8 + ((hero.atk || 10) * 0.8);
     const dmg = Math.round(baseDmg * mult);
 
     const heroSprite = this.heroSprites[heroIdx];
@@ -3396,7 +3396,7 @@ export class BattleScene extends Phaser.Scene {
           });
         }
         this.cameras.main.shake(300, 0.02);
-        this.floatDamageNumber(tx, ty - 60, dmg, '#c080ff');
+        this.floatDamageNumber(tx, ty - 60, dmg, '#ffd040', '+', true);
         targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
         this.updateEnemyHp(targetIdx);
         this.time.delayedCall(300, () => this.afterSuperDamage(targetIdx, targetSprite));
@@ -3497,9 +3497,10 @@ export class BattleScene extends Phaser.Scene {
     let totalDmg = 0;
     for (const hero of this.party) {
       if (!hero || hero.hp <= 0) continue;
-      const baseDmg = 5 + ((hero.atk || 10) * 0.5);
-      totalDmg += Math.round(baseDmg * 3);
+      const baseDmg = 8 + ((hero.atk || 10) * 0.8);
+      totalDmg += baseDmg;
     }
+    totalDmg = Math.round(totalDmg * 3);
 
     this.showToast(`TEAM ATTACK! ${totalDmg} DMG!`, '#e04040');
     audio.play('battle/correct');
