@@ -19,7 +19,7 @@ const CLASS_BASE = {
   bunny:  { maxHp: 45, atk: 16, def: 10 },
 };
 
-function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, superMoves = [], signature = null, evolution = null, personality = null) {
+function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, superMoves = [], signature = null, evolution = null, personality = null, affinity = null) {
   const base = CLASS_BASE[className];
   const rarity = unlockedAtFloor >= 5 ? 'legendary' : unlockedAtFloor >= 3 ? 'epic' : unlockedAtFloor >= 1 ? 'rare' : 'common';
   return {
@@ -38,6 +38,7 @@ function make(id, name, className, trait, tweak = {}, unlockedAtFloor = 0, super
     signature,
     evolution,
     personality,
+    affinity,
   };
 }
 
@@ -114,7 +115,7 @@ export const KNIGHTS = [
       defeat: '"..."',
       bossEncounter: '"..."',
     },
-  }),
+  }, 9),
 
   make('knight-crusader', 'Crusader', 'knight', 'Holy. Righteous. Relentless.', { def: 2, maxHp: -3 }, 1, [
     { name: 'Holy Slam',       type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -175,7 +176,7 @@ export const KNIGHTS = [
       defeat: '"Not... in vain..."',
       bossEncounter: '"Face judgment!"',
     },
-  }),
+  }, 1),
 
   make('knight-paladin', 'Paladin', 'knight', 'Light in darkness. Grace in battle.', { maxHp: 3 }, 3, [
     { name: 'Shield Bash',   type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -236,7 +237,7 @@ export const KNIGHTS = [
       defeat: '"I am sorry..."',
       bossEncounter: '"Behind me!"',
     },
-  }),
+  }, 6),
 
   make('knight-berserker', 'Berserker', 'knight', 'Pure fury. Zero chill.', { atk: 3, def: -3 }, 4, [
     { name: 'Rage Blow',   type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -297,7 +298,7 @@ export const KNIGHTS = [
       defeat: '"Not... done..."',
       bossEncounter: '"FINALLY!"',
     },
-  }),
+  }, 4),
 
   make('knight-greathelm', 'Great Helm', 'knight', 'Noble. Steadfast. Legendary.', { def: 3 }, 6, [
     { name: 'Iron Wall',     type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -358,7 +359,7 @@ export const KNIGHTS = [
       defeat: '"Impossible..."',
       bossEncounter: '"A worthy foe."',
     },
-  }),
+  }, 5),
 ];
 
 // ------------------------------------------------------------------
@@ -425,7 +426,7 @@ export const WIZARDS = [
       defeat: '"The stars dim..."',
       bossEncounter: '"I foresee... pain."',
     },
-  }),
+  }, 3),
 
   make('wizard-toadstool', 'Toadstool', 'wizard', 'Brews chaos. Serves it hot.', { atk: 1, def: 1 }, 1, [
     { name: 'Spore Cloud',    type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -486,7 +487,7 @@ export const WIZARDS = [
       defeat: '"Bleh..."',
       bossEncounter: '"Ooh, a big one!"',
     },
-  }),
+  }, 1),
 
   make('wizard-spellblade', 'Spellblade', 'wizard', 'Magic fists. Still counts.', { def: 3, atk: -1 }, 2, [
     { name: 'Magic Fist',    type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -547,7 +548,7 @@ export const WIZARDS = [
       defeat: '"Lucky shot."',
       bossEncounter: '"My kind of fight."',
     },
-  }),
+  }, 2),
 
   make('wizard-bookworm', 'Bookworm', 'wizard', 'Knows every spell. Uses them all.', { maxHp: 3 }, 4, [
     { name: 'Ink Splash',      type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -608,7 +609,7 @@ export const WIZARDS = [
       defeat: '"Back to study..."',
       bossEncounter: '"Fascinating..."',
     },
-  }),
+  }, 8),
 
   make('wizard-grandmage', 'Grand Mage', 'wizard', 'Ancient power. Zero patience.', { atk: 3, maxHp: -3 }, 6, [
     { name: 'Fire Bolt',      type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -669,7 +670,7 @@ export const WIZARDS = [
       defeat: '"This means nothing."',
       bossEncounter: '"You bore me."',
     },
-  }),
+  }, 6),
 ];
 
 // ------------------------------------------------------------------
@@ -736,7 +737,7 @@ export const BUNNIES = [
       defeat: '"No fair..."',
       bossEncounter: '"Ooh big! BIG!"',
     },
-  }),
+  }, 4),
 
   make('bunny-nova', 'Nova', 'bunny', 'She sparkles. Then she wins.', { atk: 2, maxHp: -2 }, 2, [
     { name: 'Spark Jump',  type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -797,7 +798,7 @@ export const BUNNIES = [
       defeat: '"Next time..."',
       bossEncounter: '"Let\'s glow!"',
     },
-  }),
+  }, 3),
 
   make('bunny-boulder', 'Boulder', 'bunny', 'Heaviest punch in the kingdom.', { atk: -1, def: 3, maxHp: 3 }, 3, [
     { name: 'Rock Toss',      type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -858,7 +859,7 @@ export const BUNNIES = [
       defeat: '"Dang."',
       bossEncounter: '"Big guy, huh."',
     },
-  }),
+  }, 5),
 
   make('bunny-blaze', 'Blaze', 'bunny', 'Fire magic. Fire attitude.', { atk: 2 }, 5, [
     { name: 'Flame Hop',      type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -919,7 +920,7 @@ export const BUNNIES = [
       defeat: '"Flame... out..."',
       bossEncounter: '"Let\'s heat up!"',
     },
-  }),
+  }, 4),
 
   make('bunny-duchess', 'Duchess', 'bunny', 'Royal blood. Royal fury.', { def: 2, maxHp: 2 }, 7, [
     { name: 'Royal Strike',    type: 'damage', multiplier: 2, unlockLevel: 1 },
@@ -980,7 +981,7 @@ export const BUNNIES = [
       defeat: '"Retreat... for now."',
       bossEncounter: '"Kneel."',
     },
-  }),
+  }, 7),
 ];
 
 // ------------------------------------------------------------------
@@ -1028,6 +1029,7 @@ export function spawnHero(idOrHero) {
     def: def.def,
     signature: def.signature ?? null,
     personality: def.personality ?? null,
+    affinity: def.affinity ?? null,
   };
 }
 

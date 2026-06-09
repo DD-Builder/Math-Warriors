@@ -18,7 +18,7 @@ import {
 } from '../systems/combat.js';
 import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
 import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
-import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
+import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers, getHeroById } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor, consumePendingRescues, getActiveSlot } from '../systems/save.js';
@@ -204,6 +204,19 @@ export class BattleScene extends Phaser.Scene {
       hero.hp += bondBonus.hp || 0;
     }
 
+    // --- Floor affinity bonuses ---
+    this._affinityHeroes = [];
+    for (let i = 0; i < this.party.length; i++) {
+      const hero = this.party[i];
+      if (hero && hero.affinity === this.floor) {
+        this._affinityHeroes.push(hero);
+        // +30% ATK bonus (rounded)
+        hero._affinityAtkBonus = Math.round(hero.atk * 0.3);
+        hero.atk += hero._affinityAtkBonus;
+        // 15% damage reduction is applied in enemy damage phase
+      }
+    }
+
     // --- Signature effects state ---
     this.signatureState = createSignatureState(this.party);
 
@@ -262,6 +275,19 @@ export class BattleScene extends Phaser.Scene {
         party: this.party,
         scene: this,
       });
+    }
+
+    // --- Floor affinity toast ---
+    if (this._affinityHeroes.length > 0) {
+      const FLOOR_NAMES = { 1: 'the Garden', 2: 'the Tidepool Ruins', 3: 'the Cloud Maze', 4: 'the Ember Caves', 5: 'the Frozen Peak', 6: 'the Crystal Caverns', 7: 'the Market Square', 8: 'the Infinity Library', 9: 'the Mending Room' };
+      const floorName = FLOOR_NAMES[this.floor] || `Floor ${this.floor}`;
+      for (const hero of this._affinityHeroes) {
+        this.time.delayedCall(500, () => {
+          if (this.scene.isActive()) {
+            this.showToast(`${hero.name} thrives in ${floorName}! +30% damage!`, '#60e0ff');
+          }
+        });
+      }
     }
 
     // Show a one-time tutorial toast on the very first battle. Uses
@@ -572,20 +598,24 @@ export class BattleScene extends Phaser.Scene {
         strokeThickness: 3,
       }).setOrigin(0.5).setDepth(14);
 
-      // HP bar BELOW the hero sprite with clear gap
-      const hpBarY = heroY + spriteH / 2 + 5;
-      const hpBarBg = this.add.rectangle(x, hpBarY, 130, 12, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
-      const hpBarFill = this.add.rectangle(x - 63, hpBarY, 126, 8, 0x40c040)
-        .setOrigin(0, 0.5).setDepth(13);
+      // HP bar BELOW the hero sprite with clear gap — wider and more visible
+      const barW = 120;
+      const barH = 12;
+      const hpBarY = heroY + spriteH / 2 + 8;
+      const hpBarBg = this.add.rectangle(x, hpBarY, barW + 4, barH + 4, COLORS.ink)
+        .setStrokeStyle(1, 0x1a0e04).setDepth(13);
+      const fillW = Math.max(0, Math.min(barW, barW * (hero.hp / hero.maxHp)));
+      const hpBarFill = this.add.rectangle(x - barW / 2, hpBarY, fillW, barH, 0x40c040)
+        .setOrigin(0, 0.5).setDepth(14);
 
-      // HP text BELOW the HP bar with clear gap
-      const hpTextY = heroY + spriteH / 2 + 22;
-      const hpText = this.add.text(x, hpTextY, `${hero.hp}/${hero.maxHp}`, {
+      // HP text CENTERED ON the bar, small white text with dark stroke
+      const hpText = this.add.text(x, hpBarY, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '13px',
-        color: COLORS_CSS.paper,
-      }).setOrigin(0.5).setDepth(14);
+        fontSize: '11px',
+        color: '#ffffff',
+        stroke: '#1a0e04',
+        strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(15);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y: heroY };
     });
@@ -1007,6 +1037,24 @@ export class BattleScene extends Phaser.Scene {
       // /showDefeat can cancel camerafadeoutcomplete callbacks and
       // strand the CONTINUE button.
       audio.play('ui/confirm');
+
+      // Check for pending hero rescues before transitioning
+      const save = this.save;
+      const rescuedIds = consumePendingRescues(save);
+      if (rescuedIds.length > 0) {
+        writeSave(save, this.slot);
+        this.endOverlay.setVisible(false);
+        this.showHeroRescue(rescuedIds, () => {
+          const target = this.returnScene;
+          const data = this.returnData || undefined;
+          this.registry.remove('battleReturnScene');
+          this.registry.remove('battleReturnData');
+          this.registry.remove('newlyUnlockedHeroes');
+          this.scene.start(target, data);
+        });
+        return;
+      }
+
       const target = this.returnScene;
       const data = this.returnData || undefined;
       this.registry.remove('battleReturnScene');
@@ -1908,6 +1956,12 @@ export class BattleScene extends Phaser.Scene {
 
         let result = computeEnemyDamage(attacker, target, { momentum: this.momentum });
 
+        // --- Floor affinity: 15% damage reduction ---
+        if (target.affinity === this.floor) {
+          result.modifiedDamage = Math.max(1, Math.round(result.modifiedDamage * 0.85));
+          result.newHp = Math.max(0, target.hp - result.modifiedDamage);
+        }
+
         // --- Signature: apply incoming damage modifiers (Crusader aura, Boulder doubleDef) ---
         const sigResult = onHeroDamageReceived(target, attacker, result.modifiedDamage, {
           party: this.party,
@@ -2687,14 +2741,15 @@ export class BattleScene extends Phaser.Scene {
     const idx = this.party.indexOf(hero);
     if (idx < 0) return;
     const s = this.heroSprites[idx];
-    const pct = Math.max(0, hero.hp / hero.maxHp);
+    const barW = 120;
+    const fillW = Math.max(0, Math.min(barW, barW * (hero.hp / hero.maxHp)));
     this.tweens.add({
       targets: s.hpBarFill,
-      width: 146 * pct,
+      width: fillW,
       duration: 300,
       ease: 'Cubic.out',
     });
-    s.hpText.setText(`${hero.hp}/${hero.maxHp}`);
+    s.hpText.setText(`${Math.max(0, hero.hp)}/${hero.maxHp}`);
 
     if (hero.hp <= 0) {
       s.body.setAlpha(0.2);
@@ -3388,6 +3443,358 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay.rewardsText.setText(`You got ${this.battleCorrect} correct this battle!`);
     this.endOverlay.setVisible(true);
     this.endOverlay.setAlpha(1);
+  }
+
+  // ================================================================
+  // HERO RESCUE CEREMONY — dramatic announcement after boss defeat
+  // ================================================================
+
+  /**
+   * Show a dramatic rescue ceremony for each unlocked hero, one at a time.
+   * After all are shown, calls the callback (scene transition).
+   *
+   * @param {string[]} heroIds  Array of hero ID strings
+   * @param {Function} callback Called after all rescues are shown
+   */
+  showHeroRescue(heroIds, callback) {
+    if (!heroIds || heroIds.length === 0) {
+      callback();
+      return;
+    }
+
+    const cx = GAME_WIDTH / 2;
+    const cy = GAME_HEIGHT / 2;
+
+    // Create a persistent container for the rescue overlay
+    const rescueContainer = this.add.container(0, 0).setDepth(300);
+
+    // Dark overlay
+    const darkBg = this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.92)
+      .setInteractive();
+    rescueContainer.add(darkBg);
+
+    let currentIndex = 0;
+
+    const showNextHero = () => {
+      if (currentIndex >= heroIds.length) {
+        // All heroes shown — clean up and transition
+        this.tweens.add({
+          targets: rescueContainer,
+          alpha: 0,
+          duration: 400,
+          ease: 'Cubic.in',
+          onComplete: () => {
+            rescueContainer.destroy();
+            callback();
+          },
+        });
+        return;
+      }
+
+      const heroId = heroIds[currentIndex];
+      const heroDef = getHeroById(heroId);
+      if (!heroDef) {
+        currentIndex++;
+        showNextHero();
+        return;
+      }
+
+      // Get rescue dialogue for this hero
+      const rescueLines = getRescueDialogue(this.floor, [heroId]);
+      // Fallback if no specific dialogue exists
+      if (rescueLines.length === 0) {
+        rescueLines.push({
+          speaker: heroDef.name,
+          text: `${heroDef.name} has been freed from the Theorem's grasp!`,
+        });
+      }
+
+      // Create elements for this hero's rescue panel
+      const heroElements = [];
+
+      // "HERO RESCUED!" title — large gold text
+      const titleText = this.add.text(cx, cy - 220, 'HERO RESCUED!', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '36px',
+        color: '#f0d040',
+        stroke: '#3a1a00',
+        strokeThickness: 6,
+      }).setOrigin(0.5).setAlpha(0).setScale(0.5);
+      heroElements.push(titleText);
+
+      // Glow behind hero sprite
+      const glow = this.add.circle(cx, cy - 40, 100, heroDef.displayColor || 0xf0d040, 0.3);
+      glow.setAlpha(0);
+      heroElements.push(glow);
+
+      // Outer glow ring
+      const glowRing = this.add.circle(cx, cy - 40, 130, heroDef.displayColor || 0xf0d040, 0.15);
+      glowRing.setAlpha(0);
+      heroElements.push(glowRing);
+
+      // Hero sprite at center — scale animation handled via tween
+      const heroSprite = drawHeroSprite(this, cx, cy - 40, heroDef, { scale: 1.0 });
+      heroSprite.setAlpha(0);
+      heroElements.push(heroSprite);
+
+      // Hero name — bold, below sprite
+      const nameText = this.add.text(cx, cy + 80, heroDef.name.toUpperCase(), {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '28px',
+        color: '#ffffff',
+        stroke: '#1a0e04',
+        strokeThickness: 5,
+      }).setOrigin(0.5).setAlpha(0);
+      heroElements.push(nameText);
+
+      // Hero trait — italic, below name
+      const traitText = this.add.text(cx, cy + 115, heroDef.trait || '', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontStyle: 'italic',
+        fontSize: '20px',
+        color: '#d0c0a0',
+        stroke: '#1a0e04',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setAlpha(0);
+      heroElements.push(traitText);
+
+      // Add all hero elements to container
+      for (const el of heroElements) {
+        rescueContainer.add(el);
+      }
+
+      // Particle burst around the hero
+      const sparkles = [];
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        const dist = 120 + Math.random() * 60;
+        const sx = cx + Math.cos(angle) * dist;
+        const sy = (cy - 40) + Math.sin(angle) * dist;
+        const size = 3 + Math.random() * 5;
+        const sparkle = this.add.rectangle(sx, sy, size, size, 0xf0d040, 0);
+        rescueContainer.add(sparkle);
+        sparkles.push(sparkle);
+      }
+
+      audio.play('battle/victory');
+
+      // Animate title entrance
+      this.tweens.add({
+        targets: titleText,
+        alpha: 1,
+        scale: 1,
+        duration: 500,
+        ease: 'Back.out',
+      });
+
+      // Animate glow
+      this.tweens.add({
+        targets: [glow, glowRing],
+        alpha: { value: 1, duration: 400 },
+        delay: 200,
+      });
+
+      // Glow pulse
+      this.tweens.add({
+        targets: glow,
+        scale: 1.15,
+        alpha: 0.4,
+        duration: 1200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+        delay: 600,
+      });
+
+      // Animate hero sprite appearing
+      this.tweens.add({
+        targets: heroSprite,
+        alpha: 1,
+        duration: 600,
+        delay: 300,
+        ease: 'Cubic.out',
+      });
+      heroSprite.setScale(0.5);
+      this.tweens.add({
+        targets: heroSprite,
+        scaleX: 1.2,
+        scaleY: 1.2,
+        duration: 600,
+        delay: 300,
+        ease: 'Back.out',
+      });
+
+      // Animate name and trait
+      this.tweens.add({
+        targets: nameText,
+        alpha: 1,
+        duration: 400,
+        delay: 600,
+      });
+      this.tweens.add({
+        targets: traitText,
+        alpha: 1,
+        duration: 400,
+        delay: 750,
+      });
+
+      // Sparkle burst
+      for (let i = 0; i < sparkles.length; i++) {
+        const sp = sparkles[i];
+        const angle = (i / sparkles.length) * Math.PI * 2;
+        const startDist = 20;
+        const endDist = 120 + Math.random() * 60;
+        sp.x = cx + Math.cos(angle) * startDist;
+        sp.y = (cy - 40) + Math.sin(angle) * startDist;
+        this.tweens.add({
+          targets: sp,
+          x: cx + Math.cos(angle) * endDist,
+          y: (cy - 40) + Math.sin(angle) * endDist,
+          alpha: { value: 0.8, duration: 200 },
+          duration: 600,
+          delay: 300 + i * 20,
+          ease: 'Cubic.out',
+          onComplete: () => {
+            this.tweens.add({
+              targets: sp,
+              alpha: 0,
+              duration: 800,
+              ease: 'Sine.in',
+            });
+          },
+        });
+      }
+
+      // Show rescue dialogue lines one at a time
+      let dialogueIdx = 0;
+      const dialogueY = cy + 165;
+
+      const dialogueSpeaker = this.add.text(cx, dialogueY, '', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontStyle: 'bold',
+        fontSize: '18px',
+        color: '#c06a10',
+        stroke: '#1a0e04',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setAlpha(0);
+      rescueContainer.add(dialogueSpeaker);
+
+      const dialogueText = this.add.text(cx, dialogueY + 28, '', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '22px',
+        color: '#f0e4cc',
+        stroke: '#1a0e04',
+        strokeThickness: 3,
+        wordWrap: { width: GAME_WIDTH - 120 },
+        align: 'center',
+      }).setOrigin(0.5, 0).setAlpha(0);
+      rescueContainer.add(dialogueText);
+
+      // "Tap to continue" prompt
+      const tapPrompt = this.add.text(cx, GAME_HEIGHT - 60, 'Tap to continue', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '16px',
+        color: '#a09080',
+      }).setOrigin(0.5).setAlpha(0);
+      rescueContainer.add(tapPrompt);
+
+      // Joined text (shown at the end of dialogue)
+      const joinedText = this.add.text(cx, dialogueY, `${heroDef.name} has joined your team!`, {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '24px',
+        color: '#40e040',
+        stroke: '#1a0e04',
+        strokeThickness: 4,
+      }).setOrigin(0.5).setAlpha(0);
+      rescueContainer.add(joinedText);
+
+      let phase = 'animating'; // 'animating' | 'dialogue' | 'joined'
+
+      const showDialogueLine = () => {
+        if (dialogueIdx >= rescueLines.length) {
+          // All dialogue done — show joined message
+          dialogueSpeaker.setAlpha(0);
+          dialogueText.setAlpha(0);
+          joinedText.setAlpha(0);
+          this.tweens.add({
+            targets: joinedText,
+            alpha: 1,
+            duration: 400,
+            ease: 'Cubic.out',
+          });
+          // Pulse the joined text
+          this.tweens.add({
+            targets: joinedText,
+            scale: 1.05,
+            duration: 600,
+            yoyo: true,
+            repeat: 1,
+            ease: 'Sine.inOut',
+          });
+          audio.play('ui/confirm');
+          phase = 'joined';
+          return;
+        }
+
+        const line = rescueLines[dialogueIdx];
+        dialogueSpeaker.setText(line.speaker || '');
+        dialogueText.setText(line.text || '');
+        dialogueSpeaker.setAlpha(1);
+        dialogueText.setAlpha(1);
+        tapPrompt.setAlpha(0.7);
+
+        // Quick fade-in for dialogue
+        dialogueSpeaker.setAlpha(0);
+        dialogueText.setAlpha(0);
+        this.tweens.add({ targets: dialogueSpeaker, alpha: 1, duration: 200 });
+        this.tweens.add({ targets: dialogueText, alpha: 1, duration: 200, delay: 50 });
+
+        dialogueIdx++;
+      };
+
+      // Start showing dialogue after initial animation
+      this.time.delayedCall(1200, () => {
+        if (this._shuttingDown) return;
+        phase = 'dialogue';
+        tapPrompt.setAlpha(0.7);
+        showDialogueLine();
+      });
+
+      // Handle taps on the rescue overlay
+      const tapHandler = () => {
+        if (this._shuttingDown) return;
+        if (phase === 'animating') return; // Wait for initial animation
+
+        if (phase === 'dialogue') {
+          showDialogueLine();
+          return;
+        }
+
+        if (phase === 'joined') {
+          // Clean up this hero's elements and show next
+          darkBg.off('pointerdown', tapHandler);
+          // Fade out current elements
+          const allEls = [...heroElements, dialogueSpeaker, dialogueText, joinedText, tapPrompt, ...sparkles];
+          this.tweens.add({
+            targets: allEls,
+            alpha: 0,
+            duration: 300,
+            ease: 'Cubic.in',
+            onComplete: () => {
+              for (const el of allEls) {
+                el.destroy();
+              }
+              currentIndex++;
+              showNextHero();
+            },
+          });
+        }
+      };
+
+      darkBg.on('pointerdown', tapHandler);
+    };
+
+    showNextHero();
   }
 
   setSuperVisible(btn, show) {

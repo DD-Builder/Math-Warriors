@@ -28,7 +28,7 @@ export const COMMAND_CONFIG = {
     label: 'MAGIC',
     icon: '✨',           // ✨
     targetStars: [4, 5],
-    damageMult: 2.0,
+    damageMult: 1.8,
     wrongPenalty: 'fizzle',   // 0 damage, NO counter-attack
     requiresMath: true,
     color: 0x7848b8,

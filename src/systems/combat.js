@@ -100,27 +100,32 @@ function clamp01(n) {
  * @property {boolean} killed        True if this hit dropped HP to 0
  */
 
-const BASE_HERO_DAMAGE  = 6;
 const BASE_ENEMY_DAMAGE = 5;
 
 /**
  * Compute damage for a hero attacking an enemy. Pure — does not mutate.
  *
+ * Stats-based formula:
+ *   baseDamage = 4 + hero.atk * 1.2 - enemyDef * 0.3
+ *
+ * Then momentum zone multiplier is applied.
+ *
  * @param {Combatant} attacker
  * @param {Combatant} target
  * @param {object} ctx
  * @param {number} ctx.momentum
- * @param {number} [ctx.streak]   Correct answer streak, boosts damage slightly
+ * @param {number} [ctx.streak]   Correct answer streak, boosts damage by 5% per streak
  * @returns {DamageResult}
  */
 export function computeHeroDamage(attacker, target, ctx) {
   const atk = attacker.atk ?? 10;
   const def = target.def ?? 0;
   const zone = getZone(ctx.momentum);
-  const streakBonus = Math.floor((ctx.streak ?? 0) / 3);
+  const streak = ctx.streak ?? 0;
+  const streakMult = 1 + streak * 0.05;
 
-  const baseDamage = Math.max(1, Math.round(BASE_HERO_DAMAGE + (atk - 10) * 0.4 - def * 0.3 + streakBonus));
-  const modified = Math.max(1, Math.round(baseDamage * zone.heroMult));
+  const baseDamage = Math.max(1, Math.round(4 + atk * 1.2 - def * 0.3));
+  const modified = Math.max(1, Math.round(baseDamage * zone.heroMult * streakMult));
   const newHp = Math.max(0, target.hp - modified);
 
   return {
@@ -246,17 +251,18 @@ export function computeCommandDamage(attacker, target, ctx) {
   const atk = attacker.atk ?? 10;
   const def = target.def ?? 0;
   const zone = getZone(ctx.momentum);
-  const streakBonus = Math.floor((ctx.streak ?? 0) / 3);
+  const streak = ctx.streak ?? 0;
+  const streakMult = 1 + streak * 0.05;
 
   const baseDamage = Math.max(1, Math.round(
-    BASE_HERO_DAMAGE + (atk - 10) * 0.4 - def * 0.3 + streakBonus
+    4 + atk * 1.2 - def * 0.3
   ));
 
   const diffMult = ctx.difficultyMult ?? 1.0;
   const cmdMult = ctx.commandMult ?? 1.0;
 
   const modified = Math.max(1, Math.round(
-    baseDamage * diffMult * cmdMult * zone.heroMult
+    baseDamage * diffMult * cmdMult * zone.heroMult * streakMult
   ));
   const newHp = Math.max(0, target.hp - modified);
 

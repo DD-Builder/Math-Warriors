@@ -290,7 +290,7 @@ export class MazeScene extends Phaser.Scene {
         alive: !o.consumed,
         open: o.type === 'mathdoor' ? !!o.open : !!o.consumed,
         hidden: o.type === 'encounter',
-        visible: o.type === 'exit' ? this.hasKey : true,
+        visible: true,
         kind: 'sprout',
         respawnAt: 0,
         loot: (o.type === challengeType || o.type === 'fairy') ? 'fairy' : undefined,
@@ -1099,6 +1099,24 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
 
   checkObjectAt(x, y) {
+    // Boss blocking — if player hasn't defeated the boss, they can't walk
+    // past the boss tile to reach the golden chest or exit
+    if (!this.bossDefeated) {
+      const bossObj = this.objects.find(o => o.type === 'boss' && !o.consumed);
+      if (bossObj) {
+        // Check if the player is on a tile that's beyond the boss
+        // (i.e., between boss and exit, closer to exit)
+        const exitObj = this.objects.find(o => o.type === 'exit');
+        const goldenObj = this.objects.find(o => o.type === 'golden' && !o.consumed);
+        if ((goldenObj && x === goldenObj.x && y === goldenObj.y) ||
+            (exitObj && x === exitObj.x && y === exitObj.y)) {
+          // Push player back to boss tile
+          this.showFloatText(x, y, 'DEFEAT THE BOSS FIRST!', '#e04040');
+          return;
+        }
+      }
+    }
+
     // Secret wall reveal
     if (revealSecret(x, y)) {
       if (!this.revealedSecrets) this.revealedSecrets = [];
