@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT, VERSION } from '../config.js';
-import { loadSave } from '../systems/save.js';
+import { loadSave, listSlots } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { makeRng } from '../systems/rng.js';
 import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
@@ -10,6 +10,26 @@ export class TitleScene extends Phaser.Scene {
   constructor() { super({ key: SCENES.TITLE }); }
 
   create() {
+    // Check for auto-resume from backgrounding
+    try {
+      const resumeStr = localStorage.getItem('mw_resume');
+      if (resumeStr) {
+        localStorage.removeItem('mw_resume');
+        const resume = JSON.parse(resumeStr);
+        if (resume.slot && resume.scene) {
+          this.registry.set('activeSlot', resume.slot);
+          if (resume.scene === SCENES.MAZE && resume.floor) {
+            this.scene.start(SCENES.MAZE, { floor: resume.floor });
+            return;
+          }
+          if (resume.scene === SCENES.WORLD_MAP || resume.scene === SCENES.BATTLE) {
+            this.scene.start(SCENES.WORLD_MAP);
+            return;
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const W = GAME_WIDTH, H = GAME_HEIGHT;
     const rng = makeRng(56);
@@ -169,10 +189,30 @@ export class TitleScene extends Phaser.Scene {
     }
 
     // ── BUTTONS ────────────────────────────────────────────────
-    dp(PaperButton(this, area.cx, H * 0.62, 'PLAY', {
-      w: 400, h: 80, color: 0xc83030, fontSize: 34,
-      onClick: () => { audio.play('ui/confirm'); transitionTo(this, SCENES.SAVE_SELECT, undefined, 300); },
-    }), 10);
+    // Check if any save slot has data — if so, show a CONTINUE button
+    const slots = listSlots();
+    const lastPlayedSlot = slots
+      .filter(s => s.exists)
+      .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0))[0];
+
+    if (lastPlayedSlot) {
+      dp(PaperButton(this, area.cx, H * 0.55, 'CONTINUE', {
+        w: 420, h: 80, color: 0x4aa848, fontSize: 34,
+        onClick: () => {
+          audio.play('ui/confirm');
+          transitionTo(this, SCENES.SAVE_SELECT, undefined, 300);
+        },
+      }), 10);
+      dp(PaperButton(this, area.cx, H * 0.68, 'NEW GAME', {
+        w: 340, h: 64, color: 0xc83030, fontSize: 26,
+        onClick: () => { audio.play('ui/confirm'); transitionTo(this, SCENES.SAVE_SELECT, undefined, 300); },
+      }), 10);
+    } else {
+      dp(PaperButton(this, area.cx, H * 0.62, 'PLAY', {
+        w: 400, h: 80, color: 0xc83030, fontSize: 34,
+        onClick: () => { audio.play('ui/confirm'); transitionTo(this, SCENES.SAVE_SELECT, undefined, 300); },
+      }), 10);
+    }
     dp(PaperButton(this, area.right-75, area.top+35, 'SETTINGS', {
       w: 160, h: 54, color: 0x6090c0, fontSize: 16,
       onClick: () => transitionTo(this, SCENES.SETTINGS, { returnScene: SCENES.TITLE }, 200),

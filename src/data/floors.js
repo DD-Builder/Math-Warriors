@@ -270,7 +270,6 @@ export const FLOORS = [
       { type: 'fairy',     x: 3,  y: 3 },
       { type: 'fairy',     x: 15, y: 11 },
       { type: 'fairy',     x: 9,  y: 20 },
-      { type: 'golden',    x: 9,  y: 3 },
       { type: 'chest',     x: 1,  y: 14, loot: { gold: 20 } },
       { type: 'potion',    x: 11, y: 3 },
       { type: 'gold',      x: 3,  y: 6 },
@@ -287,7 +286,9 @@ export const FLOORS = [
       { type: 'encounter', x: 7,  y: 17 },
       { type: 'encounter', x: 4,  y: 8 },
       { type: 'encounter', x: 17, y: 8 },
-      { type: 'boss',      x: 9,  y: 2, enemyId: 'briarking' },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 9,  y: 3, enemyId: 'briarking' },
+      { type: 'golden',    x: 9,  y: 2 },
       { type: 'exit',      x: 9,  y: 1 },
     ],
   },
@@ -303,10 +304,10 @@ export const FLOORS = [
       { type: 'valve',     x: 4,  y: 4 },
       { type: 'valve',     x: 7,  y: 14 },
       { type: 'valve',     x: 16, y: 24 },
-      // Boss & exit in marsh zone (top-left)
-      { type: 'boss',      x: 2,  y: 1, enemyId: 'pressure' },
-      { type: 'golden',    x: 1,  y: 1 },
-      { type: 'exit',      x: 5,  y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 3,  y: 1, enemyId: 'pressure' },
+      { type: 'golden',    x: 2,  y: 1 },
+      { type: 'exit',      x: 1,  y: 1 },
       // Chests across zones
       { type: 'chest',     x: 5,  y: 6,  loot: { gold: 20 } },
       { type: 'chest',     x: 12, y: 17, loot: { gold: 20 } },
@@ -340,10 +341,10 @@ export const FLOORS = [
       { type: 'beacon',    x: 5,  y: 5 },
       { type: 'beacon',    x: 10, y: 16 },
       { type: 'beacon',    x: 20, y: 26 },
-      // Boss & exit in calm zone (top-left)
-      { type: 'boss',      x: 2,  y: 1, enemyId: 'skywhale' },
-      { type: 'golden',    x: 1,  y: 1 },
-      { type: 'exit',      x: 7,  y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 3,  y: 1, enemyId: 'skywhale' },
+      { type: 'golden',    x: 2,  y: 1 },
+      { type: 'exit',      x: 1,  y: 1 },
       // Chests across zones
       { type: 'chest',     x: 7,  y: 8, loot: { gold: 25 } },
       { type: 'chest',     x: 18, y: 20, loot: { gold: 25 } },
@@ -377,7 +378,6 @@ export const FLOORS = [
       { type: 'vent',      x: 3,  y: 3 },
       { type: 'vent',      x: 25, y: 11 },
       { type: 'vent',      x: 14, y: 29 },
-      { type: 'golden',    x: 14, y: 1 },
       { type: 'chest',     x: 5,  y: 13, loot: { gold: 30 } },
       { type: 'chest',     x: 23, y: 25, loot: { gold: 30 } },
       { type: 'potion',    x: 14, y: 17 },
@@ -397,7 +397,9 @@ export const FLOORS = [
       { type: 'encounter', x: 14, y: 13 },
       { type: 'encounter', x: 3,  y: 7 },
       { type: 'encounter', x: 25, y: 25 },
-      { type: 'boss',      x: 13, y: 1, enemyId: 'pyroclast' },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 14, y: 3, enemyId: 'pyroclast' },
+      { type: 'golden',    x: 14, y: 2 },
       { type: 'exit',      x: 14, y: 1 },
     ],
   },
@@ -410,8 +412,9 @@ export const FLOORS = [
       { type: 'crystal',   x: 5,  y: 5 },
       { type: 'crystal',   x: 20, y: 16 },
       { type: 'crystal',   x: 10, y: 26 },
-      { type: 'golden',    x: 12, y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'absolutezero' },
+      { type: 'golden',    x: 12, y: 2 },
       { type: 'exit',      x: 12, y: 1 },
       { type: 'mathdoor',  x: 10, y: 15, id: 'f5door1' },
       { type: 'fountain',  x: 8,  y: 25, id: 'f5fountain1', uses: 3 },
@@ -439,8 +442,9 @@ export const FLOORS = [
       { type: 'geoshard',  x: 5,  y: 5 },
       { type: 'geoshard',  x: 20, y: 16 },
       { type: 'geoshard',  x: 10, y: 26 },
-      { type: 'golden',    x: 12, y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'theprism' },
+      { type: 'golden',    x: 12, y: 2 },
       { type: 'exit',      x: 12, y: 1 },
       { type: 'chest',     x: 3, y: 10, loot: { gold: 35 } },
       { type: 'chest',     x: 21, y: 22, loot: { gold: 35 } },
@@ -469,8 +473,9 @@ export const FLOORS = [
       { type: 'token',     x: 5,  y: 5 },
       { type: 'token',     x: 20, y: 16 },
       { type: 'token',     x: 10, y: 26 },
-      { type: 'golden',    x: 12, y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'counterfeiter' },
+      { type: 'golden',    x: 12, y: 2 },
       { type: 'exit',      x: 12, y: 1 },
       { type: 'chest',     x: 3, y: 10, loot: { gold: 40 } },
       { type: 'chest',     x: 21, y: 22, loot: { gold: 40 } },
@@ -500,8 +505,9 @@ export const FLOORS = [
       { type: 'page',      x: 5,  y: 5 },
       { type: 'page',      x: 20, y: 16 },
       { type: 'page',      x: 10, y: 26 },
-      { type: 'golden',    x: 12, y: 1 },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'theparadox' },
+      { type: 'golden',    x: 12, y: 2 },
       { type: 'exit',      x: 12, y: 1 },
       { type: 'chest',     x: 3, y: 10, loot: { gold: 45 } },
       { type: 'chest',     x: 21, y: 22, loot: { gold: 45 } },
@@ -530,8 +536,9 @@ export const FLOORS = [
       { type: 'fragment',  x: 5,  y: 5 },
       { type: 'fragment',  x: 27, y: 11 },
       { type: 'fragment',  x: 16, y: 33 },
-      { type: 'golden',    x: 16, y: 1 },
-      { type: 'boss',      x: 15, y: 1, enemyId: 'theorem' },
+      // Boss -> Golden Chest -> Exit (linear dead-end sequence)
+      { type: 'boss',      x: 16, y: 3, enemyId: 'theorem' },
+      { type: 'golden',    x: 16, y: 2 },
       { type: 'exit',      x: 16, y: 1 },
       { type: 'chest',     x: 3,  y: 15, loot: { gold: 50 } },
       { type: 'chest',     x: 29, y: 9, loot: { gold: 50 } },

@@ -45,18 +45,19 @@ export function makeDefaultSave() {
       hero2: { weapon: null, armor: null, accessory: null },
     },
     floors: [
-      { id: 1, unlocked: true,  complete: false, bestStreak: 0 },
-      { id: 2, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 3, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 4, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 5, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 6, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 7, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 8, unlocked: false, complete: false, bestStreak: 0 },
-      { id: 9, unlocked: false, complete: false, bestStreak: 0 },
+      { id: 1, unlocked: true,  complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 2, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 3, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 4, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 5, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 6, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 7, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 8, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
+      { id: 9, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
     ],
     heroEvolution: {},
     heroBonds: {},
+    viewedHeroes: [],
     pendingRescueDialogue: [],
     settings: {
       musicVolume: 0.8,
@@ -208,6 +209,9 @@ function normalize(save) {
   if (!out.heroBonds || typeof out.heroBonds !== 'object') {
     out.heroBonds = {};
   }
+  if (!Array.isArray(out.viewedHeroes)) {
+    out.viewedHeroes = [];
+  }
   if (!Array.isArray(out.pendingRescueDialogue)) {
     out.pendingRescueDialogue = [];
   }
@@ -331,11 +335,15 @@ export function updateSave(mutator, slot = 1) {
   return writeSave(save, slot);
 }
 
-/** Mark a floor complete and unlock the next one. */
-export function markFloorComplete(save, floorId) {
+/** Mark a floor complete and unlock the next one.
+ *  Optionally store best accuracy for star rating. */
+export function markFloorComplete(save, floorId, accuracy) {
   const floor = save.floors.find((f) => f.id === floorId);
   if (!floor) return save;
   floor.complete = true;
+  if (typeof accuracy === 'number' && accuracy > (floor.bestAccuracy || 0)) {
+    floor.bestAccuracy = accuracy;
+  }
   const next = save.floors.find((f) => f.id === floorId + 1);
   if (next) next.unlocked = true;
   return save;

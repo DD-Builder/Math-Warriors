@@ -63,10 +63,17 @@ export class SettingsScene extends Phaser.Scene {
     });
 
     // Row 2: SFX
+    this._lastSfxPreview = 0;
     this.buildVolumeRow(area.cx, contentTop + rowH * 1.5, 'SOUND FX', this.save.settings.sfxVolume, (v) => {
       this.save.settings.sfxVolume = v;
       audio.setSfxVolume(v);
       writeSave(this.save, this.slot);
+      // Play preview sound throttled to 300ms
+      const now = Date.now();
+      if (now - this._lastSfxPreview > 300) {
+        this._lastSfxPreview = now;
+        audio.play('ui/click');
+      }
     });
 
     // Row 3: Colorblind Mode
