@@ -135,9 +135,16 @@ export class TitleScene extends Phaser.Scene {
     C.fillText('An Educational Adventure', W/2, H * 0.38);
 
     // ── RENDER ─────────────────────────────────────────────────
-    const key = 'title-' + Date.now();
+    const key = 'title-bg';
+    if (this.textures.exists(key)) this.textures.remove(key);
     this.textures.addCanvas(key, cv);
     this.add.image(W / 2, H / 2, key).setDepth(0);
+
+    // Cleanup: kill the infinite butterfly tweens when leaving the scene
+    this.events.once('shutdown', () => {
+      this.tweens.killAll();
+      this.time.removeAllEvents();
+    });
 
     // ── BUTTERFLIES ───────────────────────────────────────────
     for (let i = 0; i < 6; i++) {

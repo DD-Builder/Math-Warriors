@@ -60,6 +60,12 @@ export class WorldMapScene extends Phaser.Scene {
     this.cameras.main.setScroll(startScreen * SCREEN_W, 0);
     this.updatePageDots();
     this.updateArrows();
+
+    // Cleanup: node sparkle loop timers and pulse tweens on exit
+    this.events.once('shutdown', () => {
+      this.tweens.killAll();
+      this.time.removeAllEvents();
+    });
   }
 
   getMaxScreen() {

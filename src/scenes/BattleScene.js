@@ -2162,8 +2162,13 @@ export class BattleScene extends Phaser.Scene {
       this.showBattleCry(hero, 'correctAnswer');
 
 
-      // Boss half-HP reaction toast
-      if (this.isBoss && !this.bossHalfHpShown && targetEnemy.hp > 0 && targetEnemy.hp <= targetEnemy.maxHp / 2) {
+      // Boss story beats: HP thresholds, with a question-count fallback so
+      // fast battles (supers/crits skipping past thresholds) still get them.
+      this._bossQuestionCount = (this._bossQuestionCount || 0) + 1;
+      const halfDue = targetEnemy.hp <= targetEnemy.maxHp / 2 || this._bossQuestionCount >= 8;
+      const quarterDue = targetEnemy.hp <= targetEnemy.maxHp / 4 || this._bossQuestionCount >= 14;
+
+      if (this.isBoss && !this.bossHalfHpShown && targetEnemy.hp > 0 && halfDue) {
         this.bossHalfHpShown = true;
         const halfKey = `floor${this.floor}_boss_half`;
         const halfDialogue = DIALOGUE[halfKey];
@@ -2172,8 +2177,8 @@ export class BattleScene extends Phaser.Scene {
         }
       }
 
-      // Boss quarter-HP story beat
-      if (this.isBoss && !this.bossQuarterHpShown && targetEnemy.hp > 0 && targetEnemy.hp <= targetEnemy.maxHp / 4) {
+      // Boss quarter-HP story beat (or question-count fallback)
+      if (this.isBoss && this.bossHalfHpShown && !this.bossQuarterHpShown && targetEnemy.hp > 0 && quarterDue) {
         this.bossQuarterHpShown = true;
         const qKey = `floor${this.floor}_boss_quarter`;
         const qDialogue = DIALOGUE[qKey];
