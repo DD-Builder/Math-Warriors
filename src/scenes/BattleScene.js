@@ -638,7 +638,15 @@ export class BattleScene extends Phaser.Scene {
       const indicator = this.add.triangle(x, y - 160, 0, 0, 20, 0, 10, 20, COLORS.goldL)
         .setVisible(false).setDepth(15);
 
-      return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, x, y };
+      // Equipment visual glow — subtle silver circle if weapon equipped
+      let weaponGlow = null;
+      const heroKey = `hero${i}`;
+      if (this.save.equipment?.[heroKey]?.weapon) {
+        weaponGlow = this.add.circle(x + 30, y - 10, 6, 0xc0c8d0, 0.25)
+          .setDepth(13);
+      }
+
+      return { hero, body, name, hpBarBg, hpBarFill, hpText, indicator, weaponGlow, x, y };
     });
 
     // Idle bob — gentle sine wave on each hero
@@ -2154,6 +2162,7 @@ export class BattleScene extends Phaser.Scene {
 
     if (correct) {
       audio.play('battle/correct');
+      navigator.vibrate?.(30); // Haptic: correct answer (Item 45)
       updateQuestProgress(this.save, 'correct');
 
       const prevStreak = this.streak;
@@ -2372,6 +2381,7 @@ export class BattleScene extends Phaser.Scene {
 
       // --- Critical Hit Effects (Item 32) ---
       if (isCritical) {
+        navigator.vibrate?.(80); // Haptic: critical hit (Item 45)
         // "CRITICAL!" text at center
         const critArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
         const critText = this.add.text(critArea.cx, critArea.cy - 80, 'CRITICAL!', {
@@ -2487,6 +2497,7 @@ export class BattleScene extends Phaser.Scene {
         });
       }
     } else {
+      navigator.vibrate?.([30, 50, 30]); // Haptic: wrong answer (Item 45)
       const prevStreak2 = this.streak;
       this.streak = 0;
       this._streakToastShown = {}; // reset streak milestones for next streak
@@ -3616,6 +3627,35 @@ export class BattleScene extends Phaser.Scene {
     confettiBurst(this, vArea.cx, vArea.cy - 100, 40);
     screenEdgeGlow(this, 0xf0c040, 600);
 
+    // --- Victory Pose Variation (Item 43) ---
+    this.heroSprites.forEach((hs, i) => {
+      if (!hs.hero || hs.hero.hp <= 0 || !hs.body) return;
+      const anim = Math.floor(Math.random() * 3);
+      const delay = i * 200;
+      if (anim === 0) {
+        this.tweens.add({
+          targets: hs.body, y: hs.body.y - 20,
+          duration: 400, ease: 'Sine.inOut', yoyo: true, delay,
+        });
+      } else if (anim === 1) {
+        this.tweens.add({
+          targets: hs.body, angle: 10,
+          duration: 250, ease: 'Sine.inOut', yoyo: true, delay,
+          onComplete: () => {
+            this.tweens.add({
+              targets: hs.body, angle: -10,
+              duration: 250, ease: 'Sine.inOut', yoyo: true,
+            });
+          },
+        });
+      } else {
+        this.tweens.add({
+          targets: hs.body, scaleX: (hs.body.scaleX || 1) * 1.15, scaleY: (hs.body.scaleY || 1) * 1.15,
+          duration: 400, ease: 'Sine.inOut', yoyo: true, delay,
+        });
+      }
+    });
+
     // --- Battle cry: victory (show for first alive hero) ---
     const victoryHero = this.party.find(h => h && h.hp > 0);
     if (victoryHero) this.showBattleCry(victoryHero, 'victory');
@@ -3969,6 +4009,7 @@ export class BattleScene extends Phaser.Scene {
 
             // After fill completes: level-up burst
             this.time.delayedCall(fillTo100Duration + 100, () => {
+              navigator.vibrate?.([30, 50, 30, 50, 80]); // Haptic: level up (Item 45)
               // Flash the hero area bright gold
               const flash = this.add.rectangle(hx, portraitBaseY + 30, xpBarW + 40, 90, 0xf0d060, 0.7).setDepth(210);
               this.endOverlay.add([flash]);

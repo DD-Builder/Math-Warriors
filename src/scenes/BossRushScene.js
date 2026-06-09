@@ -59,9 +59,17 @@ export class BossRushScene extends Phaser.Scene {
       return;
     }
 
-    // If rush is in progress (not complete, not defeated), launch next boss
+    // If rush is in progress (not complete, not defeated), show inter-boss overlay then launch
     if (rushState && rushState.currentBoss < 9) {
-      this.launchBossFight(rushState);
+      if (rushState.currentBoss > 0 && !rushState._overlayShown) {
+        rushState._overlayShown = true;
+        this.showInterBossOverlay(area, rushState, () => {
+          rushState._overlayShown = false;
+          this.launchBossFight(rushState);
+        });
+      } else {
+        this.launchBossFight(rushState);
+      }
       return;
     }
 

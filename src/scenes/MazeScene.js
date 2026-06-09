@@ -367,6 +367,7 @@ export class MazeScene extends Phaser.Scene {
     this.levelImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     this.buildHUD();
+    this.buildMiniMap();
     this.startMazeParticles();
 
     this.dialogue = new DialogueOverlay(this);
@@ -1049,6 +1050,7 @@ export class MazeScene extends Phaser.Scene {
     this.playerX = tile.tx;
     this.playerY = tile.ty;
     if (this.playerX !== prevX || this.playerY !== prevY) {
+      this.updateMiniMap();
       this.checkObjectAt(this.playerX, this.playerY);
     }
   }
@@ -1490,6 +1492,94 @@ export class MazeScene extends Phaser.Scene {
         });
       },
     });
+  }
+
+  // ================================================================
+  // MINI-MAP
+  // ================================================================
+
+  buildMiniMap() {
+    const mapSize = 100;
+    const mapX = GAME_WIDTH - mapSize - 10;
+    const mapY = 10;
+
+    // Dark background panel
+    this.miniMapBg = this.add.graphics().setScrollFactor(0).setDepth(200);
+    this.miniMapBg.fillStyle(0x1a0e04, 0.75);
+    this.miniMapBg.fillRoundedRect(mapX, mapY, mapSize, mapSize, 8);
+
+    // Graphics object for the map content
+    this.miniMapGfx = this.add.graphics().setScrollFactor(0).setDepth(201);
+
+    this._miniMapX = mapX;
+    this._miniMapY = mapY;
+    this._miniMapSize = mapSize;
+
+    this.updateMiniMap();
+  }
+
+  updateMiniMap() {
+    if (!this.miniMapGfx) return;
+    this.miniMapGfx.clear();
+
+    const mapX = this._miniMapX;
+    const mapY = this._miniMapY;
+    const mapSize = this._miniMapSize;
+    const fw = this.floor.width;
+    const fh = this.floor.height;
+    const gs = getGameState();
+    const fog = gs?.fog || this.fog;
+
+    // Scale tiles to fit the mini-map
+    const dotSize = Math.max(1, Math.min(3, Math.floor(mapSize / Math.max(fw, fh))));
+    const scaleX = mapSize / fw;
+    const scaleY = mapSize / fh;
+
+    for (let ty = 0; ty < fh; ty++) {
+      for (let tx = 0; tx < fw; tx++) {
+        // Only draw revealed tiles
+        if (fog && fog[ty] && !fog[ty][tx]) continue;
+
+        const px = mapX + tx * scaleX;
+        const py = mapY + ty * scaleY;
+        const tile = this.floor.tiles[ty]?.[tx];
+
+        if (tile === TILE.WALL) {
+          this.miniMapGfx.fillStyle(0x3a2810, 0.8);
+        } else {
+          this.miniMapGfx.fillStyle(0xc0b890, 0.7);
+        }
+        this.miniMapGfx.fillRect(px, py, Math.max(dotSize, scaleX), Math.max(dotSize, scaleY));
+      }
+    }
+
+    // Draw challenge items (red dots) if revealed and not consumed
+    for (const obj of this.objects) {
+      if (obj.consumed) continue;
+      if (obj.type === 'encounter') continue;
+      if (obj.type === 'exit' && !this.hasKey) continue;
+
+      // Only draw if tile is revealed
+      if (fog && fog[obj.y] && !fog[obj.y][obj.x]) continue;
+
+      const px = mapX + obj.x * scaleX + scaleX / 2;
+      const py = mapY + obj.y * scaleY + scaleY / 2;
+
+      if (obj.type === 'boss') {
+        this.miniMapGfx.fillStyle(0xe04040, 1);
+      } else if (obj.type === 'exit') {
+        this.miniMapGfx.fillStyle(0xf0c040, 1);
+      } else {
+        this.miniMapGfx.fillStyle(0xe04040, 0.9);
+      }
+      this.miniMapGfx.fillCircle(px, py, Math.max(1.5, dotSize * 0.5));
+    }
+
+    // Player position — bright yellow dot
+    const playerPx = mapX + this.playerX * scaleX + scaleX / 2;
+    const playerPy = mapY + this.playerY * scaleY + scaleY / 2;
+    this.miniMapGfx.fillStyle(0xf0f040, 1);
+    this.miniMapGfx.fillCircle(playerPx, playerPy, Math.max(2, dotSize * 0.7));
   }
 
   // ================================================================

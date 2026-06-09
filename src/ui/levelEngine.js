@@ -255,6 +255,17 @@ function LV_drawWall(sx, sy, ts, tx, ty) {
       LV_cut(cbc, 2, function () { _G.arc(cbx, cby, ts * 0.07, 0, Math.PI * 2); });
     }
   }
+  // Stone block detail: 2 thin horizontal lines + 1 vertical line
+  _G.save();
+  _G.strokeStyle = 'rgba(0,0,0,0.15)';
+  _G.lineWidth = 1;
+  _G.beginPath();
+  _G.moveTo(sx, sy + ts / 3); _G.lineTo(sx + ts, sy + ts / 3);
+  _G.moveTo(sx, sy + ts * 2 / 3); _G.lineTo(sx + ts, sy + ts * 2 / 3);
+  var vx = sx + (tx * 7 + ty * 13) % ts;
+  _G.moveTo(vx, sy); _G.lineTo(vx, sy + ts);
+  _G.stroke();
+  _G.restore();
 }
 
 function LV_drawFloor(sx, sy, ts, tx, ty) {
@@ -273,6 +284,15 @@ function LV_drawFloor(sx, sy, ts, tx, ty) {
       LV_cut('#50a838', 0, function() { _G.arc(lx, ly, ts * 0.04, 0, Math.PI * 2); });
     }
   }
+  // Subtle grain dots
+  _G.save();
+  _G.fillStyle = 'rgba(0,0,0,0.08)';
+  for (var gi = 0; gi < 4; gi++) {
+    var gx = sx + (tx * 31 + ty * 17 + gi * 7) % ts;
+    var gy = sy + (tx * 13 + ty * 41 + gi * 11) % ts;
+    _G.beginPath(); _G.arc(gx, gy, 1, 0, Math.PI * 2); _G.fill();
+  }
+  _G.restore();
 }
 
 function LV_drawPath(sx, sy, ts, tx, ty) {
@@ -282,12 +302,32 @@ function LV_drawPath(sx, sy, ts, tx, ty) {
     var st = stones[si]; var sr = mkRng(tx * 41 + ty * 83 + si * 11);
     LV_cut(si % 2 === 0 ? LV_PAL.stone : LV_PAL.stoneD, 2, (function (st2, sr2) { return function () { LV_wobRect(st2[0] + sr2() * 2, st2[1] + sr2() * 2, st2[2] - sr2() * 2, st2[3] - sr2() * 2, mkRng(si * 7 + tx + ty), 1.5); }; })(st, sr));
   }
+  // Cobblestone highlights: 3 small lighter circles down the center
+  _G.save();
+  _G.fillStyle = 'rgba(255,255,255,0.1)';
+  for (var ci = 0; ci < 3; ci++) {
+    _G.beginPath();
+    _G.arc(sx + ts * 0.5, sy + ts * (0.2 + ci * 0.3), 2, 0, Math.PI * 2);
+    _G.fill();
+  }
+  _G.restore();
 }
 
 function LV_drawWater(sx, sy, ts, tx, ty, t) {
   LV_cut(LV_PAL.pond0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   LV_cut(LV_PAL.pond1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
   LV_cut(LV_PAL.pondHL, 0, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.18 + Math.sin(t * 2 + ty) * ts * 0.04, ts * 0.35, ts * 0.05); });
+  // Sine-wave ripple line
+  _G.save();
+  _G.strokeStyle = 'rgba(106,176,200,0.15)';
+  _G.lineWidth = 1;
+  _G.beginPath();
+  for (var wp = 0; wp <= ts; wp += 2) {
+    var wy = sy + ts * 0.5 + 2 * Math.sin(wp * 0.3 + tx * 0.5);
+    if (wp === 0) _G.moveTo(sx + wp, wy); else _G.lineTo(sx + wp, wy);
+  }
+  _G.stroke();
+  _G.restore();
 }
 
 // ─── FLOOR 2: TIDEPOOL TILES (zone-aware) ───────────────────────

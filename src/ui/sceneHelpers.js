@@ -16,6 +16,18 @@
 
 const DEFAULT_FADE = 250;
 
+// --- Loading Tips (Item 42) ---
+const LOADING_TIPS = [
+  'Tip: Harder questions give more XP!',
+  'Tip: Build bonds by fighting together!',
+  'Tip: Evolve heroes at level 5!',
+  'Tip: Master math domains to unlock new paths!',
+  'Shadow says: "..."',
+  'Pepper says: "ZOOM ZOOM!"',
+  'Tip: Guard reduces damage by 50%!',
+  'Tip: Streaks boost your damage!',
+];
+
 /**
  * Transition to the next scene with a visual effect. Safe to call from
  * any event handler.
@@ -27,6 +39,9 @@ const DEFAULT_FADE = 250;
  * @param {string}       type     'fade' | 'wipe' | 'circle' | 'slide'
  */
 export function transitionTo(scene, key, data, duration = DEFAULT_FADE, type = 'fade') {
+  // Show a random loading tip during the transition (Item 42)
+  _showLoadingTip(scene);
+
   if (type === 'wipe') {
     _transitionWipe(scene, key, data, duration);
   } else if (type === 'circle') {
@@ -199,4 +214,29 @@ function _transitionSlide(scene, key, data, duration) {
 export function fadeInScene(scene, duration = DEFAULT_FADE, bgColor = 0x000000) {
   scene.cameras.main.fadeIn(duration, 0, 0, 0);
   scene.cameras.main.setBackgroundColor(bgColor);
+}
+
+/**
+ * Show a random loading tip during a scene transition (Item 42).
+ * Renders small cream-colored text near the bottom of the screen.
+ */
+function _showLoadingTip(scene) {
+  try {
+    const W = scene.cameras.main.width;
+    const H = scene.cameras.main.height;
+    const tip = LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)];
+    const tipText = scene.add.text(W / 2, H - 40, tip, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '14px',
+      color: '#f5ead0',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(10000).setScrollFactor(0).setAlpha(0);
+    scene.tweens.add({
+      targets: tipText,
+      alpha: 1,
+      duration: 150,
+      ease: 'Sine.in',
+    });
+  } catch (_) { /* defensive: don't let tip display prevent transition */ }
 }
