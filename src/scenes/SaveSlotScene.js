@@ -221,14 +221,14 @@ export class SaveSlotScene extends Phaser.Scene {
     };
 
     const rows = [
-      'ABCDEFGHIJ',
-      'KLMNOPQRST',
-      'UVWXYZ 123',
+      'QWERTYUIOP',
+      'ASDFGHJKL',
+      'ZXCVBNM',
     ];
 
-    const btnSize = 64;
-    const btnGap = 8;
-    const startY = 300;
+    const btnSize = 60;
+    const btnGap = 6;
+    const startY = 280;
 
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r];
@@ -239,7 +239,7 @@ export class SaveSlotScene extends Phaser.Scene {
         const bx = rowStartX + c * (btnSize + btnGap);
         const by = startY + r * (btnSize + btnGap);
         const btn = PaperButton(this, bx, by, ch, {
-          w: btnSize, h: btnSize, color: 0x3a2810, fontSize: 24,
+          w: btnSize, h: btnSize, color: 0x3a2810, fontSize: 22,
           onClick: () => {
             if (currentName.length < MAX_LEN) {
               currentName += ch;
@@ -253,7 +253,36 @@ export class SaveSlotScene extends Phaser.Scene {
       }
     }
 
-    const controlY = startY + 3 * (btnSize + btnGap) + 20;
+    // Hardware keyboard support
+    const keyHandler = (event) => {
+      const key = event.key;
+      if (key === 'Backspace') {
+        if (currentName.length > 0) {
+          currentName = currentName.slice(0, -1);
+          updatePreview();
+          audio.play('ui/click');
+        }
+        event.preventDefault();
+      } else if (key === 'Enter') {
+        const name = currentName.trim() || `Slot ${slot}`;
+        audio.play('ui/confirm');
+        this.closePicker();
+        this.startNewGame(slot, name);
+        event.preventDefault();
+      } else if (key === 'Escape') {
+        audio.play('ui/back');
+        this.closePicker();
+        event.preventDefault();
+      } else if (key.length === 1 && /[a-zA-Z0-9 ]/.test(key) && currentName.length < MAX_LEN) {
+        currentName += key.toUpperCase();
+        updatePreview();
+        audio.play('ui/click');
+      }
+    };
+    window.addEventListener('keydown', keyHandler);
+    this._pickerKeyHandler = keyHandler;
+
+    const controlY = startY + 3 * (btnSize + btnGap) + 10;
 
     const delBtn = PaperButton(this, GAME_WIDTH / 2 - 160, controlY, 'DELETE', {
       w: 180, h: 60, color: 0xc06030, fontSize: 20,
@@ -292,6 +321,10 @@ export class SaveSlotScene extends Phaser.Scene {
   }
 
   closePicker() {
+    if (this._pickerKeyHandler) {
+      window.removeEventListener('keydown', this._pickerKeyHandler);
+      this._pickerKeyHandler = null;
+    }
     if (this._pickerObjects) {
       this._pickerObjects.forEach(o => { if (o && o.destroy) o.destroy(); });
       this._pickerObjects = null;
