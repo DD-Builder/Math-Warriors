@@ -330,11 +330,12 @@ export class PartySelectScene extends Phaser.Scene {
 
   buildPartyStrip(area) {
     const stripX = area.left + 20;
-    const stripY = area.bottom - 110;
+    const stripY = area.bottom - 100;
 
-    this.add.text(stripX, stripY - 60, 'YOUR PARTY', {
+    // "YOUR PARTY" label above the slots, left-aligned and raised higher
+    this.add.text(stripX, stripY - 72, 'YOUR PARTY', {
       ...TEXT.heading(),
-      fontSize: '18px',
+      fontSize: '16px',
       color: '#3a2410',
     }).setOrigin(0, 0.5);
 
@@ -367,9 +368,10 @@ export class PartySelectScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       if (isLead) {
-        this.add.text(sx, sy - slotH / 2 - 10, 'LEAD', {
+        // Position LEAD label inside the slot top, not above it
+        this.add.text(sx, sy - slotH / 2 + 10, 'LEAD', {
           ...TEXT.stat(),
-          fontSize: '11px',
+          fontSize: '9px',
           color: '#d07818',
         }).setOrigin(0.5);
       }

@@ -204,7 +204,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   drawMiniDiorama(cx, cy, r, floorId) {
-    const gfx = this.add.graphics();
+    const gfx = this.add.graphics().setDepth(11);
     const palettes = {
       1: { sky: 0x68b8e8, ground: 0x48a040, accent: 0xf06888, detail: 0x388828 },
       2: { sky: 0x2878c0, ground: 0x2070a0, accent: 0xf0a848, detail: 0x186898 },

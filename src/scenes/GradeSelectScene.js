@@ -84,7 +84,11 @@ export class GradeSelectScene extends Phaser.Scene {
         selected: isSelected, seed,
       });
 
-      this.add.text(x, y - 35, g.label, {
+      // Gold glow behind selected card
+      const glow = this.add.rectangle(x, y, cardW + 16, cardH + 16, 0xf0d060, isSelected ? 0.2 : 0)
+        .setDepth(card.bg.depth - 2);
+
+      const gradeLabel = this.add.text(x, y - 35, g.label, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '80px',
         color: '#fff8e0',
@@ -92,13 +96,13 @@ export class GradeSelectScene extends Phaser.Scene {
         strokeThickness: 7,
       }).setOrigin(0.5);
 
-      this.add.text(x, y + 40, g.name, {
+      const nameLabel = this.add.text(x, y + 40, g.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '18px',
         color: '#fff8e0',
       }).setOrigin(0.5);
 
-      this.add.text(x, y + 70, g.hint, {
+      const hintLabel = this.add.text(x, y + 70, g.hint, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '14px',
         color: '#fff8e0',
@@ -106,12 +110,31 @@ export class GradeSelectScene extends Phaser.Scene {
         wordWrap: { width: cardW - 30 },
       }).setOrigin(0.5);
 
+      // Checkmark circle in top-right corner for selected card
+      const checkCircle = this.add.circle(x + cardW / 2 - 20, y - cardH / 2 + 20, 18, 0xf0d060)
+        .setDepth(card.bg.depth + 2).setVisible(isSelected);
+      const checkMark = this.add.text(x + cardW / 2 - 20, y - cardH / 2 + 20, '✓', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '28px',
+        color: '#ffffff',
+      }).setOrigin(0.5).setDepth(card.bg.depth + 3).setVisible(isSelected);
+
+      // Apply initial visual state
+      const cardContainer = [card.bg, card.shadow, card.zone, gradeLabel, nameLabel, hintLabel];
+      if (!isSelected) {
+        cardContainer.forEach(el => { if (el && el.setAlpha) el.setAlpha(0.7); });
+      }
+
       card.zone.on('pointerdown', () => {
         audio.play('ui/click');
         this.selectGrade(g.id);
       });
 
-      this.gradeCards[g.id] = { card, x, y, w: cardW, h: cardH, color: g.color, seed };
+      this.gradeCards[g.id] = {
+        card, x, y, w: cardW, h: cardH, color: g.color, seed,
+        glow, checkCircle, checkMark,
+        cardElements: cardContainer,
+      };
     });
 
     // CONFIRM button — LOCKED into safe area bottom
@@ -122,22 +145,62 @@ export class GradeSelectScene extends Phaser.Scene {
   }
 
   selectGrade(id) {
+    const prevId = this.selectedGrade;
     this.selectedGrade = id;
     for (const [gid, entry] of Object.entries(this.gradeCards)) {
       const isSelected = Number(gid) === id;
-      const { x, y, w, h, color, seed } = entry;
+      const { x, y, w, h, color, seed, glow, checkCircle, checkMark, cardElements } = entry;
+
       // Re-paint with the same seed so the hand-cut wobble survives
       // the selection-state change.
       paintPaperRect(entry.card.bg, entry.card.shadow, x, y, w, h, color, {
         radius: 12,
         shadowOff: isSelected ? 3 : 5,
         shadowAlpha: isSelected ? 0.4 : 0.25,
-        strokeColor: isSelected ? COLORS.goldL : 0x000000,
-        strokeAlpha: isSelected ? 0.9 : 0.15,
-        strokeWidth: isSelected ? 4 : 2,
+        strokeColor: isSelected ? 0xf0d060 : 0x000000,
+        strokeAlpha: isSelected ? 1.0 : 0.15,
+        strokeWidth: isSelected ? 6 : 2,
         organic: true,
         seed,
       });
+
+      // Gold glow behind selected card
+      if (glow) glow.setAlpha(isSelected ? 0.2 : 0);
+
+      // Checkmark visibility
+      if (checkCircle) checkCircle.setVisible(isSelected);
+      if (checkMark) checkMark.setVisible(isSelected);
+
+      // Scale animation: selected pops up, unselected shrinks back
+      const targetScale = isSelected ? 1.08 : 1.0;
+      const targetAlpha = isSelected ? 1.0 : 0.7;
+
+      // Animate all card elements
+      if (cardElements) {
+        cardElements.forEach(el => {
+          if (el && el.setAlpha) {
+            this.tweens.add({
+              targets: el,
+              alpha: targetAlpha,
+              duration: 200,
+              ease: 'Cubic.out',
+            });
+          }
+        });
+      }
+
+      // Scale the card bg and shadow
+      for (const part of [entry.card.bg, entry.card.shadow]) {
+        if (part) {
+          this.tweens.add({
+            targets: part,
+            scaleX: targetScale,
+            scaleY: targetScale,
+            duration: 200,
+            ease: 'Back.out',
+          });
+        }
+      }
     }
   }
 }

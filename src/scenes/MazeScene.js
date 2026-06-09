@@ -3,7 +3,7 @@ import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } fro
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
-import { spawnHero, getHeroById, ALL_HEROES } from '../data/heroes.js';
+import { spawnHero, getHeroById, ALL_HEROES, levelBonuses } from '../data/heroes.js';
 import { spawnEnemy, pickEnemyForFloor, FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
@@ -58,12 +58,17 @@ export class MazeScene extends Phaser.Scene {
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
 
-    // Hydrate party from save
+    // Hydrate party from save, applying level bonuses
     this.party = (this.save.party || [])
       .map((s) => {
         if (!s || !s.id) return null;
         const h = spawnHero(s.id);
         if (!h) return null;
+        const level = s.level || 1;
+        const bonus = levelBonuses(level);
+        h.maxHp += bonus.maxHp;
+        h.atk += bonus.atk;
+        h.def += bonus.def;
         h.hp = s.hp ?? h.maxHp;
         return h;
       })
