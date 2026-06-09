@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { KNIGHTS, WIZARDS, BUNNIES, spawnHero, getAvailableSupers, levelBonuses, computeLevel, LEVEL_THRESHOLDS, getHeroById, getHeroSignature, getEvolutionData, HERO_BONDS } from '../data/heroes.js';
+import { KNIGHTS, WIZARDS, BUNNIES, spawnHero, levelBonuses, LEVEL_THRESHOLDS, getHeroById, getEvolutionData, HERO_BONDS } from '../data/heroes.js';
 import { loadSave, writeSave, makeDefaultSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { DIALOGUE } from '../data/dialogue.js';
@@ -8,7 +8,7 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite, getHeroCardBg } from '../ui/heroSprites.js';
+import { drawHeroSprite } from '../ui/heroSprites.js';
 import { getEvolutionStage, getEvolvedName, getEvolvedTitle, getEvolutionStatBoosts, canEvolveStage2, canEvolveStage3, evolveStage2, evolveStage3, resolveMasteryId } from '../systems/evolution.js';
 import { getHeroBondSummary, getBondStatBonuses, getBondDialogues } from '../systems/bonds.js';
 import { getSkillMastery } from '../systems/mastery.js';

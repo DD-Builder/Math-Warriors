@@ -3,7 +3,7 @@ import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { audio } from '../systems/audio.js';
-import { fadeInScene, transitionTo } from '../ui/sceneHelpers.js';
+import { transitionTo } from '../ui/sceneHelpers.js';
 import { getHeroById, getPersonality } from '../data/heroes.js';
 
 /**

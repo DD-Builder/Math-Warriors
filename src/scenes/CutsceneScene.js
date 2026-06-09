@@ -3,7 +3,7 @@ import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
-import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperButton, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { audio } from '../systems/audio.js';
 import { getHeroById } from '../data/heroes.js';

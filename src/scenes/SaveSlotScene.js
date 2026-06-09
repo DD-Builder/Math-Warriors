@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
-import { listSlots, clearSave, loadSave, writeSave } from '../systems/save.js';
+import { listSlots, clearSave, loadSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperButton, PaperPanel, TEXT, safeArea } from '../ui/paperUI.js';

@@ -3,7 +3,7 @@ import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.j
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { PaperButton, PaperPanel, TEXT, safeArea } from '../ui/paperUI.js';
+import { PaperButton, PaperPanel, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';

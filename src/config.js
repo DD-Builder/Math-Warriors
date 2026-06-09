@@ -28,6 +28,10 @@ export const COLORS = {
   scarlet:  0x9c2020,
   scarletL: 0xc83030,
 
+  // Utility accents
+  green:    0x2a5c1e,
+  greenL:   0x4a9830,
+
 };
 
 export const COLORS_CSS = Object.fromEntries(

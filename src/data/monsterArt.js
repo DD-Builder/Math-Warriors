@@ -11,7 +11,6 @@
  * Monsters are added per-floor in batches to avoid API timeouts.
  */
 
-import { drawOpSym } from '../ui/legacyRenderer.js';
 
 // ─── FLOOR 1: GARDEN ────────────────────────────────────────────
 // Placeholder — monster draw functions will be added in subsequent batches.
