@@ -851,7 +851,7 @@ export class MazeScene extends Phaser.Scene {
     // Close button at bottom center with clear space above
     const closeBtnY = Math.max(startY + rows * (cardH + cardGap) + 40, GAME_HEIGHT - 70);
     const closeBtn = PaperButton(this, GAME_WIDTH / 2, closeBtnY, 'CLOSE', {
-      w: 200, h: 56, color: 0xe84840, fontSize: 20,
+      w: 200, h: 56, color: 0xc83030, fontSize: 20,
       onClick: () => {
         objects.forEach(o => o.destroy());
         closeBtn.bg.destroy(); closeBtn.shadow.destroy();

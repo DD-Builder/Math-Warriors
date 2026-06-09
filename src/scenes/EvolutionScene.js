@@ -492,7 +492,7 @@ export class EvolutionScene extends Phaser.Scene {
       this.time.delayedCall(btnDelay, () => {
         const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
         const btn = PaperButton(this, cx, area.bottom - 50, 'AMAZING!', {
-          w: 260, h: 64, color: 0xe84840, fontSize: 24, textColor: '#fff8e0',
+          w: 260, h: 64, color: 0xc83030, fontSize: 24, textColor: '#fff8e0',
           onClick: () => {
             audio.play('ui/confirm');
             const psState = d.partySelectState || {};

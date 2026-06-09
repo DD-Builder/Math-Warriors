@@ -51,14 +51,17 @@ export class ShopScene extends Phaser.Scene {
     const tabY = area.top + 140;
     PaperButton(this, area.cx - 200, tabY, 'ITEMS', {
       w: 180, h: 46, color: this.activeTab === 'items' ? 0xd07818 : 0x8a7a60, fontSize: 18,
+      textColor: this.activeTab === 'items' ? '#ffffff' : '#5a4a30',
       onClick: () => this.switchTab('items'),
     });
     PaperButton(this, area.cx, tabY, 'GEAR', {
       w: 180, h: 46, color: this.activeTab === 'gear' ? 0x3888d8 : 0x8a7a60, fontSize: 18,
+      textColor: this.activeTab === 'gear' ? '#ffffff' : '#5a4a30',
       onClick: () => this.switchTab('gear'),
     });
     PaperButton(this, area.cx + 200, tabY, 'SKINS', {
       w: 180, h: 46, color: this.activeTab === 'skins' ? 0xa040d0 : 0x8a7a60, fontSize: 18,
+      textColor: this.activeTab === 'skins' ? '#ffffff' : '#5a4a30',
       onClick: () => this.switchTab('skins'),
     });
 
@@ -113,7 +116,7 @@ export class ShopScene extends Phaser.Scene {
       const canAfford = this.save.gold >= item.cost;
       const buyBtn = PaperButton(this, x, cardY + 70, canAfford ? 'BUY' : 'NEED GOLD', {
         w: 140, h: 46, fontSize: canAfford ? 18 : 14,
-        color: canAfford ? 0xe84840 : 0x808080,
+        color: canAfford ? 0xc83030 : 0x808080,
         textColor: canAfford ? '#fff8e0' : '#505050',
         onClick: () => this.buyItem(item, i),
       });
@@ -179,7 +182,7 @@ export class ShopScene extends Phaser.Scene {
       const canAfford = this.save.gold >= tier.setCost && !!lead;
       PaperButton(this, x, cardY + 86, canAfford ? 'BUY SET' : 'NEED GOLD', {
         w: 140, h: 44, fontSize: canAfford ? 16 : 14,
-        color: canAfford ? 0xe84840 : 0x808080,
+        color: canAfford ? 0xc83030 : 0x808080,
         textColor: canAfford ? '#fff8e0' : '#505050',
         onClick: () => this.buyGearTier(tier),
       });

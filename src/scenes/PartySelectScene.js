@@ -398,7 +398,7 @@ export class PartySelectScene extends Phaser.Scene {
         const hero = this.classes[sel.class][sel.index];
         slot.portrait.setFillStyle(0xd0c8b0, 0.3);
         const slotEvoStage = getEvolutionStage(this.save, hero.id);
-        slot.heroSprite = drawHeroSprite(this, slot.sx, slot.sy - 12, hero, { scale: 0.45, evolutionStage: slotEvoStage });
+        slot.heroSprite = drawHeroSprite(this, slot.sx, slot.sy - 12, hero, { scale: 0.5, evolutionStage: slotEvoStage });
         const evoName = getEvolvedName(this.save, hero.id);
         slot.nameTxt.setText(evoName.toUpperCase());
         slot.nameTxt.setColor('#3a2410');
@@ -437,7 +437,7 @@ export class PartySelectScene extends Phaser.Scene {
     const ready = n >= 3;
     const { x, y, w, h, seed } = this.confirmBtnGeom;
     paintPaperRect(this.confirmBtn.bg, this.confirmBtn.shadow, x, y, w, h,
-      ready ? 0xe84840 : 0xc8b898, {
+      ready ? 0xc83030 : 0xc8b898, {
       shadowOff: 5,
       shadowAlpha: 0.35,
       strokeColor: 0x000000,
@@ -906,7 +906,7 @@ export class PartySelectScene extends Phaser.Scene {
         sy += 28;
 
         const evolveBtn = PaperButton(this, cx, sy + 20, `Evolve to ${evoDef.stage2.name}!`, {
-          w: 260, h: 46, color: 0xe84840, fontSize: 16, textColor: '#fff8e0',
+          w: 260, h: 46, color: 0xc83030, fontSize: 16, textColor: '#fff8e0',
           onClick: () => {
             audio.play('ui/confirm');
             const result = evolveStage2(this.save, hero.id);
@@ -1008,7 +1008,7 @@ export class PartySelectScene extends Phaser.Scene {
 
         if (qualifies) {
           const evolvePathBtn = PaperButton(this, cx + pathBoxW / 2 - 60, sy + pathBoxH - 18, 'EVOLVE', {
-            w: 80, h: 28, color: 0xe84840, fontSize: 11, textColor: '#fff8e0',
+            w: 80, h: 28, color: 0xc83030, fontSize: 11, textColor: '#fff8e0',
             onClick: () => {
               audio.play('ui/confirm');
               const result = evolveStage3(this.save, hero.id, p.id);
