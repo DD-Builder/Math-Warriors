@@ -2782,17 +2782,17 @@ export class BattleScene extends Phaser.Scene {
   showHintOverlay(question) {
     const hintText = getHint(question.op, question.a, question.b, question.answer);
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this.locked = true;
 
-    // Cream panel overlay
     const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5)
       .setDepth(150).setInteractive();
-    const panel = PaperPanel(this, area.cx, area.cy, 620, 180, {
+    const panel = PaperPanel(this, area.cx, area.cy - 20, 620, 200, {
       color: 0xf5ead0, alpha: 0.97, radius: 20,
     });
     if (panel.bg) panel.bg.setDepth(151);
     if (panel.shadow) panel.shadow.setDepth(150);
 
-    const hintLabel = this.add.text(area.cx, area.cy, hintText, {
+    const hintLabel = this.add.text(area.cx, area.cy - 30, hintText, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '22px',
       color: '#3a2410',
@@ -2800,18 +2800,32 @@ export class BattleScene extends Phaser.Scene {
       wordWrap: { width: 560 },
     }).setOrigin(0.5).setDepth(152);
 
+    const gotItBtn = PaperButton(this, area.cx, area.cy + 55, 'GOT IT', {
+      w: 200, h: 54, color: 0x4aa848, fontSize: 22,
+    });
+    if (gotItBtn.bg) gotItBtn.bg.setDepth(153);
+    if (gotItBtn.shadow) gotItBtn.shadow.setDepth(153);
+    if (gotItBtn.label) gotItBtn.label.setDepth(154);
+    if (gotItBtn.zone) gotItBtn.zone.setDepth(154);
+
     const elements = [overlayBg, hintLabel];
     if (panel.bg) elements.push(panel.bg);
     if (panel.shadow) elements.push(panel.shadow);
+    elements.push(gotItBtn.bg, gotItBtn.shadow, gotItBtn.label);
+    if (gotItBtn.zone) elements.push(gotItBtn.zone);
 
-    // Dismiss on tap or after 4 seconds
+    let dismissed = false;
     const dismissHint = () => {
+      if (dismissed) return;
+      dismissed = true;
       if (dismissTimer) dismissTimer.remove();
       elements.forEach(el => { if (el && el.scene) el.destroy(); });
+      this.locked = false;
     };
 
     overlayBg.on('pointerdown', dismissHint);
-    const dismissTimer = this.time.delayedCall(4000, dismissHint);
+    if (gotItBtn.zone) gotItBtn.zone.on('pointerdown', dismissHint);
+    const dismissTimer = this.time.delayedCall(6000, dismissHint);
   }
 
   // ================================================================
