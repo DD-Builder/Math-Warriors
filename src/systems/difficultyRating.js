@@ -8,7 +8,7 @@
  * Pure module — no Phaser dependencies, no circular imports.
  */
 
-export const DIFFICULTY_MULTIPLIERS = {
+const DIFFICULTY_MULTIPLIERS = {
   1: 0.8,
   2: 0.9,
   3: 1.0,

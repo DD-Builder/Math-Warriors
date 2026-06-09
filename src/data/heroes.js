@@ -1064,7 +1064,7 @@ export function computeLevel(xp) {
 /**
  * XP needed to reach the next level from current level.
  */
-export function xpToNextLevel(level) {
+function xpToNextLevel(level) {
   const next = Math.min(level + 1, LEVEL_THRESHOLDS.length - 1);
   return LEVEL_THRESHOLDS[next] || 9999;
 }

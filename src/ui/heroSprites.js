@@ -138,7 +138,7 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
 /**
  * Get the cardBg color for a hero (for party select card backgrounds).
  */
-export function getHeroCardBg(heroId) {
+function getHeroCardBg(heroId) {
   const art = ART_LOOKUP[heroId];
   return art ? art.cardBg : '#181828';
 }

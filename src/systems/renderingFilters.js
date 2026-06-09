@@ -36,7 +36,7 @@ export function applySpriteFilter(canvas, floorId) {
  * @param {number} floorId - Floor number (1-9)
  * @returns {object|null} Overlay config or null
  */
-export function getFloorOverlayConfig(floorId) {
+function getFloorOverlayConfig(floorId) {
   const configs = {
     2: { grain: 0.03, saturation: 0.85, contrast: 1.05, warmth: -5 },
     3: { grain: 0.06, saturation: 0.7, contrast: 0.9, warmth: 10, paperTexture: true },

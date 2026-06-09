@@ -56,11 +56,7 @@ export const EQUIPMENT_TIERS = TIER_DEFS.map(t => ({
   setCost: t.weapon.cost + t.armor.cost + t.accessory.cost,
 }));
 
-export function getAvailableEquipment(highestFloor) {
-  return EQUIPMENT_TIERS.filter(t => t.floor <= highestFloor);
-}
-
-export function getEquipmentBonuses(equipped) {
+function getEquipmentBonuses(equipped) {
   let atk = 0, def = 0, hp = 0;
   if (equipped?.weapon) atk += equipped.weapon.atk || 0;
   if (equipped?.armor) def += equipped.armor.def || 0;
@@ -70,13 +66,13 @@ export function getEquipmentBonuses(equipped) {
 
 // --- Derived view 2: flat item list (BattleScene getEquipmentById) ---
 
-export const EQUIPMENT = TIER_DEFS.flatMap(t => [
+const EQUIPMENT = TIER_DEFS.flatMap(t => [
   { ...t.weapon,    slot: 'weapon',    floor: t.floor, tier: t.tier },
   { ...t.armor,     slot: 'armor',     floor: t.floor, tier: t.tier },
   { ...t.accessory, slot: 'accessory', floor: t.floor, tier: t.tier },
 ]);
 
-export function getEquipmentForFloor(maxFloor) {
+function getEquipmentForFloor(maxFloor) {
   return EQUIPMENT.filter(e => e.floor <= maxFloor);
 }
 

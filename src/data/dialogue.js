@@ -551,7 +551,7 @@ export const DIALOGUE = {
 // featuring the hero speaking in their personality voice.
 // ══════════════════════════════════════════════════════════════════
 
-export const HERO_RESCUE = {
+const HERO_RESCUE = {
   // ── FLOOR 1: THE GARDEN — trapped in thorns/vines by the Briar King ──
   1: {
     'knight-crusader': [

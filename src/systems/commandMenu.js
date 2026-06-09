@@ -13,7 +13,7 @@ export const COMMANDS = {
   GUARD: 'guard',
 };
 
-export const COMMAND_CONFIG = {
+const COMMAND_CONFIG = {
   [COMMANDS.FIGHT]: {
     label: 'FIGHT',
     icon: '⚔️',    // ⚔️

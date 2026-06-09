@@ -20,7 +20,7 @@ const SKILLS = [
 
 const WINDOW = 30;
 
-export function getSkills() {
+function getSkills() {
   return SKILLS;
 }
 
