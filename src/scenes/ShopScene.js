@@ -6,6 +6,7 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { EQUIPMENT_TIERS } from '../systems/equipment.js';
 
 const SHOP_ITEMS = [
   { id: 'potion',   name: 'POTION',      cost: 20,  desc: '+1 potion',               icon: 0x9050c8 },
@@ -24,6 +25,7 @@ export class ShopScene extends Phaser.Scene {
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
     this.activeTab = data?.tab || 'items';
+    this.pendingFlash = data?.flash || null;
   }
 
   create() {
@@ -46,17 +48,23 @@ export class ShopScene extends Phaser.Scene {
     this.updateGoldLabel();
 
     const tabY = area.top + 140;
-    PaperButton(this, area.cx - 120, tabY, 'ITEMS', {
+    PaperButton(this, area.cx - 200, tabY, 'ITEMS', {
       w: 180, h: 46, color: this.activeTab === 'items' ? 0xd07818 : 0x8a7a60, fontSize: 18,
       onClick: () => this.switchTab('items'),
     });
-    PaperButton(this, area.cx + 120, tabY, 'SKINS', {
+    PaperButton(this, area.cx, tabY, 'GEAR', {
+      w: 180, h: 46, color: this.activeTab === 'gear' ? 0x3888d8 : 0x8a7a60, fontSize: 18,
+      onClick: () => this.switchTab('gear'),
+    });
+    PaperButton(this, area.cx + 200, tabY, 'SKINS', {
       w: 180, h: 46, color: this.activeTab === 'skins' ? 0xa040d0 : 0x8a7a60, fontSize: 18,
       onClick: () => this.switchTab('skins'),
     });
 
     if (this.activeTab === 'skins') {
       this.buildSkinCards(area);
+    } else if (this.activeTab === 'gear') {
+      this.buildGearCards(area);
     } else {
       this.buildItemCards(area);
     }
@@ -65,6 +73,11 @@ export class ShopScene extends Phaser.Scene {
       w: 260, h: 64, color: 0x4aa848, fontSize: 24,
       onClick: () => transitionTo(this, SCENES.WORLD_MAP, undefined, 200),
     });
+
+    if (this.pendingFlash) {
+      this.showFlash(this.pendingFlash);
+      this.pendingFlash = null;
+    }
   }
 
   buildItemCards(area) {
@@ -106,6 +119,94 @@ export class ShopScene extends Phaser.Scene {
 
       return { card, buyBtn, costLabel, item };
     });
+  }
+
+  buildGearCards(area) {
+    const cardW = 220;
+    const cardH = 280;
+    const gap = 20;
+    const totalW = EQUIPMENT_TIERS.length * cardW + (EQUIPMENT_TIERS.length - 1) * gap;
+    const startX = area.cx - totalW / 2 + cardW / 2;
+    const cardY = area.cy + 20;
+
+    const lead = (this.save.party || [])[0];
+    const leadEquip = this.save.equipment?.hero0 || {};
+
+    EQUIPMENT_TIERS.forEach((tier, i) => {
+      const x = startX + i * (cardW + gap);
+      const floorData = (this.save.floors || []).find(f => f && f.id === tier.floor);
+      const unlocked = !!(floorData && floorData.unlocked);
+      const owned = leadEquip.weapon === tier.weapon.id
+        && leadEquip.armor === tier.armor.id
+        && leadEquip.accessory === tier.accessory.id;
+
+      PaperCard(this, x, cardY, cardW, cardH, unlocked ? 0x8a98b8 : 0x8a8070, {});
+
+      this.add.text(x, cardY - cardH / 2 + 26, tier.tier.toUpperCase(), {
+        ...TEXT.heading(), fontSize: '18px', color: '#fff8e0',
+        stroke: '#1a0e04', strokeThickness: 2,
+      }).setOrigin(0.5);
+
+      if (!unlocked) {
+        this.add.text(x, cardY, `Unlock Floor ${tier.floor}\nto buy`, {
+          ...TEXT.body(), fontSize: '14px', color: '#d8d0c0', align: 'center',
+        }).setOrigin(0.5);
+        return;
+      }
+
+      const lines = [
+        `⚔ ${tier.weapon.name}  +${tier.weapon.atk} ATK`,
+        `\u{1F6E1} ${tier.armor.name}  +${tier.armor.def} DEF`,
+        `❤ ${tier.accessory.name}  +${tier.accessory.hp} HP`,
+      ];
+      this.add.text(x, cardY - 40, lines.join('\n'), {
+        ...TEXT.body(), fontSize: '12px', color: '#fff8e0', align: 'left',
+        lineSpacing: 8, wordWrap: { width: cardW - 20 },
+      }).setOrigin(0.5);
+
+      if (owned) {
+        this.add.text(x, cardY + 60, 'EQUIPPED', {
+          ...TEXT.heading(), fontSize: '16px', color: '#a8e8a0',
+        }).setOrigin(0.5);
+        return;
+      }
+
+      this.add.text(x, cardY + 40, `${tier.setCost} GOLD`, {
+        ...TEXT.heading(), fontSize: '18px', color: '#f0d040',
+      }).setOrigin(0.5);
+
+      const canAfford = this.save.gold >= tier.setCost && !!lead;
+      PaperButton(this, x, cardY + 86, 'BUY SET', {
+        w: 140, h: 44, fontSize: 16,
+        color: canAfford ? 0xe84840 : 0x808080,
+        textColor: canAfford ? '#fff8e0' : '#a0a0a0',
+        onClick: () => this.buyGearTier(tier),
+      });
+    });
+  }
+
+  buyGearTier(tier) {
+    const lead = (this.save.party || [])[0];
+    if (!lead) {
+      this.showFlash('No party to equip!');
+      return;
+    }
+    if (this.save.gold < tier.setCost) {
+      this.showFlash('Not enough gold!');
+      return;
+    }
+
+    this.save.gold -= tier.setCost;
+    if (!this.save.equipment) this.save.equipment = {};
+    this.save.equipment.hero0 = {
+      weapon: tier.weapon.id,
+      armor: tier.armor.id,
+      accessory: tier.accessory.id,
+    };
+    writeSave(this.save, this.slot);
+    audio.play('ui/confirm');
+    // Restart to refresh card states; flash shows after the restart.
+    this.scene.restart({ tab: 'gear', flash: `Equipped to ${lead.name}!` });
   }
 
   buyItem(item, index) {

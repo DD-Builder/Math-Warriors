@@ -2,20 +2,59 @@
  * Equipment System (Phase 3.2)
  *
  * Weapons, armor, and accessories that heroes can equip for stat bonuses.
- * Equipment is purchased in the shop and persisted in the save file.
+ * Equipment is purchased in the shop and persisted in the save file
+ * (save.equipment.heroN stores item IDs per slot).
  *
- * Two views of the data:
+ * TIER_DEFS below is the single source of truth. Both public views are
+ * derived from it:
  *   - EQUIPMENT_TIERS: tier-based groupings (weapon+armor+accessory per tier)
- *   - EQUIPMENT: flat list of individual items (for backward compat with shop/battle)
+ *   - EQUIPMENT: flat list of individual items (BattleScene uses getEquipmentById)
  */
 
-export const EQUIPMENT_TIERS = [
-  { tier: 'wooden', floor: 1, weapon: { name: 'Wooden Sword', atk: 2 }, armor: { name: 'Leather Vest', def: 2 }, accessory: { name: 'Simple Ring', hp: 5 }, cost: 30 },
-  { tier: 'iron', floor: 2, weapon: { name: 'Iron Blade', atk: 4 }, armor: { name: 'Chain Mail', def: 4 }, accessory: { name: 'Silver Band', hp: 10 }, cost: 60 },
-  { tier: 'steel', floor: 3, weapon: { name: 'Steel Sword', atk: 6 }, armor: { name: 'Plate Armor', def: 6 }, accessory: { name: 'Gold Pendant', hp: 15 }, cost: 100 },
-  { tier: 'mithril', floor: 4, weapon: { name: 'Mithril Edge', atk: 8 }, armor: { name: 'Mithril Plate', def: 8 }, accessory: { name: 'Crystal Charm', hp: 20 }, cost: 150 },
-  { tier: 'legendary', floor: 5, weapon: { name: 'Legendary Blade', atk: 12 }, armor: { name: 'Dragon Scale', def: 10 }, accessory: { name: 'Phoenix Feather', hp: 30 }, cost: 250 },
+const TIER_DEFS = [
+  {
+    tier: 'wooden', floor: 1,
+    weapon:    { id: 'wooden_sword',   name: 'Wooden Sword',    atk: 2,  cost: 30 },
+    armor:     { id: 'wooden_shield',  name: 'Leather Vest',    def: 2,  cost: 30 },
+    accessory: { id: 'health_charm',   name: 'Simple Ring',     hp: 5,   cost: 25 },
+  },
+  {
+    tier: 'iron', floor: 2,
+    weapon:    { id: 'iron_sword',     name: 'Iron Blade',      atk: 4,  cost: 60 },
+    armor:     { id: 'iron_armor',     name: 'Chain Mail',      def: 4,  cost: 60 },
+    accessory: { id: 'vigor_ring',     name: 'Silver Band',     hp: 10,  cost: 50 },
+  },
+  {
+    tier: 'steel', floor: 3,
+    weapon:    { id: 'steel_sword',    name: 'Steel Sword',     atk: 6,  cost: 100 },
+    armor:     { id: 'steel_plate',    name: 'Plate Armor',     def: 6,  cost: 100 },
+    accessory: { id: 'life_amulet',    name: 'Gold Pendant',    hp: 15,  cost: 80 },
+  },
+  {
+    tier: 'mithril', floor: 4,
+    weapon:    { id: 'mithril_sword',  name: 'Mithril Edge',    atk: 8,  cost: 150 },
+    armor:     { id: 'mithril_mail',   name: 'Mithril Plate',   def: 8,  cost: 150 },
+    accessory: { id: 'heart_crystal',  name: 'Crystal Charm',   hp: 20,  cost: 120 },
+  },
+  {
+    tier: 'legendary', floor: 5,
+    weapon:    { id: 'legend_sword',   name: 'Legendary Blade', atk: 12, cost: 250 },
+    armor:     { id: 'legend_armor',   name: 'Dragon Scale',    def: 10, cost: 250 },
+    accessory: { id: 'soul_gem',       name: 'Phoenix Feather', hp: 30,  cost: 200 },
+  },
 ];
+
+// --- Derived view 1: tier groupings (tier cost = weapon/armor cost) ---
+
+export const EQUIPMENT_TIERS = TIER_DEFS.map(t => ({
+  tier: t.tier,
+  floor: t.floor,
+  weapon: { ...t.weapon },
+  armor: { ...t.armor },
+  accessory: { ...t.accessory },
+  cost: t.weapon.cost,
+  setCost: t.weapon.cost + t.armor.cost + t.accessory.cost,
+}));
 
 export function getAvailableEquipment(highestFloor) {
   return EQUIPMENT_TIERS.filter(t => t.floor <= highestFloor);
@@ -29,28 +68,13 @@ export function getEquipmentBonuses(equipped) {
   return { atk, def, hp };
 }
 
-// --- Flat item list (backward compat for BattleScene getEquipmentById) ---
+// --- Derived view 2: flat item list (BattleScene getEquipmentById) ---
 
-export const EQUIPMENT = [
-  // Weapons
-  { id: 'wooden_sword', name: 'Wooden Sword', slot: 'weapon', atk: 2, cost: 30, floor: 1 },
-  { id: 'iron_sword', name: 'Iron Blade', slot: 'weapon', atk: 4, cost: 60, floor: 2 },
-  { id: 'steel_sword', name: 'Steel Sword', slot: 'weapon', atk: 6, cost: 100, floor: 3 },
-  { id: 'mithril_sword', name: 'Mithril Edge', slot: 'weapon', atk: 8, cost: 150, floor: 4 },
-  { id: 'legend_sword', name: 'Legendary Blade', slot: 'weapon', atk: 12, cost: 250, floor: 5 },
-  // Armor
-  { id: 'wooden_shield', name: 'Leather Vest', slot: 'armor', def: 2, cost: 30, floor: 1 },
-  { id: 'iron_armor', name: 'Chain Mail', slot: 'armor', def: 4, cost: 60, floor: 2 },
-  { id: 'steel_plate', name: 'Plate Armor', slot: 'armor', def: 6, cost: 100, floor: 3 },
-  { id: 'mithril_mail', name: 'Mithril Plate', slot: 'armor', def: 8, cost: 150, floor: 4 },
-  { id: 'legend_armor', name: 'Dragon Scale', slot: 'armor', def: 10, cost: 250, floor: 5 },
-  // Accessories
-  { id: 'health_charm', name: 'Simple Ring', slot: 'accessory', hp: 5, cost: 25, floor: 1 },
-  { id: 'vigor_ring', name: 'Silver Band', slot: 'accessory', hp: 10, cost: 50, floor: 2 },
-  { id: 'life_amulet', name: 'Gold Pendant', slot: 'accessory', hp: 15, cost: 80, floor: 3 },
-  { id: 'heart_crystal', name: 'Crystal Charm', slot: 'accessory', hp: 20, cost: 120, floor: 4 },
-  { id: 'soul_gem', name: 'Phoenix Feather', slot: 'accessory', hp: 30, cost: 200, floor: 5 },
-];
+export const EQUIPMENT = TIER_DEFS.flatMap(t => [
+  { ...t.weapon,    slot: 'weapon',    floor: t.floor, tier: t.tier },
+  { ...t.armor,     slot: 'armor',     floor: t.floor, tier: t.tier },
+  { ...t.accessory, slot: 'accessory', floor: t.floor, tier: t.tier },
+]);
 
 export function getEquipmentForFloor(maxFloor) {
   return EQUIPMENT.filter(e => e.floor <= maxFloor);

@@ -163,6 +163,8 @@ export class BattleScene extends Phaser.Scene {
 
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
+    // Accessibility: skip screen flashes/shakes/confetti when enabled
+    this.reducedMotion = !!this.save.settings?.reducedMotion;
 
     // Apply equipment bonuses from save to each hero
     for (let i = 0; i < this.party.length && i < 3; i++) {
@@ -750,11 +752,14 @@ export class BattleScene extends Phaser.Scene {
     // Floor-themed math panel decorations
     this.panelFx = createPanelDecorations(this, this.floor, noteCx, noteCy, noteW, noteH);
 
+    // Bigger digits for the youngest players (K-2) who are still
+    // learning to read numerals at a glance.
+    const eqFont = this.grade <= 2 ? '54px' : '44px';
     this.eqLines = {
-      a:    this.add.text(noteCx + 20, noteCy - 30, '', this.eqLineStyle({ fontSize: '44px', color: '#3a2410' })),
-      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: '44px', color: '#c06a10' })),
+      a:    this.add.text(noteCx + 20, noteCy - 30, '', this.eqLineStyle({ fontSize: eqFont, color: '#3a2410' })),
+      opB:  this.add.text(noteCx + 20, noteCy + 2,  '', this.eqLineStyle({ fontSize: eqFont, color: '#c06a10' })),
       bar:  this.add.text(noteCx,      noteCy + 24, '\u2500\u2500\u2500', this.eqLineStyle({ fontSize: '22px', color: '#8a7050' })),
-      ans:  this.add.text(noteCx,      noteCy + 42, '?', this.eqLineStyle({ fontSize: '44px', color: '#d08020' })),
+      ans:  this.add.text(noteCx,      noteCy + 42, '?', this.eqLineStyle({ fontSize: eqFont, color: '#d08020' })),
       stars: this.add.text(noteCx + noteW / 2 - 10, noteCy - noteH / 2 + 8, '', {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '18px', color: '#8a5010', letterSpacing: 3,
@@ -1577,6 +1582,16 @@ export class BattleScene extends Phaser.Scene {
         if (h1 && h2) {
           this._availableCombo = { ...combo, hero1: h1, hero2: h2 };
           this.addComboButton();
+          // First-time explainer — combos are powerful but hidden otherwise
+          const tipKey = 'mw_combo_tip_shown';
+          let tipShown = false;
+          try { tipShown = !!localStorage.getItem(tipKey); } catch (e) { /* ignore */ }
+          if (!tipShown) {
+            try { localStorage.setItem(tipKey, '1'); } catch (e) { /* ignore */ }
+            this.showFirstTimeTip(
+              `${h1.name} & ${h2.name} are best friends now!\nTap the gold COMBO button for a team move!`
+            );
+          }
           break; // only show one combo at a time
         }
       }
@@ -1983,23 +1998,24 @@ export class BattleScene extends Phaser.Scene {
 
       const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
       const btnObj = this.answerButtons[index];
+      const rm = this.reducedMotion;
       if (this.momentum >= 1.0) {
         this.showToast('TEAM ATTACK READY!', '#f0d040');
       } else if (this.streak >= 8) {
         streakBanner(this, this.streak, area.cx, area.cy);
-        screenEdgeGlow(this, 0xff4040, 500);
+        if (!rm) screenEdgeGlow(this, 0xff4040, 500);
       } else if (this.streak >= 5) {
         streakBanner(this, this.streak, area.cx, area.cy);
-        screenEdgeGlow(this, 0xf0a020, 400);
+        if (!rm) screenEdgeGlow(this, 0xf0a020, 400);
       } else if (this.streak >= 3) {
         streakBanner(this, this.streak, area.cx, area.cy);
-        screenEdgeGlow(this, 0x40c040, 300);
+        if (!rm) screenEdgeGlow(this, 0x40c040, 300);
       } else if (this.momentum > 0.66) {
-        this.showToast('CRITICAL HIT!', COLORS_CSS.goldL);
-        confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 12);
+        this.showToast('GREAT!', COLORS_CSS.goldL);
+        if (!rm) confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 12);
       } else {
-        this.showToast('CORRECT!', COLORS_CSS.greenL);
-        confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
+        this.showToast('CORRECT!', '#40c040');
+        if (!rm) confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
       }
 
       // Combo attack: intercept before normal damage path
@@ -2130,6 +2146,31 @@ export class BattleScene extends Phaser.Scene {
       if (this.furyCharges > 0) {
         abilityDmg = Math.round(abilityDmg * 1.5);
         this.furyCharges--;
+      }
+
+      // Critical hit: 10% chance on hard (4-5 star) questions. 2x damage,
+      // warm screen bloom, extra shake — a rare, special moment.
+      if (stars >= 4 && Math.random() < 0.10) {
+        abilityDmg = Math.round(abilityDmg * 2);
+        const critText = this.add.text(area.cx, area.cy - 120, 'CRITICAL!', {
+          fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+          fontSize: '52px', color: '#ffd040',
+          stroke: '#a02000', strokeThickness: 7,
+        }).setOrigin(0.5).setScale(0.4).setDepth(60);
+        this.tweens.add({
+          targets: critText, scale: 1.2, duration: 180, ease: 'Back.out',
+          onComplete: () => this.tweens.add({
+            targets: critText, alpha: 0, y: critText.y - 30, duration: 500, delay: 500,
+            onComplete: () => critText.destroy(),
+          }),
+        });
+        // Screen bloom — brief warm overlay (skipped in reduced motion)
+        if (!this.reducedMotion) {
+          const bloom = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xffc040, 0.18).setDepth(59);
+          this.tweens.add({ targets: bloom, alpha: 0, duration: 300, onComplete: () => bloom.destroy() });
+        }
+        this.shakeCamera(0.02, 300);
+        navigator.vibrate?.(80);
       }
       const modified = hitCount > 1 ? Math.max(3, Math.round(abilityDmg / hitCount)) * hitCount : abilityDmg;
       const newHp = Math.max(0, targetEnemy.hp - modified);
@@ -2612,6 +2653,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   shakeCamera(intensity = 0.008, duration = 200) {
+    if (this.reducedMotion) return;
     this.cameras.main.shake(duration, intensity);
   }
 
@@ -3129,6 +3171,10 @@ export class BattleScene extends Phaser.Scene {
         const n2 = h2 ? h2.name : br.heroId2;
         rewardText += `\n${n1} & ${n2}: Bond rank ${br.rank}!`;
       }
+      // Gear nudge after boss wins — kids forget to shop, gear scaling drifts
+      if (this.isBoss && save.gold >= 30) {
+        rewardText += `\nNew gear available in the SHOP!`;
+      }
       this.endOverlay.rewardsText.setText(rewardText);
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
@@ -3212,8 +3258,10 @@ export class BattleScene extends Phaser.Scene {
     // --- Battle cry: defeat (show for first hero) ---
     if (this.party[0]) this.showBattleCry(this.party[0], 'defeat');
 
-    // Full party heal — failure is a restart, not a punishment.
-    // See DESIGN-PRINCIPLES.md principle 8.
+    // Defeat revives the party at 50% HP — never a soft-lock (battles
+    // stay winnable, maze fountains still heal), but potions now have a
+    // real job: topping the party back up. Failure stays gentle per
+    // DESIGN-PRINCIPLES.md principle 8 without making items pointless.
     const save = this.save;
     save.stats.totalBattles++;
     save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
@@ -3222,7 +3270,7 @@ export class BattleScene extends Phaser.Scene {
       if (!save.party[i]) save.party[i] = {};
       save.party[i].id = this.party[i].id;
       save.party[i].name = this.party[i].name;
-      save.party[i].hp = this.party[i].maxHp;
+      save.party[i].hp = Math.max(1, Math.round(this.party[i].maxHp * 0.5));
       save.party[i].maxHp = this.party[i].maxHp;
     }
     writeSave(save, this.slot);

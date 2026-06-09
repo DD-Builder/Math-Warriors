@@ -151,6 +151,8 @@ var _gs = null;        // game state {fairies, hasKey, dead, flash}
 var _party = null;     // {x, y, vx, vy, speed, trail, trailLen, facing, animT}
 var _heroCanvases = null;
 var _deathParticles = [];
+var _dustParticles = []; // footstep dust puffs {x,y,vx,vy,t,maxT}
+var _lastDustMs = 0;     // timestamp of last footstep puff spawn
 var _minimapCanvas = null;
 var _minimapG = null;
 
@@ -865,12 +867,36 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
 
 function LV_drawChest(sx, sy, ts, o) {
   var x = sx + ts * 0.5, y = sy + ts * 0.62;
+  // Open transition: for ~400ms after o.openedAt the lid lifts/tilts open
+  // and gold sparkles rise, then it settles to a static open pose (prog=1).
+  var prog = o.open ? (o.openedAt ? Math.min(1, (Date.now() - o.openedAt) / 400) : 1) : 0;
   LV_cut('rgba(14,6,2,0.28)', 0, function () { LV_ellipse(x, y + ts * 0.16, ts * 0.24, ts * 0.065, 0); });
-  var bc = o.open ? '#3a1c08' : '#5a3010', bl = o.open ? '#4e2c10' : '#7a4820';
+  var bc = o.open ? '#3a1c08' : '#5a3010';
   LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.28, y - ts * 0.02); _G.lineTo(x + ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.28, y - ts * 0.02); });
+  // Lid — rotated/offset upward as the chest opens
+  _G.save();
+  if (prog > 0) {
+    var hy = y - ts * 0.14; // hinge pivot near the lid base
+    _G.translate(x, hy - prog * ts * 0.16);
+    _G.rotate(-prog * 0.4);
+    _G.translate(-x, -hy);
+  }
   LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y - ts * 0.08); _G.lineTo(x + ts * 0.26, y - ts * 0.08); _G.lineTo(x + ts * 0.22, y - ts * 0.2); _G.bezierCurveTo(x + ts * 0.18, y - ts * 0.26, x - ts * 0.18, y - ts * 0.26, x - ts * 0.22, y - ts * 0.2); });
+  _G.restore();
   LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.27, y - ts * 0.02, ts * 0.54, ts * 0.038); });
   LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.055, y - ts * 0.055, ts * 0.11, ts * 0.09); });
+  // Gold sparkle dots rising while the lid swings open
+  if (prog > 0 && prog < 1) {
+    _G.save();
+    _G.globalAlpha = (1 - prog) * 0.9;
+    _G.fillStyle = LV_PAL.goldL;
+    for (var gp = 0; gp < 4; gp++) {
+      var gx = x + (gp - 1.5) * ts * 0.1;
+      var gy = y - ts * 0.18 - prog * ts * (0.25 + gp * 0.1);
+      _G.beginPath(); _G.arc(gx, gy, ts * 0.028, 0, Math.PI * 2); _G.fill();
+    }
+    _G.restore();
+  }
 }
 
 function LV_drawFairyCage(sx, sy, ts, o, t) {
@@ -1214,37 +1240,40 @@ function LV_drawGold(sx, sy, ts, o) {
 }
 
 function LV_drawEncounterIndicator(sx, sy, ts, o, t) {
-  // Themed pulsing indicator — visible hint that an encounter lurks here
-  var ecx = sx + ts * 0.5, ecy = sy + ts * 0.5;
-  var pulse = 0.3 + Math.sin(t * 3 + o.tx * 2 + o.ty * 3) * 0.15;
-  var eSize = ts * (0.12 + Math.sin(t * 2.5 + o.tx) * 0.03);
+  // "Lurking monster" — a small dark shadow blob with two glowing eyes
+  // that blink every ~2s. Mysterious, not scary (audience: K-5 kids).
+  var x = sx + ts * 0.5, y = sy + ts * 0.58;
+  var phase = o.tx * 0.7 + o.ty * 1.3;
+  // Slow pulse — the blob gently swells and settles
+  var pulse = 1 + Math.sin(t * 1.5 + phase) * 0.08;
+  var P = FLOOR_PALS[_floorTheme];
+  var eyeCol = (P && (P.accentL || P.accent)) || LV_PAL.goldL;
 
-  // Theme colors based on floor
-  var eColors = {
-    1: '#3a6828',  // Garden: green bush rustle
-    2: '#2888b8',  // Tidepool: blue bubble
-    3: '#606878',  // Cloud: gray swirl
-    4: '#c04010',  // Ember: red crack
-    5: '#4888a8',  // Frost: ice shimmer
-    6: '#6828a8',  // Crystal: purple glow
-    7: '#7a6848',  // Market: warm brown
-    8: '#3a2818',  // Library: dark amber
-    9: '#281848',  // Mending: arcane purple
-  };
-  var eColor = eColors[_floorTheme] || eColors[1];
-
-  _G.globalAlpha = pulse;
-  _G.fillStyle = eColor;
+  _G.save();
+  // Shadow blob (~20px wide ellipse, dark at half alpha)
+  _G.globalAlpha = 0.5;
+  _G.fillStyle = '#0c0a14';
   _G.beginPath();
-  _G.arc(ecx, ecy, eSize, 0, Math.PI * 2);
+  LV_ellipse(x, y + ts * 0.06, ts * 0.18 * pulse, ts * 0.08 * pulse, 0);
   _G.fill();
-  // Outer ring
-  _G.strokeStyle = eColor;
-  _G.lineWidth = 1;
+  // Soft rounded body rising out of the shadow
+  _G.globalAlpha = 0.35;
   _G.beginPath();
-  _G.arc(ecx, ecy, eSize * 1.8, 0, Math.PI * 2);
-  _G.stroke();
-  _G.globalAlpha = 1;
+  LV_ellipse(x, y - ts * 0.04, ts * 0.13 * pulse, ts * 0.12 * pulse, 0);
+  _G.fill();
+  // Two small glowing eyes — close briefly every ~2 seconds (a blink)
+  var eyesOpen = ((t + phase) % 2) > 0.18;
+  if (eyesOpen) {
+    _G.globalAlpha = 0.8 + Math.sin(t * 3 + phase) * 0.2;
+    _G.fillStyle = eyeCol;
+    _G.beginPath();
+    _G.arc(x - ts * 0.05, y - ts * 0.06, ts * 0.022, 0, Math.PI * 2);
+    _G.fill();
+    _G.beginPath();
+    _G.arc(x + ts * 0.05, y - ts * 0.06, ts * 0.022, 0, Math.PI * 2);
+    _G.fill();
+  }
+  _G.restore();
 }
 
 function LV_drawMonster(sx, sy, ts, o, t) {
@@ -1338,15 +1367,21 @@ function LV_drawExit(sx, sy, ts, t) {
 // ─── PARTY DRAWING (1:1 from reference) ─────────────────────────
 
 function LV_drawPartyMember(px, py, ts, idx, moving, t) {
-  var bob = moving ? Math.sin(t * 8 + idx * 1.2) * ts * 0.055 : 0;
-  var tilt = moving ? Math.sin(t * 8 + idx * 1.2) * 0.035 : 0;
-  var stepStretch = moving ? 1 + Math.abs(Math.sin(t * 8)) * 0.02 : 1;
+  // Walk cycle: bouncy bob + alternating squash/stretch while moving;
+  // gentle breathing bob while standing still.
+  var walkPhase = Math.sin(t * 12 + idx * 1.2);
+  var bob = moving ? walkPhase * 3 : Math.sin(t * 2 + idx * 1.2) * 1.5;
+  var tilt = moving ? walkPhase * 0.035 : 0;
+  var sqX = moving ? 1 + walkPhase * 0.02 : 1;
+  var sqY = moving ? 1 - walkPhase * 0.02 : 1;
+  // Facing flip: mirror the hero horizontally when walking left
+  var flip = (_party && _party.facing === 'left') ? -1 : 1;
   if (_heroCanvases && _heroCanvases[idx]) {
     var hcv = _heroCanvases[idx]; var hsc = ts * 1.1 / hcv.width; var hw = hcv.width * hsc, hh = hcv.height * hsc;
     _G.save();
     _G.translate(px, py - hh * 0.82 + bob + hh / 2);
-    _G.rotate(tilt);
-    _G.scale(1, stepStretch);
+    _G.rotate(tilt * flip);
+    _G.scale(sqX * flip, sqY);
     _G.drawImage(hcv, -hw / 2, -hh / 2, hw, hh);
     _G.restore();
     return;
@@ -1354,6 +1389,7 @@ function LV_drawPartyMember(px, py, ts, idx, moving, t) {
   // Fallback generic sprite
   var col = '#2e4e88';
   _G.save(); _G.translate(px, py + bob);
+  _G.scale(sqX * flip, sqY);
   LV_cut('rgba(14,6,2,0.25)', 0, function () { LV_ellipse(0, ts * 0.26, ts * 0.17, ts * 0.065, 0); });
   LV_cut(col, 7, function () { _G.moveTo(-ts * 0.2, ts * 0.22); _G.lineTo(ts * 0.2, ts * 0.22); _G.lineTo(ts * 0.22, ts * 0.08); _G.lineTo(ts * 0.18, -ts * 0.04); _G.lineTo(-ts * 0.18, -ts * 0.04); _G.lineTo(-ts * 0.22, ts * 0.08); });
   LV_cut(col, 5, function () { _G.arc(0, -ts * 0.16, ts * 0.14, 0, Math.PI * 2); });
@@ -1420,7 +1456,9 @@ function LV_draw(t) {
   for (var oi = 0; oi < _objs.length; oi++) {
     var o = _objs[oi];
     var isActivated = _gs.activated && _gs.activated[o.id];
-    if ((_gs.dead[o.id] && !isActivated) || !o.alive) continue;
+    // Opened chests stay visible (drawn in their open pose) instead of vanishing
+    var isOpenedChest = o.type === 'chest' && o.open;
+    if (((_gs.dead[o.id] && !isActivated) || !o.alive) && !isOpenedChest) continue;
     if (o.type === 'exit' && !o.visible) continue;
     if (!_fog[o.ty] || !_fog[o.ty][o.tx]) continue;
     var osx = camX + o.tx * ts, osy = camY + o.ty * ts;
@@ -1473,6 +1511,17 @@ function LV_draw(t) {
     else if (o.type === 'monster' && o.alive && o.hidden) LV_drawEncounterIndicator(osx, osy, ts, o, t);
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
+  }
+  // Footstep dust puffs — light fading circles drawn under the hero
+  for (var dui = _dustParticles.length - 1; dui >= 0; dui--) {
+    var du = _dustParticles[dui]; du.t++;
+    if (du.t >= du.maxT) { _dustParticles.splice(dui, 1); continue; }
+    var dua = 1 - du.t / du.maxT;
+    _G.save(); _G.globalAlpha = dua * 0.35; _G.fillStyle = '#e8dcc0';
+    _G.beginPath();
+    _G.arc(camX + du.x * _SCALE + du.vx * du.t, camY + du.y * _SCALE + du.vy * du.t,
+      ts * 0.045 * (0.6 + (1 - dua) * 0.8), 0, Math.PI * 2);
+    _G.fill(); _G.restore();
   }
   // Party — draw leader only
   var moving = (_party.vx !== 0 || _party.vy !== 0);
@@ -1530,6 +1579,20 @@ function LV_update(keys) {
     if (LV_walkable(_party.x, ny)) _party.y = ny;
     if (Math.abs(dx) > Math.abs(dy)) _party.facing = dx > 0 ? 'right' : 'left';
     else _party.facing = dy > 0 ? 'down' : 'up';
+    // Footstep dust — spawn a tiny puff at the hero's feet every ~300ms
+    if (now - _lastDustMs >= 300) {
+      _lastDustMs = now;
+      var nPuffs = 2 + (Math.random() < 0.5 ? 1 : 0);
+      for (var di = 0; di < nPuffs; di++) {
+        _dustParticles.push({
+          x: _party.x + (Math.random() - 0.5) * LV_TILE * 0.2,
+          y: _party.y + LV_TILE * 0.16,
+          vx: (Math.random() - 0.5) * 0.8 - dx * 0.5,
+          vy: -Math.random() * 0.5 - 0.2,
+          t: 0, maxT: 18 + Math.floor(Math.random() * 10)
+        });
+      }
+    }
   }
   _party.vx = dx; _party.vy = dy;
   LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 3);
@@ -1559,6 +1622,8 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   _objs = objects;
   _heroCanvases = heroCanvases || [];
   _deathParticles = [];
+  _dustParticles = [];
+  _lastDustMs = 0;
 
   // Create offscreen canvas (must be HTMLCanvasElement for Phaser compatibility)
   _canvas = document.createElement('canvas');
@@ -1715,6 +1780,9 @@ export function markDead(id) {
   for (var oi = 0; oi < _objs.length; oi++) {
     var o = _objs[oi];
     if (o.id === id) {
+      // Chests stay visible after being opened: flag the open state and
+      // timestamp it so LV_drawChest can play a brief lid-open animation.
+      if (o.type === 'chest') { o.open = true; o.openedAt = Date.now(); }
       var wx = (o.tx + 0.5) * LV_TILE, wy = (o.ty + 0.5) * LV_TILE;
       var colors = ['#ff6060', '#ffaa44', '#ffe040', '#ff80a0'];
       for (var pi = 0; pi < 8; pi++) {

@@ -9,8 +9,10 @@ import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, getHeroCardBg } from '../ui/heroSprites.js';
-import { getEvolutionStage, getEvolvedName, getEvolvedTitle, getEvolutionStatBoosts, canEvolveStage2, canEvolveStage3, evolveStage2, evolveStage3 } from '../systems/evolution.js';
-import { getHeroBondSummary, getBondStatBonuses } from '../systems/bonds.js';
+import { getEvolutionStage, getEvolvedName, getEvolvedTitle, getEvolutionStatBoosts, canEvolveStage2, canEvolveStage3, evolveStage2, evolveStage3, resolveMasteryId } from '../systems/evolution.js';
+import { getHeroBondSummary, getBondStatBonuses, getBondDialogues } from '../systems/bonds.js';
+import { getSkillMastery } from '../systems/mastery.js';
+import { getEquipmentById } from '../systems/equipment.js';
 
 /**
  * PartySelectScene — pick 3 heroes from 15.
@@ -321,8 +323,9 @@ export class PartySelectScene extends Phaser.Scene {
     cardElements.push(card.zone);
     this.heroCardContainer.add(cardElements);
 
-    const infoBtn = PaperButton(this, x + w / 2 - 20, y + h / 2 - 16, 'i', {
-      w: 32, h: 32, color: 0x4080c0, fontSize: 16, textColor: '#ffffff',
+    // 44x44 touch target (accessibility), tucked inside the card corner
+    const infoBtn = PaperButton(this, x + w / 2 - 26, y + h / 2 - 26, 'i', {
+      w: 44, h: 44, color: 0x4080c0, fontSize: 18, textColor: '#ffffff',
       onClick: () => {
         audio.play('ui/click');
         this.showHeroDetail(hero);
@@ -742,6 +745,26 @@ export class PartySelectScene extends Phaser.Scene {
       sy += 20;
     }
 
+    // --- Equipped gear (save.equipment.heroN, keyed by party slot) ---
+    const partyIdx = (this.save.party || []).findIndex(p => p && p.id === hero.id);
+    if (partyIdx >= 0 && partyIdx < 3) {
+      const equip = this.save.equipment?.[`hero${partyIdx}`] || {};
+      const wpn = equip.weapon ? getEquipmentById(equip.weapon) : null;
+      const arm = equip.armor ? getEquipmentById(equip.armor) : null;
+      const acc = equip.accessory ? getEquipmentById(equip.accessory) : null;
+      const pieces = [];
+      if (wpn) pieces.push(`⚔ ${wpn.name}`);
+      if (arm) pieces.push(`\u{1F6E1} ${arm.name}`);
+      if (acc) pieces.push(`❤ ${acc.name}`);
+      if (pieces.length > 0) {
+        const gearT = this.add.text(cx, sy, pieces.join('   '), {
+          ...TEXT.stat(), fontSize: '11px', color: '#4a6a8a',
+        }).setOrigin(0.5).setDepth(952);
+        out.push(gearT);
+        sy += 18;
+      }
+    }
+
     // --- Signature Ability ---
     const sig = hero.signature;
     if (sig) {
@@ -972,6 +995,17 @@ export class PartySelectScene extends Phaser.Scene {
         }).setOrigin(1, 0).setDepth(953);
         out.push(boostT);
 
+        // Live mastery progress hint for paths not yet qualified
+        if (!qualifies) {
+          const m = getSkillMastery(this.save, resolveMasteryId(p.mastery));
+          const pct = Math.round((m.accuracy || 0) * 100);
+          const hintT = this.add.text(cx - pathBoxW / 2 + 16, sy + pathBoxH - 8,
+            `${masteryLabel}: ${m.total} answered, ${pct}% — need 10+ at 65%`, {
+            ...TEXT.stat(), fontSize: '9px', color: '#8a6a40', fontStyle: 'italic',
+          }).setOrigin(0, 1).setDepth(953);
+          out.push(hintT);
+        }
+
         if (qualifies) {
           const evolvePathBtn = PaperButton(this, cx + pathBoxW / 2 - 60, sy + pathBoxH - 18, 'EVOLVE', {
             w: 80, h: 28, color: 0xe84840, fontSize: 11, textColor: '#fff8e0',
@@ -1122,7 +1156,23 @@ export class PartySelectScene extends Phaser.Scene {
       }).setOrigin(1, 0).setDepth(953);
       out.push(nextT);
 
-      sy += rowH + 8;
+      sy += rowH + 4;
+
+      // Unlocked bond dialogues — show the 2 most recent rank dialogues
+      if (savedBond?.rank) {
+        const dialogues = getBondDialogues(this.save, bondDef.heroes[0], bondDef.heroes[1]).slice(-2);
+        dialogues.forEach((d) => {
+          const lines = Array.isArray(d.text) ? d.text.join('\n') : String(d.text);
+          const dlgT = this.add.text(cx - rowW / 2 + 24, sy, lines, {
+            ...TEXT.body(), fontSize: '10px', color: '#7a6a50', fontStyle: 'italic',
+            wordWrap: { width: rowW - 48 }, lineSpacing: 2,
+          }).setOrigin(0, 0).setDepth(953);
+          out.push(dlgT);
+          sy += dlgT.height + 4;
+        });
+      }
+
+      sy += 4;
     });
   }
 }

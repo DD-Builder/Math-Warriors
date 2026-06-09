@@ -39,12 +39,14 @@ import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../syste
  *   - Tap-to-move on adjacent walkable tiles, plus arrow/WASD keys
  *   - Fog of war with a 3-tile reveal radius
  *   - Chests, potions, randomized encounters, a hand-placed boss, and an exit
+ *   - Animated hero walk cycle (bob/squash, facing flip, idle breathing)
+ *     plus footstep dust — see levelEngine LV_drawPartyMember/LV_update
+ *   - Encounters are visible as "lurking monster" shadow blobs with
+ *     blinking eyes once revealed by fog (levelEngine LV_drawEncounterIndicator)
+ *   - Opened chests stay visible and play a brief lid-open animation
  *
  * Deferred to future:
- *   - Animated walking sprites (currently a colored square)
- *   - Real tile artwork (currently rectangles)
- *   - Full papercut backdrop
- *   - Enemy AI / visible enemies before battle (currently invisible tiles)
+ *   - Enemy AI / patrolling enemies before battle
  *   - Scroll pickup that unlocks minimap
  */
 export class MazeScene extends Phaser.Scene {
