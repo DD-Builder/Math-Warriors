@@ -605,26 +605,26 @@ function LV_drawWater_cloud(sx, sy, ts, tx, ty, t) {
   var zone = LV_getZone3(tx, ty);
   if (zone === 0) {
     // Calm: Wispy white mist
-    LV_cut('#e0e8f0', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut('#f0f4fa', 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.12, ts * 0.84, ts * 0.7); });
-    LV_cut('#ffffff', 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.4 + Math.sin(t * 1.5 + tx) * ts * 0.06, ts * 0.15, 0, Math.PI * 2); });
-    LV_cut('#f8fcff', 0, function () { _G.arc(sx + ts * 0.3, sy + ts * 0.6 + Math.sin(t * 1.2 + ty) * ts * 0.04, ts * 0.1, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.cream), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut(_hex(PAPER.white), 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.12, ts * 0.84, ts * 0.7); });
+    LV_cut(_hex(PAPER.white), 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.4 + Math.sin(t * 1.5 + tx) * ts * 0.06, ts * 0.15, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.white), 0, function () { _G.arc(sx + ts * 0.3, sy + ts * 0.6 + Math.sin(t * 1.2 + ty) * ts * 0.04, ts * 0.1, 0, Math.PI * 2); });
   } else if (zone === 1) {
     // Storm: Dark void (nearly black with distant stars)
-    LV_cut('#0a0818', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut('#101028', 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.08, ts * 0.9, ts * 0.84); });
+    LV_cut(_hex(PAPER.inkTeal), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut(_hex(PAPER.tealD), 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.08, ts * 0.9, ts * 0.84); });
     // Distant stars
     var sr = mkRng(tx * 43 + ty * 67 + 303);
     for (var i = 0; i < 3; i++) {
       var stx = sx + ts * (0.1 + sr() * 0.8), sty = sy + ts * (0.1 + sr() * 0.8);
-      LV_cut('#a0a8c0', 0, function () { _G.arc(stx, sty, ts * 0.02, 0, Math.PI * 2); });
+      LV_cut(_hex(PAPER.sky), 0, function () { _G.arc(stx, sty, ts * 0.02, 0, Math.PI * 2); });
     }
   } else {
     // Sunset: Orange/pink sunset haze
-    LV_cut('#c87040', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut('#d88858', 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.1, ts * 0.84, ts * 0.75); });
-    LV_cut('#e8a070', 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.45 + Math.sin(t * 1.3 + tx) * ts * 0.05, ts * 0.16, 0, Math.PI * 2); });
-    LV_cut('#f0b888', 0, function () { _G.arc(sx + ts * 0.35, sy + ts * 0.6 + Math.sin(t * 1.6 + ty) * ts * 0.03, ts * 0.1, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.coral), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut(_hex(PAPER.peach), 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.1, ts * 0.84, ts * 0.75); });
+    LV_cut(_hex(PAPER.peach), 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.45 + Math.sin(t * 1.3 + tx) * ts * 0.05, ts * 0.16, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.cream), 0, function () { _G.arc(sx + ts * 0.35, sy + ts * 0.6 + Math.sin(t * 1.6 + ty) * ts * 0.03, ts * 0.1, 0, Math.PI * 2); });
   }
 }
 
@@ -645,7 +645,7 @@ function LV_drawFloor_ember(sx, sy, ts, tx, ty) {
   // Transformation: cooled rock patches (grey replacing red)
   if (_transformed && r() < 0.22) {
     var fr4 = mkRng(tx * 67 + ty * 31 + 99);
-    var coolCol = fr4() < 0.5 ? '#606060' : '#787878';
+    var coolCol = fr4() < 0.5 ? _hex(PAPER.sage) : _hex(PAPER.creamD);
     LV_cut(coolCol, 1, function() { _G.rect(sx + ts * (0.15 + fr4() * 0.3), sy + ts * (0.15 + fr4() * 0.3), ts * (0.2 + fr4() * 0.15), ts * (0.15 + fr4() * 0.1)); });
   }
 }
@@ -702,7 +702,7 @@ function LV_drawWall_ice(sx, sy, ts, tx, ty) {
   if (r() < 0.2) { LV_cut(P.accent, 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.06, 0, Math.PI * 2); }); }
   // Angular crystalline edge highlights on ice walls
   _G.save();
-  _G.strokeStyle = 'rgba(255,255,255,0.15)';
+  _G.strokeStyle = 'rgba(253,251,242,0.12)';
   _G.lineWidth = 1;
   var ir5 = mkRng(tx * 47 + ty * 59 + 605);
   // Short diagonal white strokes at tile edges
@@ -722,7 +722,7 @@ function LV_drawFloor_ice(sx, sy, ts, tx, ty) {
   if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
   // Ice crack lines on floor tiles (1-2 white lines, 0.15 alpha)
   _G.save();
-  _G.strokeStyle = 'rgba(255,255,255,0.15)';
+  _G.strokeStyle = 'rgba(253,251,242,0.12)';
   _G.lineWidth = 1;
   var cr5 = mkRng(tx * 43 + ty * 71 + 607);
   var crackCount = 1 + Math.floor(cr5() * 2);
@@ -740,7 +740,7 @@ function LV_drawFloor_ice(sx, sy, ts, tx, ty) {
   // Transformation: thawed grass patches (green on ice)
   if (_transformed && r() < 0.22) {
     var fr5 = mkRng(tx * 67 + ty * 31 + 99);
-    var grassCol = fr5() < 0.5 ? '#4a8830' : '#60a840';
+    var grassCol = fr5() < 0.5 ? _hex(PAPER.leaf) : _hex(PAPER.sage);
     LV_cut(grassCol, 0, function() { _G.arc(sx + ts * (0.2 + fr5() * 0.6), sy + ts * (0.25 + fr5() * 0.5), ts * 0.06, 0, Math.PI * 2); });
   }
 }
@@ -766,7 +766,7 @@ function LV_drawWall_crystal(sx, sy, ts, tx, ty) {
   if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); }
   // Faceted crystal diagonal lines on walls
   _G.save();
-  _G.strokeStyle = 'rgba(200,160,255,0.12)';
+  _G.strokeStyle = 'rgba(156,143,192,0.12)';
   _G.lineWidth = 1;
   var cr6 = mkRng(tx * 43 + ty * 67 + 706);
   for (var ci = 0; ci < 2; ci++) {
@@ -783,7 +783,7 @@ function LV_drawFloor_crystal(sx, sy, ts, tx, ty) {
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
   // Diamond/hexagonal outlines on crystal floor tiles
   _G.save();
-  _G.strokeStyle = 'rgba(200,160,255,0.12)';
+  _G.strokeStyle = 'rgba(156,143,192,0.12)';
   _G.lineWidth = 1;
   var dr6 = mkRng(tx * 37 + ty * 59 + 703);
   for (var di = 0; di < 2; di++) {
@@ -804,7 +804,7 @@ function LV_drawFloor_crystal(sx, sy, ts, tx, ty) {
   // Transformation: prismatic sparkle dots
   if (_transformed && r() < 0.2) {
     var fr6 = mkRng(tx * 67 + ty * 31 + 99);
-    var pCol = fr6() < 0.33 ? P.accent : fr6() < 0.66 ? '#e060e0' : '#60e0e0';
+    var pCol = fr6() < 0.33 ? P.accent : fr6() < 0.66 ? _hex(PAPER.rose) : _hex(PAPER.tealL);
     LV_cut(pCol, 0, function() { _G.arc(sx + ts * (0.2 + fr6() * 0.6), sy + ts * (0.2 + fr6() * 0.6), ts * 0.04 + fr6() * ts * 0.02, 0, Math.PI * 2); });
   }
 }
@@ -832,7 +832,7 @@ function LV_drawWall_market(sx, sy, ts, tx, ty) {
   var wr7 = mkRng(tx * 53 + ty * 79 + 805);
   if (wr7() < 0.15) {
     _G.save();
-    _G.fillStyle = 'rgba(232,192,72,0.18)';
+    _G.fillStyle = 'rgba(236,185,100,0.18)';
     var wx = sx + ts * (0.25 + wr7() * 0.3);
     var wy = sy + ts * (0.15 + wr7() * 0.2);
     _G.fillRect(wx, wy, ts * 0.18, ts * 0.12);
@@ -845,7 +845,7 @@ function LV_drawFloor_market(sx, sy, ts, tx, ty) {
   if (r() < 0.45) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
   // Cobblestone 3x3 sub-grid pattern on market floor tiles
   _G.save();
-  _G.strokeStyle = 'rgba(80,60,30,0.15)';
+  _G.strokeStyle = 'rgba(31,61,63,0.08)';
   _G.lineWidth = 0.8;
   for (var gi = 1; gi < 3; gi++) {
     _G.beginPath(); _G.moveTo(sx + ts * gi / 3, sy); _G.lineTo(sx + ts * gi / 3, sy + ts); _G.stroke();
@@ -880,7 +880,7 @@ function LV_drawWall_library(sx, sy, ts, tx, ty) {
   if (r() < 0.18) { LV_cut(P.rune, 0, function () { _G.rect(sx + ts * 0.25, sy + ts * 0.1, ts * 0.5, ts * 0.08); }); }
   // Horizontal rune-like lines on library walls (2-3 strokes)
   _G.save();
-  _G.strokeStyle = 'rgba(192,152,72,0.15)';
+  _G.strokeStyle = 'rgba(227,154,74,0.12)';
   _G.lineWidth = 0.8;
   var lr8 = mkRng(tx * 47 + ty * 61 + 905);
   var lineCount = 2 + Math.floor(lr8() * 2);
@@ -896,7 +896,7 @@ function LV_drawFloor_library(sx, sy, ts, tx, ty) {
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
   // Subtle text-like marks (tiny horizontal dashes) on library floor
   _G.save();
-  _G.strokeStyle = 'rgba(160,128,48,0.12)';
+  _G.strokeStyle = 'rgba(227,154,74,0.08)';
   _G.lineWidth = 0.6;
   var tr8 = mkRng(tx * 41 + ty * 73 + 906);
   for (var ti = 0; ti < 4; ti++) {

@@ -969,21 +969,21 @@ export class PartySelectScene extends Phaser.Scene {
         out.push(pName);
 
         const pDesc = this.add.text(cx - pathBoxW / 2 + 16, sy + 32, p.description, {
-          ...TEXT.body(), fontSize: '14px', color: '#4a3820',
+          ...TEXT.body(), fontSize: '14px', color: PAPER_CSS.inkTeal,
           wordWrap: { width: pathBoxW - 140 },
         }).setOrigin(0, 0).setDepth(953);
         out.push(pDesc);
 
         // Mastery requirement
         const masteryLabel = p.mastery.charAt(0).toUpperCase() + p.mastery.slice(1);
-        const reqColor = (pathInfo?.masteryMet) ? '#4a9a40' : '#c04040';
+        const reqColor = (pathInfo?.masteryMet) ? '#7d9f6d' : '#d06a4d';
         const reqIcon = (pathInfo?.masteryMet) ? 'OK' : 'Need';
         const reqT = this.add.text(cx + pathBoxW / 2 - 16, sy + 14, `${reqIcon}: ${masteryLabel}`, {
           ...TEXT.stat(), fontSize: '14px', color: reqColor,
         }).setOrigin(1, 0).setDepth(953);
         out.push(reqT);
 
-        const lvlColor = (pathInfo?.levelMet) ? '#4a9a40' : '#c04040';
+        const lvlColor = (pathInfo?.levelMet) ? '#7d9f6d' : '#d06a4d';
         const lvlReqT = this.add.text(cx + pathBoxW / 2 - 16, sy + 28, `Lv ${p.level}+`, {
           ...TEXT.stat(), fontSize: '14px', color: lvlColor,
         }).setOrigin(1, 0).setDepth(953);
@@ -991,7 +991,7 @@ export class PartySelectScene extends Phaser.Scene {
 
         // Stat boost preview
         const boostT = this.add.text(cx + pathBoxW / 2 - 16, sy + 46, `+${p.statBoost.maxHp} HP  +${p.statBoost.atk} ATK  +${p.statBoost.def} DEF`, {
-          ...TEXT.stat(), fontSize: '14px', color: '#6a8a40',
+          ...TEXT.stat(), fontSize: '14px', color: '#7d9f6d',
         }).setOrigin(1, 0).setDepth(953);
         out.push(boostT);
 
@@ -1001,14 +1001,14 @@ export class PartySelectScene extends Phaser.Scene {
           const pct = Math.round((m.accuracy || 0) * 100);
           const hintT = this.add.text(cx - pathBoxW / 2 + 16, sy + pathBoxH - 8,
             `${masteryLabel}: ${m.total} answered, ${pct}% — need 10+ at 65%`, {
-            ...TEXT.stat(), fontSize: '14px', color: '#8a6a40', fontStyle: 'italic',
+            ...TEXT.stat(), fontSize: '14px', color: PAPER_CSS.sand, fontStyle: 'italic',
           }).setOrigin(0, 1).setDepth(953);
           out.push(hintT);
         }
 
         if (qualifies) {
           const evolvePathBtn = PaperButton(this, cx + pathBoxW / 2 - 60, sy + pathBoxH - 18, 'EVOLVE', {
-            w: 80, h: 28, color: 0xc83030, fontSize: 11, textColor: '#fff8e0',
+            w: 80, h: 28, color: PAPER.coralD, fontSize: 11, textColor: PAPER_CSS.cream,
             onClick: () => {
               audio.play('ui/confirm');
               const result = evolveStage3(this.save, hero.id, p.id);
@@ -1043,26 +1043,26 @@ export class PartySelectScene extends Phaser.Scene {
       const pathDef = evoDef.stage3.paths.find(p => p.id === pathId);
       if (pathDef) {
         const pathLabel = this.add.text(cx, sy, `Path: ${pathDef.name}`, {
-          ...TEXT.heading(), fontSize: '15px', color: '#d07818',
+          ...TEXT.heading(), fontSize: '15px', color: PAPER_CSS.orange,
         }).setOrigin(0.5).setDepth(952);
         out.push(pathLabel);
         sy += 22;
 
         const pathDesc = this.add.text(cx, sy, pathDef.description, {
-          ...TEXT.body(), fontSize: '14px', color: '#4a3820',
+          ...TEXT.body(), fontSize: '14px', color: PAPER_CSS.inkTeal,
           wordWrap: { width: pw - 80 }, align: 'center',
         }).setOrigin(0.5, 0).setDepth(952);
         out.push(pathDesc);
         sy += pathDesc.height + 12;
 
         const boostInfo = this.add.text(cx, sy, `Bonus: +${pathDef.statBoost.maxHp} HP  +${pathDef.statBoost.atk} ATK  +${pathDef.statBoost.def} DEF`, {
-          ...TEXT.stat(), fontSize: '14px', color: '#6a8a40',
+          ...TEXT.stat(), fontSize: '14px', color: '#7d9f6d',
         }).setOrigin(0.5).setDepth(952);
         out.push(boostInfo);
       }
 
       const maxText = this.add.text(cx, sy + 30, 'MAX EVOLUTION REACHED!', {
-        ...TEXT.heading(), fontSize: '16px', color: '#4a9a40',
+        ...TEXT.heading(), fontSize: '16px', color: '#7d9f6d',
       }).setOrigin(0.5).setDepth(952);
       out.push(maxText);
     }
@@ -1082,14 +1082,14 @@ export class PartySelectScene extends Phaser.Scene {
 
     if (heroBondDefs.length === 0) {
       const noBonds = this.add.text(cx, sy + 40, 'No bonds available.', {
-        ...TEXT.body(), fontSize: '16px', color: '#8a7a60',
+        ...TEXT.body(), fontSize: '16px', color: PAPER_CSS.sand,
       }).setOrigin(0.5).setDepth(952);
       out.push(noBonds);
       return;
     }
 
     const titleT = this.add.text(cx, sy, 'HERO BONDS', {
-      ...TEXT.heading(), fontSize: '14px', color: '#c06a10',
+      ...TEXT.heading(), fontSize: '14px', color: PAPER_CSS.orange,
     }).setOrigin(0.5).setDepth(952);
     out.push(titleT);
     sy += 24;
@@ -1112,10 +1112,10 @@ export class PartySelectScene extends Phaser.Scene {
 
       const rowGfx = this.add.graphics().setDepth(952);
       const rowW = pw - 60, rowH = 58;
-      rowGfx.fillStyle(inParty ? 0xe0e8c0 : 0xe8e0d0, 0.7);
+      rowGfx.fillStyle(inParty ? PAPER.cream : PAPER.creamD, 0.7);
       rowGfx.fillRoundedRect(cx - rowW / 2, sy, rowW, rowH, 8);
       if (inParty) {
-        rowGfx.lineStyle(2, 0x80b040, 0.8);
+        rowGfx.lineStyle(2, PAPER.leaf, 0.8);
         rowGfx.strokeRoundedRect(cx - rowW / 2, sy, rowW, rowH, 8);
       }
       out.push(rowGfx);

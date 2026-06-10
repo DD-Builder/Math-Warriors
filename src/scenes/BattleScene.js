@@ -340,7 +340,7 @@ export class BattleScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: COLORS_CSS.paper,
-      stroke: '#000000',
+      stroke: PAPER_CSS.shadow,
       strokeThickness: 4,
     }).setDepth(20);
   }
@@ -645,7 +645,7 @@ export class BattleScene extends Phaser.Scene {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '15px',
         color: '#fff8e0',
-        stroke: '#1a0e04',
+        stroke: '#1f4244',
         strokeThickness: 3,
       }).setOrigin(0.5).setDepth(14);
 
@@ -904,7 +904,7 @@ export class BattleScene extends Phaser.Scene {
     this.toast = this.add.text(area.cx, area.top + 90, '', {
       ...TEXT.heading(),
       fontSize: '26px',
-      backgroundColor: '#1a0e04',
+      backgroundColor: '#1f4244',
       padding: { x: 20, y: 10 },
     }).setOrigin(0.5).setAlpha(0).setDepth(50);
 
@@ -1413,7 +1413,7 @@ export class BattleScene extends Phaser.Scene {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
           fontSize: '52px',
           color: '#e04040',
-          stroke: '#000000',
+          stroke: PAPER_CSS.shadow,
           strokeThickness: 4,
         }).setOrigin(0.5).setDepth(30);
         this._revealWrongMark = xMark;
@@ -1435,7 +1435,7 @@ export class BattleScene extends Phaser.Scene {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
           fontSize: '16px',
           color: '#4080e0',
-          stroke: '#000000',
+          stroke: PAPER_CSS.shadow,
           strokeThickness: 2,
         }).setOrigin(0, 0.5).setDepth(30);
         this._timerBonusLabel = bonusLabel;
@@ -2093,7 +2093,7 @@ export class BattleScene extends Phaser.Scene {
               const floatText = this.add.text(hs.x, hs.y - 40, `+${healed}`, {
                 fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
                 fontSize: '28px', color: '#60ff60',
-                stroke: '#1a0e04', strokeThickness: 4,
+                stroke: '#1f4244', strokeThickness: 4,
               }).setOrigin(0.5).setDepth(30);
               this.tweens.add({ targets: floatText, y: hs.y - 100, alpha: 0, duration: 900, ease: 'Cubic.out', onComplete: () => floatText.destroy() });
               for (let i = 0; i < 10; i++) {
@@ -2719,7 +2719,7 @@ export class BattleScene extends Phaser.Scene {
       fontSize: '28px',
       fontStyle: 'bold',
       color,
-      stroke: '#000000',
+      stroke: PAPER_CSS.shadow,
       strokeThickness: 4,
     }).setOrigin(0.5).setScale(0.5);
 
@@ -2855,7 +2855,7 @@ export class BattleScene extends Phaser.Scene {
       fontSize: '16px',
       fontStyle: 'italic',
       color: colorHex,
-      stroke: '#000000',
+      stroke: PAPER_CSS.shadow,
       strokeThickness: 3,
       align: 'center',
       wordWrap: { width: 200 },
@@ -3344,7 +3344,7 @@ export class BattleScene extends Phaser.Scene {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
             fontSize: '18px',
             color: COLORS_CSS.goldL,
-            stroke: '#000000',
+            stroke: PAPER_CSS.shadow,
             strokeThickness: 2,
           }).setOrigin(0, 0.5);
           this.endOverlay.add([badge, star, achText]);
