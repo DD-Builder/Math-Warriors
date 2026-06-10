@@ -930,12 +930,12 @@ function LV_drawWall_mending(sx, sy, ts, tx, ty) {
   LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.5); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
-  if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); _G.save(); _G.globalAlpha = 0.15; _G.fillStyle = P.accent || '#c060f0'; _G.beginPath(); _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
+  if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); _G.save(); _G.globalAlpha = 0.15; _G.fillStyle = P.accent || _hex(PAPER.rose); _G.beginPath(); _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
   // Glowing rune circles on mending walls
   var mr9 = mkRng(tx * 53 + ty * 71 + 1005);
   if (mr9() < 0.25) {
     _G.save();
-    _G.strokeStyle = P.rune || '#8040d0';
+    _G.strokeStyle = P.rune || _hex(PAPER.lavender);
     _G.lineWidth = 1;
     _G.globalAlpha = 0.1;
     var mcx = sx + ts * (0.3 + mr9() * 0.4);
@@ -950,7 +950,7 @@ function LV_drawFloor_mending(sx, sy, ts, tx, ty) {
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
   // Equation-like symbols (+, x, =) on mending floor tiles
   _G.save();
-  _G.strokeStyle = 'rgba(192,96,240,0.15)';
+  _G.strokeStyle = 'rgba(156,143,192,0.12)';
   _G.lineWidth = 1;
   var er9 = mkRng(tx * 37 + ty * 61 + 1003);
   var sym = Math.floor(er9() * 3);
@@ -973,7 +973,7 @@ function LV_drawFloor_mending(sx, sy, ts, tx, ty) {
   // Transformation: glowing rune wisps
   if (_transformed && r() < 0.2) {
     var fr9 = mkRng(tx * 67 + ty * 31 + 99);
-    LV_cut(P.rune || '#8040d0', 0, function() { _G.arc(sx + ts * (0.2 + fr9() * 0.6), sy + ts * (0.2 + fr9() * 0.6), ts * 0.05 + fr9() * ts * 0.02, 0, Math.PI * 2); });
+    LV_cut(P.rune || _hex(PAPER.lavender), 0, function() { _G.arc(sx + ts * (0.2 + fr9() * 0.6), sy + ts * (0.2 + fr9() * 0.6), ts * 0.05 + fr9() * ts * 0.02, 0, Math.PI * 2); });
   }
 }
 function LV_drawPath_mending(sx, sy, ts, tx, ty) {
@@ -985,7 +985,7 @@ function LV_drawWater_mending(sx, sy, ts, tx, ty, t) {
   var P = FLOOR_PALS[9];
   LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
-  LV_cut(P.accent || '#c060f0', 0, function () { _G.arc(sx + ts * (0.4 + Math.sin(t * 2 + ty * 0.5) * 0.1), sy + ts * 0.45, ts * 0.08 + Math.sin(t * 3) * ts * 0.02, 0, Math.PI * 2); });
+  LV_cut(P.accent || _hex(PAPER.rose), 0, function () { _G.arc(sx + ts * (0.4 + Math.sin(t * 2 + ty * 0.5) * 0.1), sy + ts * 0.45, ts * 0.08 + Math.sin(t * 3) * ts * 0.02, 0, Math.PI * 2); });
 }
 
 // ─── THEME DISPATCH ─────────────────────────────────────────────
@@ -1013,14 +1013,14 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
     // Slightly lighter overlay (5-10% lighter than normal wall)
     _G.save();
     _G.globalAlpha = 0.08;
-    _G.fillStyle = '#ffffff';
+    _G.fillStyle = _hex(PAPER.white);
     _G.fillRect(sx, sy, ts + 1, ts + 1);
     _G.restore();
     // Subtle crack line (1px, slightly darker) — hints at breakable wall
     var sr = mkRng(tx * 61 + ty * 89);
     _G.save();
     _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.08;
-    _G.strokeStyle = '#1a0e04';
+    _G.strokeStyle = _hex(PAPER.inkTeal);
     _G.lineWidth = 1;
     _G.beginPath();
     var cx = sx + ts * (0.3 + sr() * 0.4);
@@ -1041,8 +1041,8 @@ function LV_drawChest(sx, sy, ts, o) {
   // Open transition: for ~400ms after o.openedAt the lid lifts/tilts open
   // and gold sparkles rise, then it settles to a static open pose (prog=1).
   var prog = o.open ? (o.openedAt ? Math.min(1, (Date.now() - o.openedAt) / 400) : 1) : 0;
-  LV_cut('rgba(14,6,2,0.28)', 0, function () { LV_ellipse(x, y + ts * 0.16, ts * 0.24, ts * 0.065, 0); });
-  var bc = o.open ? '#3a1c08' : '#5a3010';
+  LV_cut('rgba(31,61,63,0.18)', 0, function () { LV_ellipse(x, y + ts * 0.16, ts * 0.24, ts * 0.065, 0); });
+  var bc = o.open ? _hex(PAPER.forestD) : _hex(PAPER.forest);
   LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.28, y - ts * 0.02); _G.lineTo(x + ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.28, y - ts * 0.02); });
   // Lid — rotated/offset upward as the chest opens
   _G.save();
@@ -1074,9 +1074,9 @@ function LV_drawFairyCage(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var bob = Math.sin(t * 2.5) * ts * 0.02;
   // Base plate
-  LV_cut('#8a7040', 3, function () { _G.rect(x - ts * 0.22, y + ts * 0.2, ts * 0.44, ts * 0.06); });
+  LV_cut(_hex(PAPER.sageD), 3, function () { _G.rect(x - ts * 0.22, y + ts * 0.2, ts * 0.44, ts * 0.06); });
   // Cage bars (4 vertical lines + dome)
-  _G.save(); _G.strokeStyle = o.open ? '#6a5030' : '#c0a050'; _G.lineWidth = 1.5; _G.globalAlpha = 0.9;
+  _G.save(); _G.strokeStyle = o.open ? _hex(PAPER.sageD) : _hex(PAPER.sand); _G.lineWidth = 1.5; _G.globalAlpha = 0.9;
   for (var b = -1.5; b <= 1.5; b++) {
     var bx = x + b * ts * 0.1;
     _G.beginPath(); _G.moveTo(bx, y + ts * 0.2); _G.lineTo(bx, y - ts * 0.12 + bob); _G.stroke();
@@ -1084,25 +1084,25 @@ function LV_drawFairyCage(sx, sy, ts, o, t) {
   // Dome arc
   _G.beginPath(); _G.arc(x, y - ts * 0.12 + bob, ts * 0.18, Math.PI, 0); _G.stroke();
   // Ring at top
-  LV_cut('#c0a050', 1, function () { _G.arc(x, y - ts * 0.3 + bob, ts * 0.04, 0, Math.PI * 2); });
+  LV_cut(_hex(PAPER.sand), 1, function () { _G.arc(x, y - ts * 0.3 + bob, ts * 0.04, 0, Math.PI * 2); });
   _G.restore();
   if (!o.open) {
     // Fairy inside — glowing circle bobbing
     var fy = y + Math.sin(t * 3.5) * ts * 0.06;
     _G.save(); _G.globalAlpha = 0.7 + Math.sin(t * 4) * 0.2;
-    _G.fillStyle = '#88bbff'; _G.beginPath(); _G.arc(x, fy, ts * 0.08, 0, Math.PI * 2); _G.fill();
-    _G.fillStyle = '#ffffff'; _G.beginPath(); _G.arc(x - ts * 0.02, fy - ts * 0.02, ts * 0.04, 0, Math.PI * 2); _G.fill();
+    _G.fillStyle = _hex(PAPER.sky); _G.beginPath(); _G.arc(x, fy, ts * 0.08, 0, Math.PI * 2); _G.fill();
+    _G.fillStyle = _hex(PAPER.white); _G.beginPath(); _G.arc(x - ts * 0.02, fy - ts * 0.02, ts * 0.04, 0, Math.PI * 2); _G.fill();
     // Sparkles
     for (var s = 0; s < 3; s++) {
       var sa = (s / 3) * Math.PI * 2 + t * 2;
       var sdx = Math.cos(sa) * ts * 0.14, sdy = Math.sin(sa) * ts * 0.1;
-      _G.fillStyle = '#ffe880'; _G.globalAlpha = 0.5 + Math.sin(t * 5 + s) * 0.3;
+      _G.fillStyle = _hex(PAPER.gold); _G.globalAlpha = 0.5 + Math.sin(t * 5 + s) * 0.3;
       _G.beginPath(); _G.arc(x + sdx, fy + sdy, ts * 0.025, 0, Math.PI * 2); _G.fill();
     }
     _G.restore();
   } else {
     // Door open — bent bar
-    _G.save(); _G.strokeStyle = '#8a7040'; _G.lineWidth = 1.2; _G.globalAlpha = 0.6;
+    _G.save(); _G.strokeStyle = _hex(PAPER.sageD); _G.lineWidth = 1.2; _G.globalAlpha = 0.6;
     _G.beginPath(); _G.moveTo(x + ts * 0.15, y + ts * 0.2); _G.lineTo(x + ts * 0.25, y); _G.stroke();
     _G.restore();
   }
@@ -1112,8 +1112,8 @@ function LV_drawValve(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var radius = ts * 0.28;
   var rot = o.open ? 0.4 : t * 0.8;
-  var col = o.open ? '#8a5828' : '#b07838';
-  var colD = o.open ? '#6a4018' : '#906028';
+  var col = o.open ? _hex(PAPER.sageD) : _hex(PAPER.sage);
+  var colD = o.open ? _hex(PAPER.forestD) : _hex(PAPER.forestL);
   // Circle outline (wheel rim)
   _G.save();
   _G.strokeStyle = col; _G.lineWidth = ts * 0.05;
@@ -1523,7 +1523,7 @@ function LV_drawExit(sx, sy, ts, t) {
     });
     // Dark interior — no light
     _G.save(); _G.globalAlpha = 0.4;
-    _G.fillStyle = '#1a0e04';
+    _G.fillStyle = '#1f4244';
     _G.beginPath();
     _G.moveTo(dx + ts * 0.12, dy + dh);
     _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);

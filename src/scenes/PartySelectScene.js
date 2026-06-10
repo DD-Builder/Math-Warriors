@@ -1122,25 +1122,25 @@ export class PartySelectScene extends Phaser.Scene {
 
       // Partner name
       const partnerName = this.add.text(cx - rowW / 2 + 14, sy + 10, partner.name.toUpperCase(), {
-        ...TEXT.heading(), fontSize: '14px', color: inParty ? '#3a7a20' : '#3a2410',
+        ...TEXT.heading(), fontSize: '14px', color: inParty ? '#3c6b4f' : PAPER_CSS.inkTeal,
       }).setOrigin(0, 0).setDepth(953);
       out.push(partnerName);
 
       // Bond combo name
       const comboName = this.add.text(cx - rowW / 2 + 14, sy + 30, bondDef.name, {
-        ...TEXT.body(), fontSize: '14px', color: '#6a5a40', fontStyle: 'italic',
+        ...TEXT.body(), fontSize: '14px', color: PAPER_CSS.inkTeal, fontStyle: 'italic',
       }).setOrigin(0, 0).setDepth(953);
       out.push(comboName);
 
       if (inParty) {
         const partyTag = this.add.text(cx - rowW / 2 + 14, sy + 46, 'IN PARTY', {
-          ...TEXT.stat(), fontSize: '14px', color: '#4a9a40',
+          ...TEXT.stat(), fontSize: '14px', color: '#7d9f6d',
         }).setOrigin(0, 0).setDepth(953);
         out.push(partyTag);
       }
 
       // Rank display
-      const rankColor = rank === 'S' ? '#f0c040' : rank === 'A' ? '#40a0f0' : rank === 'B' ? '#80b040' : rank === 'C' ? '#a08060' : '#8a7a60';
+      const rankColor = rank === 'S' ? '#ecb964' : rank === 'A' ? '#7fb3ae' : rank === 'B' ? '#7d9f6d' : rank === 'C' ? '#d9cfb2' : '#d9cfb2';
       const rankT = this.add.text(cx + rowW / 2 - 14, sy + 12, `Rank: ${rank}`, {
         ...TEXT.heading(), fontSize: '14px', color: rankColor,
       }).setOrigin(1, 0).setDepth(953);
@@ -1152,7 +1152,7 @@ export class PartySelectScene extends Phaser.Scene {
         nextText += ` (${battlesNeeded} to ${nextRank})`;
       }
       const nextT = this.add.text(cx + rowW / 2 - 14, sy + 32, nextText, {
-        ...TEXT.stat(), fontSize: '14px', color: '#6a5a40',
+        ...TEXT.stat(), fontSize: '14px', color: PAPER_CSS.inkTeal,
       }).setOrigin(1, 0).setDepth(953);
       out.push(nextT);
 
@@ -1164,7 +1164,7 @@ export class PartySelectScene extends Phaser.Scene {
         dialogues.forEach((d) => {
           const lines = Array.isArray(d.text) ? d.text.join('\n') : String(d.text);
           const dlgT = this.add.text(cx - rowW / 2 + 24, sy, lines, {
-            ...TEXT.body(), fontSize: '14px', color: '#7a6a50', fontStyle: 'italic',
+            ...TEXT.body(), fontSize: '14px', color: PAPER_CSS.inkTeal, fontStyle: 'italic',
             wordWrap: { width: rowW - 48 }, lineSpacing: 2,
           }).setOrigin(0, 0).setDepth(953);
           out.push(dlgT);
