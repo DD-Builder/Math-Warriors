@@ -1,33 +1,20 @@
 /**
- * Parallax background system for battle scenes
+ * Parallax background system for battle scenes — papercut diorama aesthetic.
  *
- * Creates multi-layer diorama backgrounds with actual depth.
- * Each layer is a separate Phaser Graphics object that can shift
- * independently during camera shakes, creating a convincing
- * parallax depth illusion on the 1440×1080 canvas.
- *
- * Key improvements over the flat papercut.js backgrounds:
- *   - 6-7 separate layers with independent parallax factors
- *   - Perspective ground plane (trapezoid, wider at bottom)
- *   - Floor-specific atmospheric particles (leaves, bubbles, embers, snow)
- *   - Foreground depth framing (grass, coral, crystals at edges)
- *   - Light source with adjustable glow intensity
- *   - 2-3 scene variants per floor tied to maze tile types
+ * Creates multi-layer diorama backgrounds with organic shapes, soft teal
+ * shadows, and muted PAPER palette colors. No dark outlines.
  */
 
 import { makeRng } from './rng.js';
+import { PAPER, PAPER_SHADOW } from '../config.js';
 import { FLOOR_PALETTES } from './papercut.js';
-
-function blendColor(c1, c2, t) {
-  const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
-  const r2 = (c2 >> 16) & 0xff, g2 = (c2 >> 8) & 0xff, b2 = c2 & 0xff;
-  return (Math.round(r1 + (r2 - r1) * t) << 16)
-       | (Math.round(g1 + (g2 - g1) * t) << 8)
-       |  Math.round(b1 + (b2 - b1) * t);
-}
+import {
+  hillPoints, blobPoints, waveEdgePoints,
+  drawShadowedPoly, drawShadowedBlob,
+  drawPapercutTree, drawPapercutFlower, drawButterfly, drawLeafSprig,
+} from './papercutArt.js';
 
 // Layer depth configuration
-// parallax: 0.0 = static (sky), 1.0 = moves with camera (foreground)
 const LAYER_CONFIG = [
   { name: 'sky',        depth: -10, parallax: 0.0  },
   { name: 'glow',       depth: -9,  parallax: 0.03 },
@@ -38,7 +25,6 @@ const LAYER_CONFIG = [
   { name: 'foreground', depth: -4,  parallax: 0.90 },
 ];
 
-// Variant-specific scene seeds per floor
 const VARIANT_SEEDS = {
   1: [1001, 1201, 1401],
   2: [2001, 2201, 2401],
@@ -51,205 +37,8 @@ const VARIANT_SEEDS = {
   9: [9001, 9201, 9401],
 };
 
-function generateHillPoints(startX, endX, baseY, peakHeight, peakCount, rng, wobble = 4) {
-  const pts = [];
-  const totalSteps = peakCount * 8;
-  for (let i = 0; i <= totalSteps; i++) {
-    const t = i / totalSteps;
-    const x = startX + t * (endX - startX);
-    const y = baseY
-      - Math.sin(t * Math.PI * peakCount) * peakHeight * (0.6 + rng() * 0.4)
-      - Math.sin(t * Math.PI * peakCount * 2.3 + 1.7) * peakHeight * 0.3
-      + (rng() - 0.5) * wobble;
-    pts.push({ x, y });
-  }
-  return pts;
-}
-
-function generateWavePoints(startX, endX, baseY, waveHeight, waveCycles, rng, wobble = 3) {
-  const pts = [];
-  const totalSteps = waveCycles * 12;
-  for (let i = 0; i <= totalSteps; i++) {
-    const t = i / totalSteps;
-    const x = startX + t * (endX - startX);
-    const y = baseY
-      - Math.sin(t * Math.PI * 2 * waveCycles) * waveHeight * (0.5 + rng() * 0.3)
-      - Math.sin(t * Math.PI * 2 * waveCycles * 1.7 + 0.8) * waveHeight * 0.25
-      + (rng() - 0.5) * wobble;
-    pts.push({ x, y });
-  }
-  return pts;
-}
-
-function generateVolcanicPeakPoints(startX, endX, baseY, peakHeight, peakCount, rng, wobble = 2) {
-  const pts = [];
-  const totalSteps = peakCount * 6;
-  for (let i = 0; i <= totalSteps; i++) {
-    const t = i / totalSteps;
-    const x = startX + t * (endX - startX);
-    const phase = (t * peakCount) % 1;
-    const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;
-    const y = baseY
-      - tri * peakHeight * (0.7 + rng() * 0.5)
-      - Math.max(0, Math.sin(t * Math.PI * peakCount * 3 + 0.5)) * peakHeight * 0.15
-      + (rng() - 0.5) * wobble;
-    pts.push({ x, y });
-  }
-  return pts;
-}
-
-function generateCloudPlatformPoints(startX, endX, baseY, height, bumpCount, rng) {
-  const pts = [];
-  const totalSteps = bumpCount * 6;
-  for (let i = 0; i <= totalSteps; i++) {
-    const t = i / totalSteps;
-    const x = startX + t * (endX - startX);
-    const bump = Math.abs(Math.sin(t * Math.PI * bumpCount));
-    const y = baseY - bump * height * (0.6 + rng() * 0.4)
-      - Math.abs(Math.sin(t * Math.PI * bumpCount * 2.1 + 1.2)) * height * 0.2
-      + (rng() - 0.5) * 2;
-    pts.push({ x, y });
-  }
-  return pts;
-}
-
-function generateCrystalPoints(startX, endX, baseY, height, crystalCount, rng) {
-  const pts = [];
-  const segW = (endX - startX) / crystalCount;
-  for (let c = 0; c < crystalCount; c++) {
-    const cx = startX + (c + 0.5) * segW;
-    const w = segW * (0.3 + rng() * 0.3);
-    const h = height * (0.5 + rng() * 0.6);
-    pts.push({ x: cx - w, y: baseY });
-    pts.push({ x: cx - w * 0.3, y: baseY - h * 0.6 });
-    pts.push({ x: cx + (rng() - 0.5) * w * 0.2, y: baseY - h });
-    pts.push({ x: cx + w * 0.3, y: baseY - h * 0.6 });
-    pts.push({ x: cx + w, y: baseY });
-  }
-  return pts;
-}
-
-function fillShape(gfx, points, color, alpha = 1, closeBottom = false, bottomY = 0) {
-  gfx.fillStyle(color, alpha);
-  gfx.beginPath();
-  for (let i = 0; i < points.length; i++) {
-    if (i === 0) gfx.moveTo(points[i].x, points[i].y);
-    else gfx.lineTo(points[i].x, points[i].y);
-  }
-  if (closeBottom) {
-    gfx.lineTo(points[points.length - 1].x, bottomY);
-    gfx.lineTo(points[0].x, bottomY);
-  }
-  gfx.closePath();
-  gfx.fillPath();
-}
-
-/**
- * Draw a puffy cloud as a cluster of overlapping circles.
- * Adapted from papercut.js drawCloud pattern.
- */
-function drawParallaxCloud(gfx, cx, cy, w, h, color, alpha, rng) {
-  const bumpCount = 3 + Math.floor(rng() * 3); // 3-5 circles
-  for (let i = 0; i < bumpCount; i++) {
-    const bx = cx + (i / bumpCount - 0.5) * w;
-    const by = cy + (rng() - 0.5) * h * 0.3;
-    const br = (w / bumpCount) * (0.5 + rng() * 0.4);
-    gfx.fillStyle(color, alpha * (0.7 + rng() * 0.3)); // vary per bump
-    gfx.fillCircle(bx, by, br);
-  }
-}
-
-function drawShadowedLayer(gfx, points, color, shadowColor, closeBottom, bottomY, rng, treeScale = 1.0) {
-  // Paper-cutout shadow
-  if (shadowColor) {
-    const off = 10 + treeScale * 3;
-    const shadow = points.map(p => ({ x: p.x + off, y: p.y + off }));
-    fillShape(gfx, shadow, shadowColor, 0.70, closeBottom, bottomY + off);
-  }
-
-  // Main fill
-  fillShape(gfx, points, color, 1, closeBottom, bottomY);
-
-  // Gradient depth — darken the lower half for volume
-  if (closeBottom && points.length > 2) {
-    const minY = Math.min(...points.map(p => p.y));
-    const totalH = bottomY - minY;
-    const gradientTop = minY + totalH * 0.4;
-    const stripH = (bottomY - gradientTop) / 5;
-    const leftX = points[0].x;
-    const rightX = points[points.length - 1].x;
-    for (let s = 0; s < 5; s++) {
-      gfx.fillStyle(0x000000, 0.03 + 0.04 * (s + 1));
-      gfx.fillRect(leftX, gradientTop + s * stripH, rightX - leftX, stripH);
-    }
-  }
-
-  // Bright edge highlight along the ridge
-  if (points.length > 3) {
-    gfx.lineStyle(1.5 + treeScale, 0xffffff, 0.20 + treeScale * 0.05);
-    gfx.beginPath();
-    gfx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) gfx.lineTo(points[i].x, points[i].y);
-    gfx.strokePath();
-  }
-
-  // Trees/foliage along the ridgeline — scaled by distance
-  if (rng && points.length > 4) {
-    const treeCount = Math.floor(10 + treeScale * 8);
-    const step = Math.max(1, Math.floor(points.length / treeCount));
-    for (let i = 1; i < points.length - 1; i += step) {
-      if (rng() < 0.2) continue;
-      const pt = points[i];
-      const h = (18 + rng() * 28) * treeScale;
-      const w = (8 + rng() * 12) * treeScale;
-      const darkC = shadowColor || 0x000000;
-      const alpha = 0.50 + rng() * 0.25;
-
-      if (rng() > 0.4) {
-        // Round deciduous tree
-        gfx.fillStyle(darkC, alpha * 0.8);
-        gfx.fillRect(pt.x - treeScale, pt.y - h * 0.4, treeScale * 2, h * 0.4);
-        gfx.fillStyle(darkC, alpha);
-        gfx.fillCircle(pt.x, pt.y - h * 0.55, w * 0.5);
-        gfx.fillCircle(pt.x - w * 0.25, pt.y - h * 0.4, w * 0.4);
-        gfx.fillCircle(pt.x + w * 0.25, pt.y - h * 0.4, w * 0.4);
-      } else {
-        // Conifer / pine tree
-        gfx.fillStyle(darkC, alpha * 0.8);
-        gfx.fillRect(pt.x - treeScale * 0.5, pt.y - h * 0.3, treeScale, h * 0.35);
-        gfx.fillStyle(darkC, alpha);
-        for (let tier = 0; tier < 3; tier++) {
-          const ty = pt.y - h * (0.3 + tier * 0.22);
-          const tw = w * (0.6 - tier * 0.12);
-          gfx.beginPath();
-          gfx.moveTo(pt.x - tw, ty);
-          gfx.lineTo(pt.x, ty - h * 0.22);
-          gfx.lineTo(pt.x + tw, ty);
-          gfx.closePath();
-          gfx.fillPath();
-        }
-      }
-    }
-  }
-}
-
-function getFloorHillGen(floorId) {
-  if (floorId === 2) return generateWavePoints;
-  if (floorId === 3) return generateCloudPlatformPoints;
-  if (floorId === 4) return generateVolcanicPeakPoints;
-  if (floorId >= 5 && floorId <= 6) return generateCrystalPoints;
-  return generateHillPoints;
-}
-
 /**
  * Create a parallax background for a battle scene.
- *
- * @param {Phaser.Scene} scene
- * @param {number} floorId - 1-9
- * @param {number} variant - 0-2 (scene variant)
- * @param {number} width
- * @param {number} height
- * @returns {ParallaxState}
  */
 export function createParallaxBackground(scene, floorId, variant, width, height) {
   const pal = FLOOR_PALETTES[floorId] || FLOOR_PALETTES[1];
@@ -259,107 +48,93 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   const layers = [];
 
-  // --- Layer 0: Sky + Clouds ---
+  // --- Layer 0: Sky ---
   const sky = scene.add.graphics();
   sky.fillStyle(pal.sky, 1);
   sky.fillRect(-40, -40, width + 80, height + 80);
 
-  // 5. Clouds in the top 20% of the screen
-  const cloudColor = pal.cloud || pal.skyGlow;
+  // Clouds (organic blobs)
   const cloudCount = 4 + Math.floor(rng() * 3);
   for (let ci = 0; ci < cloudCount; ci++) {
-    const cx = width * (0.05 + rng() * 0.90);
-    const cy = height * (0.04 + rng() * 0.18);
-    const cw = 80 + rng() * 120;
-    const ch = 18 + rng() * 14;
-    const cAlpha = 0.30 + rng() * 0.20;
-    drawParallaxCloud(sky, cx, cy, cw, ch, cloudColor, cAlpha, rng);
-  }
-
-  // Bird silhouettes in sky
-  const birdCount = 3 + Math.floor(rng() * 3);
-  for (let bi = 0; bi < birdCount; bi++) {
-    const bx = width * (0.15 + rng() * 0.7);
-    const by = height * (0.08 + rng() * 0.18);
-    const bSize = 6 + rng() * 8;
-    sky.lineStyle(1.5, 0x2a3040, 0.35 + rng() * 0.15);
-    sky.beginPath();
-    sky.moveTo(bx - bSize, by + bSize * 0.3);
-    sky.lineTo(bx - bSize * 0.2, by);
-    sky.lineTo(bx, by + bSize * 0.15);
-    sky.lineTo(bx + bSize * 0.2, by);
-    sky.lineTo(bx + bSize, by + bSize * 0.3);
-    sky.strokePath();
+    const cx = width * (0.05 + rng() * 0.9);
+    const cy = height * (0.04 + rng() * 0.16);
+    drawShadowedBlob(sky, cx, cy, 50 + rng() * 80, 14 + rng() * 10, pal.cloud, {
+      seed: seed + ci * 17, wobble: 0.14, shadowAlpha: 0.1, shadowDy: 3,
+    });
   }
 
   sky.setDepth(LAYER_CONFIG[0].depth);
   layers.push({ gfx: sky, baseX: 0, baseY: 0, ...LAYER_CONFIG[0] });
 
-  // --- Layer 1: Glow / Celestial body ---
+  // --- Layer 1: Glow ---
   const glow = scene.add.graphics();
   const glowCx = width * (0.45 + variant * 0.1);
   const glowCy = height * 0.30;
-  const glowR = Math.min(width, height) * 0.65;
+  const glowR = Math.min(width, height) * 0.55;
 
-  for (let ring = 10; ring >= 1; ring--) {
-    const r = glowR * (ring / 10);
-    const alpha = pal.glowAlpha * (1 - ring / 12) * 0.8;
+  for (let ring = 8; ring >= 1; ring--) {
+    const r = glowR * (ring / 8);
+    const alpha = pal.glowAlpha * (1 - ring / 10) * 0.6;
     glow.fillStyle(pal.skyGlow, alpha);
     glow.fillCircle(glowCx, glowCy, r);
   }
-  glow.fillStyle(pal.glow, pal.glowAlpha * 0.7);
+  glow.fillStyle(pal.glow, pal.glowAlpha * 0.5);
   glow.fillCircle(glowCx, glowCy, glowR * 0.15);
-  glow.fillStyle(pal.glow, pal.glowAlpha * 0.4);
-  glow.fillCircle(glowCx, glowCy, glowR * 0.30);
   glow.setDepth(LAYER_CONFIG[1].depth);
   layers.push({ gfx: glow, baseX: 0, baseY: 0, ...LAYER_CONFIG[1], glowCx, glowCy });
 
   // --- Layers 2-4: Hills (far, mid, near) ---
-  const hillGen = getFloorHillGen(floorId);
   const hillLayers = pal.layers.slice(0, 3);
   for (let li = 0; li < hillLayers.length; li++) {
     const layerDef = hillLayers[li];
-    const layerIdx = li + 2; // maps to farHills, midHills, nearHills
+    const layerIdx = li + 2;
     const config = LAYER_CONFIG[layerIdx];
     const hillGfx = scene.add.graphics();
 
-    const baseY = height * (0.28 + li * 0.12);
+    const baseY = height * (0.30 + li * 0.12);
     const peakH = height * layerDef.peakH * (1.1 + li * 0.1);
-    let pts;
 
-    if (floorId === 3) {
-      pts = generateCloudPlatformPoints(-40, width + 40, baseY, peakH, layerDef.peaks + 1, rng);
-    } else if (floorId === 5 || floorId === 6) {
-      pts = generateCrystalPoints(-40, width + 40, baseY, peakH, layerDef.peaks + 2, rng);
-    } else {
-      pts = hillGen(-40, width + 40, baseY, peakH, layerDef.peaks, rng, 3 + li * 2);
+    // Use organic hillPoints from papercutArt
+    const pts = hillPoints(-40, width + 40, baseY, height, {
+      seed: seed + li * 13 + 7,
+      amplitude: peakH,
+    });
+    drawShadowedPoly(hillGfx, pts, layerDef.color, {
+      shadowDy: -6, shadowAlpha: 0.18,
+    });
+
+    // Trees along the ridge (using papercutArt trees)
+    const treeScales = [0.5, 0.8, 1.2];
+    const treeCount = 3 + li * 2;
+    const treeStyles = ['round', 'pine', 'sapling'];
+    for (let ti = 0; ti < treeCount; ti++) {
+      if (rng() < 0.25) continue;
+      const tx = -20 + rng() * (width + 40);
+      // Find approximate y along the hill
+      const t = (tx + 40) / (width + 80);
+      const idx = Math.floor(t * (pts.length - 3));
+      const treeBaseY = pts[Math.min(idx, pts.length - 3)]?.y ?? baseY;
+      const th = (20 + rng() * 30) * treeScales[li];
+      drawPapercutTree(hillGfx, tx, treeBaseY, th, {
+        seed: seed + li * 100 + ti * 31,
+        style: treeStyles[ti % 3],
+        canopy: layerDef.color,
+        trunk: PAPER.creamD,
+        shadowAlpha: 0.15,
+      });
     }
 
-    const atmosphericHaze = [0.45, 0.20, 0.0];
-    const treeScaleByLayer = [0.5, 1.0, 1.8];
-    const layerColor = blendColor(layerDef.color, pal.sky, atmosphericHaze[li]);
-    const layerShadow = blendColor(layerDef.shadow, pal.sky, atmosphericHaze[li] * 0.6);
-    drawShadowedLayer(hillGfx, pts, layerColor, layerShadow, true, height, rng, treeScaleByLayer[li]);
-
-    // Surface detail: small bushes on the hill face (more on near hills)
-    const bushCount = 2 + li * 3;
-    for (let d = 0; d < bushCount; d++) {
-      const dx = rng() * width;
-      const ptIdx = Math.floor(rng() * pts.length);
-      const dy = (pts[ptIdx]?.y ?? baseY) + 15 + rng() * 40;
-      const dSize = (8 + rng() * 10) * treeScaleByLayer[li];
-      hillGfx.fillStyle(layerShadow, 0.30 + rng() * 0.15);
-      hillGfx.fillEllipse(dx, dy, dSize, dSize * 0.55);
-    }
-    // Accent flowers on near hills only
+    // Accent flowers on nearer hills
     if (li >= 1) {
-      const flowerCount = 3 + li * 2 + (variant || 0) * 2;
+      const flowerCount = 2 + li * 2;
       for (let f = 0; f < flowerCount; f++) {
         const fx = rng() * width;
-        const fPt = pts[Math.floor(rng() * pts.length)];
-        const fy = (fPt?.y ?? baseY) + 10 + rng() * 25;
-        hillGfx.fillStyle(pal.accent, 0.35 + rng() * 0.25);
-        hillGfx.fillCircle(fx, fy, 3 + rng() * 3 * treeScaleByLayer[li]);
+        const fIdx = Math.floor(rng() * (pts.length - 3));
+        const fy = (pts[fIdx]?.y ?? baseY) + 5 + rng() * 15;
+        drawPapercutFlower(hillGfx, fx, fy, 3 + rng() * 3, {
+          seed: seed + li * 200 + f * 7,
+          color: pal.accent, center: PAPER.gold,
+        });
       }
     }
 
@@ -367,338 +142,90 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
     layers.push({ gfx: hillGfx, baseX: 0, baseY: 0, ...config });
   }
 
-  // --- Layer 5: Ground plane (perspective trapezoid) ---
+  // --- Layer 5: Ground plane ---
   const ground = scene.add.graphics();
   const groundY = height * 0.62;
-  const perspectiveExpand = 60;
 
-  // Base: warm brown earth (not green like the hills)
-  const earthColor = blendColor(pal.ground, 0x806830, 0.55);
-  const earthDark = blendColor(earthColor, 0x000000, 0.15);
+  // Ground as an organic hill
+  const groundPts = hillPoints(-40, width + 40, groundY, height + 40, {
+    seed: seed + 99, amplitude: 8,
+  });
+  drawShadowedPoly(ground, groundPts, pal.ground, {
+    shadowDy: -5, shadowAlpha: 0.18,
+  });
 
-  ground.fillStyle(earthColor, 1);
-  ground.beginPath();
-  ground.moveTo(-20, groundY);
-  ground.lineTo(width + 20, groundY);
-  ground.lineTo(width + 20 + perspectiveExpand, height + 40);
-  ground.lineTo(-20 - perspectiveExpand, height + 40);
-  ground.closePath();
-  ground.fillPath();
+  // Path across center
+  const pathPts = waveEdgePoints(width * 0.05, width * 0.95, groundY + 12, {
+    seed: seed + 150, amplitude: 4,
+  });
+  const pathBottom = pathPts.map(p => ({ x: p.x, y: p.y + 35 })).reverse();
+  drawShadowedPoly(ground, [...pathPts, ...pathBottom], PAPER.sand, {
+    shadowDy: 3, shadowAlpha: 0.12,
+  });
 
-  // Perspective gradient
-  {
-    const groundH = (height + 40) - groundY;
-    for (let s = 0; s < 5; s++) {
-      const t = (s + 1) / 5;
-      ground.fillStyle(0x000000, 0.06 * t);
-      ground.fillRect(-80, groundY + s * groundH / 5, width + 160, groundH / 5);
-    }
-  }
-
-  // Dirt path across center where characters stand
-  {
-    const pathY = groundY + 5;
-    const pathH = 50;
-    ground.fillStyle(blendColor(earthColor, 0xc0a870, 0.35), 0.7);
-    ground.beginPath();
-    ground.moveTo(width * 0.02, pathY + pathH);
-    ground.lineTo(width * 0.05, pathY);
-    ground.lineTo(width * 0.95, pathY);
-    ground.lineTo(width * 0.98, pathY + pathH);
-    ground.closePath();
-    ground.fillPath();
-    // Lighter center stripe
-    ground.fillStyle(blendColor(earthColor, 0xd8c890, 0.3), 0.4);
-    ground.fillRect(width * 0.1, pathY + 8, width * 0.8, pathH - 20);
-  }
-
-  // Green grass patches on the brown earth
-  for (let gp = 0; gp < 14 + Math.floor(rng() * 6); gp++) {
-    const gpx = rng() * width;
-    const gpy = groundY + 20 + rng() * (height * 0.3);
-    const gpw = 35 + rng() * 55;
-    const gph = 10 + rng() * 14;
-    ground.fillStyle(pal.ground, 0.35 + rng() * 0.25);
-    ground.fillEllipse(gpx, gpy, gpw, gph);
-  }
-
-  // Scattered rocks
-  for (let ri = 0; ri < 6 + Math.floor(rng() * 4); ri++) {
-    const rx = rng() * width;
-    const ry = groundY + 15 + rng() * 80;
-    const rs = 8 + rng() * 14;
-    ground.fillStyle(blendColor(earthDark, 0x908070, 0.4), 0.5 + rng() * 0.2);
-    ground.fillEllipse(rx, ry, rs, rs * 0.65);
-    ground.fillStyle(0xffffff, 0.08);
-    ground.fillEllipse(rx - rs * 0.15, ry - rs * 0.1, rs * 0.5, rs * 0.35);
-  }
-
-  // Grass tufts along the ground's front edge
-  {
-    const grassColor = pal.trees || 0x306020;
-    const grassCount = 25 + Math.floor(rng() * 10);
-    for (let gi = 0; gi < grassCount; gi++) {
-      const gx = rng() * width;
-      const grassH = 14 + rng() * 16;
-      ground.fillStyle(grassColor, 0.35 + rng() * 0.2);
-      const blades = 2 + Math.floor(rng() * 2);
-      for (let b = 0; b < blades; b++) {
-        const bx = gx + (rng() - 0.5) * 8;
-        const lean = (rng() - 0.5) * 6;
-        ground.beginPath();
-        ground.moveTo(bx - 1.5, groundY);
-        ground.lineTo(bx + lean, groundY - grassH * (0.7 + rng() * 0.3));
-        ground.lineTo(bx + 1.5, groundY);
-        ground.closePath();
-        ground.fillPath();
-      }
-    }
+  // Scattered flowers and leaf sprigs on ground
+  for (let i = 0; i < 8; i++) {
+    const fx = rng() * width;
+    const fy = groundY + 5 + rng() * 30;
+    drawPapercutFlower(ground, fx, fy, 3 + rng() * 4, {
+      seed: seed + 300 + i * 11,
+      color: pal.accent, center: PAPER.gold,
+      stem: 4 + rng() * 4, stemColor: PAPER.leaf,
+    });
   }
 
   ground.setDepth(LAYER_CONFIG[5].depth);
   layers.push({ gfx: ground, baseX: 0, baseY: 0, ...LAYER_CONFIG[5], groundY });
 
-  // --- Layer 6: Foreground framing — rich organic elements at edges ---
+  // --- Layer 6: Foreground framing ---
   const fg = scene.add.graphics();
 
-  if (floorId === 1) {
-    for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -20 : width - 130;
-      const spread = 150;
+  for (let side = 0; side < 2; side++) {
+    const baseX = side === 0 ? -10 : width - 100;
 
-      // Large tree silhouette — trunk + branches + canopy clusters
-      const treeX = baseX + 40 + rng() * 50;
-      const treeBase = groundY + 40;
-      const trunkH = 180 + rng() * 60;
-      const trunkW = 14 + rng() * 6;
-      // Trunk
-      fg.fillStyle(pal.trees, 0.75);
-      fg.beginPath();
-      fg.moveTo(treeX - trunkW * 0.7, treeBase);
-      fg.lineTo(treeX - trunkW * 0.3, treeBase - trunkH);
-      fg.lineTo(treeX + trunkW * 0.3, treeBase - trunkH);
-      fg.lineTo(treeX + trunkW * 0.7, treeBase);
-      fg.closePath();
-      fg.fillPath();
-      // Main branches
-      for (let br = 0; br < 4; br++) {
-        const brY = treeBase - trunkH * (0.4 + br * 0.15);
-        const brDir = (br % 2 === 0 ? -1 : 1) * (side === 0 ? 1 : -1);
-        const brLen = 40 + rng() * 35;
-        fg.lineStyle(3 + rng() * 2, pal.trees, 0.7);
-        fg.beginPath();
-        fg.moveTo(treeX, brY);
-        fg.lineTo(treeX + brDir * brLen, brY - 15 - rng() * 20);
-        fg.strokePath();
-        // Leaf cluster at branch tip
-        fg.fillStyle(pal.trees, 0.65 + rng() * 0.15);
-        const lcx = treeX + brDir * brLen;
-        const lcy = brY - 20 - rng() * 15;
-        const lcr = 22 + rng() * 15;
-        fg.fillCircle(lcx, lcy, lcr);
-        fg.fillCircle(lcx + (rng() - 0.5) * lcr, lcy - lcr * 0.4, lcr * 0.7);
-      }
-      // Top canopy
-      fg.fillStyle(pal.trees, 0.70);
-      fg.fillCircle(treeX, treeBase - trunkH - 15, 35 + rng() * 15);
-      fg.fillCircle(treeX - 15, treeBase - trunkH + 5, 28 + rng() * 10);
-      fg.fillCircle(treeX + 15, treeBase - trunkH + 5, 28 + rng() * 10);
+    // Trees at edges
+    for (let ti = 0; ti < 2; ti++) {
+      const tx = baseX + 20 + rng() * 60;
+      const th = 100 + rng() * 80;
+      drawPapercutTree(fg, tx, groundY + 30, th, {
+        seed: seed + side * 500 + ti * 37,
+        style: ti % 2 === 0 ? 'round' : 'pine',
+        canopy: pal.trees,
+        canopyHi: pal.treesL,
+        trunk: PAPER.creamD,
+      });
+    }
 
-      // Understory bushes
-      for (let b = 0; b < 3; b++) {
-        const bx = baseX + 20 + rng() * (spread - 20);
-        const by = groundY + 20 + rng() * 80;
-        const bw = 45 + rng() * 40;
-        fg.fillStyle(pal.trees, 0.55 + rng() * 0.2);
-        fg.fillEllipse(bx, by, bw, bw * 0.55);
-        fg.fillStyle(pal.treesL || pal.trees, 0.2);
-        fg.fillEllipse(bx - bw * 0.1, by - bw * 0.1, bw * 0.5, bw * 0.35);
-      }
+    // Leaf sprigs
+    for (let si = 0; si < 3; si++) {
+      drawLeafSprig(fg, baseX + 15 + rng() * 80, groundY + 10 + rng() * 40,
+        18 + rng() * 15, {
+          seed: seed + side * 600 + si * 19,
+          color: PAPER.leaf,
+          angle: (rng() - 0.5) * 0.8,
+        });
+    }
 
-      // Tall grass fronds
-      for (let gi = 0; gi < 10; gi++) {
-        const gx = baseX + rng() * spread;
-        const gh = 30 + rng() * 50;
-        fg.fillStyle(pal.trees, 0.40 + rng() * 0.25);
-        fg.beginPath();
-        fg.moveTo(gx - 4, groundY + 30);
-        fg.lineTo(gx + (rng() - 0.5) * 8, groundY + 30 - gh);
-        fg.lineTo(gx + 4, groundY + 30);
-        fg.closePath();
-        fg.fillPath();
-      }
+    // Flowers
+    for (let fi = 0; fi < 4; fi++) {
+      drawPapercutFlower(fg, baseX + 20 + rng() * 70, groundY + 5 + rng() * 50,
+        4 + rng() * 5, {
+          seed: seed + side * 700 + fi * 13,
+          color: pal.accent, center: PAPER.gold,
+          stem: 5 + rng() * 6, stemColor: PAPER.leaf,
+        });
+    }
+  }
 
-      // Accent flowers with stems
-      for (let f = 0; f < 5; f++) {
-        const fx = baseX + 25 + rng() * (spread - 40);
-        const fy = groundY + 10 + rng() * 60;
-        const fh = 15 + rng() * 20;
-        fg.lineStyle(1.5, 0x408028, 0.4);
-        fg.beginPath(); fg.moveTo(fx, fy); fg.lineTo(fx + (rng() - 0.5) * 4, fy - fh); fg.strokePath();
-        fg.fillStyle(pal.accent, 0.6 + rng() * 0.25);
-        fg.fillCircle(fx + (rng() - 0.5) * 3, fy - fh, 5 + rng() * 5);
-        fg.fillStyle(0xf0e060, 0.45);
-        fg.fillCircle(fx, fy - fh, 2.5);
-      }
-    }
-  } else if (floorId === 2) {
-    // Tidepool: coral branches, seaweed fronds, sea foam at bottom
-    for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -5 : width - 60;
-      // Branching coral structures
-      for (let c = 0; c < 6; c++) {
-        const cx = baseX + rng() * 70;
-        const cy = height - 40 - rng() * 100;
-        const coralH = 20 + rng() * 35;
-        fg.fillStyle(pal.accent, 0.35 + rng() * 0.25);
-        fg.fillCircle(cx, cy, 5 + rng() * 6);
-        fg.fillCircle(cx + rng() * 12 - 6, cy - coralH * 0.4, 4 + rng() * 4);
-        fg.fillCircle(cx + rng() * 8 - 4, cy - coralH * 0.7, 3 + rng() * 3);
-        // Stem
-        fg.lineStyle(2, pal.accent, 0.25);
-        fg.beginPath(); fg.moveTo(cx, cy + 5); fg.lineTo(cx, cy - coralH); fg.strokePath();
-      }
-      // Seaweed fronds (wavy lines)
-      for (let sw = 0; sw < 3; sw++) {
-        const sx = baseX + 10 + rng() * 50;
-        fg.lineStyle(2, 0x48a838, 0.25);
-        fg.beginPath();
-        fg.moveTo(sx, height);
-        for (let seg = 0; seg < 5; seg++) {
-          fg.lineTo(sx + Math.sin(seg * 1.2) * 8, height - (seg + 1) * 20);
-        }
-        fg.strokePath();
-      }
-    }
-    // Sea foam along bottom
-    for (let foam = 0; foam < 20; foam++) {
-      fg.fillStyle(0xe0f0f8, 0.15 + rng() * 0.15);
-      fg.fillCircle(rng() * width, height - 10 - rng() * 20, 4 + rng() * 6);
-    }
-    // Claymation: clay bubbles on ground plane
-    for (let cb = 0; cb < 7; cb++) {
-      const bx = rng() * width;
-      const by = groundY + 10 + rng() * 60;
-      const br = 10 + rng() * 10; // 10-20px
-      const darkerGround = blendColor(pal.ground, 0x000000, 0.2);
-      fg.fillStyle(darkerGround, 0.35 + rng() * 0.15);
-      fg.fillCircle(bx, by, br);
-    }
-  } else if (floorId === 3) {
-    // Cloud: wispy cloud tendrils at edges, golden light rays from top
-    for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -20 : width - 30;
-      for (let c = 0; c < 5; c++) {
-        const cx = baseX + rng() * 50;
-        const cy = rng() * height * 0.6;
-        fg.fillStyle(0xffffff, 0.08 + rng() * 0.08);
-        fg.fillCircle(cx, cy, 12 + rng() * 20);
-        fg.fillCircle(cx + rng() * 15, cy + rng() * 10, 8 + rng() * 12);
-      }
-    }
-    // Golden light rays from top-center
-    for (let ray = 0; ray < 5; ray++) {
-      const rx = width * 0.3 + rng() * width * 0.4;
-      fg.fillStyle(pal.glow, 0.04 + rng() * 0.03);
-      fg.fillTriangle(rx - 3, 0, rx + 3, 0, rx + (rng() - 0.5) * 60, height * 0.7);
-    }
-    // Watercolor: paint drips from cloud formations
-    for (let side = 0; side < 2; side++) {
-      const dripBaseX = side === 0 ? rng() * width * 0.3 : width * 0.7 + rng() * width * 0.3;
-      const dripCount = 2 + Math.floor(rng() * 2); // 2-3 drips
-      for (let d = 0; d < dripCount; d++) {
-        const dx = dripBaseX + (rng() - 0.5) * 30;
-        const dy = height * 0.3 + rng() * height * 0.15;
-        const dripLen = 40 + rng() * 60;
-        fg.lineStyle(1, pal.cloud, 0.1);
-        fg.beginPath();
-        fg.moveTo(dx, dy);
-        fg.lineTo(dx + (rng() - 0.5) * 3, dy + dripLen);
-        fg.strokePath();
-      }
-    }
-  } else if (floorId === 4) {
-    // Ember: stalactites at top, lava glow at bottom, rock formations at sides
-    for (let s = 0; s < 8; s++) {
-      const sx = (s < 4 ? rng() * width * 0.3 : width * 0.7 + rng() * width * 0.3);
-      const sh = 25 + rng() * 60;
-      const sw = 4 + rng() * 8;
-      fg.fillStyle(0x2a1808, 0.5 + rng() * 0.2);
-      fg.fillTriangle(sx - sw, 0, sx + sw, 0, sx + (rng() - 0.5) * 4, sh);
-      // Drip detail — pixelated square instead of circle
-      fg.fillStyle(0x3a2010, 0.3);
-      fg.fillRect(sx - 2, sh, 4, 4);
-    }
-    // Pixelated lava: square blocks in 8px grid instead of smooth gradient
-    const lavaColors = [0xe04010, 0xf06020, 0xd03008, 0xf08020];
-    for (let lx = 0; lx < width; lx += 8) {
-      const lavaH = 1 + Math.floor(rng() * 4); // 1-4 blocks tall
-      for (let ly = 0; ly < lavaH; ly++) {
-        const ci = Math.floor(rng() * lavaColors.length);
-        fg.fillStyle(lavaColors[ci], 0.15 + rng() * 0.15);
-        fg.fillRect(lx, height - 8 - ly * 8, 8, 8);
-      }
-    }
-    // Rock formations at sides
-    for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -5 : width - 30;
-      for (let r = 0; r < 4; r++) {
-        const rx = baseX + rng() * 40;
-        const ry = height - 30 - rng() * 80;
-        const rw = 8 + rng() * 12;
-        const rh = 15 + rng() * 25;
-        fg.fillStyle(0x3a2010, 0.4 + rng() * 0.2);
-        fg.fillTriangle(rx - rw / 2, ry + rh, rx + rw / 2, ry + rh, rx + (rng() - 0.5) * 5, ry);
-      }
-    }
-  } else if (floorId === 5) {
-    // Frozen: icicle fringe at top, crystal clusters at sides, frost edge
-    // Icicle fringe along top edge
-    for (let ic = 0; ic < 12; ic++) {
-      const ix = (ic < 5 ? rng() * width * 0.25 : ic < 8 ? width * 0.75 + rng() * width * 0.25 : rng() * width);
-      const ih = 15 + rng() * 40;
-      const iw = 3 + rng() * 5;
-      fg.fillStyle(0xc0e0f0, 0.35 + rng() * 0.2);
-      fg.fillTriangle(ix - iw, 0, ix + iw, 0, ix + (rng() - 0.5) * 3, ih);
-      fg.fillStyle(0xffffff, 0.15);
-      fg.fillTriangle(ix - iw * 0.5, 0, ix, 0, ix + (rng() - 0.5) * 2, ih * 0.7);
-    }
-    // Crystal clusters at bottom sides
-    for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -5 : width - 40;
-      for (let c = 0; c < 5; c++) {
-        const cx = baseX + rng() * 50;
-        const cy = height - 20 - rng() * 100;
-        const ch = 12 + rng() * 25;
-        fg.fillStyle(0xc0e0f0, 0.25 + rng() * 0.2);
-        fg.fillTriangle(cx - 4, cy + ch, cx + 4, cy + ch, cx + (rng() - 0.5) * 3, cy);
-        fg.fillStyle(0xffffff, 0.1);
-        fg.fillTriangle(cx - 2, cy + ch, cx + 1, cy + ch, cx, cy + ch * 0.3);
-      }
-    }
-    // Frost edge glow at bottom
-    fg.fillStyle(0xc0e0f0, 0.08);
-    fg.fillRect(-20, height - 30, width + 40, 35);
-    // Cinematic: star field — tiny dots in the sky area
-    for (let si = 0; si < 18; si++) {
-      const sx = rng() * width;
-      const sy = rng() * groundY * 0.5; // above the hill layers
-      const sr = 1 + rng(); // 1-2px
-      const sa = 0.3 + rng() * 0.4; // alpha 0.3-0.7
-      fg.fillStyle(0xffffff, sa);
-      fg.fillCircle(sx, sy, sr);
-    }
-  } else {
-    // Floors 6-9: generic mystical framing
-    for (let side = 0; side < 2; side++) {
-      const baseX = side === 0 ? -5 : width - 40;
-      for (let d = 0; d < 6; d++) {
-        const dx = baseX + rng() * 50;
-        const dy = rng() * height * 0.8;
-        fg.fillStyle(pal.accent, 0.15 + rng() * 0.15);
-        fg.fillCircle(dx, dy, 4 + rng() * 8);
-      }
-    }
+  // Butterflies floating
+  for (let bi = 0; bi < 3; bi++) {
+    const bx = width * (0.15 + rng() * 0.7);
+    const by = height * (0.2 + rng() * 0.3);
+    drawButterfly(fg, bx, by, 6 + rng() * 5, {
+      seed: seed + 800 + bi * 29,
+      color: PAPER.white,
+      accent: pal.accent,
+    });
   }
 
   fg.setDepth(LAYER_CONFIG[6].depth);
@@ -719,11 +246,6 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
 /**
  * Shift parallax layers based on camera shake offset.
- * Call this in the scene's update loop.
- *
- * @param {ParallaxState} state
- * @param {number} shakeX - Camera shake X offset
- * @param {number} shakeY - Camera shake Y offset
  */
 export function shiftParallaxLayers(state, shakeX, shakeY) {
   for (const layer of state.layers) {
@@ -736,10 +258,6 @@ export function shiftParallaxLayers(state, shakeX, shakeY) {
 
 /**
  * Start atmospheric particles for the floor.
- * Creates a recurring timer that spawns themed particles.
- *
- * @param {Phaser.Scene} scene
- * @param {ParallaxState} state
  */
 export function startAtmosphericParticles(scene, state) {
   const floorId = state.floorId;
@@ -766,8 +284,9 @@ function getParticleConfig(floorId, width, groundY) {
       spawn: (scene, state) => {
         const x = Math.random() * width;
         const y = -10;
-        const colors = [0x68c050, 0x48a040, 0xf0c040];
-        const leaf = scene.add.circle(x, y, 3 + Math.random() * 3, colors[Math.floor(Math.random() * 3)], 0.6);
+        const colors = [PAPER.leaf, PAPER.sage, PAPER.gold];
+        const leaf = scene.add.circle(x, y, 3 + Math.random() * 3,
+          colors[Math.floor(Math.random() * 3)], 0.6);
         leaf.setDepth(-3);
         scene.tweens.add({
           targets: leaf,
@@ -793,7 +312,7 @@ function getParticleConfig(floorId, width, groundY) {
       spawn: (scene, state) => {
         const x = Math.random() * width;
         const y = groundY + 20;
-        const bubble = scene.add.circle(x, y, 2 + Math.random() * 3, 0x88d8f8, 0.5);
+        const bubble = scene.add.circle(x, y, 2 + Math.random() * 3, PAPER.sky, 0.5);
         bubble.setDepth(-3);
         scene.tweens.add({
           targets: bubble,
@@ -819,7 +338,7 @@ function getParticleConfig(floorId, width, groundY) {
       spawn: (scene, state) => {
         const x = -30;
         const y = Math.random() * groundY * 0.6;
-        const wisp = scene.add.circle(x, y, 8 + Math.random() * 12, 0xffffff, 0.2);
+        const wisp = scene.add.circle(x, y, 8 + Math.random() * 12, PAPER.white, 0.2);
         wisp.setDepth(-3);
         scene.tweens.add({
           targets: wisp,
@@ -844,8 +363,9 @@ function getParticleConfig(floorId, width, groundY) {
       spawn: (scene, state) => {
         const x = Math.random() * width;
         const y = groundY + 10;
-        const colors = [0xff6020, 0xf0a020, 0xff4010];
-        const ember = scene.add.circle(x, y, 2 + Math.random() * 2, colors[Math.floor(Math.random() * 3)], 0.7);
+        const colors = [PAPER.orange, PAPER.gold, PAPER.coral];
+        const ember = scene.add.circle(x, y, 2 + Math.random() * 2,
+          colors[Math.floor(Math.random() * 3)], 0.6);
         ember.setDepth(-3);
         scene.tweens.add({
           targets: ember,
@@ -871,7 +391,7 @@ function getParticleConfig(floorId, width, groundY) {
       spawn: (scene, state) => {
         const x = Math.random() * width;
         const y = -10;
-        const snow = scene.add.circle(x, y, 2 + Math.random() * 2, 0xffffff, 0.5);
+        const snow = scene.add.circle(x, y, 2 + Math.random() * 2, PAPER.white, 0.5);
         snow.setDepth(-3);
         scene.tweens.add({
           targets: snow,
@@ -890,13 +410,13 @@ function getParticleConfig(floorId, width, groundY) {
       },
     };
   }
-  // Default: subtle sparkles for floors 6-9
+  // Floors 6-9: gentle cream sparkles
   return {
     spawnDelay: 1000,
     spawn: (scene, state) => {
       const x = Math.random() * width;
       const y = Math.random() * groundY;
-      const sparkle = scene.add.circle(x, y, 2, 0xffffff, 0.3);
+      const sparkle = scene.add.circle(x, y, 2, PAPER.cream, 0.3);
       sparkle.setDepth(-3);
       scene.tweens.add({
         targets: sparkle,
@@ -917,7 +437,6 @@ function getParticleConfig(floorId, width, groundY) {
 
 /**
  * Clean up all parallax layers and particles.
- * @param {ParallaxState} state
  */
 export function destroyParallaxBackground(state) {
   if (state._particleTimer) state._particleTimer.remove();
