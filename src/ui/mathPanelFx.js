@@ -6,34 +6,36 @@
  * embers glow in Ember Caves, frost forms in Frozen Peak.
  */
 
+import { PAPER } from '../config.js';
+
 const FLOOR_THEMES = {
   1: { // Garden
-    borderColor: 0x48a040,
-    accentColor: 0xf06888,
+    borderColor: PAPER.leaf,
+    accentColor: PAPER.rose,
     cornerDecor: 'leaves',
     ambientType: 'leaves',
   },
   2: { // Tidepool
-    borderColor: 0x2878c0,
-    accentColor: 0xf0a848,
+    borderColor: PAPER.teal,
+    accentColor: PAPER.orange,
     cornerDecor: 'bubbles',
     ambientType: 'bubbles',
   },
   3: { // Cloud
-    borderColor: 0xa0c8e8,
-    accentColor: 0xffd040,
+    borderColor: PAPER.sky,
+    accentColor: PAPER.gold,
     cornerDecor: 'wisps',
     ambientType: 'wisps',
   },
   4: { // Ember
-    borderColor: 0xa84020,
-    accentColor: 0xf0a020,
+    borderColor: PAPER.coralD,
+    accentColor: PAPER.orange,
     cornerDecor: 'flames',
     ambientType: 'embers',
   },
   5: { // Frozen
-    borderColor: 0x5090b8,
-    accentColor: 0xd0f0ff,
+    borderColor: PAPER.tealL,
+    accentColor: PAPER.white,
     cornerDecor: 'crystals',
     ambientType: 'frost',
   },
@@ -175,7 +177,7 @@ function drawLeafCorners(gfx, cx, cy, hw, hh, theme) {
   gfx.fillStyle(theme.accentColor, 0.45);
   gfx.fillCircle(cx - hw + 12, cy - hh + 10, 4);
   gfx.fillCircle(cx + hw - 12, cy - hh + 10, 4);
-  gfx.fillStyle(0xffffff, 0.2);
+  gfx.fillStyle(PAPER.white, 0.2);
   gfx.fillCircle(cx - hw + 11, cy - hh + 9, 1.5);
   gfx.fillCircle(cx + hw - 13, cy - hh + 9, 1.5);
 }
@@ -227,7 +229,7 @@ function drawWispCorners(gfx, cx, cy, hw, hh, theme) {
     [cx - hw + 10, cy + hh - 8, 10], [cx + hw - 10, cy + hh - 8, 10],
   ];
   for (const [px, py, pr] of puffPositions) {
-    gfx.fillStyle(0xffffff, 0.08);
+    gfx.fillStyle(PAPER.white, 0.08);
     gfx.fillCircle(px, py, pr);
     gfx.fillCircle(px + 5, py + 2, pr * 0.7);
   }
@@ -238,7 +240,7 @@ function drawWispCorners(gfx, cx, cy, hw, hh, theme) {
     gfx.fillTriangle(rx - 2, cy - hh, rx + 2, cy - hh, rx + (r - 1) * 15, cy + hh);
   }
   // Soft glow behind panel
-  gfx.fillStyle(0xffffff, 0.05);
+  gfx.fillStyle(PAPER.white, 0.05);
   gfx.fillCircle(cx, cy, Math.max(hw, hh) + 15);
 }
 
@@ -259,9 +261,9 @@ function drawFlameCorners(gfx, cx, cy, hw, hh, theme) {
     const y = cy + sy * (hh - 6);
     gfx.fillStyle(theme.accentColor, 0.45);
     gfx.fillTriangle(x - 5, y + 8, x + 5, y + 8, x, y - 8);
-    gfx.fillStyle(0xff4010, 0.25);
+    gfx.fillStyle(PAPER.coralD, 0.25);
     gfx.fillTriangle(x - 3, y + 6, x + 3, y + 6, x, y - 5);
-    gfx.fillStyle(0xffe040, 0.15);
+    gfx.fillStyle(PAPER.gold, 0.15);
     gfx.fillTriangle(x - 1.5, y + 4, x + 1.5, y + 4, x, y - 2);
   }
   // Warm glow halo behind panel
@@ -292,7 +294,7 @@ function drawCrystalCorners(gfx, cx, cy, hw, hh, theme) {
     const iw = 3 + Math.sin(i * 0.7) * 1.5;
     gfx.fillStyle(theme.accentColor, 0.3);
     gfx.fillTriangle(ix - iw, cy - hh + 2, ix + iw, cy - hh + 2, ix, cy - hh + 2 + ih);
-    gfx.fillStyle(0xffffff, 0.12);
+    gfx.fillStyle(PAPER.white, 0.12);
     gfx.fillTriangle(ix - iw * 0.4, cy - hh + 2, ix, cy - hh + 2, ix - 0.5, cy - hh + 2 + ih * 0.7);
   }
   // Crystal clusters at all four corners
@@ -350,7 +352,7 @@ function spawnLeaf(scene, panelFx, cx, cy, hw, hh) {
 
 function spawnBubble(scene, panelFx, cx, cy, hw, hh) {
   const x = cx - hw * 0.8 + Math.random() * hw * 1.6;
-  const b = scene.add.circle(x, cy + hh + 5, 2 + Math.random() * 2, 0x88d8f8, 0.4);
+  const b = scene.add.circle(x, cy + hh + 5, 2 + Math.random() * 2, PAPER.sky, 0.4);
   b.setDepth(16);
   panelFx.ambientParticles.push(b);
   scene.tweens.add({
@@ -372,7 +374,7 @@ function spawnBubble(scene, panelFx, cx, cy, hw, hh) {
 function spawnWisp(scene, panelFx, cx, cy, hw, hh) {
   const x = cx - hw - 10;
   const y = cy + (Math.random() - 0.5) * hh;
-  const w = scene.add.circle(x, y, 6, 0xffffff, 0.15);
+  const w = scene.add.circle(x, y, 6, PAPER.white, 0.15);
   w.setDepth(16);
   panelFx.ambientParticles.push(w);
   scene.tweens.add({
@@ -392,7 +394,7 @@ function spawnWisp(scene, panelFx, cx, cy, hw, hh) {
 
 function spawnEmber(scene, panelFx, cx, cy, hw, hh) {
   const x = cx - hw * 0.6 + Math.random() * hw * 1.2;
-  const colors = [0xff6020, 0xf0a020, 0xff4010];
+  const colors = [PAPER.coral, PAPER.orange, PAPER.coralD];
   const e = scene.add.circle(x, cy + hh + 5, 2, colors[Math.floor(Math.random() * 3)], 0.6);
   e.setDepth(16);
   panelFx.ambientParticles.push(e);
@@ -417,7 +419,7 @@ function spawnFrost(scene, panelFx, cx, cy, hw, hh) {
   const side = Math.random() > 0.5 ? 1 : -1;
   const x = cx + side * (hw - 5 + Math.random() * 8);
   const y = cy - hh + Math.random() * hh * 2;
-  const f = scene.add.circle(x, y, 3, 0xc0e0f0, 0.3);
+  const f = scene.add.circle(x, y, 3, PAPER.sky, 0.3);
   f.setDepth(16);
   panelFx.ambientParticles.push(f);
   scene.tweens.add({

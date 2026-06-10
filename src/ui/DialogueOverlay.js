@@ -8,7 +8,7 @@
  */
 
 import { PaperButton, TEXT, safeArea } from './paperUI.js';
-import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 
 export class DialogueOverlay {
   constructor(scene) {
@@ -32,22 +32,22 @@ export class DialogueOverlay {
     this.nameText = scene.add.text(0, 0, '', {
       ...TEXT.heading(),
       fontSize: '28px',
-      color: '#f0d040',
-      stroke: '#1a0e04',
+      color: PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 4,
     });
 
     this.bodyText = scene.add.text(0, 0, '', {
       ...TEXT.body(),
       fontSize: '24px',
-      color: '#f0e4cc',
+      color: PAPER_CSS.cream,
       wordWrap: { width: this._maxWrapW },
       lineSpacing: 8,
     });
 
     const btnX = area.right - 130;
     this.continueBtn = PaperButton(scene, btnX, 0, 'TAP', {
-      w: 200, h: 50, color: 0xc07818, fontSize: 18,
+      w: 200, h: 50, color: PAPER.orange, fontSize: 18,
       onClick: () => {
         if (!this.active) return;
         if (this.typing) {
@@ -111,9 +111,9 @@ export class DialogueOverlay {
     const panelY = area.bottom - panelH / 2 - 10;
 
     this.panelGfx.clear();
-    this.panelGfx.fillStyle(0x000000, 0.15);
+    this.panelGfx.fillStyle(PAPER.shadow, 0.15);
     this.panelGfx.fillRoundedRect(area.cx - panelW / 2 + 4, panelY - panelH / 2 + 6, panelW, panelH, 18);
-    this.panelGfx.fillStyle(0x1a0e04, 0.92);
+    this.panelGfx.fillStyle(PAPER.inkTeal, 0.92);
     this.panelGfx.fillRoundedRect(area.cx - panelW / 2, panelY - panelH / 2, panelW, panelH, 18);
 
     this.nameText.setPosition(area.cx - panelW / 2 + padX, panelY - panelH / 2 + 10);

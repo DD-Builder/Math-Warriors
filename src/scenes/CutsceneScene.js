@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
@@ -95,26 +95,26 @@ export class CutsceneScene extends Phaser.Scene {
     drawPapercutBackground(this, this.floorId, GAME_WIDTH, GAME_HEIGHT, 555 + this.floorId);
 
     this.darkOverlay = this.add.rectangle(
-      GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.25
+      GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.25
     );
 
     this.artContainer = this.add.container(0, 0);
     this.bubbleGfx = this.add.graphics();
     this.sparkleContainer = this.add.container(0, 0);
 
-    this.speakerDot = this.add.circle(0, 0, 10, 0x88aaff);
+    this.speakerDot = this.add.circle(0, 0, 10, PAPER.sky);
     this.nameText = this.add.text(0, 0, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '30px',
-      color: '#c06a10',
-      stroke: '#3a1a00',
+      color: PAPER_CSS.orange,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,
     });
     this.bodyText = this.add.text(0, 0, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '26px',
-      color: '#3a2410',
-      stroke: '#f5ead0',
+      color: PAPER_CSS.inkTeal,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 1,
       wordWrap: { width: 480 },
       lineSpacing: 8,
@@ -122,7 +122,7 @@ export class CutsceneScene extends Phaser.Scene {
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     this.advanceBtn = PaperButton(this, area.right - 130, area.bottom - 50, 'NEXT ▶', {
-      w: 200, h: 60, color: 0xc07818, fontSize: 22,
+      w: 200, h: 60, color: PAPER.orange, fontSize: 22,
       onClick: () => this.onTap(),
     });
 
@@ -224,27 +224,27 @@ export class CutsceneScene extends Phaser.Scene {
     gfx.fillStyle(color, 0.25);
     gfx.fillEllipse(cx - r * 0.5, cy - r * 0.1, wingW, wingH);
     gfx.fillEllipse(cx + r * 0.5, cy - r * 0.1, wingW, wingH);
-    gfx.fillStyle(0xffffff, 0.12);
+    gfx.fillStyle(PAPER.white, 0.12);
     gfx.fillEllipse(cx - r * 0.5, cy - r * 0.15, wingW * 0.7, wingH * 0.7);
     gfx.fillEllipse(cx + r * 0.5, cy - r * 0.15, wingW * 0.7, wingH * 0.7);
 
-    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillStyle(PAPER.shadow, 0.2);
     gfx.fillCircle(cx + 4, cy + 6, r);
     gfx.fillStyle(color, 0.9);
     gfx.fillCircle(cx, cy, r);
-    gfx.fillStyle(0xffffff, 0.4);
+    gfx.fillStyle(PAPER.white, 0.4);
     gfx.fillCircle(cx - r * 0.2, cy - r * 0.25, r * 0.45);
-    gfx.fillStyle(0xffffff, 0.25);
+    gfx.fillStyle(PAPER.white, 0.25);
     gfx.fillCircle(cx + r * 0.3, cy - r * 0.35, r * 0.25);
 
-    gfx.fillStyle(0x1a0e04, 1);
+    gfx.fillStyle(PAPER.inkTeal, 1);
     gfx.fillCircle(cx - r * 0.18, cy - r * 0.05, r * 0.08);
     gfx.fillCircle(cx + r * 0.18, cy - r * 0.05, r * 0.08);
-    gfx.fillStyle(0xffffff, 1);
+    gfx.fillStyle(PAPER.white, 1);
     gfx.fillCircle(cx - r * 0.16, cy - r * 0.07, r * 0.03);
     gfx.fillCircle(cx + r * 0.20, cy - r * 0.07, r * 0.03);
 
-    gfx.fillStyle(0xe06080, 0.6);
+    gfx.fillStyle(PAPER.rose, 0.6);
     gfx.fillEllipse(cx, cy + r * 0.12, r * 0.25, r * 0.08);
 
     this.artContainer.add(gfx);
@@ -255,7 +255,7 @@ export class CutsceneScene extends Phaser.Scene {
       const sx = cx + Math.cos(a) * dist;
       const sy = cy + Math.sin(a) * dist;
       const size = 3 + Math.random() * 4;
-      const sparkle = this.add.circle(sx, sy, size, 0xffffff, 0.6 + Math.random() * 0.3);
+      const sparkle = this.add.circle(sx, sy, size, PAPER.white, 0.6 + Math.random() * 0.3);
       this.sparkleContainer.add(sparkle);
       this.tweens.add({
         targets: sparkle,
@@ -271,8 +271,8 @@ export class CutsceneScene extends Phaser.Scene {
     const label = this.add.text(cx, cy + r + 20, speaker || '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '20px',
-      color: '#f0e4cc',
-      stroke: '#1a0e04',
+      color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,
     }).setOrigin(0.5);
     this.artContainer.add(label);
@@ -351,11 +351,11 @@ export class CutsceneScene extends Phaser.Scene {
     this.bodyText.setText('');
 
     this.bubbleGfx.clear();
-    this.bubbleGfx.fillStyle(0x000000, 0.15);
+    this.bubbleGfx.fillStyle(PAPER.shadow, 0.15);
     this.bubbleGfx.fillRoundedRect(bx + 4, by + 6, bw, bh, 20);
-    this.bubbleGfx.fillStyle(0xf5ead0, 0.92);
+    this.bubbleGfx.fillStyle(PAPER.cream, 0.92);
     this.bubbleGfx.fillRoundedRect(bx, by, bw, bh, 20);
-    this.bubbleGfx.lineStyle(3, 0xd4a840, 0.8);
+    this.bubbleGfx.lineStyle(3, PAPER.gold, 0.8);
     this.bubbleGfx.strokeRoundedRect(bx, by, bw, bh, 20);
   }
 
@@ -364,24 +364,24 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   getSpeakerColor(speaker) {
-    if (!speaker) return 0x88aaff;
+    if (!speaker) return PAPER.sky;
     const s = speaker.toLowerCase();
-    if (s.includes('elder')) return 0x88aaff;
-    if (s.includes('water')) return 0x38a8c8;
-    if (s.includes('sky')) return 0x88c8f8;
-    if (s.includes('fire')) return 0xf06828;
-    if (s.includes('ice')) return 0x80c8e8;
-    if (s.includes('crystal')) return 0xc080f0;
-    if (s.includes('market')) return 0xe8c040;
-    if (s.includes('book')) return 0xc8a060;
-    if (s.includes('all fair')) return 0xd0a0ff;
-    if (s.includes('narrator')) return 0xf0d040;
+    if (s.includes('elder')) return PAPER.sky;
+    if (s.includes('water')) return PAPER.teal;
+    if (s.includes('sky')) return PAPER.sky;
+    if (s.includes('fire')) return PAPER.coral;
+    if (s.includes('ice')) return PAPER.tealL;
+    if (s.includes('crystal')) return PAPER.lavender;
+    if (s.includes('market')) return PAPER.gold;
+    if (s.includes('book')) return PAPER.sand;
+    if (s.includes('all fair')) return PAPER.lavender;
+    if (s.includes('narrator')) return PAPER.gold;
     if (s.includes('king') || s.includes('pressure') || s.includes('whale') ||
         s.includes('prism') || s.includes('paradox') || s.includes('theorem') ||
         s.includes('zero') || s.includes('counterfeit') || s.includes('pyroclast')) {
-      return 0xe04040;
+      return PAPER.coralD;
     }
-    return 0x88aaff;
+    return PAPER.sky;
   }
 
   onTap() {
