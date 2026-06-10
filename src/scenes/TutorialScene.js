@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { audio } from '../systems/audio.js';
 import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
@@ -41,7 +41,7 @@ export class TutorialScene extends Phaser.Scene {
     this.hero = spawnHero(KNIGHTS[1].id); // Crusader
 
     // Background
-    this.cameras.main.setBackgroundColor(0x000000);
+    this.cameras.main.setBackgroundColor(PAPER.inkTeal);
     const bgHeight = GAME_HEIGHT * 0.72;
     drawPapercutBackground(this, 1, GAME_WIDTH, bgHeight, 42);
 
@@ -49,9 +49,9 @@ export class TutorialScene extends Phaser.Scene {
     const uiTop = area.bottom - 220;
     const groundY = uiTop - 30;
     const groundGfx = this.add.graphics();
-    groundGfx.fillStyle(0x3a6818, 0.6);
+    groundGfx.fillStyle(PAPER.forestL, 0.6);
     groundGfx.fillRect(0, groundY, GAME_WIDTH, uiTop - groundY + 40);
-    groundGfx.fillStyle(0x4a8828, 0.4);
+    groundGfx.fillStyle(PAPER.leaf, 0.4);
     groundGfx.fillRect(0, groundY, GAME_WIDTH, 8);
 
     // Draw hero sprite — left side
@@ -106,14 +106,14 @@ export class TutorialScene extends Phaser.Scene {
     this.hpBarBg = this.add.rectangle(enemyX, hpBarY, hpBarW, 16, COLORS.ink)
       .setStrokeStyle(2, COLORS.paperD);
     this.hpBarFill = this.add.rectangle(
-      enemyX - hpBarW / 2 + 2, hpBarY, hpBarW - 4, 12, 0xc04030
+      enemyX - hpBarW / 2 + 2, hpBarY, hpBarW - 4, 12, PAPER.coralD
     ).setOrigin(0, 0.5);
     this.hpBarFullW = hpBarW - 4;
     this.hpText = this.add.text(enemyX, hpBarY + 14, `${this.dummyHp}/${this.dummyMaxHp}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '14px',
-      color: '#fff8e0',
-      stroke: '#1a0e04',
+      color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,
     }).setOrigin(0.5);
 
@@ -131,13 +131,13 @@ export class TutorialScene extends Phaser.Scene {
     // Equation display (dark pill, similar to BattleScene)
     const eqY = area.bottom - 280;
     PaperPanel(this, area.cx, eqY, 300, 110, {
-      color: 0x1a0e04, alpha: 0.85, radius: 18, shadowOff: 4, shadowAlpha: 0.3,
+      color: PAPER.inkTeal, alpha: 0.85, radius: 18, shadowOff: 4, shadowAlpha: 0.3,
     });
     this.eqText = this.add.text(area.cx, eqY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '48px',
-      color: '#fff8e0',
-      stroke: '#1a0e04',
+      color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 4,
     }).setOrigin(0.5).setAlpha(0);
 
@@ -145,7 +145,7 @@ export class TutorialScene extends Phaser.Scene {
     const ansY = area.bottom - 50;
     const btnW = 200;
     const btnGap = 20;
-    const btnColors = [0x3888d8, 0xe84840, 0x4aa848, 0x9050c8];
+    const btnColors = [PAPER.teal, PAPER.coralD, PAPER.forest, PAPER.lavender];
     this.choices = [3, 5, 2, 4]; // The 4 choices for 2+1; correct = 3 (index 0)
     this.correctIndex = 0;
 
@@ -171,12 +171,12 @@ export class TutorialScene extends Phaser.Scene {
     }
 
     // Dialogue overlay — semi-transparent dark bar with text
-    this.dialogueBg = this.add.rectangle(area.cx, area.cy - 40, GAME_WIDTH - 80, 140, 0x1a0e04, 0.9)
-      .setStrokeStyle(3, 0xf0d060, 0.8);
+    this.dialogueBg = this.add.rectangle(area.cx, area.cy - 40, GAME_WIDTH - 80, 140, PAPER.inkTeal, 0.9)
+      .setStrokeStyle(3, PAPER.gold, 0.8);
     this.dialogueText = this.add.text(area.cx, area.cy - 40, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '28px',
-      color: '#fff8e0',
+      color: PAPER_CSS.cream,
       align: 'center',
       wordWrap: { width: GAME_WIDTH - 160 },
     }).setOrigin(0.5);
@@ -187,7 +187,7 @@ export class TutorialScene extends Phaser.Scene {
     this.tapPrompt = this.add.text(area.cx, area.cy + 30, 'Tap to continue', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '18px',
-      color: '#f0d060',
+      color: PAPER_CSS.gold,
     }).setOrigin(0.5).setAlpha(0);
 
     fadeInScene(this);
@@ -365,8 +365,8 @@ export class TutorialScene extends Phaser.Scene {
       const dmgText = this.add.text(this.enemyX, this.enemyY - 100, `-${answer}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '36px',
-        color: '#60ff60',
-        stroke: '#000000',
+        color: '#7d9f6d',
+        stroke: PAPER_CSS.inkTeal,
         strokeThickness: 4,
       }).setOrigin(0.5).setScale(0.5);
       this.tweens.add({

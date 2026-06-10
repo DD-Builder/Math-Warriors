@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
+import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
@@ -568,7 +568,7 @@ export class MazeScene extends Phaser.Scene {
       case 'golden': {
         // Golden treasure chest — hidden until all 3 fairies freed
         const gw = ts * 0.65, gh = ts * 0.5;
-        g.fillStyle(0x000000, 0.3);
+        g.fillStyle(PAPER.shadow, 0.3);
         g.fillRoundedRect(-gw/2+3, -gh/2+4, gw, gh, 5);
         g.fillStyle(0xb07818, 1);
         g.fillRoundedRect(-gw/2, -gh/2, gw, gh, 5);
@@ -592,7 +592,7 @@ export class MazeScene extends Phaser.Scene {
         break;
       case 'boss': {
         const br = ts * 0.42;
-        g.fillStyle(0x000000, 0.3);
+        g.fillStyle(PAPER.shadow, 0.3);
         g.fillCircle(3, 4, br);
         g.fillStyle(0x6a0808, 1);
         g.fillCircle(0, 0, br);
@@ -608,7 +608,7 @@ export class MazeScene extends Phaser.Scene {
       }
       case 'exit': {
         const er = ts * 0.4;
-        g.fillStyle(0x000000, 0.2);
+        g.fillStyle(PAPER.shadow, 0.2);
         g.fillCircle(2, 3, er);
         g.fillStyle(0xc07818, 1);
         g.fillCircle(0, 0, er);
@@ -647,7 +647,7 @@ export class MazeScene extends Phaser.Scene {
     const hudCenterY = area.bottom - hudH / 2;
 
     PaperPanel(this, area.cx, hudCenterY, GAME_WIDTH - 40, hudH, {
-      color: 0x1a0e04, alpha: 0.75, radius: 20,
+      color: PAPER.inkTeal, alpha: 0.75, radius: 20,
     });
 
     // Floor name — top-left of HUD
@@ -767,7 +767,7 @@ export class MazeScene extends Phaser.Scene {
     const OVERLAY_DEPTH = 200;
 
     // Dark semi-transparent full-screen background overlay
-    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.85)
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.85)
       .setScrollFactor(0).setInteractive().setDepth(OVERLAY_DEPTH);
     const title = this.add.text(GAME_WIDTH / 2, 80, 'SWAP HEROES', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
@@ -868,7 +868,7 @@ export class MazeScene extends Phaser.Scene {
   showSlotPicker(newHero, overlayObjects) {
     const SLOT_DEPTH = 210;
     const slotObjs = [];
-    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.6)
       .setScrollFactor(0).setInteractive().setDepth(SLOT_DEPTH);
     slotObjs.push(bg);
 
@@ -992,7 +992,7 @@ export class MazeScene extends Phaser.Scene {
     if (this._mathDoorActive) return;
     this._mathDoorActive = true;
     let answered = false;
-    const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
+    const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
     const opSymbol = question.op === '*' ? '×' : question.op;
     const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, `${question.a} ${opSymbol} ${question.b} = ?`, {
       fontFamily: '"Fredoka One", sans-serif',
@@ -1553,7 +1553,7 @@ export class MazeScene extends Phaser.Scene {
 
     // Dark background panel
     this.miniMapBg = this.add.graphics().setScrollFactor(0).setDepth(200);
-    this.miniMapBg.fillStyle(0x1a0e04, 0.75);
+    this.miniMapBg.fillStyle(PAPER.inkTeal, 0.75);
     this.miniMapBg.fillRoundedRect(mapX, mapY, mapSize, mapSize, 8);
 
     // Graphics object for the map content

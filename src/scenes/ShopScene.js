@@ -369,7 +369,7 @@ export class ShopScene extends Phaser.Scene {
       const skins = getHeroSkins(hero.id);
 
       const bg = this.add.graphics();
-      bg.fillStyle(0xf5ead0, 0.9);
+      bg.fillStyle(PAPER.cream, 0.9);
       bg.fillRoundedRect(cx - cardW / 2, cardY - cardH / 2, cardW, cardH, 14);
       bg.lineStyle(2, rarityCol.border, 0.8);
       bg.strokeRoundedRect(cx - cardW / 2, cardY - cardH / 2, cardW, cardH, 14);
@@ -377,7 +377,7 @@ export class ShopScene extends Phaser.Scene {
 
       const nameT = this.add.text(cx, cardY - cardH / 2 + 24, hero.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '22px', color: '#3a2410',
+        fontSize: '22px', color: PAPER_CSS.inkTeal,
       }).setOrigin(0.5);
 
       const rarBadge = this.add.text(cx, cardY - cardH / 2 + 48, getRarityLabel(rarity), {
@@ -393,18 +393,18 @@ export class ShopScene extends Phaser.Scene {
 
         const skinLabel = this.add.text(cx - cardW / 2 + 20, sy, skin.name, {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-          fontSize: '15px', color: equipped ? '#40a040' : (owned ? '#3a2410' : '#8a7a60'),
+          fontSize: '15px', color: equipped ? '#7d9f6d' : (owned ? PAPER_CSS.inkTeal : PAPER_CSS.sand),
         }).setOrigin(0, 0.5);
 
         if (equipped) {
           const eqT = this.add.text(cx + cardW / 2 - 20, sy, 'EQUIPPED', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-            fontSize: '12px', color: '#40a040',
+            fontSize: '12px', color: '#7d9f6d',
           }).setOrigin(1, 0.5);
         } else if (owned) {
           const eqBtn = this.add.text(cx + cardW / 2 - 20, sy, 'EQUIP', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-            fontSize: '13px', color: '#4080c0', stroke: '#1a0e04', strokeThickness: 1,
+            fontSize: '13px', color: PAPER_CSS.teal, stroke: PAPER_CSS.inkTeal, strokeThickness: 1,
           }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
           eqBtn.on('pointerdown', () => {
             hero.skin = skin.id;
@@ -417,8 +417,8 @@ export class ShopScene extends Phaser.Scene {
             this.save.gold >= skin.cost ? `BUY ${skin.cost}g` : `${skin.cost}g`, {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
             fontSize: '13px',
-            color: this.save.gold >= skin.cost ? '#f0c040' : '#8a7a60',
-            stroke: '#1a0e04', strokeThickness: 1,
+            color: this.save.gold >= skin.cost ? PAPER_CSS.gold : PAPER_CSS.sand,
+            stroke: PAPER_CSS.inkTeal, strokeThickness: 1,
           }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
           buyT.on('pointerdown', () => {
             if (this.save.gold < skin.cost) return;

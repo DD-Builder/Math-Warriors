@@ -2192,7 +2192,7 @@ function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result
 
   // 200-400ms: Lunge with screen dim
   scene.time.delayedCall(200, () => {
-    const dim = scene.add.rectangle(720, 540, 1500, 1100, 0x000000, 0.1);
+    const dim = scene.add.rectangle(720, 540, 1500, 1100, 0x1f3d3f, 0.1);
     dim.setDepth(19);
 
     scene.tweens.add({

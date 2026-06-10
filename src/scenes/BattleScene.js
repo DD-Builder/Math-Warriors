@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
+import { SCENES, COLORS, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { generateQuestion, generateRatedQuestion, recordAnswer } from '../systems/math.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
@@ -256,7 +256,7 @@ export class BattleScene extends Phaser.Scene {
     // Draw a subtle ground plane before heroes/monsters for depth illusion
     const groundGfx = this.add.graphics();
     groundGfx.setDepth(10);
-    drawGroundPlane(groundGfx, 0x000000, 0.08);
+    drawGroundPlane(groundGfx, PAPER.shadow, 0.08);
 
     this.buildHeroSprites();
     this.buildEnemySprite();
@@ -302,7 +302,7 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   buildBackground() {
-    this.cameras.main.setBackgroundColor(0x000000);
+    this.cameras.main.setBackgroundColor(PAPER.shadow);
     // Background fills FULL screen height — no black void
     const bgHeight = GAME_HEIGHT;
 
@@ -362,7 +362,7 @@ export class BattleScene extends Phaser.Scene {
       g.fillCircle(x - cr * 0.55, y - h * 0.44, cr * 0.8);
       g.fillCircle(x + cr * 0.55, y - h * 0.44, cr * 0.8);
       g.fillCircle(x, y - h * 0.72, cr * 0.65);
-      g.fillStyle(0x000000, 0.06);
+      g.fillStyle(PAPER.shadow, 0.06);
       g.fillEllipse(x, y + 3, h * 0.5, 6);
     };
 
@@ -1670,7 +1670,7 @@ export class BattleScene extends Phaser.Scene {
       shadowOff: 5,
       shadowAlpha: 0.35 * alpha,
       alpha,
-      strokeColor: 0x000000,
+      strokeColor: PAPER.shadow,
       strokeAlpha: 0.15 * alpha,
       strokeWidth: 2,
       organic: true,
@@ -2923,7 +2923,7 @@ export class BattleScene extends Phaser.Scene {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     this.locked = true;
 
-    const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5)
+    const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5)
       .setDepth(150).setInteractive();
     const panel = PaperPanel(this, area.cx, area.cy - 20, 620, 200, {
       color: 0xf5ead0, alpha: 0.97, radius: 20,

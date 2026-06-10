@@ -57,7 +57,7 @@ function getZoneMood(zoneLabel, streak) {
     return { color: 0xf0d060, alpha: 0.04 };
   }
 
-  return { color: 0x000000, alpha: 0 };
+  return { color: 0x1f3d3f, alpha: 0 };
 }
 
 function applyOverlay(envState, color, alpha, duration) {

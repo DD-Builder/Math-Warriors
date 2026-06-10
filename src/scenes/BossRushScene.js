@@ -348,13 +348,13 @@ export class BossRushScene extends Phaser.Scene {
     this.add.text(area.cx, area.top + 100, 'BOSS RUSH OVER', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '52px',
-      color: '#c83030',
-      stroke: '#3a1808',
+      color: '#d06a4d',
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 8,
     }).setOrigin(0.5);
 
     PaperPanel(this, area.cx, area.cy, 600, 280, {
-      color: 0x1a0e04, alpha: 0.85, radius: 20,
+      color: PAPER.inkTeal, alpha: 0.85, radius: 20,
     });
 
     const lines = [
@@ -367,13 +367,13 @@ export class BossRushScene extends Phaser.Scene {
       this.add.text(area.cx, area.cy - 60 + i * 44, line, {
         ...TEXT.body(),
         fontSize: '22px',
-        color: '#f0e4cc',
+        color: PAPER_CSS.cream,
       }).setOrigin(0.5);
     });
 
     PaperButton(this, area.cx, area.bottom - 80, 'BACK', {
-      w: 280, h: 70, color: 0xd07818, fontSize: 26,
-      textColor: '#fff8e0',
+      w: 280, h: 70, color: PAPER.orange, fontSize: 26,
+      textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/confirm');
         transitionTo(this, SCENES.ENDING, undefined, 400);

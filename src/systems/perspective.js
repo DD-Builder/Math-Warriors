@@ -175,7 +175,7 @@ export function drawGroundPlane(gfx, color, alpha, config = BATTLE_PERSPECTIVE) 
 export function drawGroundShadow(gfx, x, y, scale, config = {}) {
   const rx = (config.rx ?? 35) * scale;
   const ry = (config.ry ?? 10) * scale;
-  const color = config.color ?? 0x000000;
+  const color = config.color ?? 0x1f3d3f;
   const alpha = config.alpha ?? 0.18;
   gfx.fillStyle(color, alpha);
   gfx.fillEllipse(x, y + (config.offsetY ?? 5), rx * 2, ry * 2);
