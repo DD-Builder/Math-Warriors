@@ -677,7 +677,7 @@ function LV_drawFloor_arcane(sx, sy, ts, tx, ty) {
   // Transformation: glowing rune wisps
   if (_transformed && r() < 0.2) {
     var fr5 = mkRng(tx * 67 + ty * 31 + 99);
-    LV_cut(P.rune || '#80c0e0', 0, function() { _G.arc(sx + ts * (0.2 + fr5() * 0.6), sy + ts * (0.2 + fr5() * 0.6), ts * 0.05 + fr5() * ts * 0.02, 0, Math.PI * 2); });
+    LV_cut(P.rune || _hex(PAPER.tealL), 0, function() { _G.arc(sx + ts * (0.2 + fr5() * 0.6), sy + ts * (0.2 + fr5() * 0.6), ts * 0.05 + fr5() * ts * 0.02, 0, Math.PI * 2); });
   }
 }
 function LV_drawPath_arcane(sx, sy, ts, tx, ty) {
@@ -908,7 +908,7 @@ function LV_drawFloor_library(sx, sy, ts, tx, ty) {
   // Transformation: glowing page-light dots
   if (_transformed && r() < 0.18) {
     var fr8 = mkRng(tx * 67 + ty * 31 + 99);
-    LV_cut(P.accent || '#c09848', 0, function() { _G.arc(sx + ts * (0.2 + fr8() * 0.6), sy + ts * (0.2 + fr8() * 0.6), ts * 0.04, 0, Math.PI * 2); });
+    LV_cut(P.accent || _hex(PAPER.orange), 0, function() { _G.arc(sx + ts * (0.2 + fr8() * 0.6), sy + ts * (0.2 + fr8() * 0.6), ts * 0.04, 0, Math.PI * 2); });
   }
 }
 function LV_drawPath_library(sx, sy, ts, tx, ty) {
@@ -1269,24 +1269,24 @@ function LV_drawGeoshard(sx, sy, ts, o, t) {
 
 function LV_drawToken(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  if (o.open) { LV_cut('#806020', 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
+  if (o.open) { LV_cut(_hex(PAPER.sageD), 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
   var bob = Math.sin(t * 2.4) * ts * 0.03;
   var fy = y + bob;
-  _G.save(); _G.globalAlpha = 0.2 + Math.sin(t * 2.8) * 0.1; _G.fillStyle = '#e8c040'; _G.beginPath(); _G.arc(x, fy, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
-  LV_cut('#c8a030', 3, function () { _G.arc(x, fy, ts * 0.14, 0, Math.PI * 2); });
-  LV_cut('#f0d050', 1, function () { _G.arc(x, fy, ts * 0.09, 0, Math.PI * 2); });
-  LV_cut('#c8a030', 0, function () { _G.rect(x - ts * 0.02, fy - ts * 0.06, ts * 0.04, ts * 0.12); });
+  _G.save(); _G.globalAlpha = 0.2 + Math.sin(t * 2.8) * 0.1; _G.fillStyle = _hex(PAPER.gold); _G.beginPath(); _G.arc(x, fy, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
+  LV_cut(_hex(PAPER.orange), 3, function () { _G.arc(x, fy, ts * 0.14, 0, Math.PI * 2); });
+  LV_cut(_hex(PAPER.gold), 1, function () { _G.arc(x, fy, ts * 0.09, 0, Math.PI * 2); });
+  LV_cut(_hex(PAPER.orange), 0, function () { _G.rect(x - ts * 0.02, fy - ts * 0.06, ts * 0.04, ts * 0.12); });
 }
 
 function LV_drawPage(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  if (o.open) { LV_cut('#604020', 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
+  if (o.open) { LV_cut(_hex(PAPER.forestL), 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
   var bob = Math.sin(t * 1.6) * ts * 0.04;
   var fy = y + bob;
-  _G.save(); _G.globalAlpha = 0.15 + Math.sin(t * 2) * 0.08; _G.fillStyle = '#c8a060'; _G.beginPath(); _G.arc(x, fy, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore();
-  LV_cut('#d8c090', 3, function () { _G.rect(x - ts * 0.12, fy - ts * 0.16, ts * 0.24, ts * 0.32); });
-  LV_cut('#f0e8d0', 1, function () { _G.rect(x - ts * 0.08, fy - ts * 0.12, ts * 0.16, ts * 0.24); });
-  for (var l = 0; l < 3; l++) { LV_cut('#806040', 0, function () { _G.rect(x - ts * 0.06, fy - ts * 0.08 + l * ts * 0.08, ts * 0.12, ts * 0.015); }); }
+  _G.save(); _G.globalAlpha = 0.15 + Math.sin(t * 2) * 0.08; _G.fillStyle = _hex(PAPER.sand); _G.beginPath(); _G.arc(x, fy, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore();
+  LV_cut(_hex(PAPER.creamD), 3, function () { _G.rect(x - ts * 0.12, fy - ts * 0.16, ts * 0.24, ts * 0.32); });
+  LV_cut(_hex(PAPER.cream), 1, function () { _G.rect(x - ts * 0.08, fy - ts * 0.12, ts * 0.16, ts * 0.24); });
+  for (var l = 0; l < 3; l++) { LV_cut(_hex(PAPER.sageD), 0, function () { _G.rect(x - ts * 0.06, fy - ts * 0.08 + l * ts * 0.08, ts * 0.12, ts * 0.015); }); }
 }
 
 function LV_drawPhase2Item(sx, sy, ts, o, t, mainCol, glowCol, shape) {
@@ -1309,32 +1309,32 @@ function LV_drawPhase2Item(sx, sy, ts, o, t, mainCol, glowCol, shape) {
   }
   _G.restore();
   var sparkX = x + Math.sin(t * 5) * ts * 0.15, sparkY = y + bob - ts * 0.1 + Math.cos(t * 4) * ts * 0.08;
-  _G.save(); _G.globalAlpha = 0.6 + Math.sin(t * 6) * 0.3; _G.fillStyle = '#ffffff';
+  _G.save(); _G.globalAlpha = 0.6 + Math.sin(t * 6) * 0.3; _G.fillStyle = _hex(PAPER.white);
   _G.beginPath(); _G.arc(sparkX, sparkY, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
 }
 
-function LV_drawRune(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#60c080', '#40a060', 'diamond'); }
-function LV_drawCoralKey(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f08070', '#e06050', 'key'); }
-function LV_drawWindChime(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#c0d8f0', '#80b0e0', 'triangle'); }
-function LV_drawLavaBridge(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#d07030', '#c05020', 'diamond'); }
-function LV_drawThawCrystal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f0a040', '#e08020', 'diamond'); }
-function LV_drawPrismShard(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#d080f0', '#b060e0', 'triangle'); }
-function LV_drawVaultSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#b0a080', '#908060', 'circle'); }
-function LV_drawChapterSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#c0a070', '#a08050', 'diamond'); }
-function LV_drawEqAnchor(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f0c040', '#d0a020', 'circle'); }
+function LV_drawRune(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.leaf), _hex(PAPER.forestL), 'diamond'); }
+function LV_drawCoralKey(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.coral), _hex(PAPER.coralD), 'key'); }
+function LV_drawWindChime(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.sky), _hex(PAPER.tealL), 'triangle'); }
+function LV_drawLavaBridge(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.coral), _hex(PAPER.coralD), 'diamond'); }
+function LV_drawThawCrystal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.orange), _hex(PAPER.coral), 'diamond'); }
+function LV_drawPrismShard(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.lavender), _hex(PAPER.lavenderD), 'triangle'); }
+function LV_drawVaultSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.sand), _hex(PAPER.sageD), 'circle'); }
+function LV_drawChapterSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.sand), _hex(PAPER.creamD), 'diamond'); }
+function LV_drawEqAnchor(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.gold), _hex(PAPER.orange), 'circle'); }
 
 function LV_drawDoor(sx, sy, ts, o, t) {
   if (o.open) return;
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  LV_cut('#5a4030', 6, function() { _G.rect(sx + ts * 0.08, sy + ts * 0.05, ts * 0.84, ts * 0.9); });
-  var barColor = '#8a6840';
+  LV_cut(_hex(PAPER.forestD), 6, function() { _G.rect(sx + ts * 0.08, sy + ts * 0.05, ts * 0.84, ts * 0.9); });
+  var barColor = _hex(PAPER.sageD);
   for (var b = 0; b < 4; b++) {
     var bx = sx + ts * (0.2 + b * 0.2);
     LV_cut(barColor, 3, (function(bx2) { return function() { _G.rect(bx2, sy + ts * 0.1, ts * 0.04, ts * 0.75); }; })(bx));
   }
   var lockAlpha = 0.6 + Math.sin(t * 2) * 0.2;
   _G.globalAlpha = lockAlpha;
-  _G.fillStyle = '#f0c040';
+  _G.fillStyle = _hex(PAPER.gold);
   _G.beginPath(); _G.arc(x, y - ts * 0.05, ts * 0.1, 0, Math.PI * 2); _G.fill();
   _G.fillRect(x - ts * 0.08, y, ts * 0.16, ts * 0.14);
   _G.globalAlpha = 1;
@@ -1343,9 +1343,9 @@ function LV_drawDoor(sx, sy, ts, o, t) {
 function LV_drawFountain(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.45;
   var depleted = o.uses <= 0;
-  var baseColor = depleted ? '#504840' : '#3090c0';
-  var glowColor = depleted ? '#383430' : '#60c0e8';
-  LV_cut('#706058', 4, function() { _G.rect(sx + ts * 0.2, sy + ts * 0.7, ts * 0.6, ts * 0.15); });
+  var baseColor = depleted ? _hex(PAPER.sageD) : _hex(PAPER.teal);
+  var glowColor = depleted ? _hex(PAPER.forestD) : _hex(PAPER.tealL);
+  LV_cut(_hex(PAPER.sageD), 4, function() { _G.rect(sx + ts * 0.2, sy + ts * 0.7, ts * 0.6, ts * 0.15); });
   LV_cut(baseColor, 3, function() { _G.beginPath(); LV_ellipse(x, y + ts * 0.15, ts * 0.3, ts * 0.12, 0); });
   if (!depleted) {
     var colAlpha = 0.4 + Math.sin(t * 3) * 0.15;
@@ -1353,7 +1353,7 @@ function LV_drawFountain(sx, sy, ts, o, t) {
     _G.fillStyle = glowColor;
     _G.beginPath(); _G.arc(x, y - ts * 0.05, ts * 0.08 + Math.sin(t * 2.5) * ts * 0.02, 0, Math.PI * 2); _G.fill();
     var sparkY = y - ts * 0.1 - (t * 0.5 % 0.3) * ts;
-    _G.fillStyle = '#ffffff';
+    _G.fillStyle = _hex(PAPER.white);
     _G.beginPath(); _G.arc(x + Math.sin(t * 4) * ts * 0.06, sparkY, ts * 0.025, 0, Math.PI * 2); _G.fill();
     _G.globalAlpha = 1;
   }
@@ -1365,43 +1365,43 @@ function LV_drawGoldChest(sx, sy, ts, o, t) {
   var opened = _gs.hasKey;
   var bob = (locked || opened) ? 0 : Math.sin(t * 2.2) * ts * 0.03;
   // Shadow
-  LV_cut('rgba(14,6,2,0.3)', 0, function () { LV_ellipse(x, y + ts * 0.22, ts * 0.3, ts * 0.07, 0); });
+  LV_cut('rgba(31,61,63,0.18)', 0, function () { LV_ellipse(x, y + ts * 0.22, ts * 0.3, ts * 0.07, 0); });
   // Body — bright gold when unlocked
-  var bodyCol = locked ? '#3a1a08' : '#e8a830';
+  var bodyCol = locked ? _hex(PAPER.forestD) : _hex(PAPER.orange);
   LV_cut(bodyCol, 7, function () { _G.moveTo(x - ts * 0.36, y + ts * 0.2); _G.lineTo(x + ts * 0.36, y + ts * 0.2); _G.lineTo(x + ts * 0.38, y - ts * 0.02); _G.lineTo(x + ts * 0.34, y - ts * 0.12); _G.lineTo(x - ts * 0.34, y - ts * 0.12); _G.lineTo(x - ts * 0.38, y - ts * 0.02); });
   // Lid
   if (opened) {
     // Lid tilted open behind
-    LV_cut('#c08018', 5, function () { _G.moveTo(x - ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.26, y - ts * 0.34); _G.bezierCurveTo(x + ts * 0.2, y - ts * 0.42, x - ts * 0.2, y - ts * 0.42, x - ts * 0.26, y - ts * 0.34); });
+    LV_cut(_hex(PAPER.orange), 5, function () { _G.moveTo(x - ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.26, y - ts * 0.34); _G.bezierCurveTo(x + ts * 0.2, y - ts * 0.42, x - ts * 0.2, y - ts * 0.42, x - ts * 0.26, y - ts * 0.34); });
     // Sparkles rising from open chest
     for (var sp = 0; sp < 4; sp++) {
       var spY = y - ts * 0.15 - Math.abs(Math.sin(t * 3 + sp * 1.5)) * ts * 0.3;
       var spX = x + (sp - 1.5) * ts * 0.12;
-      _G.save(); _G.globalAlpha = 0.5 + Math.sin(t * 4 + sp) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(spX, spY, ts * 0.03, 0, Math.PI * 2); _G.fill(); _G.restore();
+      _G.save(); _G.globalAlpha = 0.5 + Math.sin(t * 4 + sp) * 0.3; _G.fillStyle = _hex(PAPER.gold); _G.beginPath(); _G.arc(spX, spY, ts * 0.03, 0, Math.PI * 2); _G.fill(); _G.restore();
     }
   } else {
     // Lid closed
-    var lidCol = locked ? '#2a1206' : '#c08018';
+    var lidCol = locked ? _hex(PAPER.inkTeal) : _hex(PAPER.orange);
     LV_cut(lidCol, 6, function () { _G.moveTo(x - ts * 0.36, y - ts * 0.1 + bob); _G.lineTo(x + ts * 0.36, y - ts * 0.1 + bob); _G.lineTo(x + ts * 0.34, y - ts * 0.3 + bob); _G.bezierCurveTo(x + ts * 0.3, y - ts * 0.4 + bob, x - ts * 0.3, y - ts * 0.4 + bob, x - ts * 0.34, y - ts * 0.3 + bob); });
   }
   // Gold band
-  LV_cut(locked ? '#5a3010' : '#f0c040', 3, function () { _G.rect(x - ts * 0.37, y - ts * 0.02, ts * 0.74, ts * 0.05); });
+  LV_cut(locked ? _hex(PAPER.forestD) : _hex(PAPER.gold), 3, function () { _G.rect(x - ts * 0.37, y - ts * 0.02, ts * 0.74, ts * 0.05); });
   // Lock/clasp
-  LV_cut(locked ? '#6a3810' : '#f8d848', 4, function () { _G.rect(x - ts * 0.08, y - ts * 0.07, ts * 0.16, ts * 0.13); });
+  LV_cut(locked ? _hex(PAPER.forestL) : _hex(PAPER.gold), 4, function () { _G.rect(x - ts * 0.08, y - ts * 0.07, ts * 0.16, ts * 0.13); });
   // Corner gems (only when unlocked)
   if (!locked) {
-    LV_cut('#e04040', 1, function () { _G.arc(x - ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
-    LV_cut('#4080e0', 1, function () { _G.arc(x + ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
-    LV_cut('#40c040', 1, function () { _G.arc(x - ts * 0.28, y - ts * 0.04, ts * 0.03, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.coral), 1, function () { _G.arc(x - ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.teal), 1, function () { _G.arc(x + ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.leaf), 1, function () { _G.arc(x - ts * 0.28, y - ts * 0.04, ts * 0.03, 0, Math.PI * 2); });
   }
   // Glow aura when unlocked but not opened
-  if (!locked && !opened) { _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3.5) * 0.2; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(x, y - ts * 0.1 + bob, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
+  if (!locked && !opened) { _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3.5) * 0.2; _G.fillStyle = _hex(PAPER.gold); _G.beginPath(); _G.arc(x, y - ts * 0.1 + bob, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
 }
 
 function LV_drawPotion(sx, sy, ts, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5, bob = Math.sin(t * 2.5) * ts * 0.04;
-  LV_cut('#401880', 4, function () { LV_ellipse(x, y + ts * 0.08 + bob, ts * 0.14, ts * 0.18, 0); });
-  LV_cut('#6828c0', 2, function () { _G.rect(x - ts * 0.07, y - ts * 0.12 + bob, ts * 0.14, ts * 0.12); });
+  LV_cut(_hex(PAPER.lavenderD), 4, function () { LV_ellipse(x, y + ts * 0.08 + bob, ts * 0.14, ts * 0.18, 0); });
+  LV_cut(_hex(PAPER.lavender), 2, function () { _G.rect(x - ts * 0.07, y - ts * 0.12 + bob, ts * 0.14, ts * 0.12); });
   LV_cut(LV_PAL.stone, 1, function () { _G.rect(x - ts * 0.05, y - ts * 0.15 + bob, ts * 0.1, ts * 0.05); });
 }
 
@@ -1423,7 +1423,7 @@ function LV_drawEncounterIndicator(sx, sy, ts, o, t) {
   _G.save();
   // Shadow blob (~20px wide ellipse, dark at half alpha)
   _G.globalAlpha = 0.5;
-  _G.fillStyle = '#0c0a14';
+  _G.fillStyle = _hex(PAPER.inkTeal);
   _G.beginPath();
   LV_ellipse(x, y + ts * 0.06, ts * 0.18 * pulse, ts * 0.08 * pulse, 0);
   _G.fill();
@@ -1449,20 +1449,20 @@ function LV_drawEncounterIndicator(sx, sy, ts, o, t) {
 
 function LV_drawMonster(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5, bob = Math.sin(t * 2.2 + o.tx) * ts * 0.05;
-  var col = o.kind === 'sprout' ? '#3a8a20' : o.kind === 'weed' ? '#6a4010' : '#c04010';
-  var colL = o.kind === 'sprout' ? '#60b840' : o.kind === 'weed' ? '#8a5828' : '#e05828';
+  var col = o.kind === 'sprout' ? _hex(PAPER.leaf) : o.kind === 'weed' ? _hex(PAPER.sageD) : _hex(PAPER.coral);
+  var colL = o.kind === 'sprout' ? _hex(PAPER.sage) : o.kind === 'weed' ? _hex(PAPER.sand) : _hex(PAPER.peach);
   LV_cut(col, 5, function () { _G.arc(x, y + bob, ts * 0.22, 0, Math.PI * 2); });
   LV_cut(colL, 2, function () { _G.arc(x, y + bob - ts * 0.06, ts * 0.14, 0, Math.PI * 2); });
-  LV_cut('#ffff40', 2, function () { _G.arc(x - ts * 0.08, y - ts * 0.05 + bob, ts * 0.058, 0, Math.PI * 2); _G.arc(x + ts * 0.08, y - ts * 0.05 + bob, ts * 0.058, 0, Math.PI * 2); });
-  LV_cut('#100800', 0, function () { _G.arc(x - ts * 0.07, y - ts * 0.05 + bob, ts * 0.032, 0, Math.PI * 2); _G.arc(x + ts * 0.09, y - ts * 0.05 + bob, ts * 0.032, 0, Math.PI * 2); });
+  LV_cut(_hex(PAPER.gold), 2, function () { _G.arc(x - ts * 0.08, y - ts * 0.05 + bob, ts * 0.058, 0, Math.PI * 2); _G.arc(x + ts * 0.08, y - ts * 0.05 + bob, ts * 0.058, 0, Math.PI * 2); });
+  LV_cut(_hex(PAPER.inkTeal), 0, function () { _G.arc(x - ts * 0.07, y - ts * 0.05 + bob, ts * 0.032, 0, Math.PI * 2); _G.arc(x + ts * 0.09, y - ts * 0.05 + bob, ts * 0.032, 0, Math.PI * 2); });
 }
 
 function LV_drawBoss(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.42, bob = Math.sin(t * 1.4) * ts * 0.04, s = ts * 0.88;
-  LV_cut('#1a0808', 6, function () { _G.arc(x, y + bob, s * 0.28, 0, Math.PI * 2); });
-  LV_cut('#2e0e0e', 3, function () { _G.rect(x - s * 0.22, y + bob - s * 0.04, s * 0.44, s * 0.36); });
+  LV_cut(_hex(PAPER.inkTeal), 6, function () { _G.arc(x, y + bob, s * 0.28, 0, Math.PI * 2); });
+  LV_cut(_hex(PAPER.tealD), 3, function () { _G.rect(x - s * 0.22, y + bob - s * 0.04, s * 0.44, s * 0.36); });
   var eyePulse = Math.sin(t * 2.1) * 0.3 + 0.7;
-  _G.save(); _G.globalAlpha = eyePulse; _G.fillStyle = '#ff2020';
+  _G.save(); _G.globalAlpha = eyePulse; _G.fillStyle = _hex(PAPER.coral);
   _G.beginPath(); _G.arc(x - s * 0.09, y + bob - s * 0.04, s * 0.04, 0, Math.PI * 2); _G.fill();
   _G.beginPath(); _G.arc(x + s * 0.09, y + bob - s * 0.04, s * 0.04, 0, Math.PI * 2); _G.fill();
   _G.restore();
@@ -1479,10 +1479,10 @@ function LV_drawExit(sx, sy, ts, t) {
     // Golden glow behind door
     _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
     var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
-    gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
+    gr.addColorStop(0, 'rgba(236,185,100,0.8)'); gr.addColorStop(1, 'rgba(236,185,100,0)');
     _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
     // Door frame — gold rectangle with arched top
-    LV_cut('#c08018', 6, function () {
+    LV_cut(_hex(PAPER.orange), 6, function () {
       _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
       _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
       _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
@@ -1494,7 +1494,7 @@ function LV_drawExit(sx, sy, ts, t) {
     var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
     _G.save(); _G.globalAlpha = pulse;
     var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
-    lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
+    lg.addColorStop(0, 'rgba(253,251,242,0.9)'); lg.addColorStop(0.5, 'rgba(236,185,100,0.6)'); lg.addColorStop(1, 'rgba(236,185,100,0.2)');
     _G.fillStyle = lg;
     _G.beginPath();
     _G.moveTo(dx + ts * 0.12, dy + dh);
@@ -1503,17 +1503,17 @@ function LV_drawExit(sx, sy, ts, t) {
     _G.lineTo(dx + dw - ts * 0.12, dy + dh);
     _G.fill(); _G.restore();
     // Keyhole or handle
-    LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.sageD), 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
     // Sparkle particles orbiting
     for (var p = 0; p < 4; p++) {
       var pa = (p / 4) * Math.PI * 2 + t * 1.5;
       var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
-      _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
+      _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = _hex(PAPER.gold); _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
     }
   } else {
     // DIM / DARK exit — key not yet obtained
     // Dark door frame (no glow)
-    LV_cut('#3a2810', 6, function () {
+    LV_cut(_hex(PAPER.forestD), 6, function () {
       _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
       _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
       _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
@@ -1523,7 +1523,7 @@ function LV_drawExit(sx, sy, ts, t) {
     });
     // Dark interior — no light
     _G.save(); _G.globalAlpha = 0.4;
-    _G.fillStyle = '#1f4244';
+    _G.fillStyle = _hex(PAPER.inkTeal);
     _G.beginPath();
     _G.moveTo(dx + ts * 0.12, dy + dh);
     _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
@@ -1531,7 +1531,7 @@ function LV_drawExit(sx, sy, ts, t) {
     _G.lineTo(dx + dw - ts * 0.12, dy + dh);
     _G.fill(); _G.restore();
     // Dim keyhole
-    LV_cut('#4a3010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+    LV_cut(_hex(PAPER.forestL), 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
   }
 }
 
@@ -1558,13 +1558,13 @@ function LV_drawPartyMember(px, py, ts, idx, moving, t) {
     return;
   }
   // Fallback generic sprite
-  var col = '#2e4e88';
+  var col = _hex(PAPER.teal);
   _G.save(); _G.translate(px, py + bob);
   _G.scale(sqX * flip, sqY);
-  LV_cut('rgba(14,6,2,0.25)', 0, function () { LV_ellipse(0, ts * 0.26, ts * 0.17, ts * 0.065, 0); });
+  LV_cut('rgba(31,61,63,0.18)', 0, function () { LV_ellipse(0, ts * 0.26, ts * 0.17, ts * 0.065, 0); });
   LV_cut(col, 7, function () { _G.moveTo(-ts * 0.2, ts * 0.22); _G.lineTo(ts * 0.2, ts * 0.22); _G.lineTo(ts * 0.22, ts * 0.08); _G.lineTo(ts * 0.18, -ts * 0.04); _G.lineTo(-ts * 0.18, -ts * 0.04); _G.lineTo(-ts * 0.22, ts * 0.08); });
   LV_cut(col, 5, function () { _G.arc(0, -ts * 0.16, ts * 0.14, 0, Math.PI * 2); });
-  LV_cut('#1a0800', 2, function () { _G.arc(-ts * 0.055, -ts * 0.2, ts * 0.036, 0, Math.PI * 2); _G.arc(ts * 0.055, -ts * 0.2, ts * 0.036, 0, Math.PI * 2); });
+  LV_cut(_hex(PAPER.inkTeal), 2, function () { _G.arc(-ts * 0.055, -ts * 0.2, ts * 0.036, 0, Math.PI * 2); _G.arc(ts * 0.055, -ts * 0.2, ts * 0.036, 0, Math.PI * 2); });
   _G.restore();
 }
 
@@ -1585,21 +1585,21 @@ function LV_drawMinimap() {
   for (var my = 0; my < _ROWS; my++) for (var mx = 0; mx < _COLS; mx++) {
     if (!_fog[my][mx]) { mg.fillStyle = _fogColorMinimap; mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5); continue; }
     var t2 = _map[my][mx];
-    mg.fillStyle = t2 === LV_TW ? '#2a5c1e' : t2 === LV_TP ? '#a89870' : t2 === LV_TQ ? '#2a5060' : '#3c2010';
+    mg.fillStyle = t2 === LV_TW ? _hex(PAPER.forest) : t2 === LV_TP ? _hex(PAPER.creamD) : t2 === LV_TQ ? _hex(PAPER.teal) : _hex(PAPER.sand);
     mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5);
   }
   for (var oi2 = 0; oi2 < _objs.length; oi2++) {
     var o2 = _objs[oi2]; if (_gs.dead[o2.id]) continue;
     if (!_fog[o2.ty] || !_fog[o2.ty][o2.tx]) continue;
     if (o2.type === 'exit' && !o2.visible) continue;
-    var dc = o2.type === 'monster' ? (o2.hidden ? '#806040' : '#ff4040') : o2.type === 'boss' ? '#ff2020' : o2.type.indexOf('chest') >= 0 ? '#e8a030' : o2.type === 'exit' ? '#40ff40' : o2.type === 'valve' ? '#b07838' : o2.type === 'beacon' ? '#f0c040' : o2.type === 'vent' ? '#a08060' : o2.type === 'fragment' ? '#a060e0' : o2.type === 'crystal' ? '#80c8e8' : o2.type === 'geoshard' ? '#c080f0' : o2.type === 'token' ? '#e8c040' : o2.type === 'page' ? '#c8a060' : '#c07818';
+    var dc = o2.type === 'monster' ? (o2.hidden ? _hex(PAPER.sageD) : _hex(PAPER.coral)) : o2.type === 'boss' ? _hex(PAPER.coral) : o2.type.indexOf('chest') >= 0 ? _hex(PAPER.orange) : o2.type === 'exit' ? _hex(PAPER.leaf) : o2.type === 'valve' ? _hex(PAPER.sage) : o2.type === 'beacon' ? _hex(PAPER.gold) : o2.type === 'vent' ? _hex(PAPER.sand) : o2.type === 'fragment' ? _hex(PAPER.lavender) : o2.type === 'crystal' ? _hex(PAPER.sky) : o2.type === 'geoshard' ? _hex(PAPER.lavender) : o2.type === 'token' ? _hex(PAPER.gold) : o2.type === 'page' ? _hex(PAPER.sand) : _hex(PAPER.orange);
     if (!dc) continue;
     mg.fillStyle = dc; mg.beginPath(); mg.arc((o2.tx + 0.5) * cs, (o2.ty + 0.5) * cs, cs * 0.8, 0, Math.PI * 2); mg.fill();
   }
   var ppx = (_party.x / LV_TILE) * cs, ppy = (_party.y / LV_TILE) * cs;
-  mg.fillStyle = '#ff6060'; mg.beginPath(); mg.arc(ppx, ppy, cs * 1.2, 0, Math.PI * 2); mg.fill();
-  mg.fillStyle = '#ffffff'; mg.beginPath(); mg.arc(ppx, ppy, cs * 0.5, 0, Math.PI * 2); mg.fill();
-  mg.strokeStyle = 'rgba(192,120,24,0.4)'; mg.lineWidth = 1; mg.strokeRect(0, 0, mc.width, mc.height);
+  mg.fillStyle = _hex(PAPER.coral); mg.beginPath(); mg.arc(ppx, ppy, cs * 1.2, 0, Math.PI * 2); mg.fill();
+  mg.fillStyle = _hex(PAPER.white); mg.beginPath(); mg.arc(ppx, ppy, cs * 0.5, 0, Math.PI * 2); mg.fill();
+  mg.strokeStyle = 'rgba(31,61,63,0.2)'; mg.lineWidth = 1; mg.strokeRect(0, 0, mc.width, mc.height);
   // Blit minimap onto main canvas (top-right corner)
   var mmSize = Math.min(_W, _H) * 0.22;
   var mmX = _W - mmSize - 10, mmY = 10;
@@ -1641,17 +1641,17 @@ function LV_draw(t) {
       var glowPulse = 0.4 + Math.sin(t * 3) * 0.2;
       _G.save();
       _G.globalAlpha = glowPulse;
-      _G.fillStyle = '#f0c040';
+      _G.fillStyle = _hex(PAPER.gold);
       _G.beginPath(); _G.arc(acx, acy, glowR + ts * 0.08, 0, Math.PI * 2); _G.fill();
       _G.restore();
       _G.save();
-      _G.strokeStyle = '#f0d060';
+      _G.strokeStyle = _hex(PAPER.gold);
       _G.lineWidth = ts * 0.06;
       _G.globalAlpha = 0.7 + Math.sin(t * 2.5) * 0.2;
       _G.beginPath(); _G.arc(acx, acy, glowR, 0, Math.PI * 2); _G.stroke();
       _G.restore();
-      LV_cut('#c09020', 3, function () { _G.arc(acx, acy, ts * 0.14, 0, Math.PI * 2); });
-      LV_cut('#f0d040', 1, function () { _G.arc(acx, acy, ts * 0.09, 0, Math.PI * 2); });
+      LV_cut(_hex(PAPER.orange), 3, function () { _G.arc(acx, acy, ts * 0.14, 0, Math.PI * 2); });
+      LV_cut(_hex(PAPER.gold), 1, function () { _G.arc(acx, acy, ts * 0.09, 0, Math.PI * 2); });
       continue;
     }
     if (o.type === 'mathdoor') { LV_drawDoor(osx, osy, ts, o, t); continue; }
@@ -1688,7 +1688,7 @@ function LV_draw(t) {
     var du = _dustParticles[dui]; du.t++;
     if (du.t >= du.maxT) { _dustParticles.splice(dui, 1); continue; }
     var dua = 1 - du.t / du.maxT;
-    _G.save(); _G.globalAlpha = dua * 0.35; _G.fillStyle = '#e8dcc0';
+    _G.save(); _G.globalAlpha = dua * 0.35; _G.fillStyle = _hex(PAPER.creamD);
     _G.beginPath();
     _G.arc(camX + du.x * _SCALE + du.vx * du.t, camY + du.y * _SCALE + du.vy * du.t,
       ts * 0.045 * (0.6 + (1 - dua) * 0.8), 0, Math.PI * 2);
@@ -1712,10 +1712,10 @@ function LV_draw(t) {
   }
   // Vignette
   var vig = _G.createRadialGradient(_W / 2, _H / 2, Math.min(_W, _H) * 0.2, _W / 2, _H / 2, Math.min(_W, _H) * 0.72);
-  vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,0.6)');
+  vig.addColorStop(0, 'rgba(31,61,63,0)'); vig.addColorStop(1, 'rgba(31,61,63,0.4)');
   _G.fillStyle = vig; _G.fillRect(0, 0, _W, _H);
   // Flash
-  if (_gs.flash > 0) { _G.fillStyle = 'rgba(156,32,32,' + (_gs.flash / 10 * 0.45) + ')'; _G.fillRect(0, 0, _W, _H); _gs.flash--; }
+  if (_gs.flash > 0) { _G.fillStyle = 'rgba(208,106,77,' + (_gs.flash / 10 * 0.45) + ')'; _G.fillRect(0, 0, _W, _H); _gs.flash--; }
   // Death sparkles
   for (var dpi = _deathParticles.length - 1; dpi >= 0; dpi--) {
     var dp = _deathParticles[dpi]; dp.t++;
@@ -1955,7 +1955,7 @@ export function markDead(id) {
       // timestamp it so LV_drawChest can play a brief lid-open animation.
       if (o.type === 'chest') { o.open = true; o.openedAt = Date.now(); }
       var wx = (o.tx + 0.5) * LV_TILE, wy = (o.ty + 0.5) * LV_TILE;
-      var colors = ['#ff6060', '#ffaa44', '#ffe040', '#ff80a0'];
+      var colors = [_hex(PAPER.coral), _hex(PAPER.orange), _hex(PAPER.gold), _hex(PAPER.rose)];
       for (var pi = 0; pi < 8; pi++) {
         _deathParticles.push({
           x: wx, y: wy,
