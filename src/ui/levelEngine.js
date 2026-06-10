@@ -1132,7 +1132,7 @@ function LV_drawValve(sx, sy, ts, o, t) {
   // Water drips below (when not open)
   if (!o.open) {
     var dripY = y + radius + ts * 0.08 + Math.sin(t * 4) * ts * 0.06;
-    _G.fillStyle = 'rgba(64,160,220,0.6)';
+    _G.fillStyle = 'rgba(68,136,138,0.5)';
     _G.beginPath(); _G.arc(x, dripY, ts * 0.04, 0, Math.PI * 2); _G.fill();
     _G.beginPath(); _G.arc(x - ts * 0.12, dripY + ts * 0.04, ts * 0.025, 0, Math.PI * 2); _G.fill();
   }
@@ -1143,10 +1143,10 @@ function LV_drawBeacon(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.8;
   // Stone pillar
   var pw = ts * 0.18, ph = ts * 0.55;
-  LV_cut('#606060', 4, function () { _G.rect(x - pw, y - ph, pw * 2, ph); });
-  LV_cut('#787878', 2, function () { _G.rect(x - pw + 2, y - ph + 2, pw * 2 - 4, ph - 4); });
+  LV_cut(_hex(PAPER.sageD), 4, function () { _G.rect(x - pw, y - ph, pw * 2, ph); });
+  LV_cut(_hex(PAPER.sage), 2, function () { _G.rect(x - pw + 2, y - ph + 2, pw * 2 - 4, ph - 4); });
   // Bowl/brazier at top
-  LV_cut('#505050', 3, function () {
+  LV_cut(_hex(PAPER.forestL), 3, function () {
     _G.moveTo(x - ts * 0.16, y - ph + ts * 0.02);
     _G.lineTo(x + ts * 0.16, y - ph + ts * 0.02);
     _G.lineTo(x + ts * 0.12, y - ph - ts * 0.06);
@@ -1158,13 +1158,13 @@ function LV_drawBeacon(sx, sy, ts, o, t) {
     var flicker = Math.sin(t * 5) * ts * 0.03;
     _G.save();
     _G.globalAlpha = 0.6 + Math.sin(t * 4) * 0.2;
-    _G.fillStyle = '#f0a020';
+    _G.fillStyle = _hex(PAPER.orange);
     _G.beginPath(); _G.arc(x + flicker, fy - ts * 0.06, ts * 0.09, 0, Math.PI * 2); _G.fill();
-    _G.fillStyle = '#f0d040';
+    _G.fillStyle = _hex(PAPER.gold);
     _G.beginPath(); _G.arc(x - flicker * 0.5, fy - ts * 0.1, ts * 0.06, 0, Math.PI * 2); _G.fill();
     // Glow
     _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
-    _G.fillStyle = '#f0c040';
+    _G.fillStyle = _hex(PAPER.gold);
     _G.beginPath(); _G.arc(x, fy - ts * 0.06, ts * 0.22, 0, Math.PI * 2); _G.fill();
     _G.restore();
   }
@@ -1173,7 +1173,7 @@ function LV_drawBeacon(sx, sy, ts, o, t) {
 function LV_drawVent(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.7;
   // Rocky base (irregular)
-  LV_cut('#3a3030', 4, function () {
+  LV_cut(_hex(PAPER.forestD), 4, function () {
     _G.moveTo(x - ts * 0.3, y + ts * 0.1);
     _G.lineTo(x - ts * 0.22, y - ts * 0.14);
     _G.lineTo(x - ts * 0.08, y - ts * 0.18);
@@ -1181,7 +1181,7 @@ function LV_drawVent(sx, sy, ts, o, t) {
     _G.lineTo(x + ts * 0.24, y - ts * 0.12);
     _G.lineTo(x + ts * 0.32, y + ts * 0.1);
   });
-  LV_cut(o.open ? '#2a2020' : '#4a3828', 2, function () {
+  LV_cut(o.open ? _hex(PAPER.inkTeal) : _hex(PAPER.forestL), 2, function () {
     _G.moveTo(x - ts * 0.18, y + ts * 0.06);
     _G.lineTo(x - ts * 0.12, y - ts * 0.08);
     _G.lineTo(x + ts * 0.1, y - ts * 0.1);
@@ -1196,7 +1196,7 @@ function LV_drawVent(sx, sy, ts, o, t) {
       var px = x + Math.sin(phase * 1.7) * ts * 0.1;
       var py = y - ts * 0.15 - rise * ts * 0.4;
       _G.globalAlpha = (1 - rise) * 0.4;
-      _G.fillStyle = '#a0a0a0';
+      _G.fillStyle = _hex(PAPER.sage);
       _G.beginPath(); _G.arc(px, py, ts * (0.04 + rise * 0.03), 0, Math.PI * 2); _G.fill();
     }
     _G.restore();
@@ -1207,7 +1207,7 @@ function LV_drawFragment(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   if (o.open) {
     // Empty pedestal
-    LV_cut('#484050', 3, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
+    LV_cut(_hex(PAPER.tealD), 3, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
     return;
   }
   var bob = Math.sin(t * 2.2) * ts * 0.04;
@@ -1215,18 +1215,18 @@ function LV_drawFragment(sx, sy, ts, o, t) {
   // Glow
   _G.save();
   _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
-  _G.fillStyle = '#8040d0';
+  _G.fillStyle = _hex(PAPER.lavenderD);
   _G.beginPath(); _G.arc(x, fy, ts * 0.24, 0, Math.PI * 2); _G.fill();
   _G.restore();
   // Diamond shape
   var sz = ts * 0.16;
-  LV_cut('#a060e0', 3, function () {
+  LV_cut(_hex(PAPER.lavender), 3, function () {
     _G.moveTo(x, fy - sz);
     _G.lineTo(x + sz, fy);
     _G.lineTo(x, fy + sz);
     _G.lineTo(x - sz, fy);
   });
-  LV_cut('#c080ff', 1, function () {
+  LV_cut(_hex(PAPER.rose), 1, function () {
     _G.moveTo(x, fy - sz * 0.6);
     _G.lineTo(x + sz * 0.6, fy);
     _G.lineTo(x, fy + sz * 0.6);
@@ -1237,12 +1237,12 @@ function LV_drawFragment(sx, sy, ts, o, t) {
   for (var s = 0; s < 3; s++) {
     var sa = (s / 3) * Math.PI * 2 + t * 1.8;
     var sdx = Math.cos(sa) * ts * 0.2, sdy = Math.sin(sa) * ts * 0.15;
-    _G.fillStyle = '#d0a0ff'; _G.globalAlpha = 0.4 + Math.sin(t * 4 + s) * 0.3;
+    _G.fillStyle = _hex(PAPER.rose); _G.globalAlpha = 0.4 + Math.sin(t * 4 + s) * 0.3;
     _G.beginPath(); _G.arc(x + sdx, fy + sdy, ts * 0.025, 0, Math.PI * 2); _G.fill();
   }
   _G.restore();
   // Pedestal
-  LV_cut('#484050', 2, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
+  LV_cut(_hex(PAPER.tealD), 2, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
 }
 
 function LV_drawCrystal(sx, sy, ts, o, t) {
