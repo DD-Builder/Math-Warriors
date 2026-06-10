@@ -12,16 +12,19 @@
 
 import { mkRng } from './legacyRenderer.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
+import { PAPER } from '../config.js';
 
 // ─── PALETTE (exact copy from reference) ────────────────────────
 
+function _hex(n) { return '#' + n.toString(16).padStart(6, '0'); }
+
 var LV_PAL = {
-  dirt: '#3c2010', dirtL: '#4e2e18', soil: '#5a3820',
-  stone: '#c8b890', stoneD: '#a89870', stoneL: '#dccca8', mortar: '#787060',
-  hedge0: '#1a3c10', hedge1: '#2a5c1e', hedge2: '#3a7828', hedge3: '#4a9830', hedgeHL: '#60b840',
-  rose: '#c02860', roseL: '#e84888', gold: '#c07818', goldL: '#e8a030', cream: '#f0e4cc',
-  pond0: '#1a3040', pond1: '#2a5060', pond2: '#3a7080', pondHL: '#6ab0c8',
-  fairy0: '#88aaff', fairy1: '#ffaa44', fairy2: '#44ffaa'
+  dirt: _hex(PAPER.sand), dirtL: _hex(PAPER.creamD), soil: _hex(PAPER.sand),
+  stone: _hex(PAPER.creamD), stoneD: _hex(PAPER.sand), stoneL: _hex(PAPER.cream), mortar: _hex(PAPER.sageD),
+  hedge0: _hex(PAPER.forestD), hedge1: _hex(PAPER.forest), hedge2: _hex(PAPER.forestL), hedge3: _hex(PAPER.leaf), hedgeHL: _hex(PAPER.sage),
+  rose: _hex(PAPER.rose), roseL: _hex(PAPER.coral), gold: _hex(PAPER.orange), goldL: _hex(PAPER.gold), cream: _hex(PAPER.cream),
+  pond0: _hex(PAPER.tealD), pond1: _hex(PAPER.teal), pond2: _hex(PAPER.tealL), pondHL: _hex(PAPER.sky),
+  fairy0: _hex(PAPER.sky), fairy1: _hex(PAPER.gold), fairy2: _hex(PAPER.tealL)
 };
 
 // ─── FLOOR PALETTES ─────────────────────────────────────────────
@@ -29,81 +32,80 @@ var LV_PAL = {
 var FLOOR_PALS = {
   2: { // Tidepool — three zones: marsh, beach, water
     // Marsh sub-palette
-    marsh_wall0: '#2a4818', marsh_wall1: '#3a6028', marsh_floor: '#3a5020', marsh_floorL: '#4a6030',
+    marsh_wall0: _hex(PAPER.forestD), marsh_wall1: _hex(PAPER.forest), marsh_floor: _hex(PAPER.forestL), marsh_floorL: _hex(PAPER.leaf),
     // Beach sub-palette
-    beach_wall0: '#a08050', beach_wall1: '#b89060', beach_floor: '#d8c090', beach_floorL: '#e8d0a0',
-    beach_path: '#8a7040', beach_pathL: '#a08850',
+    beach_wall0: _hex(PAPER.sand), beach_wall1: _hex(PAPER.creamD), beach_floor: _hex(PAPER.cream), beach_floorL: _hex(PAPER.white),
+    beach_path: _hex(PAPER.sageD), beach_pathL: _hex(PAPER.sage),
     // Water sub-palette
-    water_wall0: '#1a3858', water_wall1: '#2a4868', water_floor: '#2090b0', water_floorL: '#30a8c8',
-    water_path: '#607888', water_pathL: '#7898a8',
+    water_wall0: _hex(PAPER.tealD), water_wall1: _hex(PAPER.teal), water_floor: _hex(PAPER.tealL), water_floorL: _hex(PAPER.sky),
+    water_path: _hex(PAPER.sageD), water_pathL: _hex(PAPER.sage),
     // Shared
-    accent: '#e06888', coral: '#e87060', waterHL: '#60d0e8',
+    accent: _hex(PAPER.rose), coral: _hex(PAPER.coral), waterHL: _hex(PAPER.sky),
     // Legacy compatibility
-    wall0: '#6a5838', wall1: '#7a6848', wall2: '#8a7858', wall3: '#9a8868',
-    floor0: '#c8b890', floorL: '#d8c8a0',
-    path0: '#8a7050', pathS: '#a08860', pathL: '#b8a070',
-    water0: '#2890b0', water1: '#38a8c8',
-    accentL: '#f088a0',
+    wall0: _hex(PAPER.sand), wall1: _hex(PAPER.creamD), wall2: _hex(PAPER.sand), wall3: _hex(PAPER.creamD),
+    floor0: _hex(PAPER.creamD), floorL: _hex(PAPER.cream),
+    path0: _hex(PAPER.sageD), pathS: _hex(PAPER.sage), pathL: _hex(PAPER.creamD),
+    water0: _hex(PAPER.teal), water1: _hex(PAPER.tealL), accentL: _hex(PAPER.rose),
   },
   3: { // Cloud — three zones: calm sky, storm, sunset heights
     // Calm Sky sub-palette (top-left, d<16)
-    calm_wall: '#c0d8f0', calm_wallD: '#8aa8c8', calm_floor: '#a0b8d8', calm_floorL: '#a0b8d0',
-    calm_path: '#c8b070', calm_pathL: '#d8c080',
+    calm_wall: _hex(PAPER.sky), calm_wallD: _hex(PAPER.tealL), calm_floor: _hex(PAPER.cream), calm_floorL: _hex(PAPER.white),
+    calm_path: _hex(PAPER.sand), calm_pathL: _hex(PAPER.creamD),
     // Storm sub-palette (middle, 16<=d<36)
-    storm_wall: '#3a3858', storm_wallD: '#1a1830', storm_floor: '#3a3850', storm_floorL: '#4a4860',
-    storm_path: '#484860', storm_pathL: '#585870',
+    storm_wall: _hex(PAPER.tealD), storm_wallD: _hex(PAPER.inkTeal), storm_floor: _hex(PAPER.teal), storm_floorL: _hex(PAPER.tealL),
+    storm_path: _hex(PAPER.sageD), storm_pathL: _hex(PAPER.sage),
     // Sunset Heights sub-palette (bottom-right, d>=36)
-    sunset_wall: '#d8a070', sunset_wallD: '#a07048', sunset_floor: '#c8a070', sunset_floorL: '#d8b080',
-    sunset_path: '#d0a050', sunset_pathL: '#e0b060',
+    sunset_wall: _hex(PAPER.peach), sunset_wallD: _hex(PAPER.coral), sunset_floor: _hex(PAPER.peach), sunset_floorL: _hex(PAPER.cream),
+    sunset_path: _hex(PAPER.orange), sunset_pathL: _hex(PAPER.gold),
     // Shared
-    water0: '#c8d8e8', water1: '#d8e8f8', waterHL: '#f0f8ff',
-    accent: '#f8d830', accentL: '#ffe848', wisp: '#e0e8f0',
+    water0: _hex(PAPER.sky), water1: _hex(PAPER.cream), waterHL: _hex(PAPER.white),
+    accent: _hex(PAPER.gold), accentL: _hex(PAPER.gold), wisp: _hex(PAPER.cream),
     // Legacy compatibility
-    wall0: '#1a2030', wall1: '#283040', wall2: '#384050', wall3: '#485868',
-    floor0: '#607080', floorL: '#788898',
-    path0: '#8898a8', pathS: '#a0b0c0', pathL: '#b8c8d8',
+    wall0: _hex(PAPER.tealD), wall1: _hex(PAPER.teal), wall2: _hex(PAPER.tealL), wall3: _hex(PAPER.sky),
+    floor0: _hex(PAPER.sageD), floorL: _hex(PAPER.sage),
+    path0: _hex(PAPER.sage), pathS: _hex(PAPER.creamD), pathL: _hex(PAPER.cream),
   },
   4: { // Ember
-    wall0: '#1a0808', wall1: '#280e08', wall2: '#381408', wall3: '#481c0c',
-    floor0: '#3a2010', floorL: '#4a2818',
-    path0: '#584030', pathS: '#685040', pathL: '#786050',
-    water0: '#601808', water1: '#802010', waterHL: '#e06010',
-    accent: '#e04008', accentL: '#f06818', ember: '#ff8020',
+    wall0: _hex(PAPER.coralD), wall1: _hex(PAPER.coral), wall2: _hex(PAPER.peach), wall3: _hex(PAPER.orange),
+    floor0: _hex(PAPER.sand), floorL: _hex(PAPER.creamD),
+    path0: _hex(PAPER.sageD), pathS: _hex(PAPER.sage), pathL: _hex(PAPER.creamD),
+    water0: _hex(PAPER.coral), water1: _hex(PAPER.peach), waterHL: _hex(PAPER.orange),
+    accent: _hex(PAPER.coral), accentL: _hex(PAPER.peach), ember: _hex(PAPER.gold),
   },
   5: { // Arcane (now Frozen Peak)
-    wall0: '#304858', wall1: '#406070', wall2: '#507888', wall3: '#6090a0',
-    floor0: '#6898b8', floorL: '#78a8c8',
-    path0: '#88b8d8', pathS: '#98c8e0', pathL: '#a8d0e8',
-    water0: '#4878a0', water1: '#5888b0', waterHL: '#90d0f0',
-    accent: '#c0e8ff', accentL: '#d8f0ff', rune: '#80c0e0',
+    wall0: _hex(PAPER.tealD), wall1: _hex(PAPER.teal), wall2: _hex(PAPER.tealL), wall3: _hex(PAPER.sky),
+    floor0: _hex(PAPER.sky), floorL: _hex(PAPER.cream),
+    path0: _hex(PAPER.cream), pathS: _hex(PAPER.creamD), pathL: _hex(PAPER.white),
+    water0: _hex(PAPER.teal), water1: _hex(PAPER.tealL), waterHL: _hex(PAPER.sky),
+    accent: _hex(PAPER.white), accentL: _hex(PAPER.cream), rune: _hex(PAPER.tealL),
   },
   6: { // Crystal Caverns
-    wall0: '#381060', wall1: '#481878', wall2: '#582090', wall3: '#6828a8',
-    floor0: '#4a2880', floorL: '#5a3898',
-    path0: '#7048b0', pathS: '#8058c0', pathL: '#9068d0',
-    water0: '#3818a0', water1: '#4828b0', waterHL: '#8060e0',
-    accent: '#c098f0', accentL: '#d0a8ff', rune: '#a070e0',
+    wall0: _hex(PAPER.lavenderD), wall1: _hex(PAPER.lavender), wall2: _hex(PAPER.tealD), wall3: _hex(PAPER.teal),
+    floor0: _hex(PAPER.lavenderD), floorL: _hex(PAPER.lavender),
+    path0: _hex(PAPER.lavender), pathS: _hex(PAPER.tealL), pathL: _hex(PAPER.sky),
+    water0: _hex(PAPER.tealD), water1: _hex(PAPER.teal), waterHL: _hex(PAPER.lavender),
+    accent: _hex(PAPER.lavender), accentL: _hex(PAPER.rose), rune: _hex(PAPER.sky),
   },
   7: { // Market Square
-    wall0: '#4a3818', wall1: '#5a4828', wall2: '#6a5838', wall3: '#7a6848',
-    floor0: '#786030', floorL: '#887040',
-    path0: '#a08850', pathS: '#b09860', pathL: '#c0a870',
-    water0: '#605020', water1: '#706030', waterHL: '#c0a050',
-    accent: '#e8c048', accentL: '#f0d058', rune: '#d0a830',
+    wall0: _hex(PAPER.sand), wall1: _hex(PAPER.creamD), wall2: _hex(PAPER.cream), wall3: _hex(PAPER.peach),
+    floor0: _hex(PAPER.cream), floorL: _hex(PAPER.white),
+    path0: _hex(PAPER.sand), pathS: _hex(PAPER.creamD), pathL: _hex(PAPER.cream),
+    water0: _hex(PAPER.sageD), water1: _hex(PAPER.sage), waterHL: _hex(PAPER.gold),
+    accent: _hex(PAPER.gold), accentL: _hex(PAPER.orange), rune: _hex(PAPER.gold),
   },
   8: { // Infinity Library
-    wall0: '#1a1008', wall1: '#2a1810', wall2: '#3a2818', wall3: '#4a3820',
-    floor0: '#382010', floorL: '#483018',
-    path0: '#584020', pathS: '#685028', pathL: '#786030',
-    water0: '#281808', water1: '#382010', waterHL: '#806030',
-    accent: '#c09848', accentL: '#d0a858', rune: '#a08030',
+    wall0: _hex(PAPER.forestD), wall1: _hex(PAPER.forest), wall2: _hex(PAPER.forestL), wall3: _hex(PAPER.leaf),
+    floor0: _hex(PAPER.sand), floorL: _hex(PAPER.creamD),
+    path0: _hex(PAPER.sageD), pathS: _hex(PAPER.sage), pathL: _hex(PAPER.creamD),
+    water0: _hex(PAPER.forestD), water1: _hex(PAPER.forest), waterHL: _hex(PAPER.sageD),
+    accent: _hex(PAPER.orange), accentL: _hex(PAPER.gold), rune: _hex(PAPER.gold),
   },
   9: { // The Mending Room (arcane)
-    wall0: '#100818', wall1: '#180c28', wall2: '#201038', wall3: '#281848',
-    floor0: '#201030', floorL: '#281840',
-    path0: '#382050', pathS: '#483068', pathL: '#584080',
-    water0: '#180830', water1: '#200c40', waterHL: '#6030c0',
-    accent: '#c060f0', accentL: '#d880ff', rune: '#8040d0',
+    wall0: _hex(PAPER.inkTeal), wall1: _hex(PAPER.tealD), wall2: _hex(PAPER.teal), wall3: _hex(PAPER.tealL),
+    floor0: _hex(PAPER.tealD), floorL: _hex(PAPER.teal),
+    path0: _hex(PAPER.lavenderD), pathS: _hex(PAPER.lavender), pathL: _hex(PAPER.sky),
+    water0: _hex(PAPER.inkTeal), water1: _hex(PAPER.tealD), waterHL: _hex(PAPER.lavender),
+    accent: _hex(PAPER.rose), accentL: _hex(PAPER.lavender), rune: _hex(PAPER.lavender),
   },
 };
 

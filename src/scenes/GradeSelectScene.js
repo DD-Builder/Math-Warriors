@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperCard, PaperButton, PaperPanel, safeArea, paintPaperRect } from '../ui/paperUI.js';
@@ -26,32 +26,32 @@ export class GradeSelectScene extends Phaser.Scene {
 
     // Cream paper panel centered in safe area
     PaperPanel(this, area.cx, area.cy, area.w, area.h, {
-      color: 0xffffff, alpha: 1.0, radius: 32,
+      color: PAPER.cream, alpha: 1.0, radius: 32,
     });
 
     // Header — inside safe area top
     this.add.text(area.cx, area.top + 60, 'CHOOSE YOUR GRADE', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '52px',
-      color: '#d07818',
-      stroke: '#fff8e0',
+      color: PAPER_CSS.orange,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 6,
     }).setOrigin(0.5);
 
     this.add.text(area.cx, area.top + 120, 'This sets how hard the math will be.', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '22px',
-      color: '#5a3820',
+      color: PAPER_CSS.inkTeal,
     }).setOrigin(0.5);
 
     // RAINBOW distinct colors — 6 truly different hues
     const grades = [
-      { id: 0, label: 'K', name: 'Kindergarten', hint: 'Count the flowers in the\nmagical garden!',           color: 0xe84840 },
-      { id: 1, label: '1', name: '1st Grade',    hint: 'Add and subtract to\nsave the kingdom!',  color: 0xf58840 },
-      { id: 2, label: '2', name: '2nd Grade',    hint: 'Help warriors solve\ntricky puzzles!', color: 0xf0c040 },
-      { id: 3, label: '3', name: '3rd Grade',    hint: 'Multiply your power\nagainst the bosses!',       color: 0x4aa848 },
-      { id: 4, label: '4', name: '4th Grade',    hint: 'Divide and conquer\nthe crystal caves!',        color: 0x3888d8 },
-      { id: 5, label: '5', name: '5th Grade',    hint: 'Master fractions,\ngeometry, and more!',    color: 0x9050c8 },
+      { id: 0, label: 'K', name: 'Kindergarten', hint: 'Count the flowers in the\nmagical garden!',           color: PAPER.coralD },
+      { id: 1, label: '1', name: '1st Grade',    hint: 'Add and subtract to\nsave the kingdom!',  color: PAPER.orange },
+      { id: 2, label: '2', name: '2nd Grade',    hint: 'Help warriors solve\ntricky puzzles!', color: PAPER.gold },
+      { id: 3, label: '3', name: '3rd Grade',    hint: 'Multiply your power\nagainst the bosses!',       color: PAPER.forest },
+      { id: 4, label: '4', name: '4th Grade',    hint: 'Divide and conquer\nthe crystal caves!',        color: PAPER.teal },
+      { id: 5, label: '5', name: '5th Grade',    hint: 'Master fractions,\ngeometry, and more!',    color: PAPER.lavender },
     ];
 
     // Grid: 3x2, centered vertically between header and CONFIRM button
@@ -87,21 +87,21 @@ export class GradeSelectScene extends Phaser.Scene {
       this.add.text(x, y - 35, g.label, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '80px',
-        color: '#fff8e0',
-        stroke: '#1a0e04',
+        color: PAPER_CSS.cream,
+        stroke: PAPER_CSS.inkTeal,
         strokeThickness: 7,
       }).setOrigin(0.5);
 
       this.add.text(x, y + 40, g.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '18px',
-        color: '#fff8e0',
+        color: PAPER_CSS.cream,
       }).setOrigin(0.5);
 
       this.add.text(x, y + 70, g.hint, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '14px',
-        color: '#fff8e0',
+        color: PAPER_CSS.cream,
         align: 'center',
         wordWrap: { width: cardW - 30 },
       }).setOrigin(0.5);
@@ -116,7 +116,7 @@ export class GradeSelectScene extends Phaser.Scene {
 
     // CONFIRM button — LOCKED into safe area bottom
     PaperButton(this, area.cx, area.bottom - confirmBtnH / 2, 'CONFIRM', {
-      w: 380, h: confirmBtnH, color: 0x4aa848, fontSize: 30,
+      w: 380, h: confirmBtnH, color: PAPER.forest, fontSize: 30,
       onClick: () => transitionTo(this, SCENES.PARTY_SELECT, { grade: this.selectedGrade }),
     });
   }
@@ -140,7 +140,7 @@ export class GradeSelectScene extends Phaser.Scene {
         radius: 12,
         shadowOff: isSelected ? 3 : 5,
         shadowAlpha: isSelected ? 0.5 : 0.25,
-        strokeColor: isSelected ? 0xf0d060 : 0x000000,
+        strokeColor: isSelected ? PAPER.gold : PAPER.shadow,
         strokeAlpha: isSelected ? 1.0 : 0.15,
         strokeWidth: isSelected ? 6 : 2,
         organic: true,
@@ -155,14 +155,14 @@ export class GradeSelectScene extends Phaser.Scene {
         const ckX = x + w / 2 - 22;
         const ckY = y - h / 2 + 22;
         this._checkGfx = this.add.graphics();
-        this._checkGfx.fillStyle(0xf0d060, 1);
+        this._checkGfx.fillStyle(PAPER.gold, 1);
         this._checkGfx.fillCircle(ckX, ckY, 16);
-        this._checkGfx.lineStyle(3, 0x3a2410, 1);
+        this._checkGfx.lineStyle(3, PAPER.inkTeal, 1);
         this._checkGfx.strokeCircle(ckX, ckY, 16);
         this._checkText = this.add.text(ckX, ckY, '✓', {
           fontFamily: '"Fredoka One", sans-serif',
           fontSize: '20px',
-          color: '#3a2410',
+          color: PAPER_CSS.inkTeal,
         }).setOrigin(0.5);
       }
     }

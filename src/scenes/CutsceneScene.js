@@ -369,11 +369,11 @@ export class CutsceneScene extends Phaser.Scene {
     if (s.includes('elder')) return PAPER.sky;
     if (s.includes('water')) return PAPER.teal;
     if (s.includes('sky')) return PAPER.sky;
-    if (s.includes('fire')) return PAPER.coral;
+    if (s.includes('fire')) return PAPER.coralD;
     if (s.includes('ice')) return PAPER.tealL;
     if (s.includes('crystal')) return PAPER.lavender;
     if (s.includes('market')) return PAPER.gold;
-    if (s.includes('book')) return PAPER.sand;
+    if (s.includes('book')) return PAPER.peach;
     if (s.includes('all fair')) return PAPER.lavender;
     if (s.includes('narrator')) return PAPER.gold;
     if (s.includes('king') || s.includes('pressure') || s.includes('whale') ||

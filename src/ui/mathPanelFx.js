@@ -35,7 +35,7 @@ const FLOOR_THEMES = {
   },
   5: { // Frozen
     borderColor: PAPER.tealL,
-    accentColor: PAPER.white,
+    accentColor: PAPER.cream,
     cornerDecor: 'crystals',
     ambientType: 'frost',
   },
