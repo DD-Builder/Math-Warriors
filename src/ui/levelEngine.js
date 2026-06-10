@@ -1247,24 +1247,24 @@ function LV_drawFragment(sx, sy, ts, o, t) {
 
 function LV_drawCrystal(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  if (o.open) { LV_cut('#406080', 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
+  if (o.open) { LV_cut(_hex(PAPER.tealD), 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
   var bob = Math.sin(t * 2.0) * ts * 0.04;
   var fy = y + bob;
-  _G.save(); _G.globalAlpha = 0.25 + Math.sin(t * 2.5) * 0.1; _G.fillStyle = '#80c8e8'; _G.beginPath(); _G.arc(x, fy, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
+  _G.save(); _G.globalAlpha = 0.25 + Math.sin(t * 2.5) * 0.1; _G.fillStyle = _hex(PAPER.sky); _G.beginPath(); _G.arc(x, fy, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
   var sz = ts * 0.16;
-  LV_cut('#60b0d8', 3, function () { _G.moveTo(x, fy - sz); _G.lineTo(x + sz * 0.7, fy); _G.lineTo(x, fy + sz); _G.lineTo(x - sz * 0.7, fy); });
-  LV_cut('#90d0f0', 1, function () { _G.moveTo(x, fy - sz * 0.5); _G.lineTo(x + sz * 0.4, fy); _G.lineTo(x, fy + sz * 0.5); _G.lineTo(x - sz * 0.4, fy); });
+  LV_cut(_hex(PAPER.tealL), 3, function () { _G.moveTo(x, fy - sz); _G.lineTo(x + sz * 0.7, fy); _G.lineTo(x, fy + sz); _G.lineTo(x - sz * 0.7, fy); });
+  LV_cut(_hex(PAPER.sky), 1, function () { _G.moveTo(x, fy - sz * 0.5); _G.lineTo(x + sz * 0.4, fy); _G.lineTo(x, fy + sz * 0.5); _G.lineTo(x - sz * 0.4, fy); });
 }
 
 function LV_drawGeoshard(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  if (o.open) { LV_cut('#503080', 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
+  if (o.open) { LV_cut(_hex(PAPER.lavenderD), 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
   var bob = Math.sin(t * 1.8) * ts * 0.03;
   var fy = y + bob;
-  _G.save(); _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1; _G.fillStyle = '#a060e0'; _G.beginPath(); _G.arc(x, fy, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore();
+  _G.save(); _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1; _G.fillStyle = _hex(PAPER.lavender); _G.beginPath(); _G.arc(x, fy, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore();
   var sz = ts * 0.18;
-  LV_cut('#9050d0', 3, function () { _G.moveTo(x, fy - sz); _G.lineTo(x + sz * 0.87, fy + sz * 0.5); _G.lineTo(x - sz * 0.87, fy + sz * 0.5); });
-  LV_cut('#b080f0', 1, function () { _G.moveTo(x, fy - sz * 0.5); _G.lineTo(x + sz * 0.43, fy + sz * 0.25); _G.lineTo(x - sz * 0.43, fy + sz * 0.25); });
+  LV_cut(_hex(PAPER.lavenderD), 3, function () { _G.moveTo(x, fy - sz); _G.lineTo(x + sz * 0.87, fy + sz * 0.5); _G.lineTo(x - sz * 0.87, fy + sz * 0.5); });
+  LV_cut(_hex(PAPER.lavender), 1, function () { _G.moveTo(x, fy - sz * 0.5); _G.lineTo(x + sz * 0.43, fy + sz * 0.25); _G.lineTo(x - sz * 0.43, fy + sz * 0.25); });
 }
 
 function LV_drawToken(sx, sy, ts, o, t) {
