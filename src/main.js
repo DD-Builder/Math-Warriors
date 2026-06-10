@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, COLORS, SCENES } from './config.js';
+import { GAME_WIDTH, GAME_HEIGHT, COLORS, PAPER, PAPER_CSS, SCENES } from './config.js';
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { GradeSelectScene } from './scenes/GradeSelectScene.js';
@@ -111,26 +111,26 @@ setInterval(() => {
   const w = activeScene.cameras.main.width;
   const h = activeScene.cameras.main.height;
 
-  const bg = activeScene.add.rectangle(w / 2, h / 2, w, h, 0x1a0e04, 0.92)
+  const bg = activeScene.add.rectangle(w / 2, h / 2, w, h, PAPER.inkTeal, 0.92)
     .setDepth(200).setInteractive();
   const msg = activeScene.add.text(w / 2, h / 2 - 60,
     'Great job today!\nTime for a break.\nSee you next time!', {
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '36px',
-    color: '#fff8e0',
+    color: PAPER_CSS.cream,
     align: 'center',
-    stroke: '#3a2410',
+    stroke: PAPER_CSS.inkTeal,
     strokeThickness: 4,
   }).setOrigin(0.5).setDepth(201);
 
   const btnBg = activeScene.add.rectangle(w / 2, h / 2 + 80, 220, 70, 0x4aa848)
-    .setStrokeStyle(4, 0x1a0e04)
+    .setStrokeStyle(4, PAPER.shadow)
     .setDepth(201)
     .setInteractive({ useHandCursor: true });
   const btnLabel = activeScene.add.text(w / 2, h / 2 + 80, 'OK', {
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
     fontSize: '28px',
-    color: '#fff8e0',
+    color: PAPER_CSS.cream,
   }).setOrigin(0.5).setDepth(202);
 
   btnBg.on('pointerdown', () => {
