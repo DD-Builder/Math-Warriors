@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { getHeroById, getHeroSkins, getRarityColor, getRarityLabel } from '../data/heroes.js';
 import { audio } from '../systems/audio.js';
@@ -9,11 +9,11 @@ import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { EQUIPMENT_TIERS } from '../systems/equipment.js';
 
 const SHOP_ITEMS = [
-  { id: 'potion',   name: 'POTION',      cost: 20,  desc: '+1 potion',               icon: 0x9050c8 },
-  { id: 'atkBoost', name: 'ATK BOOST',   cost: 50,  desc: '+2 ATK (one hero)',        icon: 0xe84040 },
-  { id: 'defBoost', name: 'DEF BOOST',   cost: 50,  desc: '+2 DEF (one hero)',        icon: 0x3888d8 },
-  { id: 'maxHpUp',  name: 'MAX HP UP',   cost: 80,  desc: '+5 max HP (permanent)',    icon: 0x4aa848 },
-  { id: 'revive',   name: 'REVIVE SCROLL', cost: 100, desc: 'Auto-revive at 50% HP', icon: 0xf0d040 },
+  { id: 'potion',   name: 'POTION',      cost: 20,  desc: '+1 potion',               icon: PAPER.lavender },
+  { id: 'atkBoost', name: 'ATK BOOST',   cost: 50,  desc: '+2 ATK (one hero)',        icon: PAPER.coralD },
+  { id: 'defBoost', name: 'DEF BOOST',   cost: 50,  desc: '+2 DEF (one hero)',        icon: PAPER.teal },
+  { id: 'maxHpUp',  name: 'MAX HP UP',   cost: 80,  desc: '+5 max HP (permanent)',    icon: PAPER.forest },
+  { id: 'revive',   name: 'REVIVE SCROLL', cost: 100, desc: 'Auto-revive at 50% HP', icon: PAPER.gold },
 ];
 
 export class ShopScene extends Phaser.Scene {
@@ -34,34 +34,34 @@ export class ShopScene extends Phaser.Scene {
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 888);
 
     PaperPanel(this, area.cx, area.cy, area.w - 20, area.h - 20, {
-      color: 0xfff8e8, alpha: 0.94, radius: 28,
+      color: PAPER.cream, alpha: 0.94, radius: 28,
     });
 
     this.add.text(area.cx, area.top + 50, 'SHOP', {
-      ...TEXT.title(), fontSize: '48px', color: '#d07818',
-      stroke: '#fff8e0', strokeThickness: 5,
+      ...TEXT.title(), fontSize: '48px', color: PAPER_CSS.orange,
+      stroke: PAPER_CSS.cream, strokeThickness: 5,
     }).setOrigin(0.5);
 
     this.goldLabel = this.add.text(area.cx, area.top + 100, '', {
-      ...TEXT.heading(), fontSize: '28px', color: '#d07818',
-      stroke: '#3a2410', strokeThickness: 2,
+      ...TEXT.heading(), fontSize: '28px', color: PAPER_CSS.orange,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
     }).setOrigin(0.5);
     this.updateGoldLabel();
 
     const tabY = area.top + 140;
     PaperButton(this, area.cx - 200, tabY, 'ITEMS', {
-      w: 180, h: 46, color: this.activeTab === 'items' ? 0xd07818 : 0x8a7a60, fontSize: 18,
-      textColor: this.activeTab === 'items' ? '#ffffff' : '#5a4a30',
+      w: 180, h: 46, color: this.activeTab === 'items' ? PAPER.orange : PAPER.sand, fontSize: 18,
+      textColor: this.activeTab === 'items' ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
       onClick: () => this.switchTab('items'),
     });
     PaperButton(this, area.cx, tabY, 'GEAR', {
-      w: 180, h: 46, color: this.activeTab === 'gear' ? 0x3888d8 : 0x8a7a60, fontSize: 18,
-      textColor: this.activeTab === 'gear' ? '#ffffff' : '#5a4a30',
+      w: 180, h: 46, color: this.activeTab === 'gear' ? PAPER.teal : PAPER.sand, fontSize: 18,
+      textColor: this.activeTab === 'gear' ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
       onClick: () => this.switchTab('gear'),
     });
     PaperButton(this, area.cx + 200, tabY, 'SKINS', {
-      w: 180, h: 46, color: this.activeTab === 'skins' ? 0xa040d0 : 0x8a7a60, fontSize: 18,
-      textColor: this.activeTab === 'skins' ? '#ffffff' : '#5a4a30',
+      w: 180, h: 46, color: this.activeTab === 'skins' ? PAPER.lavender : PAPER.sand, fontSize: 18,
+      textColor: this.activeTab === 'skins' ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
       onClick: () => this.switchTab('skins'),
     });
 
@@ -100,24 +100,24 @@ export class ShopScene extends Phaser.Scene {
       this.drawItemIcon(x, cardY - 80, item.id);
 
       this.add.text(x, cardY - 60, item.name, {
-        ...TEXT.heading(), fontSize: '16px', color: '#fff8e0',
-        stroke: '#1a0e04', strokeThickness: 2,
+        ...TEXT.heading(), fontSize: '16px', color: PAPER_CSS.cream,
+        stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
       }).setOrigin(0.5);
 
       this.add.text(x, cardY - 20, item.desc, {
-        ...TEXT.body(), fontSize: '13px', color: '#fff8e0',
+        ...TEXT.body(), fontSize: '13px', color: PAPER_CSS.cream,
         align: 'center', wordWrap: { width: cardW - 20 },
       }).setOrigin(0.5);
 
       const costLabel = this.add.text(x, cardY + 30, `${item.cost} GOLD`, {
-        ...TEXT.heading(), fontSize: '20px', color: '#f0d040',
+        ...TEXT.heading(), fontSize: '20px', color: PAPER_CSS.gold,
       }).setOrigin(0.5);
 
       const canAfford = this.save.gold >= item.cost;
       const buyBtn = PaperButton(this, x, cardY + 70, canAfford ? 'BUY' : 'NEED GOLD', {
         w: 140, h: 46, fontSize: canAfford ? 18 : 14,
-        color: canAfford ? 0xc83030 : 0x808080,
-        textColor: canAfford ? '#fff8e0' : '#505050',
+        color: canAfford ? PAPER.coralD : PAPER.sand,
+        textColor: canAfford ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
         onClick: () => this.buyItem(item, i),
       });
 
@@ -147,13 +147,13 @@ export class ShopScene extends Phaser.Scene {
       PaperCard(this, x, cardY, cardW, cardH, unlocked ? 0x8a98b8 : 0x8a8070, {});
 
       this.add.text(x, cardY - cardH / 2 + 26, tier.tier.toUpperCase(), {
-        ...TEXT.heading(), fontSize: '18px', color: '#fff8e0',
-        stroke: '#1a0e04', strokeThickness: 2,
+        ...TEXT.heading(), fontSize: '18px', color: PAPER_CSS.cream,
+        stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
       }).setOrigin(0.5);
 
       if (!unlocked) {
         this.add.text(x, cardY, `Unlock Floor ${tier.floor}\nto buy`, {
-          ...TEXT.body(), fontSize: '14px', color: '#d8d0c0', align: 'center',
+          ...TEXT.body(), fontSize: '14px', color: PAPER_CSS.sand, align: 'center',
         }).setOrigin(0.5);
         return;
       }
@@ -164,26 +164,26 @@ export class ShopScene extends Phaser.Scene {
         `❤ ${tier.accessory.name}  +${tier.accessory.hp} HP`,
       ];
       this.add.text(x, cardY - 40, lines.join('\n'), {
-        ...TEXT.body(), fontSize: '12px', color: '#fff8e0', align: 'left',
+        ...TEXT.body(), fontSize: '12px', color: PAPER_CSS.cream, align: 'left',
         lineSpacing: 8, wordWrap: { width: cardW - 20 },
       }).setOrigin(0.5);
 
       if (owned) {
         this.add.text(x, cardY + 60, 'EQUIPPED', {
-          ...TEXT.heading(), fontSize: '16px', color: '#a8e8a0',
+          ...TEXT.heading(), fontSize: '16px', color: '#7d9f6d',
         }).setOrigin(0.5);
         return;
       }
 
       this.add.text(x, cardY + 40, `${tier.setCost} GOLD`, {
-        ...TEXT.heading(), fontSize: '18px', color: '#f0d040',
+        ...TEXT.heading(), fontSize: '18px', color: PAPER_CSS.gold,
       }).setOrigin(0.5);
 
       const canAfford = this.save.gold >= tier.setCost && !!lead;
       PaperButton(this, x, cardY + 86, canAfford ? 'BUY SET' : 'NEED GOLD', {
         w: 140, h: 44, fontSize: canAfford ? 16 : 14,
-        color: canAfford ? 0xc83030 : 0x808080,
-        textColor: canAfford ? '#fff8e0' : '#505050',
+        color: canAfford ? PAPER.coralD : PAPER.sand,
+        textColor: canAfford ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
         onClick: () => this.buyGearTier(tier),
       });
     });
@@ -270,7 +270,7 @@ export class ShopScene extends Phaser.Scene {
     this.itemCards.forEach(({ buyBtn, item }) => {
       const canAfford = this.save.gold >= item.cost;
       buyBtn.label.setText(canAfford ? 'BUY' : 'NEED GOLD');
-      buyBtn.label.setColor(canAfford ? '#fff8e0' : '#505050');
+      buyBtn.label.setColor(canAfford ? PAPER_CSS.cream : PAPER_CSS.inkTeal);
     });
   }
 
@@ -280,8 +280,8 @@ export class ShopScene extends Phaser.Scene {
 
   showFlash(message) {
     const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 180, message, {
-      ...TEXT.heading(), fontSize: '24px', color: '#4aa848',
-      backgroundColor: '#fff8e0', padding: { x: 16, y: 8 },
+      ...TEXT.heading(), fontSize: '24px', color: '#7d9f6d',
+      backgroundColor: PAPER_CSS.cream, padding: { x: 16, y: 8 },
     }).setOrigin(0.5);
     this.tweens.add({
       targets: t, alpha: 0, delay: 1200, duration: 400,
@@ -294,30 +294,30 @@ export class ShopScene extends Phaser.Scene {
     switch (itemId) {
       case 'potion': {
         // Green circle with white + cross
-        g.fillStyle(0x4aa848, 1);
+        g.fillStyle(PAPER.forest, 1);
         g.fillCircle(x, y, 12);
-        g.fillStyle(0xffffff, 1);
+        g.fillStyle(PAPER.white, 1);
         g.fillRect(x - 5, y - 1, 10, 2);
         g.fillRect(x - 1, y - 5, 2, 10);
         break;
       }
       case 'atkBoost': {
         // Small orange upward triangle
-        g.fillStyle(0xf0a040, 1);
+        g.fillStyle(PAPER.orange, 1);
         g.fillTriangle(x, y - 10, x - 10, y + 8, x + 10, y + 8);
         break;
       }
       case 'defBoost': {
         // Small blue shield (rounded rect)
-        g.fillStyle(0x3888d8, 1);
+        g.fillStyle(PAPER.teal, 1);
         g.fillRoundedRect(x - 10, y - 12, 20, 24, 6);
-        g.lineStyle(2, 0x2060a0, 1);
+        g.lineStyle(2, PAPER.tealD, 1);
         g.strokeRoundedRect(x - 10, y - 12, 20, 24, 6);
         break;
       }
       case 'maxHpUp': {
         // Small red heart (two circles + triangle)
-        g.fillStyle(0xe04040, 1);
+        g.fillStyle(PAPER.coralD, 1);
         g.fillCircle(x - 5, y - 3, 6);
         g.fillCircle(x + 5, y - 3, 6);
         g.fillTriangle(x - 11, y - 1, x + 11, y - 1, x, y + 10);
@@ -325,9 +325,9 @@ export class ShopScene extends Phaser.Scene {
       }
       case 'revive': {
         // Yellow rect with 2 horizontal lines (scroll)
-        g.fillStyle(0xf0d040, 1);
+        g.fillStyle(PAPER.gold, 1);
         g.fillRoundedRect(x - 8, y - 10, 16, 20, 3);
-        g.lineStyle(2, 0x8a6828, 1);
+        g.lineStyle(2, PAPER.inkTeal, 1);
         g.beginPath();
         g.moveTo(x - 4, y - 3);
         g.lineTo(x + 4, y - 3);

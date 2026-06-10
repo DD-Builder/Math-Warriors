@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { listSlots, clearSave, loadSave } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
@@ -20,13 +20,13 @@ export class SaveSlotScene extends Phaser.Scene {
 
     this.add.text(area.cx, area.top + 50, 'SAVE SLOTS', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '48px', color: '#f0d060',
-      stroke: '#3a1a00', strokeThickness: 7,
+      fontSize: '48px', color: PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 7,
     }).setOrigin(0.5);
 
     this.add.text(area.cx, area.top + 100, 'Choose a slot to play', {
-      ...TEXT.body(), fontSize: '24px', color: '#ffffff',
-      stroke: '#3a1a00', strokeThickness: 3,
+      ...TEXT.body(), fontSize: '24px', color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 3,
     }).setOrigin(0.5);
 
     const slots = listSlots();
@@ -54,7 +54,7 @@ export class SaveSlotScene extends Phaser.Scene {
     const isEmpty = !meta.exists;
 
     PaperPanel(this, x, y, w, h, {
-      color: isEmpty ? 0x1a1208 : 0x2a1808, alpha: 0.85, radius: 18,
+      color: isEmpty ? PAPER.inkTeal : PAPER.tealD, alpha: 0.85, radius: 18,
     });
 
     const top = y - h / 2;
@@ -62,14 +62,14 @@ export class SaveSlotScene extends Phaser.Scene {
     const slotLabel = meta.name || (isEmpty ? 'Empty Slot' : `Slot ${slot}`);
     this.add.text(x, top + 30, slotLabel, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '28px', color: isEmpty ? '#706050' : '#f0d060',
-      stroke: '#000000', strokeThickness: 3,
+      fontSize: '28px', color: isEmpty ? PAPER_CSS.sand : PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 3,
     }).setOrigin(0.5);
 
     if (isEmpty) {
       this.add.text(x, y - 20, '+ NEW GAME', {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '32px', color: '#808060',
+        fontSize: '32px', color: PAPER_CSS.sand,
       }).setOrigin(0.5);
 
       PaperButton(this, x, y + h / 2 - 60, 'START', {
@@ -84,7 +84,7 @@ export class SaveSlotScene extends Phaser.Scene {
       const gradeTxt = gradeNames[meta.grade] || `Grade ${meta.grade}`;
 
       this.add.text(x, top + 70, gradeTxt, {
-        ...TEXT.body(), fontSize: '18px', color: '#c0a878',
+        ...TEXT.body(), fontSize: '18px', color: PAPER_CSS.sand,
       }).setOrigin(0.5);
 
       const save = loadSave(slot);
@@ -98,14 +98,14 @@ export class SaveSlotScene extends Phaser.Scene {
           const heroDef = spawnHero(hero.id);
           if (heroDef) drawHeroSprite(this, hx, heroY, heroDef, { scale: 0.4 });
           this.add.text(hx, heroY + 50, hero.name || '', {
-            ...TEXT.stat(), fontSize: '16px', color: '#f0e0c0',
-            stroke: '#1a0e04', strokeThickness: 2,
+            ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.cream,
+            stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
           }).setOrigin(0.5);
         }
       }
 
       const infoY = top + 260;
-      const infoStyle = { ...TEXT.body(), fontSize: '20px', color: '#e0d0b0' };
+      const infoStyle = { ...TEXT.body(), fontSize: '20px', color: PAPER_CSS.cream };
       this.add.text(x, infoY, `Floor: ${meta.floorsComplete}/9`, infoStyle).setOrigin(0.5);
 
       // 9 small circles showing floor progress
@@ -121,19 +121,19 @@ export class SaveSlotScene extends Phaser.Scene {
         const floorData = save.floors?.[fi];
         if (floorData?.complete) {
           // Gold filled
-          gfx.fillStyle(0xf0d060, 1);
+          gfx.fillStyle(PAPER.gold, 1);
           gfx.fillCircle(dx, dotY, dotRadius);
         } else if (floorData?.unlocked) {
           // White hollow (stroke only)
-          gfx.lineStyle(2, 0xffffff, 1);
+          gfx.lineStyle(2, PAPER.white, 1);
           gfx.strokeCircle(dx, dotY, dotRadius);
         } else {
           // Dark gray
-          gfx.fillStyle(0x404040, 1);
+          gfx.fillStyle(PAPER.tealD, 1);
           gfx.fillCircle(dx, dotY, dotRadius);
         }
         // Dark stroke border for better contrast
-        gfx.lineStyle(1, 0x1a0e04, 0.5);
+        gfx.lineStyle(1, PAPER.inkTeal, 0.5);
         gfx.strokeCircle(dx, dotY, dotRadius);
       }
 
@@ -142,7 +142,7 @@ export class SaveSlotScene extends Phaser.Scene {
       if (meta.lastPlayed) {
         const ago = this.timeAgo(meta.lastPlayed);
         this.add.text(x, dotY + 65, `Last played: ${ago}`, {
-          ...TEXT.stat(), fontSize: '15px', color: '#908060',
+          ...TEXT.stat(), fontSize: '15px', color: PAPER_CSS.sand,
         }).setOrigin(0.5);
       }
 
@@ -166,18 +166,18 @@ export class SaveSlotScene extends Phaser.Scene {
   }
 
   confirmDelete(slot, name) {
-    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.75).setInteractive();
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.75).setInteractive();
     const panel = [];
     panel.push(bg);
 
     const t1 = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 80, `Delete "${name}"?`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '36px', color: '#f05050', stroke: '#000', strokeThickness: 4,
+      fontSize: '36px', color: PAPER_CSS.coralD, stroke: PAPER_CSS.inkTeal, strokeThickness: 4,
     }).setOrigin(0.5);
     panel.push(t1);
 
     const t2 = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30, 'This cannot be undone!', {
-      ...TEXT.body(), fontSize: '22px', color: '#e0c0a0',
+      ...TEXT.body(), fontSize: '22px', color: PAPER_CSS.cream,
     }).setOrigin(0.5);
     panel.push(t2);
 
@@ -216,12 +216,12 @@ export class SaveSlotScene extends Phaser.Scene {
 
   showNamePicker(slot) {
     this._pickerObjects = [];
-    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.8).setInteractive();
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.8).setInteractive();
     this._pickerObjects.push(bg);
 
     const title = this.add.text(GAME_WIDTH / 2, 120, 'NAME YOUR ADVENTURE', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '36px', color: '#f0d060', stroke: '#1a0e04', strokeThickness: 5,
+      fontSize: '36px', color: PAPER_CSS.gold, stroke: PAPER_CSS.inkTeal, strokeThickness: 5,
     }).setOrigin(0.5);
     this._pickerObjects.push(title);
 
@@ -230,7 +230,7 @@ export class SaveSlotScene extends Phaser.Scene {
 
     const preview = this.add.text(GAME_WIDTH / 2, 200, '_', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '48px', color: '#ffffff', stroke: '#3a1a00', strokeThickness: 4,
+      fontSize: '48px', color: PAPER_CSS.cream, stroke: PAPER_CSS.inkTeal, strokeThickness: 4,
       letterSpacing: 4,
     }).setOrigin(0.5);
     this._pickerObjects.push(preview);
@@ -258,7 +258,7 @@ export class SaveSlotScene extends Phaser.Scene {
         const bx = rowStartX + c * (btnSize + btnGap);
         const by = startY + r * (btnSize + btnGap);
         const btn = PaperButton(this, bx, by, ch, {
-          w: btnSize, h: btnSize, color: 0x3a2810, fontSize: 22,
+          w: btnSize, h: btnSize, color: PAPER.inkTeal, fontSize: 22,
           onClick: () => {
             if (currentName.length < MAX_LEN) {
               currentName += ch;

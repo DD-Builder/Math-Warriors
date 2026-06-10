@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
 import { getAllMastery, getMasteryColor, getMasteryLabel } from '../systems/mastery.js';
 import { audio } from '../systems/audio.js';
@@ -23,12 +23,12 @@ export class MasteryScene extends Phaser.Scene {
 
     this.add.text(area.cx, area.top + 50, 'SKILL MASTERY', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '44px', color: '#f0d060',
-      stroke: '#3a1a00', strokeThickness: 6,
+      fontSize: '44px', color: PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 6,
     }).setOrigin(0.5);
 
     this.add.text(area.cx, area.top + 100, 'Track your math skills — answer questions to level up!', {
-      ...TEXT.body(), fontSize: '18px', color: '#e8d8c0',
+      ...TEXT.body(), fontSize: '18px', color: PAPER_CSS.cream,
     }).setOrigin(0.5);
 
     const cols = 4;
@@ -50,13 +50,13 @@ export class MasteryScene extends Phaser.Scene {
       const levelLabel = getMasteryLabel(s.level);
 
       const panel = PaperPanel(this, cx, cy, cardW, cardH, {
-        color: 0xf5ead0, alpha: 0.92, radius: 16,
+        color: PAPER.cream, alpha: 0.92, radius: 16,
       });
 
       // Gold border on mastered domains
       if (levelLabel === 'MASTERED') {
         const borderGfx = this.add.graphics();
-        borderGfx.lineStyle(4, 0xf0d060, 1);
+        borderGfx.lineStyle(4, PAPER.gold, 1);
         borderGfx.strokeRoundedRect(cx - cardW / 2 + 2, cy - cardH / 2 + 2, cardW - 4, cardH - 4, 14);
       }
 
@@ -67,16 +67,16 @@ export class MasteryScene extends Phaser.Scene {
 
       this.add.text(cx, cy - 60, iconLabels[s.id] || '?', {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '40px', color: '#3a2410',
+        fontSize: '40px', color: PAPER_CSS.inkTeal,
       }).setOrigin(0.5);
 
       this.add.text(cx, cy - 25, s.label, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '20px', color: '#3a2410',
+        fontSize: '20px', color: PAPER_CSS.inkTeal,
       }).setOrigin(0.5);
 
       this.add.text(cx, cy + 5, `Standard: ${s.standard}`, {
-        ...TEXT.stat(), fontSize: '13px', color: '#8a7a60',
+        ...TEXT.stat(), fontSize: '13px', color: PAPER_CSS.inkTeal,
       }).setOrigin(0.5);
 
       const barW = 220;
@@ -84,7 +84,7 @@ export class MasteryScene extends Phaser.Scene {
       const barX = cx - barW / 2;
       const barY = cy + 28;
       const gfx = this.add.graphics();
-      gfx.fillStyle(0x2a1a08, 0.3);
+      gfx.fillStyle(PAPER.inkTeal, 0.3);
       gfx.fillRoundedRect(barX, barY, barW, barH, 6);
       const pct = s.total >= 10 ? s.accuracy : 0;
       if (pct > 0) {
@@ -95,8 +95,8 @@ export class MasteryScene extends Phaser.Scene {
       const accText = s.total >= 10 ? `${Math.round(s.accuracy * 100)}%` : `${s.total}/10`;
       this.add.text(cx, barY + barH / 2, accText, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '12px', color: '#ffffff',
-        stroke: '#1a0e04', strokeThickness: 2,
+        fontSize: '12px', color: PAPER_CSS.cream,
+        stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
       }).setOrigin(0.5);
 
       const badge = this.add.graphics();
@@ -104,11 +104,11 @@ export class MasteryScene extends Phaser.Scene {
       badge.fillRoundedRect(cx - 50, cy + 56, 100, 24, 8);
       this.add.text(cx, cy + 68, levelLabel, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '12px', color: '#ffffff',
+        fontSize: '12px', color: PAPER_CSS.cream,
       }).setOrigin(0.5);
 
       this.add.text(cx, cy + 88, `${s.total} questions`, {
-        ...TEXT.stat(), fontSize: '13px', color: '#8a7a60',
+        ...TEXT.stat(), fontSize: '13px', color: PAPER_CSS.inkTeal,
       }).setOrigin(0.5);
     }
 
