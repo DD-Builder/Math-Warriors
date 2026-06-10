@@ -14,6 +14,7 @@
 import { createHeroCanvas, createHeroPartCanvas } from './legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
+import { PAPER, PAPER_CSS } from '../config.js';
 
 // Lookup table: hero.id → art data (draw function, cardBg, topExt, botExt)
 const ART_LOOKUP = {};
@@ -60,7 +61,7 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
     } else {
       // Fallback: colored rectangle if no art exists
       const gfx = scene.add.graphics();
-      gfx.fillStyle(hero.displayColor || 0x2e4e88, 1);
+      gfx.fillStyle(hero.displayColor || PAPER.teal, 1);
       gfx.fillRoundedRect(x - 40 * scale, y - 60 * scale, 80 * scale, 120 * scale, 8);
       return gfx;
     }
@@ -69,7 +70,7 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
   // If evolution stage >= 2, wrap in a container to add aura / particles
   if (evolutionStage >= 2) {
     const container = scene.add.container(x, y);
-    const heroColor = hero.displayColor || 0x2e4e88;
+    const heroColor = hero.displayColor || PAPER.teal;
 
     // Stage 2+: aura ring behind sprite
     const auraRadius = 65 * scale;
@@ -94,7 +95,7 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
     // Stage 3: orbiting particles
     if (evolutionStage >= 3) {
       const isLegendary = hero.trait && /legendary/i.test(hero.trait);
-      const particleColor = isLegendary ? 0xf0d060 : heroColor;
+      const particleColor = isLegendary ? PAPER.gold : heroColor;
       const particleCount = 4;
       for (let i = 0; i < particleCount; i++) {
         const angle = (i / particleCount) * Math.PI * 2;
@@ -140,7 +141,7 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
  */
 function getHeroCardBg(heroId) {
   const art = ART_LOOKUP[heroId];
-  return art ? art.cardBg : '#181828';
+  return art ? art.cardBg : PAPER_CSS.creamD;
 }
 
 // ─── BODY PART SEED RANGES ─────────────────────────────────────
