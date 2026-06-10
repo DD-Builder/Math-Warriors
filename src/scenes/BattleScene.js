@@ -37,6 +37,7 @@ import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
+import { heroFormation, monsterFormation, drawGroundPlane, drawGroundShadow, BATTLE_PERSPECTIVE } from '../systems/perspective.js';
 import { makeRng } from '../systems/rng.js';
 import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
@@ -251,6 +252,12 @@ export class BattleScene extends Phaser.Scene {
     });
 
     this.buildBackground();
+
+    // Draw a subtle ground plane before heroes/monsters for depth illusion
+    const groundGfx = this.add.graphics();
+    groundGfx.setDepth(10);
+    drawGroundPlane(groundGfx, 0x000000, 0.08);
+
     this.buildHeroSprites();
     this.buildEnemySprite();
     this.buildUI();
@@ -537,25 +544,25 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildHeroSprites() {
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 290;
-    const groundY = uiTop;
+    // Use perspective system for 3/4-view diagonal formation
+    const positions = heroFormation(3);
 
-    const enemyCount = this.enemies.length;
-    const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
-    const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
-    const leftAnchor = GAME_WIDTH * 0.12 + spacing / 2;
+    // Ground shadow graphics layer (beneath heroes)
+    const shadowGfx = this.add.graphics();
+    shadowGfx.setDepth(11);
 
     this.heroSprites = this.party.map((hero, i) => {
-      const xStagger = (1 - i) * 15;  // hero 0: +15, hero 1: 0, hero 2: -15
-      const x = leftAnchor + i * spacing + xStagger;
-      const stagger = 30;
-      const baseY = groundY - 90;
-      const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
+      const pos = positions[i];
+      const x = pos.x;
+      const y = pos.y;
+      const scale = pos.scale * 0.85; // overall hero scale factor
 
-      const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
-      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
-      body.setDepth(12);
+      // Draw ground shadow beneath this hero
+      drawGroundShadow(shadowGfx, x, y, scale);
+
+      // Use createAnimatedHero for body-part animation with state machine
+      const body = createAnimatedHero(this, x, y, hero, { scale, floorId: this.floor });
+      body.setDepth(pos.depth);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -584,58 +591,34 @@ export class BattleScene extends Phaser.Scene {
       return { hero, body, name, hpBarBg, hpBarFill, hpText, hpStroke, indicator, x, y };
     });
 
-    // Idle bob — gentle sine wave on each hero
-    this.heroSprites.forEach((hs, i) => {
-      this.tweens.add({
-        targets: hs.body,
-        y: '-=6',
-        duration: 1200 + i * 200,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.inOut',
-      });
-    });
+    // No idle bob tween needed — the state machine's idle state handles breathing
   }
 
   buildEnemySprite() {
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 290;
-    const groundY = uiTop;
-    const centerX = GAME_WIDTH * 0.76;
     const count = this.enemies.length;
 
-    // Dynamic scaling: fewer monsters = bigger, more = smaller with proper spacing
-    // Target display heights: single ~490px (0.77), 2 ~326px (0.51), 3 ~277px (0.43)
-    const monsterScaleByCount = count >= 3 ? 0.43 : count >= 2 ? 0.51 : 0.77;
+    // Use perspective system for 3/4-view monster formation
+    const positions = monsterFormation(count);
 
-    // Calculate offsets: diagonal for 2, triangle for 3
-    const displayH = 640 * monsterScaleByCount;
-    const positions = []; // [{dx, dy}]
-    if (count === 1) {
-      positions.push({ dx: 0, dy: 0 });
-    } else if (count === 2) {
-      // Diagonal: top-left and bottom-right within monster area
-      positions.push({ dx: -80, dy: -displayH * 0.35 });
-      positions.push({ dx: 80, dy: displayH * 0.35 });
-    } else {
-      // Triangle: top-center, bottom-left, bottom-right
-      positions.push({ dx: 0, dy: -displayH * 0.4 });
-      positions.push({ dx: -130, dy: displayH * 0.3 });
-      positions.push({ dx: 130, dy: displayH * 0.3 });
-    }
+    // Ground shadow graphics layer for monsters
+    const monsterShadowGfx = this.add.graphics();
+    monsterShadowGfx.setDepth(11);
 
     this.enemySprites = [];
+    const w = 200;
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const monsterScale = enemy.isBoss ? 1.02 : monsterScaleByCount;
-      const x = centerX + positions[ei].dx;
-      const monsterDisplayH = 640 * monsterScale;
-      const y = groundY - monsterDisplayH * 0.50 + positions[ei].dy;
-      const w = 200, h = 220;
+      const pos = positions[ei];
+      const x = pos.x;
+      const y = pos.y;
+      const monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.02) : pos.scale;
+
+      // Draw ground shadow beneath this monster
+      drawGroundShadow(monsterShadowGfx, x, y, monsterScale, { rx: 40 });
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
-      body.setDepth(12);
+      body.setDepth(pos.depth);
 
       // Name/HP bars directly above the sprite head
       const spriteHalfH = (640 * monsterScale) * 0.50;
@@ -1347,9 +1330,10 @@ export class BattleScene extends Phaser.Scene {
       this.turnLabel.setText(`${hero.name} guards! -50% damage`);
       this.showToast(`${hero.name} GUARDS!`, '#48a848');
       audio.play('battle/correct');
-      // Brief shield visual on the hero sprite
+      // Trigger guard animation state on the hero sprite
       const hs = this.heroSprites[this.currentTurn.heroIndex];
       if (hs && hs.body) {
+        if (hs.body.setGuard) hs.body.setGuard();
         const shield = this.add.circle(hs.x, hs.y, 60, 0x48a848, 0.3);
         this.tweens.add({
           targets: shield, scale: 1.3, alpha: 0,
@@ -1586,6 +1570,9 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Clear guard from previous round
+    if (this.guardActive[this.currentTurn.heroIndex] && this.heroSprites[this.currentTurn.heroIndex]?.body?.setIdle) {
+      this.heroSprites[this.currentTurn.heroIndex].body.setIdle();
+    }
     this.guardActive[this.currentTurn.heroIndex] = false;
 
     // Show command menu filtered by hero class, hide answer buttons
@@ -1987,6 +1974,12 @@ export class BattleScene extends Phaser.Scene {
 
     // Clear guard flags at END of enemy phase (guard lasts full round)
     this.time.delayedCall(aliveEnemies.length * 650 + 100, () => {
+      // Return guarding heroes to idle animation state
+      for (let gi = 0; gi < this.guardActive.length; gi++) {
+        if (this.guardActive[gi] && this.heroSprites[gi]?.body?.setIdle) {
+          this.heroSprites[gi].body.setIdle();
+        }
+      }
       this.guardActive.fill(false);
     });
   }
@@ -2680,13 +2673,18 @@ export class BattleScene extends Phaser.Scene {
     const idx = this.party.indexOf(hero);
     if (idx < 0) return;
     const s = this.heroSprites[idx];
-    this.tweens.add({
-      targets: s.body,
-      alpha: 0.3,
-      duration: 60,
-      yoyo: true,
-      repeat: 1,
-    });
+    // Trigger hit animation state if available (body-part flinch + tint)
+    if (s.body.playHit) {
+      s.body.playHit(350);
+    } else {
+      this.tweens.add({
+        targets: s.body,
+        alpha: 0.3,
+        duration: 60,
+        yoyo: true,
+        repeat: 1,
+      });
+    }
     // Red floating damage number for enemy damage dealt to hero
     this.floatDamageNumber(s.x, s.y - 80, result.modifiedDamage, '#ff6060', '-');
     this.burstParticles(s.x, s.y - 30, 0xc03030);
@@ -2755,7 +2753,12 @@ export class BattleScene extends Phaser.Scene {
     s.hpText.setText(`${hero.hp}/${hero.maxHp}`);
 
     if (hero.hp <= 0) {
-      s.body.setAlpha(0.2);
+      // Trigger KO animation state if available (slump/fall)
+      if (s.body.playKO) {
+        s.body.playKO();
+      } else {
+        s.body.setAlpha(0.2);
+      }
       s.name.setAlpha(0.3);
     }
   }
@@ -3077,6 +3080,12 @@ export class BattleScene extends Phaser.Scene {
     hidePanelFx(this.panelFx);
 
     for (const hs of this.heroSprites) heroVictoryBounce(this, hs);
+    // Trigger victory animation state on all living heroes
+    for (let vi = 0; vi < this.heroSprites.length; vi++) {
+      if (this.party[vi] && this.party[vi].hp > 0 && this.heroSprites[vi].body.playVictory) {
+        this.heroSprites[vi].body.playVictory();
+      }
+    }
     const vArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
     confettiBurst(this, vArea.cx, vArea.cy - 100, 40);
     screenEdgeGlow(this, 0xf0c040, 600);
