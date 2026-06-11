@@ -388,6 +388,20 @@ export class MazeScene extends Phaser.Scene {
     this.buildHUD();
     this.startMazeParticles();
 
+    // --- Follow-camera with zoom ---
+    // The level engine already centers the party on the canvas, so the
+    // heroSprite sits at (GAME_WIDTH/2, GAME_HEIGHT/2). Camera zoom
+    // makes the hero and tiles appear larger (2×). setBounds prevents
+    // the zoomed viewport from showing void beyond the level image.
+    // startFollow keeps the camera locked to the heroSprite (which is
+    // effectively static since the engine internally scrolls).
+    const cam = this.cameras.main;
+    cam.setZoom(2.0);
+    cam.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    if (this.heroSprite) {
+      cam.startFollow(this.heroSprite, true, 0.08, 0.08);
+    }
+
     this.dialogue = new DialogueOverlay(this);
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -396,6 +410,8 @@ export class MazeScene extends Phaser.Scene {
     this._touchDir = null;
 
     this.input.on('pointerdown', (pointer) => {
+      // Convert screen coordinates to camera-relative coordinates
+      // so tap-to-move works correctly with the zoomed camera
       const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2;
       const dx = pointer.x - cx, dy = pointer.y - cy;
       if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
@@ -1635,7 +1651,7 @@ export class MazeScene extends Phaser.Scene {
         const startX = Math.random() * GAME_WIDTH;
         const startY = -10;
         const p = this.add.circle(startX, startY, size, color, 0.4 + Math.random() * 0.3);
-        p.setDepth(50);
+        p.setDepth(50).setScrollFactor(0);
 
         const drift = (Math.random() - 0.5) * 100;
         const duration = 3000 + Math.random() * 2000;
@@ -1668,7 +1684,7 @@ export class MazeScene extends Phaser.Scene {
       color,
       stroke: '#000000',
       strokeThickness: 4,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setScrollFactor(0);
     this.tweens.add({
       targets: t,
       y: sy - 60,

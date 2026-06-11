@@ -298,6 +298,17 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.time.delayedCall(400, () => this.nextTurn());
+
+    // --- Idle camera breathing: subtle slow drift for depth ---
+    this.tweens.add({
+      targets: this.cameras.main,
+      scrollX: 4,
+      scrollY: -3,
+      duration: 4000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
   }
 
   // ================================================================
@@ -2407,12 +2418,17 @@ export class BattleScene extends Phaser.Scene {
         if (heroSprite.body && heroSprite.body.playAttack) {
           heroSprite.body.playAttack('magic');
         }
+        // Camera punch-in for attack impact
+        if (!this.reducedMotion) {
+          this.cameras.main.zoomTo(1.06, 200, 'Cubic.out');
+          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.out'));
+        }
         playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, {
           onHit: () => {
             this.hitFlash();
             this.flashEnemy(result, targetIdx);
             this.updateEnemyHp(targetIdx);
-            this.shakeCamera(0.018, 400);
+            this.shakeCamera(0.022, 500);
             audio.play('battle/hit-enemy');
           },
         });
@@ -2424,6 +2440,11 @@ export class BattleScene extends Phaser.Scene {
         if (heroSprite.body && heroSprite.body.playAttack) {
           const attackType = cls === 'wizard' ? 'magic' : cls === 'bunny' ? 'punch' : 'slash';
           heroSprite.body.playAttack(attackType);
+        }
+        // Camera punch-in for attack impact
+        if (!this.reducedMotion) {
+          this.cameras.main.zoomTo(1.06, 200, 'Cubic.out');
+          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.out'));
         }
         playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
           onHit: () => {

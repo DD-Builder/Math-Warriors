@@ -96,15 +96,31 @@ export class WorldMapScene extends Phaser.Scene {
 
   buildBackgrounds() {
     const drawFns = [drawWorldMapGarden, drawWorldMapCaves, drawWorldMapStarlitHighlands];
+    // Store parallax-eligible background objects per screen
+    this._parallaxObjects = [];
     for (let s = 0; s < TOTAL_SCREENS; s++) {
       const offsetX = s * SCREEN_W;
       const before = this.children.list.length;
       drawFns[s](this, SCREEN_W, GAME_HEIGHT, 777 + s * 100);
       const after = this.children.list.length;
+      const screenObjs = [];
       for (let i = before; i < after; i++) {
         const obj = this.children.list[i];
-        if (obj && obj.x !== undefined) obj.x += offsetX;
+        if (obj && obj.x !== undefined) {
+          obj.x += offsetX;
+          // Determine parallax factor from y position:
+          // Objects higher on screen (sky/far hills) move less,
+          // objects lower (near ground/foreground) move more.
+          const yNorm = Math.max(0, Math.min(1, (obj.y || 0) / GAME_HEIGHT));
+          // Range from 0.02 (far/top) to 0.08 (near/bottom)
+          const pFactor = 0.02 + yNorm * 0.06;
+          obj._baseX = obj.x;
+          obj._parallaxFactor = pFactor;
+          obj._parallaxScreen = s;
+          screenObjs.push(obj);
+        }
       }
+      this._parallaxObjects.push(screenObjs);
 
       if (s > this.maxScreen) {
         const screenNames = ['', 'CRYSTAL CAVES', 'STARLIT HIGHLANDS'];
@@ -1134,5 +1150,26 @@ export class WorldMapScene extends Phaser.Scene {
     closeBtn.shadow.setScrollFactor(0).setDepth(953);
     closeBtn.label.setScrollFactor(0).setDepth(953);
     if (closeBtn.zone) closeBtn.zone.setScrollFactor(0).setDepth(953);
+  }
+
+  // ================================================================
+  // PARALLAX UPDATE
+  // ================================================================
+
+  update() {
+    // Apply parallax offset to background objects based on camera scroll.
+    // Each object shifts slightly relative to its screen's origin,
+    // creating a depth illusion as the camera pans between screens.
+    if (!this._parallaxObjects) return;
+    const scrollX = this.cameras.main.scrollX;
+    for (let s = 0; s < this._parallaxObjects.length; s++) {
+      const screenOffsetX = s * SCREEN_W;
+      const objs = this._parallaxObjects[s];
+      for (let i = 0; i < objs.length; i++) {
+        const obj = objs[i];
+        if (!obj.scene) continue; // destroyed
+        obj.x = obj._baseX + (scrollX - screenOffsetX) * obj._parallaxFactor;
+      }
+    }
   }
 }
