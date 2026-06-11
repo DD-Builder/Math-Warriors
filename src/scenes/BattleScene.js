@@ -39,6 +39,7 @@ import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { createFractionDisplay } from '../ui/fractionDisplay.js';
 import { createGeometryDiagram } from '../ui/geometryDiagram.js';
+import { playMonsterAttack } from '../systems/monsterAttackAnimations.js';
 import { heroFormation, monsterFormation, drawGroundPlane, drawGroundShadow, BATTLE_PERSPECTIVE } from '../systems/perspective.js';
 import { makeRng } from '../systems/rng.js';
 import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
@@ -1934,18 +1935,10 @@ export class BattleScene extends Phaser.Scene {
       const target = currentLiving[attackIndex % currentLiving.length];
       attackIndex++;
 
-      // Enemy windup animation
-      if (attackerSprite) {
-        this.tweens.add({
-          targets: attackerSprite.body,
-          x: attackerSprite.x - 40,
-          duration: 150,
-          yoyo: true,
-          ease: 'Sine.inOut',
-        });
-      }
-
-      this.time.delayedCall(350, () => {
+      // Monster attack animation (uses per-monster themed VFX)
+      const targetHeroSpriteIdx = this.party.indexOf(target);
+      const targetHeroSprite = targetHeroSpriteIdx >= 0 ? this.heroSprites[targetHeroSpriteIdx] : null;
+      const monsterAttackDone = () => {
         const cls = target.class || 'knight';
         const targetHeroIdx = this.party.indexOf(target);
 
@@ -2025,8 +2018,23 @@ export class BattleScene extends Phaser.Scene {
         this.shakeCamera(0.01, 250);
         audio.play('battle/hit-hero');
 
+        // Trigger hero hit animation
+        if (targetHeroSprite?.body?.playHit) {
+          targetHeroSprite.body.playHit();
+        }
+
         this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
-      });
+      };
+
+      // Play the themed monster attack animation
+      if (attackerSprite && targetHeroSprite) {
+        playMonsterAttack(this, attackerSprite, targetHeroSprite, attacker.id, 0, {
+          onHit: () => {},
+          onComplete: monsterAttackDone,
+        });
+      } else {
+        this.time.delayedCall(350, monsterAttackDone);
+      }
     };
 
     doEnemyAttack(0);

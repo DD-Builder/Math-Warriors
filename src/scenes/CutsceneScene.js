@@ -92,10 +92,16 @@ export class CutsceneScene extends Phaser.Scene {
     fadeInScene(this);
     audio.playMusic('music/map');
 
-    drawPapercutBackground(this, this.floorId, GAME_WIDTH, GAME_HEIGHT, 555 + this.floorId);
+    // Set world to 2x viewport width for cinematic camera panning
+    const worldW = GAME_WIDTH * 2;
+    this.cameras.main.setBounds(0, 0, worldW, GAME_HEIGHT);
+    this.cameras.main.setScroll(0, 0);
+
+    // Draw background across the full world width (covers both panel sections)
+    drawPapercutBackground(this, this.floorId, worldW, GAME_HEIGHT, 555 + this.floorId);
 
     this.darkOverlay = this.add.rectangle(
-      GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.25
+      worldW / 2, GAME_HEIGHT / 2, worldW, GAME_HEIGHT, PAPER.shadow, 0.25
     );
 
     this.artContainer = this.add.container(0, 0);
@@ -125,6 +131,11 @@ export class CutsceneScene extends Phaser.Scene {
       w: 200, h: 60, color: PAPER.orange, fontSize: 22,
       onClick: () => this.onTap(),
     });
+    // Fix advance button to camera so it stays visible during pans
+    if (this.advanceBtn.bg) this.advanceBtn.bg.setScrollFactor(0);
+    if (this.advanceBtn.shadow) this.advanceBtn.shadow.setScrollFactor(0);
+    if (this.advanceBtn.label) this.advanceBtn.label.setScrollFactor(0);
+    if (this.advanceBtn.zone) this.advanceBtn.zone.setScrollFactor(0);
 
     this.input.on('pointerdown', () => this.onTap());
 
@@ -147,10 +158,14 @@ export class CutsceneScene extends Phaser.Scene {
     this.sparkleContainer.removeAll(true);
     this.bubbleGfx.clear();
 
-    // Cinematic camera pan between panels
-    const panOffsets = [0, 50, -50, 30, -30];
-    const panX = GAME_WIDTH / 2 + (panOffsets[panelIdx % panOffsets.length] || 0);
-    this.cameras.main.pan(panX, GAME_HEIGHT / 2, 800, 'Sine.easeInOut');
+    // Each panel occupies a viewport-width section of the 2x world.
+    // Alternate panels between the two sections for cinematic panning.
+    const sectionX = (panelIdx % 2) * GAME_WIDTH;
+    const panTargetX = sectionX + GAME_WIDTH / 2;
+    this._panelOffsetX = sectionX;
+
+    // Cinematic camera pan to this panel's section
+    this.cameras.main.pan(panTargetX, GAME_HEIGHT / 2, 800, 'Sine.easeInOut');
 
     const isBoss = line.sprite && (getEnemyById(line.sprite) != null);
     const isWide = line.wide || false;
@@ -161,11 +176,11 @@ export class CutsceneScene extends Phaser.Scene {
       this.drawBubbleBackground('right', isWide);
     } else if (panel.type === 'party') {
       this.drawPartyHeroes();
-      this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.30, line.speaker, 50);
+      this.drawFairySprite(sectionX + GAME_WIDTH * 0.50, GAME_HEIGHT * 0.30, line.speaker, 50);
       this.positionBubble('party');
       this.drawBubbleBackground('party', false);
     } else {
-      this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
+      this.drawFairySprite(sectionX + GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
       this.positionBubble('left');
       this.drawBubbleBackground('left', isWide);
     }
@@ -173,7 +188,7 @@ export class CutsceneScene extends Phaser.Scene {
     const speakerColor = this.getSpeakerColor(line.speaker);
     this.speakerDot.setFillStyle(speakerColor);
 
-    // Zoom slightly on speaker
+    // Zoom slightly on speaker, then ease back
     this.cameras.main.zoomTo(1.05, 300, 'Sine.easeInOut');
     this.time.delayedCall(1500, () => {
       if (this.scene.isActive()) {
@@ -293,10 +308,11 @@ export class CutsceneScene extends Phaser.Scene {
 
   drawPartyHeroes() {
     const party = this.save.party || [];
+    const off = this._panelOffsetX || 0;
     const positions = [
-      { x: GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.74 },
-      { x: GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.70 },
-      { x: GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.74 },
+      { x: off + GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.74 },
+      { x: off + GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.70 },
+      { x: off + GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.74 },
     ];
     for (let i = 0; i < Math.min(3, party.length); i++) {
       const slot = party[i];
@@ -324,12 +340,14 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   drawBossArt(line) {
-    const cx = GAME_WIDTH * 0.78;
+    const off = this._panelOffsetX || 0;
+    const cx = off + GAME_WIDTH * 0.78;
     const cy = GAME_HEIGHT * 0.48;
     const enemy = getEnemyById(line.sprite);
     if (enemy) {
-      // Brief screen darken for boss reveal
-      const darken = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6);
+      // Brief screen darken for boss reveal — covers the panel section
+      const darkenX = off + GAME_WIDTH / 2;
+      const darken = this.add.rectangle(darkenX, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6);
       this.artContainer.add(darken);
       this.tweens.add({ targets: darken, alpha: 0, duration: 800, delay: 400, onComplete: () => darken.destroy() });
 
@@ -358,15 +376,16 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   positionBubble(layout) {
+    const off = this._panelOffsetX || 0;
     let bx;
     if (layout === 'left') {
-      bx = GAME_WIDTH * 0.39;
+      bx = off + GAME_WIDTH * 0.39;
     } else if (layout === 'right') {
-      bx = GAME_WIDTH * 0.02;
+      bx = off + GAME_WIDTH * 0.02;
     } else if (layout === 'party') {
-      bx = GAME_WIDTH * 0.19;
+      bx = off + GAME_WIDTH * 0.19;
     } else {
-      bx = GAME_WIDTH * 0.19;
+      bx = off + GAME_WIDTH * 0.19;
     }
     this._bubbleLayout = layout;
     this._bubbleBx = bx;
@@ -382,7 +401,7 @@ export class CutsceneScene extends Phaser.Scene {
     const pad = { x: 20, top: 44, bottom: 20, name: 36 };
     const by = layout === 'party' ? GAME_HEIGHT * 0.08 : GAME_HEIGHT * 0.25;
 
-    if (isWide) bx = GAME_WIDTH * 0.12;
+    if (isWide) bx = (this._panelOffsetX || 0) + GAME_WIDTH * 0.12;
 
     this.bodyText.setWordWrapWidth(wrapW);
     this.bodyText.setText(this.fullText);

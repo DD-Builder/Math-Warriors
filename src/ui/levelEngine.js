@@ -1347,8 +1347,36 @@ function LV_draw(t) {
       var belowIsWall = (ty2 + 1 < _ROWS) && (_map[ty2 + 1][tx2] === LV_TW);
       if (!belowIsWall) {
         _G.save();
-        _G.fillStyle = 'rgba(10,5,2,0.45)';
+        // Floor-themed side face color (darker shade of the wall theme)
+        var _sideCols = {
+          1: 'rgba(12,28,6,0.55)',   // hedge dark
+          2: 'rgba(18,32,10,0.50)',   // tidepool
+          3: 'rgba(80,100,120,0.40)', // cloud
+          4: 'rgba(14,4,2,0.55)',     // ember
+          5: 'rgba(20,36,44,0.50)',   // ice
+          6: 'rgba(28,8,48,0.50)',    // crystal
+          7: 'rgba(36,28,12,0.50)',   // market
+          8: 'rgba(12,8,4,0.55)',     // library
+          9: 'rgba(8,4,12,0.55)',     // mending
+        };
+        _G.fillStyle = _sideCols[_floorTheme] || 'rgba(10,5,2,0.45)';
         _G.fillRect(scx, southTop, ts + 1, wallH);
+        // Subtle vertical mortar lines on the face for texture
+        _G.globalAlpha = 0.15;
+        _G.strokeStyle = '#000000';
+        _G.lineWidth = 0.5;
+        var mortarStep = ts * 0.25;
+        for (var ml = 1; ml < 4; ml++) {
+          _G.beginPath();
+          _G.moveTo(scx + ml * mortarStep, southTop);
+          _G.lineTo(scx + ml * mortarStep, southTop + wallH);
+          _G.stroke();
+        }
+        // Horizontal mortar line midway
+        _G.beginPath();
+        _G.moveTo(scx, southTop + wallH * 0.5);
+        _G.lineTo(scx + ts + 1, southTop + wallH * 0.5);
+        _G.stroke();
         _G.restore();
       }
     }

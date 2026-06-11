@@ -1102,6 +1102,32 @@ export class MazeScene extends Phaser.Scene {
       const px = gs.partyX;
       const py = gs.partyY;
       const isMoving = this._lastPartyX !== null && (px !== this._lastPartyX || py !== this._lastPartyY);
+
+      // Detect tile change for smooth tween
+      const newTileX = this.playerX;
+      const newTileY = this.playerY;
+      if (this._lastHeroTileX !== undefined &&
+          (newTileX !== this._lastHeroTileX || newTileY !== this._lastHeroTileY)) {
+        // Tile changed: tween the hero sprite to center over 150ms for smooth feel
+        if (this._heroMoveTween) this._heroMoveTween.stop();
+        // Slight offset from center based on movement direction, then settle back
+        const dx = newTileX - this._lastHeroTileX;
+        const dy = newTileY - this._lastHeroTileY;
+        const offsetX = -dx * 4;
+        const offsetY = -dy * 4;
+        this.heroSprite.x = GAME_WIDTH / 2 + offsetX;
+        this.heroSprite.y = GAME_HEIGHT / 2 + offsetY;
+        this._heroMoveTween = this.tweens.add({
+          targets: this.heroSprite,
+          x: GAME_WIDTH / 2,
+          y: GAME_HEIGHT / 2,
+          duration: 150,
+          ease: 'Sine.out',
+        });
+      }
+      this._lastHeroTileX = newTileX;
+      this._lastHeroTileY = newTileY;
+
       if (isMoving && !this._heroWasMoving) {
         this.heroSprite.startWalk();
         this._heroWasMoving = true;
