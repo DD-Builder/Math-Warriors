@@ -13,19 +13,23 @@
 // PERSPECTIVE CONFIGS
 // ──────────────────────────────────────────────────────────────
 
+// 3/4 top-down camera: we're looking DOWN at the battlefield from
+// slightly above and in front. Heroes occupy the lower third (near
+// the camera, larger), monsters occupy the upper third (far from
+// the camera, smaller). The ground plane between them recedes upward.
 export const BATTLE_PERSPECTIVE = {
-  horizonY: 200,
-  groundTopY: 420,
-  groundBottomY: 600,
+  horizonY: 180,
+  groundTopY: 280,     // where monsters stand (far from camera)
+  groundBottomY: 660,  // where heroes stand (near camera)
   vanishX: 720,
-  minScale: 0.82,
-  maxScale: 0.92,
-  heroBaseX: 150,
+  minScale: 0.55,      // monsters are smaller (far away)
+  maxScale: 0.90,      // heroes are larger (close to camera)
+  heroBaseX: 180,
   heroSpacing: 100,
   heroStaggerX: 170,
-  monsterBaseX: 1020,
+  monsterBaseX: 950,
   monsterSpacing: 90,
-  monsterStaggerX: 130,
+  monsterStaggerX: 100,
 };
 
 export const MAZE_PERSPECTIVE = {
@@ -97,14 +101,13 @@ export function setDepthByY(objects, depthBase = 10) {
  */
 export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
   const positions = [];
-  // All heroes at nearly the same Y — a side-by-side line, not a
-  // diagonal stack. Slight Y offset (20px) gives depth without
-  // making them overlap or float above each other.
-  const baseY = config.groundBottomY - 30;
+  // Heroes at the BOTTOM of the ground plane (near the camera).
+  // Side-by-side with a slight stagger so the back hero peeks out.
+  const baseY = config.groundBottomY - 20;
   for (let i = 0; i < heroCount; i++) {
-    const y = baseY - i * 20;
+    const y = baseY - i * 25;
     const x = config.heroBaseX + i * config.heroStaggerX;
-    const scale = config.minScale + (1 - i / Math.max(heroCount - 1, 1)) * (config.maxScale - config.minScale) * 0.5;
+    const scale = scaleForY(y, config);
     positions.push({ x, y, scale, depth: Math.floor(y) });
   }
   return positions;
@@ -112,31 +115,30 @@ export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
 
 /**
  * Compute monster positions in a 3/4-perspective formation.
- * Returns [{x, y, scale, depth}] for each enemy slot.
+ * Monsters at the TOP of the ground plane (far from camera, smaller).
  */
 export function monsterFormation(enemyCount, config = BATTLE_PERSPECTIVE) {
   const positions = [];
-  const yRange = config.groundBottomY - config.groundTopY;
   if (enemyCount === 1) {
-    const y = config.groundTopY + yRange * 0.4;
+    const y = config.groundTopY + 80;
     positions.push({
       x: config.monsterBaseX,
       y,
-      scale: scaleForY(y, config) * 0.85,
+      scale: scaleForY(y, config),
       depth: Math.floor(y),
     });
   } else if (enemyCount === 2) {
     for (let i = 0; i < 2; i++) {
-      const y = config.groundTopY + yRange * (0.25 + i * 0.35);
-      const x = config.monsterBaseX + (i === 0 ? -60 : 60);
-      positions.push({ x, y, scale: scaleForY(y, config) * 0.7, depth: Math.floor(y) });
+      const y = config.groundTopY + 50 + i * 120;
+      const x = config.monsterBaseX + (i === 0 ? -70 : 70);
+      positions.push({ x, y, scale: scaleForY(y, config) * 0.85, depth: Math.floor(y) });
     }
   } else {
     for (let i = 0; i < enemyCount; i++) {
       const t = i / (enemyCount - 1);
-      const y = config.groundTopY + yRange * (0.18 + t * 0.5);
+      const y = config.groundTopY + 40 + t * 160;
       const x = config.monsterBaseX + (i - 1) * config.monsterStaggerX;
-      positions.push({ x, y, scale: scaleForY(y, config) * 0.6, depth: Math.floor(y) });
+      positions.push({ x, y, scale: scaleForY(y, config) * 0.75, depth: Math.floor(y) });
     }
   }
   return positions;

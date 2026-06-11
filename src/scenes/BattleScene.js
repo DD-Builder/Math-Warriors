@@ -259,7 +259,12 @@ export class BattleScene extends Phaser.Scene {
     // Draw a subtle ground plane before heroes/monsters for depth illusion
     const groundGfx = this.add.graphics();
     groundGfx.setDepth(10);
-    drawGroundPlane(groundGfx, PAPER.shadow, 0.08);
+    // Visible ground plane — trapezoid receding from heroes toward
+    // monsters, selling the top-down camera angle.
+    drawGroundPlane(groundGfx, PAPER.sand, 0.25);
+    // Subtle darker strip at the far end (horizon)
+    groundGfx.fillStyle(PAPER.shadow, 0.08);
+    groundGfx.fillRect(0, BATTLE_PERSPECTIVE.groundTopY - 20, GAME_WIDTH, 40);
 
     this.buildHeroSprites();
     this.buildEnemySprite();
