@@ -188,13 +188,7 @@ export class CutsceneScene extends Phaser.Scene {
     const speakerColor = this.getSpeakerColor(line.speaker);
     this.speakerDot.setFillStyle(speakerColor);
 
-    // Zoom slightly on speaker, then ease back
-    this.cameras.main.zoomTo(1.05, 300, 'Sine.easeInOut');
-    this.time.delayedCall(1500, () => {
-      if (this.scene.isActive()) {
-        this.cameras.main.zoomTo(1.0, 300, 'Sine.easeInOut');
-      }
-    });
+    // (per-line zoom pulse removed — it read as jitter, not cinema)
 
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';

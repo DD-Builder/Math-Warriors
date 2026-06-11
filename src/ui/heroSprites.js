@@ -328,6 +328,12 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     return this;
   };
 
+  // Store base scales so the state machine can restore them
+  Object.values(parts).forEach(part => {
+    part._baseScaleX = part.scaleX;
+    part._baseScaleY = part.scaleY;
+  });
+
   // State machine (Phase 0A) — the canonical animation controller
   // (heroClass computed above is reused for class-specific animations)
   const sm = new HeroAnimationSM(parts, scene, heroClass, hero.id);
@@ -358,11 +364,6 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   container.setSelectionSway = function () { sm.transition('selection-sway'); };
   container.setIdle = function () { sm.transition('idle'); };
 
-  // Store base scales so the state machine can restore them
-  Object.values(parts).forEach(part => {
-    part._baseScaleX = part.scaleX;
-    part._baseScaleY = part.scaleY;
-  });
 
   // Evolution visuals — callers pass evolutionStage; honor it the same
   // way drawHeroSprite does so evolved heroes look evolved EVERYWHERE

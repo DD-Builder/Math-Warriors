@@ -33,7 +33,7 @@ STATE_DEFS.idle = {
     const { parts, scene, heroClass } = sm;
     if (parts.torso) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, scaleY: 1.02, duration: 2000,
+        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.045, y: -2, duration: 1600,
         yoyo: true, repeat: -1, ease: 'Sine.inOut',
       }));
     }
@@ -61,7 +61,7 @@ STATE_DEFS.breathe = {
     const { parts, scene } = sm;
     if (parts.torso) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, scaleY: 1.015, duration: 2600,
+        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.015, duration: 2600,
         yoyo: true, repeat: -1, ease: 'Sine.inOut',
       }));
     }
@@ -158,7 +158,7 @@ STATE_DEFS.guard = {
     }
     if (parts.torso) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, scaleY: 1.01, duration: 1200,
+        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.01, duration: 1200,
         yoyo: true, repeat: -1, ease: 'Sine.inOut',
       }));
     }
@@ -192,7 +192,7 @@ STATE_DEFS.attack = {
       }
       if (parts.weapon) {
         sm._tweens.push(scene.tweens.add({
-          targets: parts.weapon, y: -8, scaleX: 1.1, scaleY: 1.1,
+          targets: parts.weapon, y: -8, scaleX: (parts.weapon._baseScaleX ?? parts.weapon.scaleX) * 1.1, scaleY: (parts.weapon._baseScaleY ?? parts.weapon.scaleY) * 1.1,
           duration: 200, yoyo: true, ease: 'Quad.out',
         }));
       }
@@ -224,7 +224,7 @@ STATE_DEFS.attack = {
     } else if (subtype === 'charge') {
       Object.values(parts).forEach(part => {
         sm._tweens.push(scene.tweens.add({
-          targets: part, scaleX: 1.08, scaleY: 1.08, duration: 200, ease: 'Quad.out',
+          targets: part, scaleX: (part._baseScaleX ?? part.scaleX) * 1.08, scaleY: (part._baseScaleY ?? part.scaleY) * 1.08, duration: 200, ease: 'Quad.out',
         }));
       });
     }
@@ -257,7 +257,7 @@ STATE_DEFS.cast = {
     });
     if (parts.weapon) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.weapon, y: -10, scaleX: 1.15, scaleY: 1.15,
+        targets: parts.weapon, y: -10, scaleX: (parts.weapon._baseScaleX ?? parts.weapon.scaleX) * 1.15, scaleY: (parts.weapon._baseScaleY ?? parts.weapon.scaleY) * 1.15,
         duration: 400, ease: 'Quad.out',
       }));
       sm._tweens.push(scene.tweens.add({
@@ -366,7 +366,7 @@ STATE_DEFS['selection-sway'] = {
     });
     if (parts.torso) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, scaleY: 1.02, duration: 2200,
+        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.02, duration: 2200,
         yoyo: true, repeat: -1, ease: 'Sine.inOut',
       }));
     }

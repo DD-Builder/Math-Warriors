@@ -1380,7 +1380,7 @@ export class BattleScene extends Phaser.Scene {
                     '☆'.repeat(5 - this.currentQuestion.stars);
     const isBunnyHeal = cmd === COMMANDS.MAGIC && (hero.class || 'knight') === 'bunny';
     const cmdName = isBunnyHeal ? 'HEAL' : cmd === COMMANDS.MAGIC ? 'MAGIC' : 'FIGHT';
-    this.turnLabel.setText(`${hero.name}: ${cmdName}! ${starStr}`);
+    this.turnLabel.setText(`${hero.name}: ${cmdName}!`);
 
     // --- Battle cry: attack ---
     this.showBattleCry(hero, 'attack');
