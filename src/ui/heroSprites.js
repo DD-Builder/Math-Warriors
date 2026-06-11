@@ -24,6 +24,10 @@ const ART_LOOKUP = {};
 // Canvas cache — one per hero.id, created on first use
 const CANVAS_CACHE = {};
 
+// Whether a hero body part produced any visible pixels — computed once
+// per hero+part, so repeat createAnimatedHero calls skip getImageData.
+const PART_HAS_CONTENT = {};
+
 // Default canvas dimensions for hero portraits
 const HERO_W = 296;
 const HERO_H = 384;
@@ -180,17 +184,25 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     const seeds = BODY_PARTS[partName];
     const key = `hero-${hero.id}-${partName}-f${floorId}`;
 
+    // Pixel-content check is expensive (full-canvas getImageData) —
+    // cache the answer per hero+part so repeat battles don't re-read.
+    const contentKey = `${hero.id}-${partName}`;
+    if (PART_HAS_CONTENT[contentKey] === false) continue;
+
     if (!scene.textures.exists(key)) {
       const cv = createHeroPartCanvas(w, h, art.draw, art.topExt, art.botExt, seeds);
-      // Check if canvas has any visible content — skip empty body parts
-      // (e.g. a hero with no weapon would produce an empty weapon canvas)
-      const checkCtx = cv.getContext('2d');
-      const imgData = checkCtx.getImageData(0, 0, cv.width, cv.height);
-      let hasContent = false;
-      for (let p = 3; p < imgData.data.length; p += 4) {
-        if (imgData.data[p] > 0) { hasContent = true; break; }
+      if (PART_HAS_CONTENT[contentKey] === undefined) {
+        // Check if canvas has any visible content — skip empty body parts
+        // (e.g. a hero with no weapon would produce an empty weapon canvas)
+        const checkCtx = cv.getContext('2d');
+        const imgData = checkCtx.getImageData(0, 0, cv.width, cv.height);
+        let hasContent = false;
+        for (let p = 3; p < imgData.data.length; p += 4) {
+          if (imgData.data[p] > 0) { hasContent = true; break; }
+        }
+        PART_HAS_CONTENT[contentKey] = hasContent;
+        if (!hasContent) continue;
       }
-      if (!hasContent) continue; // Skip empty body parts
       applySpriteFilter(cv, floorId);
       scene.textures.addCanvas(key, cv);
     }
@@ -246,6 +258,37 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     part._baseScaleX = part.scaleX;
     part._baseScaleY = part.scaleY;
   });
+
+  // Evolution visuals — callers pass evolutionStage; honor it the same
+  // way drawHeroSprite does so evolved heroes look evolved EVERYWHERE
+  // (battle, party select, gallery), not just in the ceremony.
+  const evolutionStage = opts.evolutionStage ?? 1;
+  if (evolutionStage >= 2) {
+    const heroColor = hero.displayColor || PAPER.teal;
+    const aura = scene.add.circle(0, 20 * scale, 70 * scale, heroColor, 0.14);
+    container.addAt(aura, 0); // behind all body parts
+    scene.tweens.add({
+      targets: aura, scaleX: 1.12, scaleY: 1.12, alpha: 0.07,
+      duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut',
+    });
+    if (evolutionStage >= 3) {
+      for (let pi = 0; pi < 4; pi++) {
+        const orbitR = 60 * scale;
+        const particle = scene.add.circle(0, 0, 3 * scale, PAPER.gold, 0.7);
+        container.add(particle);
+        const phase = (pi / 4) * Math.PI * 2;
+        const proxy = { t: 0 };
+        scene.tweens.add({
+          targets: proxy, t: Math.PI * 2, duration: 3200 + pi * 180,
+          repeat: -1, ease: 'Linear',
+          onUpdate: () => {
+            particle.x = Math.cos(proxy.t + phase) * orbitR;
+            particle.y = Math.sin(proxy.t + phase) * orbitR * 0.55 + 10 * scale;
+          },
+        });
+      }
+    }
+  }
 
   // Clean up state machine on container destroy.
   // CRITICAL: clear the body self-reference first — Phaser's destroy()

@@ -48,7 +48,7 @@ import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { getHint } from '../systems/hints.js';
 import { recordBattle, getBondStatBonuses, getAvailableCombos } from '../systems/bonds.js';
-import { getEvolutionStatBoosts } from '../systems/evolution.js';
+import { getEvolutionStatBoosts, getEvolutionStage } from '../systems/evolution.js';
 import {
   createSignatureState,
   onHeroDamageDealt,
@@ -563,8 +563,10 @@ export class BattleScene extends Phaser.Scene {
       // Draw ground shadow beneath this hero
       drawGroundShadow(shadowGfx, x, y, scale);
 
-      // Use createAnimatedHero for body-part animation with state machine
-      const body = createAnimatedHero(this, x, y, hero, { scale, floorId: this.floor });
+      // Use createAnimatedHero for body-part animation with state machine.
+      // Pass evolution stage so evolved heroes show their aura in battle.
+      const evoStage = getEvolutionStage(this.save, hero.id);
+      const body = createAnimatedHero(this, x, y, hero, { scale, floorId: this.floor, evolutionStage: evoStage });
       body.setDepth(pos.depth);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
