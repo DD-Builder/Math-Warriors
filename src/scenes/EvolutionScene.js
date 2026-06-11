@@ -49,8 +49,9 @@ export class EvolutionScene extends Phaser.Scene {
     bgGfx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
     // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
-    const frameGfx = this.add.graphics().setDepth(1);
-    drawShadowBox(frameGfx, cx, cy, GAME_WIDTH - 80, GAME_HEIGHT - 80, { layers: 5 });
+    // const frameGfx = this.add.graphics().setDepth(1);
+    // Shadow-box disabled: opaque layers cover scene content
+    // TODO: implement ring-draw (fill border only, transparent center)
 
     // Subtle radial glow at center
     const glowRadius = 400;
@@ -81,7 +82,7 @@ export class EvolutionScene extends Phaser.Scene {
     const heroSprite = drawHeroSprite(this, cx, heroSpriteY, hero, { scale: 1 });
     heroSprite.setAlpha(0);
 
-    const nameText = this.add.text(cx, heroSpriteY + 120, d.heroName.toUpperCase(), {
+    const nameText = this.add.text(cx, heroSpriteY + 120, (d.heroName || hero.name || '').toUpperCase(), {
       ...TEXT.heading(),
       fontSize: '28px',
       color: PAPER_CSS.sand,

@@ -144,9 +144,9 @@ export class TitleScene extends Phaser.Scene {
     this.textures.addCanvas(key, cv);
     this.add.image(W / 2, H / 2, key).setDepth(0);
 
-    // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
-    const frameGfx = this.add.graphics().setDepth(1);
-    drawShadowBox(frameGfx, W / 2, H / 2, W - 80, H - 80, { layers: 5 });
+    // The nested frame layers (lines 64-71 above) already create the
+    // diorama frame effect on the canvas. No separate Phaser overlay
+    // needed — it would draw solid opaque layers over the art.
 
     this.events.once('shutdown', () => {
       this.tweens.killAll();

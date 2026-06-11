@@ -45,8 +45,9 @@ export class PartySelectScene extends Phaser.Scene {
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 333);
 
     // ── SHADOW-BOX FRAME around hero grid area (v2 papercut aesthetic) ──
-    const frameGfx = this.add.graphics().setDepth(1);
-    drawShadowBox(frameGfx, area.cx, area.cy - 40, area.w - 60, area.h - 180, { layers: 4 });
+    // const frameGfx = this.add.graphics().setDepth(1);
+    // Shadow-box disabled: opaque layers cover scene content
+    // TODO: implement ring-draw (fill border only, transparent center)
 
     // Cream backdrop
     PaperPanel(this, area.cx, area.cy, area.w - 20, area.h - 20, {

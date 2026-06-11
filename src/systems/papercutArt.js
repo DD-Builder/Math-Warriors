@@ -237,23 +237,22 @@ export function drawShadowBox(gfx, cx, cy, w, h, opts = {}) {
       roundness,
     });
 
-    // Outer drop shadow (first layer only)
-    if (i === 0) {
-      drawShadowedPoly(gfx, pts, colors[i], {
-        shadowDy: 8,
-        shadowAlpha: 0.18,
-      });
-    } else {
-      // Draw the layer fill without its own drop shadow
-      gfx.fillStyle(colors[i], 1);
-      gfx.fillPoints(pts, true);
-    }
-
-    // Inner shadow: draw a slightly inset version of this SAME layer shape
-    // in the shadow color to simulate shadow falling INTO the cutout.
-    // This appears as a darkened border inside the current layer before the
-    // next layer covers most of it.
+    // Skip the INNERMOST layer fill — the center must be transparent
+    // so scene content (title art, hero cards, etc.) shows through.
+    // Only the frame rings around the edge are drawn.
     if (i < numLayers - 1) {
+      if (i === 0) {
+        drawShadowedPoly(gfx, pts, colors[i], {
+          shadowDy: 8,
+          shadowAlpha: 0.18,
+        });
+      } else {
+        gfx.fillStyle(colors[i], 1);
+        gfx.fillPoints(pts, true);
+      }
+
+      // Inner shadow: darkened border inside this layer before the
+      // next layer covers most of it.
       const shadowInset = inset * 0.55;
       const shadowPts = organicRectPoints(cx, cy, cw - shadowInset * 2, ch - shadowInset * 2, {
         seed: layerSeed + 1000,

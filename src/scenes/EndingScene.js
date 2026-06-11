@@ -42,8 +42,9 @@ export class EndingScene extends Phaser.Scene {
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.25);
 
     // ── SHADOW-BOX FRAME (v2 papercut aesthetic — 5 layers for grandeur) ──
-    const frameGfx = this.add.graphics().setDepth(1);
-    drawShadowBox(frameGfx, GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH - 80, GAME_HEIGHT - 80, { layers: 5 });
+    // const frameGfx = this.add.graphics().setDepth(1);
+    // Shadow-box disabled: opaque layers cover scene content
+    // TODO: implement ring-draw (fill border only, transparent center)
 
     // Sparkle particles
     for (let i = 0; i < 30; i++) {

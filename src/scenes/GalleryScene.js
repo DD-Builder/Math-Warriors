@@ -21,8 +21,9 @@ export class GalleryScene extends Phaser.Scene {
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
 
     // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
-    const frameGfx = this.add.graphics().setDepth(1);
-    drawShadowBox(frameGfx, area.cx, area.cy, area.w - 40, area.h - 40, { layers: 3 });
+    // const frameGfx = this.add.graphics().setDepth(1);
+    // Shadow-box disabled: opaque layers cover scene content
+    // TODO: implement ring-draw (fill border only, transparent center)
 
     const slot = getActiveSlot(this);
     const save = loadSave(slot);

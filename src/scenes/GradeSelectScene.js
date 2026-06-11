@@ -26,8 +26,9 @@ export class GradeSelectScene extends Phaser.Scene {
     scatterPapercutDecor(this, GAME_WIDTH, GAME_HEIGHT, { seed: 12, theme: 'garden' });
 
     // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
-    const frameGfx = this.add.graphics().setDepth(1);
-    drawShadowBox(frameGfx, area.cx, area.cy, area.w - 40, area.h - 40, { layers: 4 });
+    // const frameGfx = this.add.graphics().setDepth(1);
+    // Shadow-box disabled: opaque layers cover scene content
+    // TODO: implement ring-draw (fill border only, transparent center)
 
     // Cream paper panel centered in safe area
     PaperPanel(this, area.cx, area.cy, area.w, area.h, {
