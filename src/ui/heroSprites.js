@@ -247,11 +247,17 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     part._baseScaleY = part.scaleY;
   });
 
-  // Clean up state machine on container destroy
+  // Clean up state machine on container destroy.
+  // CRITICAL: clear the body self-reference first — Phaser's destroy()
+  // calls this.body.destroy() when .body is set, and since body IS this
+  // container that recurses infinitely and crashes scene shutdown.
   const origDestroy = container.destroy.bind(container);
-  container.destroy = function () {
+  container.destroy = function (fromScene) {
+    if (this._destroyed) return;
+    this._destroyed = true;
     sm.destroy();
-    origDestroy();
+    this.body = undefined;
+    origDestroy(fromScene);
   };
 
   return container;

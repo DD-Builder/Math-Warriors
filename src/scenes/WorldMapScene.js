@@ -51,7 +51,14 @@ export class WorldMapScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, TOTAL_W, GAME_HEIGHT);
     this.cameras.main.setScroll(0, 0);
 
-    this.buildBackgrounds();
+    try {
+      this.buildBackgrounds();
+    } catch (e) {
+      console.error('WorldMap buildBackgrounds failed:', e);
+      for (let s = 0; s < TOTAL_SCREENS; s++) {
+        this.add.rectangle(s * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, SCREEN_W, GAME_HEIGHT, PAPER.sage);
+      }
+    }
     this.buildFloorNodes();
     this.buildPaths();
     this.buildMapHero();

@@ -151,6 +151,7 @@ var _fog = null;       // fog grid [row][col] — 0 = hidden, 1 = revealed
 var _gs = null;        // game state {fairies, hasKey, dead, flash}
 var _party = null;     // {x, y, vx, vy, speed, trail, trailLen, facing, animT}
 var _heroCanvases = null;
+var _skipCanvasHero = false;
 var _deathParticles = [];
 var _minimapCanvas = null;
 var _minimapG = null;
@@ -1302,25 +1303,32 @@ function LV_drawMinimap() {
   for (var my = 0; my < _ROWS; my++) for (var mx = 0; mx < _COLS; mx++) {
     if (!_fog[my][mx]) { mg.fillStyle = _fogColorMinimap; mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5); continue; }
     var t2 = _map[my][mx];
-    mg.fillStyle = t2 === LV_TW ? '#2a5c1e' : t2 === LV_TP ? '#a89870' : t2 === LV_TQ ? '#2a5060' : '#3c2010';
+    mg.fillStyle = t2 === LV_TW ? '#3c6b4f' : t2 === LV_TP ? '#e8dec6' : t2 === LV_TQ ? '#44888a' : '#d9cfb2';
     mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5);
   }
+  // Only landmark objects on the minimap — boss, exit, gold chest.
+  // Plotting every item made the map an unreadable dot cloud.
   for (var oi2 = 0; oi2 < _objs.length; oi2++) {
     var o2 = _objs[oi2]; if (_gs.dead[o2.id]) continue;
     if (!_fog[o2.ty] || !_fog[o2.ty][o2.tx]) continue;
-    if (o2.type === 'exit' && !o2.visible) continue;
-    var dc = o2.type === 'monster' ? (o2.hidden ? '#806040' : '#ff4040') : o2.type === 'boss' ? '#ff2020' : o2.type.indexOf('chest') >= 0 ? '#e8a030' : o2.type === 'exit' ? '#40ff40' : o2.type === 'valve' ? '#b07838' : o2.type === 'beacon' ? '#f0c040' : o2.type === 'vent' ? '#a08060' : o2.type === 'fragment' ? '#a060e0' : o2.type === 'crystal' ? '#80c8e8' : o2.type === 'geoshard' ? '#c080f0' : o2.type === 'token' ? '#e8c040' : o2.type === 'page' ? '#c8a060' : '#c07818';
+    var dc = null;
+    if (o2.type === 'boss' && o2.alive) dc = '#d06a4d';
+    else if (o2.type === 'exit' && o2.visible) dc = '#ecb964';
+    else if (o2.type === 'goldchest') dc = '#e39a4a';
     if (!dc) continue;
-    mg.fillStyle = dc; mg.beginPath(); mg.arc((o2.tx + 0.5) * cs, (o2.ty + 0.5) * cs, cs * 0.8, 0, Math.PI * 2); mg.fill();
+    mg.fillStyle = dc; mg.beginPath(); mg.arc((o2.tx + 0.5) * cs, (o2.ty + 0.5) * cs, cs * 1.1, 0, Math.PI * 2); mg.fill();
   }
   var ppx = (_party.x / LV_TILE) * cs, ppy = (_party.y / LV_TILE) * cs;
-  mg.fillStyle = '#ff6060'; mg.beginPath(); mg.arc(ppx, ppy, cs * 1.2, 0, Math.PI * 2); mg.fill();
-  mg.fillStyle = '#ffffff'; mg.beginPath(); mg.arc(ppx, ppy, cs * 0.5, 0, Math.PI * 2); mg.fill();
-  mg.strokeStyle = 'rgba(192,120,24,0.4)'; mg.lineWidth = 1; mg.strokeRect(0, 0, mc.width, mc.height);
-  // Blit minimap onto main canvas (top-right corner)
-  var mmSize = Math.min(_W, _H) * 0.22;
-  var mmX = _W - mmSize - 10, mmY = 10;
+  mg.fillStyle = '#f5eedd'; mg.beginPath(); mg.arc(ppx, ppy, cs * 1.3, 0, Math.PI * 2); mg.fill();
+  mg.fillStyle = '#44888a'; mg.beginPath(); mg.arc(ppx, ppy, cs * 0.7, 0, Math.PI * 2); mg.fill();
+  mg.strokeStyle = 'rgba(245,238,221,0.5)'; mg.lineWidth = 1.5; mg.strokeRect(0, 0, mc.width, mc.height);
+  // Blit minimap onto main canvas — top-LEFT, small, away from the
+  // settings button which lives top-right.
+  var mmSize = Math.min(_W, _H) * 0.13;
+  var mmX = 12, mmY = 12;
+  _G.save(); _G.globalAlpha = 0.88;
   _G.drawImage(mc, mmX, mmY, mmSize, mmSize);
+  _G.restore();
 }
 
 // ─── MAIN DRAW (1:1 from reference) ────────────────────────────
@@ -1439,9 +1447,11 @@ function LV_draw(t) {
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
   }
-  // Party — draw leader only
-  var moving = (_party.vx !== 0 || _party.vy !== 0);
-  LV_drawPartyMember(camX + _party.x * _SCALE, camY + _party.y * _SCALE, ts, 0, moving, t);
+  // Party — draw leader only (skip if external animated hero is used)
+  if (!_skipCanvasHero) {
+    var moving = (_party.vx !== 0 || _party.vy !== 0);
+    LV_drawPartyMember(camX + _party.x * _SCALE, camY + _party.y * _SCALE, ts, 0, moving, t);
+  }
   // Fog overlay
   for (var fy2 = sy0; fy2 < sy1; fy2++) for (var fx2 = sx0; fx2 < sx1; fx2++) {
     if (_fog[fy2][fx2]) continue;
@@ -1738,6 +1748,7 @@ export function LV_setTile(tx, ty, newType) {
   }
 }
 
+export function setSkipCanvasHero(val) { _skipCanvasHero = !!val; }
 export { LV_PAL, LV_TILE };
 
 export function revealSecret(tx, ty) {
