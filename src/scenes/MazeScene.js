@@ -550,7 +550,7 @@ export class MazeScene extends Phaser.Scene {
         g.fillRoundedRect(-cw/2, -ch/2, cw, ch, 4);
         g.fillStyle(0x8a5818, 1);
         g.fillRoundedRect(-cw/2+3, -ch/2+3, cw-6, ch*0.55, 3);
-        g.fillStyle(0xc07818, 1);
+        g.fillStyle(PAPER.orange, 1);
         g.fillRoundedRect(-cw*0.15, -2, cw*0.3, ch*0.3, 2);
         g.fillStyle(0xe8a030, 1);
         g.fillCircle(0, ch*0.05, 3);
@@ -638,13 +638,13 @@ export class MazeScene extends Phaser.Scene {
         const er = ts * 0.4;
         g.fillStyle(PAPER.shadow, 0.2);
         g.fillCircle(2, 3, er);
-        g.fillStyle(0xc07818, 1);
+        g.fillStyle(PAPER.orange, 1);
         g.fillCircle(0, 0, er);
         g.fillStyle(0xe8a030, 1);
         g.fillCircle(0, 0, er * 0.7);
         g.fillStyle(0xf0e040, 0.8);
         g.fillCircle(0, 0, er * 0.35);
-        g.lineStyle(3, 0xc07818, 0.9);
+        g.lineStyle(3, PAPER.orange, 0.9);
         g.strokeCircle(0, 0, er);
         bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         // Exit is always visible but dim/dark until golden key obtained
@@ -711,7 +711,7 @@ export class MazeScene extends Phaser.Scene {
     this.hudChallenge = this.add.text(cx2 + (cardW + 20) / 2, cardY, `${this.challengeProgress}/${ch.count}`, cardStyle).setOrigin(0.5);
 
     // Card labels (tiny, below)
-    const labelStyle = { ...TEXT.stat(), fontSize: '10px', color: '#c0b090' };
+    const labelStyle = { ...TEXT.stat(), fontSize: '16px', color: '#c0b090' };
     this.add.text(cardStartX + cardW / 2, cardY + cardH / 2 + 8, 'GOLD', labelStyle).setOrigin(0.5);
     this.add.text(px + cardW / 2, cardY + cardH / 2 + 8, 'POTIONS', labelStyle).setOrigin(0.5);
     this.add.text(cx2 + (cardW + 20) / 2, cardY + cardH / 2 + 8, ch.label.toUpperCase(), labelStyle).setOrigin(0.5);
@@ -725,13 +725,13 @@ export class MazeScene extends Phaser.Scene {
       const spriteScale = 0.35;
       drawHeroSprite(this, x, partyY - 18, hero, { scale: spriteScale });
       this.add.text(x, partyY + 26, hero.name, {
-        ...TEXT.stat(), fontSize: '10px', color: '#3a2410',
+        ...TEXT.stat(), fontSize: '16px', color: '#3a2410',
       }).setOrigin(0.5);
       const pct = hero.hp / hero.maxHp;
       const hpBg = this.add.graphics();
       hpBg.fillStyle(0x3a2410, 0.4);
       hpBg.fillRoundedRect(x - 30, partyY + 36, 60, 4, 2);
-      hpBg.fillStyle(0x4aa848, 1);
+      hpBg.fillStyle(PAPER.forest, 1);
       hpBg.fillRoundedRect(x - 30, partyY + 36, 60 * pct, 4, 2);
     }
 
@@ -743,7 +743,7 @@ export class MazeScene extends Phaser.Scene {
     });
 
     PaperButton(this, area.right - 100, hudCenterY, 'WORLD MAP', {
-      w: 180, h: 54, color: 0x4aa848, fontSize: 14,
+      w: 180, h: 54, color: PAPER.forest, fontSize: 14,
       onClick: () => {
         audio.play('ui/back');
         this.saveMazeState();
@@ -836,7 +836,7 @@ export class MazeScene extends Phaser.Scene {
       const inParty = partyIds.includes(hero.id);
 
       const cardBg = this.add.graphics().setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
-      cardBg.fillStyle(inParty ? 0xd07818 : 0x2a1808, 0.9);
+      cardBg.fillStyle(inParty ? PAPER.orange : PAPER.inkTeal, 0.9);
       cardBg.fillRoundedRect(x - cardW / 2, y - cardH / 2, cardW, cardH, 12);
       if (inParty) {
         cardBg.lineStyle(3, 0xf0d040, 1);
@@ -853,7 +853,7 @@ export class MazeScene extends Phaser.Scene {
       // Hero name below portrait
       const nameT = this.add.text(x, y + cardH * 0.22, hero.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '14px', color: inParty ? '#fff8e0' : '#f0e4cc',
+        fontSize: '16px', color: inParty ? '#fff8e0' : '#f0e4cc',
         stroke: '#1a0e04', strokeThickness: 2,
       }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(nameT);
@@ -861,7 +861,7 @@ export class MazeScene extends Phaser.Scene {
       // "IN PARTY" label or stats below name
       const badge = this.add.text(x, y + cardH * 0.35, inParty ? 'IN PARTY' : `HP ${hero.maxHp}  ATK ${hero.atk}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '11px', color: inParty ? '#f0d040' : '#a09070',
+        fontSize: '16px', color: inParty ? '#f0d040' : '#a09070',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(badge);
 
@@ -913,7 +913,7 @@ export class MazeScene extends Phaser.Scene {
       const sy = GAME_HEIGHT / 2;
 
       const cardBg = this.add.graphics().setScrollFactor(0).setDepth(SLOT_DEPTH + 1);
-      cardBg.fillStyle(0x2a1808, 0.9);
+      cardBg.fillStyle(PAPER.inkTeal, 0.9);
       cardBg.fillRoundedRect(sx - 80, sy - 80, 160, 180, 12);
       slotObjs.push(cardBg);
 
@@ -1036,7 +1036,7 @@ export class MazeScene extends Phaser.Scene {
       const x = startX + i * (btnW + gap);
       const isCorrect = i === question.correctIndex;
       const ansText = String(question.choices[i]);
-      const bg = this.add.rectangle(x, btnY, btnW, btnH, 0x3888d8, 0.9).setDepth(81).setScrollFactor(0).setInteractive({ useHandCursor: true });
+      const bg = this.add.rectangle(x, btnY, btnW, btnH, PAPER.teal, 0.9).setDepth(81).setScrollFactor(0).setInteractive({ useHandCursor: true });
       const label = this.add.text(x, btnY, ansText, {
         fontFamily: '"Fredoka One", sans-serif',
         fontSize: '32px', color: '#ffffff',

@@ -86,7 +86,7 @@ export class GalleryScene extends Phaser.Scene {
         // Class label
         this.add.text(cx, cy + 80, (hero.class || '').toUpperCase(), {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-          fontSize: '13px', color: PAPER_CSS.inkTeal,
+          fontSize: '16px', color: PAPER_CSS.inkTeal,
         }).setOrigin(0.5);
       } else {
         // Dark silhouette

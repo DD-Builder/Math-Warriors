@@ -299,7 +299,7 @@ export class WorldMapScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.add.text(x, labelY + 12, info.tagline, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '15px',
+      fontSize: '16px',
       color: locked ? PAPER_CSS.forest : PAPER_CSS.forestD,
     }).setOrigin(0.5);
 
@@ -679,10 +679,10 @@ export class WorldMapScene extends Phaser.Scene {
       });
       this.setScrollFactorDeep(partyPanel, 0);
       const partyLabel = this.add.text(stripCx - stripW / 2 + 12, stripY - 24, 'PARTY', {
-        ...TEXT.stat(), fontSize: '11px', color: PAPER_CSS.forest,
+        ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.forest,
       }).setScrollFactor(0);
       const editHint = this.add.text(stripCx + stripW / 2 - 12, stripY - 24, 'TAP TO EDIT', {
-        ...TEXT.stat(), fontSize: '9px', color: PAPER_CSS.sage,
+        ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.sage,
       }).setOrigin(1, 0).setScrollFactor(0);
       for (let i = 0; i < 3; i++) {
         const hx = stripCx - stripW / 2 + 50 + i * 65;
@@ -803,7 +803,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     const title = this.add.text(panelX, panelY - panelH / 2 + 16, 'DAILY QUESTS', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '14px', color: PAPER_CSS.orange,
+      fontSize: '16px', color: PAPER_CSS.orange,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(901);
 
     for (let i = 0; i < quests.length; i++) {
@@ -819,19 +819,19 @@ export class WorldMapScene extends Phaser.Scene {
 
       const label = this.add.text(panelX - panelW / 2 + 28, qy, q.label, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '12px', color: claimed ? PAPER_CSS.sage : PAPER_CSS.inkTeal,
+        fontSize: '16px', color: claimed ? PAPER_CSS.sage : PAPER_CSS.inkTeal,
       }).setOrigin(0, 0).setScrollFactor(0).setDepth(901);
 
       const prog = this.add.text(panelX + panelW / 2 - 16, qy,
         claimed ? '✓' : `${Math.min(p.progress, q.target)}/${q.target}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '12px', color: claimed ? PAPER_CSS.forest : (done ? PAPER_CSS.gold : PAPER_CSS.sage),
+        fontSize: '16px', color: claimed ? PAPER_CSS.forest : (done ? PAPER_CSS.gold : PAPER_CSS.sage),
       }).setOrigin(1, 0).setScrollFactor(0).setDepth(901);
 
       if (done && !claimed) {
         const claimBtn = this.add.text(panelX + panelW / 2 - 14, qy, `+${q.reward}g`, {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-          fontSize: '13px', color: PAPER_CSS.gold, stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
+          fontSize: '16px', color: PAPER_CSS.gold, stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
         }).setOrigin(1, 0).setScrollFactor(0).setDepth(902).setInteractive({ useHandCursor: true });
         claimBtn.on('pointerdown', () => {
           const reward = claimQuestReward(this.save, i);
@@ -1098,7 +1098,7 @@ export class WorldMapScene extends Phaser.Scene {
     elements.push(barBg);
 
     const xpT = this.add.text(cx, barY + barH / 2, `${xp} / ${nextXp} XP`, {
-      ...TEXT.stat(), fontSize: '11px', color: PAPER_CSS.cream,
+      ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.cream,
     }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(953);
     elements.push(xpT);
 
@@ -1109,7 +1109,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     if (level > 1) {
       const bonusT = this.add.text(cx, cy + 82, `(+${bonus.maxHp} HP  +${bonus.atk} ATK  +${bonus.def} DEF from level)`, {
-        ...TEXT.stat(), fontSize: '11px', color: PAPER_CSS.forest,
+        ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.forest,
       }).setOrigin(0.5).setScrollFactor(0).setDepth(952);
       elements.push(bonusT);
     }
@@ -1126,12 +1126,12 @@ export class WorldMapScene extends Phaser.Scene {
       const unlocked = level >= (s.unlockLevel || 1);
       const icon = unlocked ? '>' : '?';
       const txt = this.add.text(cx - 100, sy, `${icon}  ${s.name}`, {
-        ...TEXT.body(), fontSize: '15px',
+        ...TEXT.body(), fontSize: '16px',
         color: unlocked ? PAPER_CSS.inkTeal : PAPER_CSS.sage,
       }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(952);
       elements.push(txt);
       const mult = this.add.text(cx + 100, sy, unlocked ? `${s.multiplier}x` : `Lv ${s.unlockLevel}`, {
-        ...TEXT.stat(), fontSize: '13px',
+        ...TEXT.stat(), fontSize: '16px',
         color: unlocked ? PAPER_CSS.orange : PAPER_CSS.sage,
       }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(952);
       elements.push(mult);
