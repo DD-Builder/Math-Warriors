@@ -4,10 +4,19 @@
  * Provides themed attack animations for all 45 monsters across 9 floors.
  * Each monster has a unique animation that matches its floor's visual theme.
  *
- * Regular monsters: 300-500ms total duration, 1-2 VFX calls
- * Boss monsters: 500-800ms total duration, 3-5 VFX calls, multiple phases
+ * Regular monsters: 300-500ms total duration
+ * Boss monsters: 500-800ms total duration, multi-phase attacks
  *
- * Uses `var` and `function` keyword for maximum compatibility.
+ * Floor themes:
+ *   1 Garden   — green/nature spore bursts, vine projectiles
+ *   2 Tidepool — teal water splashes, ink projectiles, bubble bursts
+ *   3 Cloud    — yellow lightning sparks, hail projectiles, wind shockwaves
+ *   4 Ember    — orange/red fire sparks, lava projectiles, flame bursts
+ *   5 Frozen   — blue/white ice crystals, frost beams, blizzard particles
+ *   6 Crystal  — lavender/purple prism beams, light refraction, crystal sparks
+ *   7 Market   — gold coin projectiles, scroll bursts, mercantile flash
+ *   8 Library  — dark ink projectiles, page flutter, arcane symbols
+ *   9 Mending  — rune circles, void particles, arcane beams
  */
 
 import {
@@ -16,942 +25,1213 @@ import {
   playProjectile,
   playShockwave,
   playBeamTrail,
-  playScreenFlash,
   playElementalBurst,
+  playScreenFlash,
+  playSlashArc,
+  playGroundCrack,
+  playHitStop,
 } from './vfx.js';
 
 // ================================================================
-// DEFAULT ATTACK — fallback for unregistered monsters
+// REGISTRY & DISPATCH
 // ================================================================
 
+export const MONSTER_ATTACK_REGISTRY = {};
+
+export function playMonsterAttack(scene, monsterSprite, targetSprite, monsterId, damage, callbacks) {
+  const entry = MONSTER_ATTACK_REGISTRY[monsterId];
+  if (entry) {
+    entry(scene, monsterSprite, targetSprite, damage, callbacks);
+  } else {
+    defaultMonsterAttack(scene, monsterSprite, targetSprite, damage, callbacks);
+  }
+}
+
 function defaultMonsterAttack(scene, monsterSprite, targetSprite, damage, callbacks) {
-  var mx = monsterSprite.x, my = monsterSprite.y;
-  var tx = targetSprite.x, ty = targetSprite.y;
-  scene.tweens.add({
-    targets: monsterSprite,
-    x: mx + (tx - mx) * 0.35,
-    y: my + (ty - my) * 0.35,
-    duration: 150,
-    yoyo: true,
-    ease: 'Quad.out',
-    onYoyo: function() {
-      playSparkBurst(scene, tx, ty, { colors: [0xffffff, 0xcccccc], count: 10, maxDist: 25 });
-      callbacks.onHit && callbacks.onHit();
-    },
-    onComplete: function() {
-      callbacks.onComplete && callbacks.onComplete();
-    }
+  // Generic attack: projectile -> hit reaction
+  const mx = monsterSprite.x, my = monsterSprite.y;
+  const tx = targetSprite.x, ty = targetSprite.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0xcccccc, size: 6, speed: 500 }).then(() => {
+    playImpactRing(scene, tx, ty, { color: 0xcccccc, endRadius: 40, duration: 250 });
+    playSparkBurst(scene, tx, ty, { count: 10, colors: [0xffffff, 0xcccccc], duration: 300 });
+    callbacks?.onHit?.();
+    scene.time.delayedCall(300, () => { callbacks?.onComplete?.(); });
   });
 }
 
 // ================================================================
-// MONSTER ATTACK REGISTRY
+// FLOOR 1 — The Garden (Addition) — spore / vine / thorn
+// Colors: greens, sage, leaf, forest from PAPER palette
 // ================================================================
 
-export var MONSTER_ATTACK_REGISTRY = {
-
-  // ────────────────────────────────────────────────
-  // FLOOR 1 — Garden (Addition) — spore/vine/thorn
-  // ────────────────────────────────────────────────
-
-  sproutling: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.25,
-      y: my + (ty - my) * 0.25,
-      duration: 130,
-      yoyo: true,
-      ease: 'Quad.out',
-      onYoyo: function() {
-        playSparkBurst(scene, tx, ty, { colors: [0x7d9f6d, 0xb7c4a4], count: 12, maxDist: 30 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  thornwall: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0x4a7a3c, size: 5 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0x4a7a3c, 0x6b9d5e], count: 14, maxDist: 35 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(450, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  blossomfiend: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playSparkBurst(scene, mx, my, { colors: [0xf0a0c0, 0xe888a0], count: 10, maxDist: 30, duration: 200 });
-    scene.time.delayedCall(150, function() {
-      scene.tweens.add({
-        targets: monsterSprite,
-        x: mx + (tx - mx) * 0.4,
-        y: my + (ty - my) * 0.4,
-        duration: 100,
-        yoyo: true,
-        ease: 'Back.out',
-        onYoyo: function() {
-          playSparkBurst(scene, tx, ty, { colors: [0xf0a0c0, 0xc8e070], count: 16, maxDist: 40 });
-          callbacks.onHit && callbacks.onHit();
-        },
-        onComplete: function() {
-          callbacks.onComplete && callbacks.onComplete();
-        }
+// Sproutling — tiny spore lob: arcs a small green spore at the target
+MONSTER_ATTACK_REGISTRY['sproutling'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.25,
+    y: my + (ty - my) * 0.25,
+    duration: 130,
+    yoyo: true,
+    ease: 'Quad.out',
+    onYoyo: function() {
+      playSparkBurst(scene, tx, ty, {
+        colors: [0x7d9f6d, 0xb7c4a4, 0x9bad87],
+        count: 12, maxDist: 30, duration: 300
       });
-    });
-  },
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
 
-  puffshroom: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
+// Thornwall — thorn volley: fires a sharp green projectile then bursts thorns
+MONSTER_ATTACK_REGISTRY['thornwall'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0x3c6b4f, size: 5, speed: 550 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0x3c6b4f, 0x57835f, 0x7d9f6d],
+      count: 14, maxDist: 35, duration: 280
+    });
+    playImpactRing(scene, tx, ty, { color: 0x3c6b4f, endRadius: 35, duration: 250 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(450, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Blossom Fiend — petal storm: sprays pink petals then lunges with a blossom burst
+MONSTER_ATTACK_REGISTRY['blossomfiend'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Petal spray wind-up
+  playSparkBurst(scene, mx, my, {
+    colors: [0xe8a09a, 0xf2bf9a, 0xb7c4a4],
+    count: 10, maxDist: 30, duration: 200
+  });
+  scene.time.delayedCall(150, function() {
     scene.tweens.add({
-      targets: monsterSprite,
-      scaleX: 1.3,
-      scaleY: 0.8,
-      duration: 120,
-      yoyo: true,
-      ease: 'Quad.out',
-      onYoyo: function() {
-        playElementalBurst(scene, tx, ty, { colors: [0xa8c070, 0x90b048, 0xd0e8a0], count: 20, maxDist: 50, duration: 400 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  briarking: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: vine warning beam
-    playBeamTrail(scene, mx, my, tx, ty, { color: 0x3c6b4f, trailColor: 0x2a5240, spread: 15, duration: 200 });
-    // Phase 2: thorn barrage
-    scene.time.delayedCall(250, function() {
-      playProjectile(scene, mx, my, tx, ty, { color: 0x7d9f6d, size: 6 }).then(function() {
-        playShockwave(scene, tx, ty, { color: 0x3c6b4f, endRadius: 80 });
-        playSparkBurst(scene, tx, ty, { colors: [0x7d9f6d, 0xecb964], count: 20, maxDist: 50 });
-        callbacks.onHit && callbacks.onHit();
-      });
-    });
-    // Phase 3: screen flash finale
-    scene.time.delayedCall(550, function() {
-      playScreenFlash(scene, { color: 0x3c6b4f, alpha: 0.25, duration: 150 });
-    });
-    scene.time.delayedCall(700, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  // ────────────────────────────────────────────────
-  // FLOOR 2 — Tidepool (Subtraction) — water/ink/tentacle
-  // ────────────────────────────────────────────────
-
-  drifter: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.2,
-      y: my + (ty - my) * 0.2,
-      duration: 160,
-      yoyo: true,
-      ease: 'Sine.inOut',
-      onYoyo: function() {
-        playSparkBurst(scene, tx, ty, { colors: [0x5588bb, 0x88bbdd], count: 10, maxDist: 35, duration: 350 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  gulper: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.5,
-      y: my + (ty - my) * 0.5,
-      duration: 100,
-      yoyo: true,
-      ease: 'Back.out',
-      onYoyo: function() {
-        playImpactRing(scene, tx, ty, { color: 0x3366aa, endRadius: 40 });
-        playSparkBurst(scene, tx, ty, { colors: [0x4477bb, 0x88bbee], count: 12, maxDist: 30 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  inkspitter: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0x1a1a2e, size: 7 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0x1a1a2e, 0x333355, 0x4a4a6e], count: 16, maxDist: 40 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(450, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  abyssaleel: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playBeamTrail(scene, mx, my, tx, ty, { color: 0x6699ff, trailColor: 0x3355aa, spread: 10, duration: 250 });
-    scene.time.delayedCall(200, function() {
-      playSparkBurst(scene, tx, ty, { colors: [0x6699ff, 0xaaccff], count: 14, maxDist: 35 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(400, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  pressure: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: crushing water pressure from above
-    playElementalBurst(scene, tx, ty - 40, { colors: [0x2244aa, 0x3366cc, 0x88bbee], count: 24, maxDist: 60, duration: 300 });
-    // Phase 2: tentacle slam
-    scene.time.delayedCall(200, function() {
-      scene.tweens.add({
-        targets: monsterSprite,
-        x: mx + (tx - mx) * 0.45,
-        y: my + (ty - my) * 0.45,
-        duration: 120,
-        yoyo: true,
-        ease: 'Quad.in',
-        onYoyo: function() {
-          playShockwave(scene, tx, ty, { color: 0x2244aa, endRadius: 100 });
-          playImpactRing(scene, tx, ty, { color: 0x3366cc, endRadius: 60 });
-          callbacks.onHit && callbacks.onHit();
-        }
-      });
-    });
-    // Phase 3: deep flash
-    scene.time.delayedCall(500, function() {
-      playScreenFlash(scene, { color: 0x112255, alpha: 0.3, duration: 180 });
-    });
-    scene.time.delayedCall(700, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  // ────────────────────────────────────────────────
-  // FLOOR 3 — Cloud (Multiplication) — lightning/hail/wind
-  // ────────────────────────────────────────────────
-
-  stormwing: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.3,
-      duration: 100,
-      yoyo: true,
-      ease: 'Quad.out',
-      onYoyo: function() {
-        playSparkBurst(scene, tx, ty, { colors: [0xf0e868, 0xfff8a0], count: 14, maxDist: 35 });
-        playImpactRing(scene, tx, ty, { color: 0xf0e868, endRadius: 35 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  hailshot: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my - 30, tx, ty, { color: 0xc8e8ff, size: 5 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0xc8e8ff, 0xa0c8e8], count: 12, maxDist: 30 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(450, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  cycloneimp: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      angle: 360,
-      x: mx + (tx - mx) * 0.45,
-      y: my + (ty - my) * 0.45,
-      duration: 180,
-      yoyo: true,
-      ease: 'Cubic.out',
-      onYoyo: function() {
-        playShockwave(scene, tx, ty, { color: 0x88ccaa, endRadius: 50, duration: 250 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        monsterSprite.angle = 0;
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  thunderclap: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playSparkBurst(scene, tx, ty, { colors: [0xf0e868, 0xfff8a0, 0xffffff], count: 18, maxDist: 45, duration: 300 });
-    scene.time.delayedCall(80, function() {
-      playShockwave(scene, tx, ty, { color: 0xf0e868, endRadius: 70 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(400, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  skywhale: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: rise up
-    scene.tweens.add({
-      targets: monsterSprite,
-      y: my - 40,
-      duration: 200,
-      ease: 'Quad.out'
-    });
-    // Phase 2: dive bomb
-    scene.time.delayedCall(220, function() {
-      scene.tweens.add({
-        targets: monsterSprite,
-        x: tx,
-        y: ty - 20,
-        duration: 150,
-        ease: 'Quad.in',
-        onComplete: function() {
-          playShockwave(scene, tx, ty, { color: 0x8888dd, endRadius: 120 });
-          playImpactRing(scene, tx, ty, { color: 0xaaaaff, endRadius: 60 });
-          playElementalBurst(scene, tx, ty, { colors: [0x8888dd, 0xaaaaff, 0xccccff], count: 28, maxDist: 60 });
-          playScreenFlash(scene, { color: 0x8888dd, alpha: 0.3, duration: 150 });
-          callbacks.onHit && callbacks.onHit();
-          // Return to position
-          scene.tweens.add({
-            targets: monsterSprite,
-            x: mx,
-            y: my,
-            duration: 200,
-            ease: 'Sine.out'
-          });
-        }
-      });
-    });
-    scene.time.delayedCall(750, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  // ────────────────────────────────────────────────
-  // FLOOR 4 — Ember (Division) — fire/lava/ash
-  // ────────────────────────────────────────────────
-
-  cindercrab: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.35,
-      y: my + (ty - my) * 0.35,
-      duration: 110,
-      yoyo: true,
-      ease: 'Back.out',
-      onYoyo: function() {
-        playSparkBurst(scene, tx, ty, { colors: [0xff6622, 0xff9944], count: 14, maxDist: 30 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  ashwalker: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Ash cloud
-    playSparkBurst(scene, mx, my, { colors: [0x555555, 0x888888, 0xaaaaaa], count: 10, maxDist: 30, duration: 250 });
-    scene.time.delayedCall(120, function() {
-      scene.tweens.add({
-        targets: monsterSprite,
-        x: mx + (tx - mx) * 0.4,
-        y: my + (ty - my) * 0.4,
-        duration: 100,
-        yoyo: true,
-        ease: 'Quad.in',
-        onYoyo: function() {
-          playSparkBurst(scene, tx, ty, { colors: [0xff4400, 0xff8833], count: 16, maxDist: 35 });
-          callbacks.onHit && callbacks.onHit();
-        },
-        onComplete: function() {
-          callbacks.onComplete && callbacks.onComplete();
-        }
-      });
-    });
-  },
-
-  magmatoad: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0xff4400, size: 8 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0xff4400, 0xff8833, 0xffcc44], count: 18, maxDist: 40 });
-      playImpactRing(scene, tx, ty, { color: 0xff6622, endRadius: 40 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(500, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  spineshard: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0xcc4400, size: 4 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0xcc4400, 0xaa3300], count: 10, maxDist: 25 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(400, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  pyroclast: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: eruption at monster
-    playElementalBurst(scene, mx, my - 20, { colors: [0xff4400, 0xff8833, 0xffcc44], count: 24, maxDist: 50, duration: 300 });
-    // Phase 2: lava flow beam
-    scene.time.delayedCall(200, function() {
-      playBeamTrail(scene, mx, my, tx, ty, { color: 0xff4400, trailColor: 0xcc2200, spread: 20, duration: 250 });
-    });
-    // Phase 3: fire storm impact
-    scene.time.delayedCall(400, function() {
-      playShockwave(scene, tx, ty, { color: 0xff6622, endRadius: 100 });
-      playSparkBurst(scene, tx, ty, { colors: [0xff4400, 0xff8833, 0xffcc44], count: 24, maxDist: 55 });
-      playScreenFlash(scene, { color: 0xff4400, alpha: 0.3, duration: 160 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(750, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  // ────────────────────────────────────────────────
-  // FLOOR 5 — Frozen (Fractions) — ice/frost/blizzard
-  // ────────────────────────────────────────────────
-
-  frostbite: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0x88ddff, size: 5 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0x88ddff, 0xccf0ff], count: 12, maxDist: 30 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(400, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  icicle: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Falling icicle from above
-    playProjectile(scene, tx, ty - 120, tx, ty, { color: 0xaaeeff, size: 6 }).then(function() {
-      playImpactRing(scene, tx, ty, { color: 0x88ccee, endRadius: 35 });
-      playSparkBurst(scene, tx, ty, { colors: [0xaaeeff, 0xccf8ff], count: 10, maxDist: 28 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(400, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  snowdrift: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.2,
-      duration: 140,
-      yoyo: true,
-      ease: 'Sine.inOut',
-      onYoyo: function() {
-        playElementalBurst(scene, tx, ty, { colors: [0xddeeff, 0xffffff, 0xccddee], count: 16, maxDist: 45, duration: 350 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  glacial: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.45,
-      y: my + (ty - my) * 0.45,
-      duration: 130,
-      yoyo: true,
-      ease: 'Quad.in',
-      onYoyo: function() {
-        playShockwave(scene, tx, ty, { color: 0x88ccee, endRadius: 55 });
-        playSparkBurst(scene, tx, ty, { colors: [0x88ccee, 0xaaeeff], count: 14, maxDist: 35 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  absolutezero: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: frost breath beam
-    playBeamTrail(scene, mx, my, tx, ty, { color: 0x88ddff, trailColor: 0x55aacc, spread: 25, duration: 300 });
-    // Phase 2: ice storm burst
-    scene.time.delayedCall(250, function() {
-      playElementalBurst(scene, tx, ty, { colors: [0x88ddff, 0xaaeeff, 0xffffff], count: 30, maxDist: 65, duration: 400 });
-      playShockwave(scene, tx, ty, { color: 0x88ddff, endRadius: 90 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    // Phase 3: freeze flash
-    scene.time.delayedCall(500, function() {
-      playScreenFlash(scene, { color: 0xccf0ff, alpha: 0.4, duration: 200 });
-      playImpactRing(scene, tx, ty, { color: 0xaaeeff, endRadius: 70 });
-    });
-    scene.time.delayedCall(750, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  // ────────────────────────────────────────────────
-  // FLOOR 6 — Crystal (Geometry) — prism/crystal/refraction
-  // ────────────────────────────────────────────────
-
-  shard: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0xdd88ff, size: 5 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0xdd88ff, 0xee99ff], count: 10, maxDist: 28 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(400, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  geode: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      scaleX: 1.2,
-      scaleY: 1.2,
-      duration: 100,
-      yoyo: true,
-      ease: 'Quad.out',
-      onYoyo: function() {
-        playElementalBurst(scene, tx, ty, { colors: [0xcc66ee, 0xdd88ff, 0xffaaff], count: 20, maxDist: 45 });
-        playImpactRing(scene, tx, ty, { color: 0xcc66ee, endRadius: 45 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  prismling: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playBeamTrail(scene, mx, my, tx, ty, { color: 0xff88cc, trailColor: 0x88ccff, spread: 12, duration: 250 });
-    scene.time.delayedCall(200, function() {
-      playSparkBurst(scene, tx, ty, { colors: [0xff8888, 0x88ff88, 0x8888ff, 0xffff88], count: 16, maxDist: 35 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(420, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  facet: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
+      targets: ms,
       x: mx + (tx - mx) * 0.4,
       y: my + (ty - my) * 0.4,
-      duration: 120,
-      yoyo: true,
-      ease: 'Quad.in',
-      onYoyo: function() {
-        playImpactRing(scene, tx, ty, { color: 0xbb77dd, endRadius: 45 });
-        playSparkBurst(scene, tx, ty, { colors: [0xbb77dd, 0xdd99ff], count: 12, maxDist: 30 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  theprism: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: prismatic beam barrage (three beams in sequence)
-    playBeamTrail(scene, mx, my, tx - 20, ty, { color: 0xff4444, trailColor: 0xcc2222, spread: 8, duration: 200 });
-    scene.time.delayedCall(100, function() {
-      playBeamTrail(scene, mx, my, tx, ty, { color: 0x44ff44, trailColor: 0x22cc22, spread: 8, duration: 200 });
-    });
-    scene.time.delayedCall(200, function() {
-      playBeamTrail(scene, mx, my, tx + 20, ty, { color: 0x4444ff, trailColor: 0x2222cc, spread: 8, duration: 200 });
-    });
-    // Phase 2: crystal storm at target
-    scene.time.delayedCall(350, function() {
-      playElementalBurst(scene, tx, ty, { colors: [0xff8888, 0x88ff88, 0x8888ff, 0xffff88, 0xff88ff], count: 30, maxDist: 60 });
-      playShockwave(scene, tx, ty, { color: 0xffffff, endRadius: 90 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    // Phase 3: prismatic flash
-    scene.time.delayedCall(550, function() {
-      playScreenFlash(scene, { color: 0xffffff, alpha: 0.35, duration: 180 });
-    });
-    scene.time.delayedCall(750, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  // ────────────────────────────────────────────────
-  // FLOOR 7 — Market (Money) — coin/scroll/scale
-  // ────────────────────────────────────────────────
-
-  pickpocket: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.5,
-      y: my + (ty - my) * 0.5,
-      duration: 90,
-      yoyo: true,
-      ease: 'Quad.out',
-      onYoyo: function() {
-        playSparkBurst(scene, tx, ty, { colors: [0xffd700, 0xffec80], count: 10, maxDist: 25 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  taxcollector: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      y: my - 20,
       duration: 100,
-      ease: 'Quad.out',
-      onComplete: function() {
-        scene.tweens.add({
-          targets: monsterSprite,
-          x: mx + (tx - mx) * 0.3,
-          y: my + (ty - my) * 0.3,
-          duration: 100,
-          yoyo: true,
-          ease: 'Quad.in',
-          onYoyo: function() {
-            playImpactRing(scene, tx, ty, { color: 0xcc8833, endRadius: 40 });
-            playSparkBurst(scene, tx, ty, { colors: [0xcc8833, 0xeebb66], count: 12, maxDist: 30 });
-            callbacks.onHit && callbacks.onHit();
-          },
-          onComplete: function() {
-            callbacks.onComplete && callbacks.onComplete();
-          }
+      yoyo: true,
+      ease: 'Back.out',
+      onYoyo: function() {
+        playSparkBurst(scene, tx, ty, {
+          colors: [0xe8a09a, 0x9bad87, 0xf2bf9a],
+          count: 16, maxDist: 40, duration: 300
         });
-      }
-    });
-  },
-
-  merchant: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Scale weight drop from above
-    playProjectile(scene, tx, ty - 100, tx, ty, { color: 0xbb8844, size: 8 }).then(function() {
-      playImpactRing(scene, tx, ty, { color: 0xbb8844, endRadius: 40 });
-      playSparkBurst(scene, tx, ty, { colors: [0xbb8844, 0xddaa66], count: 10, maxDist: 30 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(450, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  banker: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Vault door slam + coin shower
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.4,
-      y: my + (ty - my) * 0.4,
-      duration: 130,
-      yoyo: true,
-      ease: 'Quad.in',
-      onYoyo: function() {
-        playShockwave(scene, tx, ty, { color: 0x888888, endRadius: 50 });
-        playSparkBurst(scene, tx, ty, { colors: [0xffd700, 0xffec80, 0xddbb33], count: 18, maxDist: 40 });
-        callbacks.onHit && callbacks.onHit();
+        playSlashArc(scene, tx, ty, { color: 0xe8a09a, lineWidth: 4, arcSpread: 60, duration: 250 });
+        cb?.onHit?.();
       },
       onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
+        cb?.onComplete?.();
       }
     });
-  },
+  });
+};
 
-  counterfeiter: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: gold flood beam
-    playBeamTrail(scene, mx, my, tx, ty, { color: 0xffd700, trailColor: 0xddbb33, spread: 20, duration: 250 });
-    // Phase 2: coin barrage
-    scene.time.delayedCall(200, function() {
-      playProjectile(scene, mx, my - 10, tx, ty, { color: 0xffd700, size: 5 }).then(function() {
-        playSparkBurst(scene, tx, ty, { colors: [0xffd700, 0xffec80, 0xddbb33], count: 24, maxDist: 50 });
-        callbacks.onHit && callbacks.onHit();
+// Puffshroom — spore cloud: inflates then pops, releasing a toxic spore cloud
+MONSTER_ATTACK_REGISTRY['puffshroom'] = function(scene, ms, ts, dmg, cb) {
+  const tx = ts.x, ty = ts.y;
+  // Inflate
+  scene.tweens.add({
+    targets: ms,
+    scaleX: 1.3,
+    scaleY: 0.8,
+    duration: 120,
+    yoyo: true,
+    ease: 'Quad.out',
+    onYoyo: function() {
+      playElementalBurst(scene, tx, ty, {
+        colors: [0x9bad87, 0xb7c4a4, 0x7d9f6d],
+        count: 20, maxDist: 50, duration: 400
       });
-    });
-    // Phase 3: flash
-    scene.time.delayedCall(500, function() {
-      playShockwave(scene, tx, ty, { color: 0xffd700, endRadius: 80 });
-      playScreenFlash(scene, { color: 0xffd700, alpha: 0.25, duration: 150 });
-    });
-    scene.time.delayedCall(700, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
+      playShockwave(scene, tx, ty, { color: 0x9bad87, endRadius: 45, duration: 300 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
 
-  // ────────────────────────────────────────────────
-  // FLOOR 8 — Library (Word Problems) — page/ink/riddle
-  // ────────────────────────────────────────────────
-
-  bookworm_e: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.25,
-      y: my + (ty - my) * 0.25,
-      duration: 130,
-      yoyo: true,
-      ease: 'Sine.out',
-      onYoyo: function() {
-        playSparkBurst(scene, tx, ty, { colors: [0xf5f0e0, 0xe8dcc0], count: 14, maxDist: 35, duration: 300 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
+// Briar King (BOSS) — crown of thorns: vine beam, thorn barrage, ground crack, nature flash
+MONSTER_ATTACK_REGISTRY['briarking'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: vine warning beam
+  playBeamTrail(scene, mx, my, tx, ty, {
+    color: 0x3c6b4f, trailColor: 0x2a5240,
+    spread: 15, duration: 200
+  });
+  // Phase 2: thorn projectile into ground crack
+  scene.time.delayedCall(250, function() {
+    playProjectile(scene, mx, my, tx, ty, { color: 0x7d9f6d, size: 7, speed: 600 }).then(function() {
+      playShockwave(scene, tx, ty, { color: 0x3c6b4f, endRadius: 80, duration: 300 });
+      playSparkBurst(scene, tx, ty, {
+        colors: [0x7d9f6d, 0xb7c4a4, 0xecb964],
+        count: 22, maxDist: 50, duration: 350
+      });
+      playGroundCrack(scene, tx, ty, {
+        lineCount: 5, length: 55, color: 0x3c6b4f,
+        alpha: 0.7, lineWidth: 3, duration: 400
+      });
+      cb?.onHit?.();
     });
-  },
-
-  inkblot: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0x222244, size: 7 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0x222244, 0x444466, 0x333355], count: 16, maxDist: 38 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(450, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  riddler: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Question mark blast: burst at target
-    playElementalBurst(scene, tx, ty, { colors: [0xddcc44, 0xffee88, 0xccbb33], count: 18, maxDist: 40, duration: 350 });
-    scene.time.delayedCall(100, function() {
-      playImpactRing(scene, tx, ty, { color: 0xddcc44, endRadius: 40 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(400, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  archivist: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Book slam lunge
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.4,
-      y: my + (ty - my) * 0.4,
-      duration: 120,
-      yoyo: true,
-      ease: 'Quad.in',
-      onYoyo: function() {
-        playImpactRing(scene, tx, ty, { color: 0x8b7355, endRadius: 45 });
-        playSparkBurst(scene, tx, ty, { colors: [0xf5f0e0, 0xe8dcc0, 0xd0c8a0], count: 20, maxDist: 45 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  theparadox: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: reality warp — distort at monster position
-    playSparkBurst(scene, mx, my, { colors: [0x8844cc, 0x44cc88, 0xcc4488], count: 16, maxDist: 40, duration: 250 });
-    // Phase 2: impossible geometry burst
-    scene.time.delayedCall(200, function() {
-      playBeamTrail(scene, mx, my, tx, ty, { color: 0x8844cc, trailColor: 0x44cc88, spread: 18, duration: 250 });
-    });
-    scene.time.delayedCall(380, function() {
-      playElementalBurst(scene, tx, ty, { colors: [0x8844cc, 0x44cc88, 0xcc4488, 0xffffff], count: 28, maxDist: 55 });
-      playShockwave(scene, tx, ty, { color: 0x8844cc, endRadius: 100 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    // Phase 3: paradox flash
-    scene.time.delayedCall(550, function() {
-      playScreenFlash(scene, { color: 0x8844cc, alpha: 0.35, duration: 200 });
-    });
-    scene.time.delayedCall(780, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  // ────────────────────────────────────────────────
-  // FLOOR 9 — Mending (Boss Gauntlet) — rune/hex/void
-  // ────────────────────────────────────────────────
-
-  runebound: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Rune circle blast
-    playImpactRing(scene, tx, ty, { color: 0x44aaff, endRadius: 50, strokeWidth: 4 });
-    scene.time.delayedCall(80, function() {
-      playElementalBurst(scene, tx, ty, { colors: [0x44aaff, 0x6688cc, 0x88ccff], count: 18, maxDist: 40 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(400, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  hexweave: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0x9944cc, size: 6 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0x9944cc, 0xbb66ee, 0x772299], count: 14, maxDist: 35 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(450, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  grimoire: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    playProjectile(scene, mx, my, tx, ty, { color: 0xeedd88, size: 5 }).then(function() {
-      playSparkBurst(scene, tx, ty, { colors: [0xeedd88, 0xf5f0e0, 0xddcc66], count: 12, maxDist: 30 });
-      playImpactRing(scene, tx, ty, { color: 0xeedd88, endRadius: 35 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    scene.time.delayedCall(450, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
-
-  familiar: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Shadow pounce — fast lunge
-    scene.tweens.add({
-      targets: monsterSprite,
-      x: mx + (tx - mx) * 0.6,
-      y: my + (ty - my) * 0.6,
-      duration: 100,
-      yoyo: true,
-      ease: 'Back.out',
-      onYoyo: function() {
-        playSparkBurst(scene, tx, ty, { colors: [0x332244, 0x553366, 0x221133], count: 14, maxDist: 30 });
-        playImpactRing(scene, tx, ty, { color: 0x553366, endRadius: 35 });
-        callbacks.onHit && callbacks.onHit();
-      },
-      onComplete: function() {
-        callbacks.onComplete && callbacks.onComplete();
-      }
-    });
-  },
-
-  theorem: function(scene, monsterSprite, targetSprite, damage, callbacks) {
-    var mx = monsterSprite.x, my = monsterSprite.y;
-    var tx = targetSprite.x, ty = targetSprite.y;
-    // Phase 1: theorem proof chain — rune circles at monster
-    playImpactRing(scene, mx, my, { color: 0x44aaff, endRadius: 40, strokeWidth: 3 });
-    playSparkBurst(scene, mx, my, { colors: [0x44aaff, 0x88ccff], count: 12, maxDist: 30, duration: 200 });
-    // Phase 2: arcane storm beam
-    scene.time.delayedCall(200, function() {
-      playBeamTrail(scene, mx, my, tx, ty, { color: 0x9944cc, trailColor: 0x44aaff, spread: 22, duration: 280 });
-    });
-    // Phase 3: reality crack at target
-    scene.time.delayedCall(420, function() {
-      playShockwave(scene, tx, ty, { color: 0x9944cc, endRadius: 110 });
-      playElementalBurst(scene, tx, ty, { colors: [0x9944cc, 0x44aaff, 0xffffff, 0xeedd88], count: 32, maxDist: 65 });
-      playImpactRing(scene, tx, ty, { color: 0x44aaff, endRadius: 70, strokeWidth: 4 });
-      callbacks.onHit && callbacks.onHit();
-    });
-    // Phase 4: arcane flash
-    scene.time.delayedCall(600, function() {
-      playScreenFlash(scene, { color: 0x9944cc, alpha: 0.35, duration: 200 });
-    });
-    scene.time.delayedCall(800, function() {
-      callbacks.onComplete && callbacks.onComplete();
-    });
-  },
+  });
+  // Phase 3: nature screen flash
+  scene.time.delayedCall(580, function() {
+    playScreenFlash(scene, { color: 0x3c6b4f, alpha: 0.25, duration: 150 });
+  });
+  scene.time.delayedCall(750, function() {
+    cb?.onComplete?.();
+  });
 };
 
 // ================================================================
-// MAIN DISPATCH FUNCTION
+// FLOOR 2 — Tidepool Ruins (Subtraction) — water / ink / tentacle
+// Colors: teal, deep blue, ink dark from PAPER palette
 // ================================================================
 
-/**
- * Play a monster's attack animation.
- *
- * @param {Phaser.Scene} scene        - The current Phaser scene.
- * @param {Phaser.GameObjects.Sprite} monsterSprite - The attacking monster's sprite.
- * @param {Phaser.GameObjects.Sprite} targetSprite  - The target hero's sprite.
- * @param {string} monsterId          - The monster's identifier key.
- * @param {number} damage             - The damage value (passed to animation for scaling).
- * @param {Object} callbacks          - { onHit: Function, onComplete: Function }
- */
-export function playMonsterAttack(scene, monsterSprite, targetSprite, monsterId, damage, callbacks) {
-  var cb = callbacks || {};
-  var attackFn = MONSTER_ATTACK_REGISTRY[monsterId] || defaultMonsterAttack;
-  attackFn(scene, monsterSprite, targetSprite, damage, cb);
-}
+// Drifter — jellyfish sting: drifts forward lazily and zaps with teal sparks
+MONSTER_ATTACK_REGISTRY['drifter'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.2,
+    y: my + (ty - my) * 0.2,
+    duration: 160,
+    yoyo: true,
+    ease: 'Sine.inOut',
+    onYoyo: function() {
+      playSparkBurst(scene, tx, ty, {
+        colors: [0x44888a, 0x7fb3ae, 0xa4c8d8],
+        count: 10, maxDist: 35, duration: 350
+      });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Gulper — engulf snap: lunges forward with gaping maw, water splash impact ring
+MONSTER_ATTACK_REGISTRY['gulper'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.5,
+    y: my + (ty - my) * 0.5,
+    duration: 100,
+    yoyo: true,
+    ease: 'Back.out',
+    onYoyo: function() {
+      playImpactRing(scene, tx, ty, { color: 0x2a6063, endRadius: 40, duration: 250 });
+      playSparkBurst(scene, tx, ty, {
+        colors: [0x44888a, 0x7fb3ae, 0x2a6063],
+        count: 12, maxDist: 30, duration: 280
+      });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Inkspitter — ink glob: spits a dark ink projectile that splatters on impact
+MONSTER_ATTACK_REGISTRY['inkspitter'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0x1f3d3f, size: 7, speed: 500 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0x1f3d3f, 0x1f4244, 0x2a6063],
+      count: 16, maxDist: 40, duration: 320
+    });
+    playImpactRing(scene, tx, ty, { color: 0x1f4244, endRadius: 35, duration: 250 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(450, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Abyssal Eel — electric current: fires a teal beam trail that crackles on arrival
+MONSTER_ATTACK_REGISTRY['abyssaleel'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playBeamTrail(scene, mx, my, tx, ty, {
+    color: 0x7fb3ae, trailColor: 0x2a6063,
+    spread: 10, duration: 250
+  });
+  scene.time.delayedCall(200, function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0x7fb3ae, 0xa4c8d8, 0x44888a],
+      count: 14, maxDist: 35, duration: 300
+    });
+    playSlashArc(scene, tx, ty, { color: 0x7fb3ae, lineWidth: 3, arcSpread: 55, duration: 220 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(420, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// The Pressure (BOSS) — crushing depths: water pressure wave from above, tentacle slam, deep flash
+MONSTER_ATTACK_REGISTRY['pressure'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: crushing water pressure descending
+  playElementalBurst(scene, tx, ty - 40, {
+    colors: [0x2a6063, 0x44888a, 0x7fb3ae],
+    count: 24, maxDist: 60, duration: 300
+  });
+  // Phase 2: tentacle slam lunge
+  scene.time.delayedCall(200, function() {
+    scene.tweens.add({
+      targets: ms,
+      x: mx + (tx - mx) * 0.45,
+      y: my + (ty - my) * 0.45,
+      duration: 120,
+      yoyo: true,
+      ease: 'Quad.in',
+      onYoyo: function() {
+        playShockwave(scene, tx, ty, { color: 0x1f4244, endRadius: 100, duration: 350 });
+        playImpactRing(scene, tx, ty, { color: 0x44888a, endRadius: 60, duration: 280 });
+        playGroundCrack(scene, tx, ty, {
+          lineCount: 4, length: 50, color: 0x2a6063,
+          alpha: 0.6, lineWidth: 3, duration: 350
+        });
+        cb?.onHit?.();
+      }
+    });
+  });
+  // Phase 3: deep abyss flash
+  scene.time.delayedCall(520, function() {
+    playScreenFlash(scene, { color: 0x1f4244, alpha: 0.3, duration: 180 });
+  });
+  scene.time.delayedCall(720, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// ================================================================
+// FLOOR 3 — Cloud Maze (Multiplication) — lightning / hail / wind
+// Colors: sky, yellow/gold lightning, pale storm hues
+// ================================================================
+
+// Stormwing — wing gust: quick lunge with a burst of yellow-white lightning sparks
+MONSTER_ATTACK_REGISTRY['stormwing'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.3,
+    duration: 100,
+    yoyo: true,
+    ease: 'Quad.out',
+    onYoyo: function() {
+      playSparkBurst(scene, tx, ty, {
+        colors: [0xecb964, 0xfdfbf2, 0xa4c8d8],
+        count: 14, maxDist: 35, duration: 280
+      });
+      playImpactRing(scene, tx, ty, { color: 0xecb964, endRadius: 35, duration: 250 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Hailshot — ice shard volley: fires a hailstone projectile from above
+MONSTER_ATTACK_REGISTRY['hailshot'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my - 30, tx, ty, { color: 0xa4c8d8, size: 5, speed: 580 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0xa4c8d8, 0xfdfbf2, 0xf5eedd],
+      count: 12, maxDist: 30, duration: 260
+    });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(400, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Cyclone Imp — spin attack: spirals toward target with wind shockwave
+MONSTER_ATTACK_REGISTRY['cycloneimp'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    angle: 360,
+    x: mx + (tx - mx) * 0.45,
+    y: my + (ty - my) * 0.45,
+    duration: 180,
+    yoyo: true,
+    ease: 'Cubic.out',
+    onYoyo: function() {
+      playShockwave(scene, tx, ty, { color: 0xa4c8d8, endRadius: 50, duration: 250 });
+      playSlashArc(scene, tx, ty, { color: 0xa4c8d8, lineWidth: 3, arcSpread: 65, duration: 220 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      ms.angle = 0;
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Thunderclap — lightning strike: instant flash of lightning sparks and shockwave at target
+MONSTER_ATTACK_REGISTRY['thunderclap'] = function(scene, ms, ts, dmg, cb) {
+  const tx = ts.x, ty = ts.y;
+  playSparkBurst(scene, tx, ty, {
+    colors: [0xecb964, 0xfdfbf2, 0xffffff],
+    count: 18, maxDist: 45, duration: 300
+  });
+  scene.time.delayedCall(80, function() {
+    playShockwave(scene, tx, ty, { color: 0xecb964, endRadius: 70, duration: 280 });
+    playHitStop(scene, ts, { duration: 60 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(400, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Skywhale (BOSS) — leviathan dive: rises up, dive-bombs target with massive storm impact
+MONSTER_ATTACK_REGISTRY['skywhale'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: rise up with wind particles
+  playSparkBurst(scene, mx, my, {
+    colors: [0xa4c8d8, 0xfdfbf2],
+    count: 8, maxDist: 25, duration: 200
+  });
+  scene.tweens.add({
+    targets: ms,
+    y: my - 40,
+    duration: 200,
+    ease: 'Quad.out'
+  });
+  // Phase 2: dive bomb
+  scene.time.delayedCall(220, function() {
+    scene.tweens.add({
+      targets: ms,
+      x: tx,
+      y: ty - 20,
+      duration: 150,
+      ease: 'Quad.in',
+      onComplete: function() {
+        playShockwave(scene, tx, ty, { color: 0xa4c8d8, endRadius: 120, duration: 350 });
+        playImpactRing(scene, tx, ty, { color: 0xecb964, endRadius: 60, duration: 280 });
+        playElementalBurst(scene, tx, ty, {
+          colors: [0xa4c8d8, 0xecb964, 0xfdfbf2],
+          count: 28, maxDist: 60, duration: 400
+        });
+        playGroundCrack(scene, tx, ty, {
+          lineCount: 5, length: 65, color: 0xa4c8d8,
+          alpha: 0.6, lineWidth: 3, duration: 400
+        });
+        playScreenFlash(scene, { color: 0xecb964, alpha: 0.3, duration: 150 });
+        cb?.onHit?.();
+        // Return to position
+        scene.tweens.add({
+          targets: ms,
+          x: mx, y: my,
+          duration: 200,
+          ease: 'Sine.out'
+        });
+      }
+    });
+  });
+  scene.time.delayedCall(750, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// ================================================================
+// FLOOR 4 — Ember Caves (Division) — fire / lava / ash
+// Colors: coral, orange, fire reds from PAPER palette
+// ================================================================
+
+// Cindercrab — claw snap: quick pincer lunge with fire sparks
+MONSTER_ATTACK_REGISTRY['cindercrab'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.35,
+    y: my + (ty - my) * 0.35,
+    duration: 110,
+    yoyo: true,
+    ease: 'Back.out',
+    onYoyo: function() {
+      playSparkBurst(scene, tx, ty, {
+        colors: [0xe78f6c, 0xe39a4a, 0xd06a4d],
+        count: 14, maxDist: 30, duration: 280
+      });
+      playSlashArc(scene, tx, ty, { color: 0xe78f6c, lineWidth: 4, arcSpread: 50, duration: 220 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Ashwalker — ash cloud: creates an ash haze then lunges through it with fire burst
+MONSTER_ATTACK_REGISTRY['ashwalker'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Ash cloud wind-up
+  playSparkBurst(scene, mx, my, {
+    colors: [0xd9cfb2, 0xe8dec6, 0xf5eedd],
+    count: 10, maxDist: 30, duration: 250
+  });
+  scene.time.delayedCall(120, function() {
+    scene.tweens.add({
+      targets: ms,
+      x: mx + (tx - mx) * 0.4,
+      y: my + (ty - my) * 0.4,
+      duration: 100,
+      yoyo: true,
+      ease: 'Quad.in',
+      onYoyo: function() {
+        playSparkBurst(scene, tx, ty, {
+          colors: [0xe78f6c, 0xd06a4d, 0xe39a4a],
+          count: 16, maxDist: 35, duration: 300
+        });
+        cb?.onHit?.();
+      },
+      onComplete: function() {
+        cb?.onComplete?.();
+      }
+    });
+  });
+};
+
+// Magma Toad — lava spit: fires a glowing lava glob that splashes on impact
+MONSTER_ATTACK_REGISTRY['magmatoad'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0xd06a4d, size: 8, speed: 480 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0xd06a4d, 0xe78f6c, 0xecb964],
+      count: 18, maxDist: 40, duration: 320
+    });
+    playImpactRing(scene, tx, ty, { color: 0xe78f6c, endRadius: 40, duration: 260 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(500, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Spineshard — spine volley: rapid-fire small lava shard projectile
+MONSTER_ATTACK_REGISTRY['spineshard'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0xd06a4d, size: 4, speed: 650 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0xd06a4d, 0xe39a4a],
+      count: 10, maxDist: 25, duration: 250
+    });
+    playHitStop(scene, ts, { duration: 40 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(380, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Pyroclast (BOSS) — volcanic eruption: eruption at source, lava beam, fire storm, screen flash
+MONSTER_ATTACK_REGISTRY['pyroclast'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: eruption at monster position
+  playElementalBurst(scene, mx, my - 20, {
+    colors: [0xd06a4d, 0xe78f6c, 0xecb964],
+    count: 24, maxDist: 50, duration: 300
+  });
+  // Phase 2: lava flow beam
+  scene.time.delayedCall(200, function() {
+    playBeamTrail(scene, mx, my, tx, ty, {
+      color: 0xd06a4d, trailColor: 0xe39a4a,
+      spread: 20, duration: 250
+    });
+  });
+  // Phase 3: fire storm impact with ground cracks
+  scene.time.delayedCall(400, function() {
+    playShockwave(scene, tx, ty, { color: 0xe78f6c, endRadius: 100, duration: 350 });
+    playSparkBurst(scene, tx, ty, {
+      colors: [0xd06a4d, 0xe78f6c, 0xecb964],
+      count: 24, maxDist: 55, duration: 380
+    });
+    playGroundCrack(scene, tx, ty, {
+      lineCount: 6, length: 60, color: 0xe39a4a,
+      alpha: 0.7, lineWidth: 3, duration: 400
+    });
+    playScreenFlash(scene, { color: 0xd06a4d, alpha: 0.3, duration: 160 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(750, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// ================================================================
+// FLOOR 5 — Frozen Peak (Fractions) — ice / frost / blizzard
+// Colors: tealL, sky, whites, ice blues from PAPER palette
+// ================================================================
+
+// Frostbite — frost snap: quick ice shard projectile with crystal burst
+MONSTER_ATTACK_REGISTRY['frostbite'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0x7fb3ae, size: 5, speed: 560 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0x7fb3ae, 0xa4c8d8, 0xfdfbf2],
+      count: 12, maxDist: 30, duration: 280
+    });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(400, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Icicle Imp — falling icicle: drops a sharp icicle from above with shatter effect
+MONSTER_ATTACK_REGISTRY['icicle'] = function(scene, ms, ts, dmg, cb) {
+  const tx = ts.x, ty = ts.y;
+  // Icicle falls from above
+  playProjectile(scene, tx, ty - 120, tx, ty, { color: 0xa4c8d8, size: 6, speed: 600 }).then(function() {
+    playImpactRing(scene, tx, ty, { color: 0x7fb3ae, endRadius: 35, duration: 250 });
+    playSparkBurst(scene, tx, ty, {
+      colors: [0xa4c8d8, 0xfdfbf2, 0xf5eedd],
+      count: 10, maxDist: 28, duration: 260
+    });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(400, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Snowdrift — blizzard gust: gentle push forward with wide blizzard particle burst
+MONSTER_ATTACK_REGISTRY['snowdrift'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.2,
+    duration: 140,
+    yoyo: true,
+    ease: 'Sine.inOut',
+    onYoyo: function() {
+      playElementalBurst(scene, tx, ty, {
+        colors: [0xfdfbf2, 0xf5eedd, 0xa4c8d8],
+        count: 16, maxDist: 45, duration: 350
+      });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Glacial Golem — ice slam: heavy lunge with shockwave and crystal burst
+MONSTER_ATTACK_REGISTRY['glacial'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.45,
+    y: my + (ty - my) * 0.45,
+    duration: 130,
+    yoyo: true,
+    ease: 'Quad.in',
+    onYoyo: function() {
+      playShockwave(scene, tx, ty, { color: 0x7fb3ae, endRadius: 55, duration: 280 });
+      playSparkBurst(scene, tx, ty, {
+        colors: [0x7fb3ae, 0xa4c8d8, 0xfdfbf2],
+        count: 14, maxDist: 35, duration: 300
+      });
+      playHitStop(scene, ts, { duration: 50 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Absolute Zero (BOSS) — deep freeze: frost breath beam, ice storm burst, freeze flash
+MONSTER_ATTACK_REGISTRY['absolutezero'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: frost breath beam
+  playBeamTrail(scene, mx, my, tx, ty, {
+    color: 0x7fb3ae, trailColor: 0x44888a,
+    spread: 25, duration: 300
+  });
+  // Phase 2: ice storm burst
+  scene.time.delayedCall(250, function() {
+    playElementalBurst(scene, tx, ty, {
+      colors: [0x7fb3ae, 0xa4c8d8, 0xfdfbf2],
+      count: 30, maxDist: 65, duration: 400
+    });
+    playShockwave(scene, tx, ty, { color: 0x7fb3ae, endRadius: 90, duration: 320 });
+    cb?.onHit?.();
+  });
+  // Phase 3: freeze flash and impact ring
+  scene.time.delayedCall(500, function() {
+    playScreenFlash(scene, { color: 0xfdfbf2, alpha: 0.4, duration: 200 });
+    playImpactRing(scene, tx, ty, { color: 0xa4c8d8, endRadius: 70, duration: 300 });
+    playGroundCrack(scene, tx, ty, {
+      lineCount: 5, length: 55, color: 0x7fb3ae,
+      alpha: 0.6, lineWidth: 2, duration: 400
+    });
+  });
+  scene.time.delayedCall(750, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// ================================================================
+// FLOOR 6 — Crystal Caverns (Geometry) — prism / crystal / refraction
+// Colors: lavender, lavenderD, purples from PAPER palette
+// ================================================================
+
+// Crystal Shard — shard fling: shoots a sharp crystal projectile
+MONSTER_ATTACK_REGISTRY['shard'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0x9c8fc0, size: 5, speed: 580 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0x9c8fc0, 0x7c6fa8, 0xf5eedd],
+      count: 10, maxDist: 28, duration: 260
+    });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(400, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Geode — crystal burst: inflates and explodes with a prismatic elemental burst
+MONSTER_ATTACK_REGISTRY['geode'] = function(scene, ms, ts, dmg, cb) {
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    scaleX: 1.2,
+    scaleY: 1.2,
+    duration: 100,
+    yoyo: true,
+    ease: 'Quad.out',
+    onYoyo: function() {
+      playElementalBurst(scene, tx, ty, {
+        colors: [0x9c8fc0, 0x7c6fa8, 0xe8a09a],
+        count: 20, maxDist: 45, duration: 350
+      });
+      playImpactRing(scene, tx, ty, { color: 0x9c8fc0, endRadius: 45, duration: 260 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Prismling — light split: fires a rainbow-hued beam trail that scatters into prismatic sparks
+MONSTER_ATTACK_REGISTRY['prismling'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playBeamTrail(scene, mx, my, tx, ty, {
+    color: 0xe8a09a, trailColor: 0x7fb3ae,
+    spread: 12, duration: 250
+  });
+  scene.time.delayedCall(200, function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0xe8a09a, 0x9c8fc0, 0x7fb3ae, 0xecb964],
+      count: 16, maxDist: 35, duration: 300
+    });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(420, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Facet Guardian — mirror bash: heavy crystal-armored lunge with impact ring
+MONSTER_ATTACK_REGISTRY['facet'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.4,
+    y: my + (ty - my) * 0.4,
+    duration: 120,
+    yoyo: true,
+    ease: 'Quad.in',
+    onYoyo: function() {
+      playImpactRing(scene, tx, ty, { color: 0x7c6fa8, endRadius: 45, duration: 260 });
+      playSparkBurst(scene, tx, ty, {
+        colors: [0x7c6fa8, 0x9c8fc0, 0xfdfbf2],
+        count: 12, maxDist: 30, duration: 280
+      });
+      playSlashArc(scene, tx, ty, { color: 0x9c8fc0, lineWidth: 4, arcSpread: 60, duration: 230 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// The Prism (BOSS) — prismatic barrage: three colored beams, crystal storm, rainbow flash
+MONSTER_ATTACK_REGISTRY['theprism'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: triple prismatic beams in sequence
+  playBeamTrail(scene, mx, my, tx - 20, ty, {
+    color: 0xe8a09a, trailColor: 0xd06a4d,
+    spread: 8, duration: 200
+  });
+  scene.time.delayedCall(100, function() {
+    playBeamTrail(scene, mx, my, tx, ty, {
+      color: 0x9bad87, trailColor: 0x57835f,
+      spread: 8, duration: 200
+    });
+  });
+  scene.time.delayedCall(200, function() {
+    playBeamTrail(scene, mx, my, tx + 20, ty, {
+      color: 0x9c8fc0, trailColor: 0x7c6fa8,
+      spread: 8, duration: 200
+    });
+  });
+  // Phase 2: crystal storm at target
+  scene.time.delayedCall(350, function() {
+    playElementalBurst(scene, tx, ty, {
+      colors: [0xe8a09a, 0x9bad87, 0x9c8fc0, 0xecb964, 0xa4c8d8],
+      count: 30, maxDist: 60, duration: 400
+    });
+    playShockwave(scene, tx, ty, { color: 0xfdfbf2, endRadius: 90, duration: 320 });
+    playHitStop(scene, ts, { duration: 60 });
+    cb?.onHit?.();
+  });
+  // Phase 3: prismatic flash
+  scene.time.delayedCall(550, function() {
+    playScreenFlash(scene, { color: 0xfdfbf2, alpha: 0.35, duration: 180 });
+  });
+  scene.time.delayedCall(750, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// ================================================================
+// FLOOR 7 — Market Square (Money) — coin / scroll / scales
+// Colors: gold, peach, sand, orange from PAPER palette
+// ================================================================
+
+// Pickpocket — quick swipe: fast lunge with gold spark scatter
+MONSTER_ATTACK_REGISTRY['pickpocket'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.5,
+    y: my + (ty - my) * 0.5,
+    duration: 90,
+    yoyo: true,
+    ease: 'Quad.out',
+    onYoyo: function() {
+      playSparkBurst(scene, tx, ty, {
+        colors: [0xecb964, 0xe39a4a, 0xf2bf9a],
+        count: 10, maxDist: 25, duration: 250
+      });
+      playSlashArc(scene, tx, ty, { color: 0xecb964, lineWidth: 3, arcSpread: 45, duration: 200 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Tax Collector — stamp slam: rises up with authority then slams down with a gold impact
+MONSTER_ATTACK_REGISTRY['taxcollector'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Rise with importance
+  scene.tweens.add({
+    targets: ms,
+    y: my - 20,
+    duration: 100,
+    ease: 'Quad.out',
+    onComplete: function() {
+      scene.tweens.add({
+        targets: ms,
+        x: mx + (tx - mx) * 0.3,
+        y: my + (ty - my) * 0.3,
+        duration: 100,
+        yoyo: true,
+        ease: 'Quad.in',
+        onYoyo: function() {
+          playImpactRing(scene, tx, ty, { color: 0xe39a4a, endRadius: 40, duration: 250 });
+          playSparkBurst(scene, tx, ty, {
+            colors: [0xe39a4a, 0xecb964, 0xf2bf9a],
+            count: 12, maxDist: 30, duration: 280
+          });
+          cb?.onHit?.();
+        },
+        onComplete: function() {
+          cb?.onComplete?.();
+        }
+      });
+    }
+  });
+};
+
+// Rogue Merchant — scale weight drop: heavy weight projectile from above
+MONSTER_ATTACK_REGISTRY['merchant'] = function(scene, ms, ts, dmg, cb) {
+  const tx = ts.x, ty = ts.y;
+  // Weight drops from above
+  playProjectile(scene, tx, ty - 100, tx, ty, { color: 0xd9cfb2, size: 8, speed: 520 }).then(function() {
+    playImpactRing(scene, tx, ty, { color: 0xd9cfb2, endRadius: 40, duration: 260 });
+    playSparkBurst(scene, tx, ty, {
+      colors: [0xecb964, 0xe39a4a, 0xd9cfb2],
+      count: 10, maxDist: 30, duration: 280
+    });
+    playGroundCrack(scene, tx, ty, {
+      lineCount: 3, length: 35, color: 0xd9cfb2,
+      alpha: 0.5, lineWidth: 2, duration: 300
+    });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(450, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Corrupt Banker — vault slam: heavy lunge with gold coin shower and shockwave
+MONSTER_ATTACK_REGISTRY['banker'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.4,
+    y: my + (ty - my) * 0.4,
+    duration: 130,
+    yoyo: true,
+    ease: 'Quad.in',
+    onYoyo: function() {
+      playShockwave(scene, tx, ty, { color: 0xd9cfb2, endRadius: 50, duration: 280 });
+      playSparkBurst(scene, tx, ty, {
+        colors: [0xecb964, 0xe39a4a, 0xf2bf9a],
+        count: 18, maxDist: 40, duration: 320
+      });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// The Counterfeiter (BOSS) — gold flood: beam of fake gold, coin barrage, mint press shockwave, flash
+MONSTER_ATTACK_REGISTRY['counterfeiter'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: gold flood beam
+  playBeamTrail(scene, mx, my, tx, ty, {
+    color: 0xecb964, trailColor: 0xe39a4a,
+    spread: 20, duration: 250
+  });
+  // Phase 2: coin barrage projectile
+  scene.time.delayedCall(200, function() {
+    playProjectile(scene, mx, my - 10, tx, ty, { color: 0xecb964, size: 6, speed: 550 }).then(function() {
+      playSparkBurst(scene, tx, ty, {
+        colors: [0xecb964, 0xe39a4a, 0xf2bf9a],
+        count: 24, maxDist: 50, duration: 350
+      });
+      playGroundCrack(scene, tx, ty, {
+        lineCount: 4, length: 45, color: 0xe39a4a,
+        alpha: 0.6, lineWidth: 3, duration: 380
+      });
+      cb?.onHit?.();
+    });
+  });
+  // Phase 3: mint press shockwave and flash
+  scene.time.delayedCall(500, function() {
+    playShockwave(scene, tx, ty, { color: 0xecb964, endRadius: 80, duration: 300 });
+    playScreenFlash(scene, { color: 0xecb964, alpha: 0.25, duration: 150 });
+  });
+  scene.time.delayedCall(700, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// ================================================================
+// FLOOR 8 — Infinity Library (Word Problems) — page / ink / riddle
+// Colors: sand, cream, dark inks, warm browns from PAPER palette
+// ================================================================
+
+// Bookworm — page cut: quick lunge with paper-white spark scatter
+MONSTER_ATTACK_REGISTRY['bookworm_e'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.25,
+    y: my + (ty - my) * 0.25,
+    duration: 130,
+    yoyo: true,
+    ease: 'Sine.out',
+    onYoyo: function() {
+      playSparkBurst(scene, tx, ty, {
+        colors: [0xf5eedd, 0xe8dec6, 0xd9cfb2],
+        count: 14, maxDist: 35, duration: 300
+      });
+      playSlashArc(scene, tx, ty, { color: 0xf5eedd, lineWidth: 3, arcSpread: 50, duration: 230 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// Inkblot — ink splatter: fires a dark ink glob projectile that splatters into stains
+MONSTER_ATTACK_REGISTRY['inkblot'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0x1f3d3f, size: 7, speed: 480 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0x1f3d3f, 0x1f4244, 0xd9cfb2],
+      count: 16, maxDist: 38, duration: 300
+    });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(450, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// The Riddler — riddle blast: erupts with question-mark-gold arcane burst at target
+MONSTER_ATTACK_REGISTRY['riddler'] = function(scene, ms, ts, dmg, cb) {
+  const tx = ts.x, ty = ts.y;
+  playElementalBurst(scene, tx, ty, {
+    colors: [0xecb964, 0xe39a4a, 0xf5eedd],
+    count: 18, maxDist: 40, duration: 350
+  });
+  scene.time.delayedCall(100, function() {
+    playImpactRing(scene, tx, ty, { color: 0xecb964, endRadius: 40, duration: 260 });
+    playHitStop(scene, ts, { duration: 40 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(400, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Dark Archivist — tome slam: heavy book slam lunge with impact ring and page flutter
+MONSTER_ATTACK_REGISTRY['archivist'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.4,
+    y: my + (ty - my) * 0.4,
+    duration: 120,
+    yoyo: true,
+    ease: 'Quad.in',
+    onYoyo: function() {
+      playImpactRing(scene, tx, ty, { color: 0xd9cfb2, endRadius: 45, duration: 260 });
+      playSparkBurst(scene, tx, ty, {
+        colors: [0xf5eedd, 0xe8dec6, 0xd9cfb2],
+        count: 20, maxDist: 45, duration: 320
+      });
+      playShockwave(scene, tx, ty, { color: 0xd9cfb2, endRadius: 50, duration: 280 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// The Paradox (BOSS) — reality warp: distortion sparks, impossible geometry beam, paradox shockwave, flash
+MONSTER_ATTACK_REGISTRY['theparadox'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: reality distortion sparks at monster position
+  playSparkBurst(scene, mx, my, {
+    colors: [0x9c8fc0, 0x7fb3ae, 0xe8a09a],
+    count: 16, maxDist: 40, duration: 250
+  });
+  // Phase 2: impossible geometry beam
+  scene.time.delayedCall(200, function() {
+    playBeamTrail(scene, mx, my, tx, ty, {
+      color: 0x9c8fc0, trailColor: 0x7fb3ae,
+      spread: 18, duration: 250
+    });
+  });
+  // Phase 3: paradox shockwave and burst at target
+  scene.time.delayedCall(380, function() {
+    playElementalBurst(scene, tx, ty, {
+      colors: [0x9c8fc0, 0x7fb3ae, 0xe8a09a, 0xfdfbf2],
+      count: 28, maxDist: 55, duration: 380
+    });
+    playShockwave(scene, tx, ty, { color: 0x9c8fc0, endRadius: 100, duration: 350 });
+    playGroundCrack(scene, tx, ty, {
+      lineCount: 5, length: 55, color: 0x7c6fa8,
+      alpha: 0.7, lineWidth: 3, duration: 400
+    });
+    cb?.onHit?.();
+  });
+  // Phase 4: paradox flash
+  scene.time.delayedCall(580, function() {
+    playScreenFlash(scene, { color: 0x9c8fc0, alpha: 0.35, duration: 200 });
+  });
+  scene.time.delayedCall(780, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// ================================================================
+// FLOOR 9 — The Mending Room (Boss Gauntlet) — rune / hex / void
+// Colors: lavenderD, deep purples, arcane blues from PAPER palette
+// ================================================================
+
+// Runebound — rune circle blast: conjures an arcane ring at target and detonates it
+MONSTER_ATTACK_REGISTRY['runebound'] = function(scene, ms, ts, dmg, cb) {
+  const tx = ts.x, ty = ts.y;
+  // Rune circle appears then detonates
+  playImpactRing(scene, tx, ty, { color: 0x7fb3ae, endRadius: 50, strokeWidth: 4, duration: 280 });
+  scene.time.delayedCall(80, function() {
+    playElementalBurst(scene, tx, ty, {
+      colors: [0x7fb3ae, 0x7c6fa8, 0xa4c8d8],
+      count: 18, maxDist: 40, duration: 320
+    });
+    playHitStop(scene, ts, { duration: 40 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(400, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Hexweave — hex bolt: fires a violet hex projectile that bursts into dark sparks
+MONSTER_ATTACK_REGISTRY['hexweave'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0x7c6fa8, size: 6, speed: 540 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0x7c6fa8, 0x9c8fc0, 0x1f3d3f],
+      count: 14, maxDist: 35, duration: 300
+    });
+    playImpactRing(scene, tx, ty, { color: 0x7c6fa8, endRadius: 38, duration: 250 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(450, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Grimoire — arcane page: fires a glowing page projectile with dual impact ring and sparks
+MONSTER_ATTACK_REGISTRY['grimoire'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  playProjectile(scene, mx, my, tx, ty, { color: 0xecb964, size: 5, speed: 520 }).then(function() {
+    playSparkBurst(scene, tx, ty, {
+      colors: [0xecb964, 0xf5eedd, 0x7c6fa8],
+      count: 12, maxDist: 30, duration: 280
+    });
+    playImpactRing(scene, tx, ty, { color: 0xecb964, endRadius: 35, duration: 250 });
+    cb?.onHit?.();
+  });
+  scene.time.delayedCall(450, function() {
+    cb?.onComplete?.();
+  });
+};
+
+// Familiar — shadow pounce: fast aggressive lunge with dark void sparks and slash arc
+MONSTER_ATTACK_REGISTRY['familiar'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  scene.tweens.add({
+    targets: ms,
+    x: mx + (tx - mx) * 0.6,
+    y: my + (ty - my) * 0.6,
+    duration: 100,
+    yoyo: true,
+    ease: 'Back.out',
+    onYoyo: function() {
+      playSparkBurst(scene, tx, ty, {
+        colors: [0x1f3d3f, 0x7c6fa8, 0x9c8fc0],
+        count: 14, maxDist: 30, duration: 280
+      });
+      playSlashArc(scene, tx, ty, { color: 0x7c6fa8, lineWidth: 4, arcSpread: 55, duration: 220 });
+      playImpactRing(scene, tx, ty, { color: 0x7c6fa8, endRadius: 35, duration: 250 });
+      cb?.onHit?.();
+    },
+    onComplete: function() {
+      cb?.onComplete?.();
+    }
+  });
+};
+
+// The Theorem (BOSS) — proof chain: rune circles at source, arcane storm beam, reality crack, arcane flash
+MONSTER_ATTACK_REGISTRY['theorem'] = function(scene, ms, ts, dmg, cb) {
+  const mx = ms.x, my = ms.y;
+  const tx = ts.x, ty = ts.y;
+  // Phase 1: theorem proof rune circles at monster
+  playImpactRing(scene, mx, my, { color: 0x7fb3ae, endRadius: 40, strokeWidth: 3, duration: 260 });
+  playSparkBurst(scene, mx, my, {
+    colors: [0x7fb3ae, 0xa4c8d8],
+    count: 12, maxDist: 30, duration: 200
+  });
+  // Phase 2: arcane storm beam
+  scene.time.delayedCall(200, function() {
+    playBeamTrail(scene, mx, my, tx, ty, {
+      color: 0x7c6fa8, trailColor: 0x7fb3ae,
+      spread: 22, duration: 280
+    });
+  });
+  // Phase 3: reality crack at target
+  scene.time.delayedCall(420, function() {
+    playShockwave(scene, tx, ty, { color: 0x7c6fa8, endRadius: 110, duration: 350 });
+    playElementalBurst(scene, tx, ty, {
+      colors: [0x7c6fa8, 0x7fb3ae, 0xfdfbf2, 0xecb964],
+      count: 32, maxDist: 65, duration: 420
+    });
+    playImpactRing(scene, tx, ty, { color: 0x7fb3ae, endRadius: 70, strokeWidth: 4, duration: 300 });
+    playGroundCrack(scene, tx, ty, {
+      lineCount: 6, length: 65, color: 0x7c6fa8,
+      alpha: 0.7, lineWidth: 3, duration: 450
+    });
+    playHitStop(scene, ts, { duration: 70 });
+    cb?.onHit?.();
+  });
+  // Phase 4: arcane flash
+  scene.time.delayedCall(620, function() {
+    playScreenFlash(scene, { color: 0x7c6fa8, alpha: 0.35, duration: 200 });
+  });
+  scene.time.delayedCall(800, function() {
+    cb?.onComplete?.();
+  });
+};
