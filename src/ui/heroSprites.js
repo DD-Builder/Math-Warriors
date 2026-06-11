@@ -197,6 +197,8 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
     }
 
     // Forward common image methods so call sites can treat container like an image
+    container.setTint = function (color) { img.setTint(color); return this; };
+    container.clearTint = function () { img.clearTint(); return this; };
     container.setScale = function (s) {
       this.scaleX = s;
       this.scaleY = s;
@@ -311,6 +313,20 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
 
   // Animation state
   container.parts = parts;
+
+  // Phaser Containers have no tint API, but ~60 attack-animation call
+  // sites do body.setTint()/clearTint() on hero sprites. Without these,
+  // the first hero attack throws inside Phaser's RAF callback and the
+  // game loop dies PERMANENTLY (the historical "battle freeze"). Fan
+  // tint out to the part images instead.
+  container.setTint = function (color) {
+    Object.values(parts).forEach(p => { if (p && p.setTint) p.setTint(color); });
+    return this;
+  };
+  container.clearTint = function () {
+    Object.values(parts).forEach(p => { if (p && p.clearTint) p.clearTint(); });
+    return this;
+  };
 
   // State machine (Phase 0A) — the canonical animation controller
   // (heroClass computed above is reused for class-specific animations)

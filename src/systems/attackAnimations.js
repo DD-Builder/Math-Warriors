@@ -365,7 +365,7 @@ export const ATTACK_REGISTRY = {
       const ex = target.x, ey = target.y;
       // 0-350ms: Rage charge (body grows, red glow)
       if (hero.body) {
-        hero.body.setTint(0xff2020);
+        if (hero.body.setTint) hero.body.setTint(0xff2020);
         const osx = hero.body.scaleX, osy = hero.body.scaleY;
         scene.tweens.add({ targets: hero.body, scaleX: osx * 1.15, scaleY: osy * 1.15, duration: 350, ease: 'Cubic.in' });
       }
@@ -1612,7 +1612,7 @@ export function playKnightSuper(scene, heroSprite, targetSprite, enemyX, enemyY,
 
   // 0-300ms: Gold glow charge + scale up
   if (heroSprite.body) {
-    heroSprite.body.setTint(0xffd040);
+    if (heroSprite.body.setTint) heroSprite.body.setTint(0xffd040);
     scene.tweens.add({
       targets: heroSprite.body,
       scaleX: origSX * 1.1,
@@ -1935,7 +1935,9 @@ export function playWizardSuper(scene, heroSprite, targetSprite, enemyX, enemyY,
 function hitPause(scene, targetSprite, duration = 80) {
   if (!targetSprite || !targetSprite.body) return;
   const body = targetSprite.body;
-  body.setTint(0xffffff);
+  // Method guard is load-bearing: an uncaught throw here happens inside
+  // Phaser's RAF callback and permanently kills the game loop.
+  if (body.setTint) body.setTint(0xffffff);
   scene.time.delayedCall(duration, () => {
     if (body && body.clearTint) body.clearTint();
   });
@@ -2169,7 +2171,7 @@ function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result
   const origSY = heroSprite.body.scaleY;
 
   // 0-200ms: Hero charges (gold tint, energy converges)
-  heroSprite.body.setTint(0xffee80);
+  if (heroSprite.body.setTint) heroSprite.body.setTint(0xffee80);
   scene.tweens.add({ targets: heroSprite.body, scaleX: origSX * 1.15, scaleY: origSY * 1.15, duration: 200, ease: 'Cubic.in' });
 
   // Converging energy particles
