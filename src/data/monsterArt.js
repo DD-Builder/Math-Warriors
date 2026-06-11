@@ -667,6 +667,422 @@ R.L([[-6, 8],[0, 14],[6, 8]], THEOL, 154, {sx:1,sy:1,sp:4,ns:true});
 G.restore();
 },
 };
+export var FLOOR6_MONSTERS = {
+shard: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.058) * 6;
+G.save(); G.translate(0, bob);
+R.gshadow(0, 38, 18, 4);
+var LAV = '#9c8fc0', LAVD = '#7c6fa8', SKY = '#a4c8d8', WHT = '#fdfbf2', DRK = '#1f4244';
+var spin = Math.sin(t * 0.04) * 0.12;
+G.rotate(spin);
+R.L([[0, -34], [16, -12], [12, 14], [0, 28], [-12, 14], [-16, -12]], LAV, 1, {sx:3, sy:5, sp:10, sa:.48});
+R.L([[0, -28], [12, -8], [9, 12], [0, 22], [-9, 12], [-12, -8]], SKY, 2, {sx:2, sy:3, sp:7, sa:.34});
+R.L([[0, -20], [6, -4], [4, 10], [0, 16], [-4, 10], [-6, -4]], WHT, 3, {sx:1, sy:2, sp:4, sa:.22});
+R.ln(-12, -8, 12, 14, 'rgba(253,251,242,.3)', 1.2, 0.5);
+R.ln(12, -8, -12, 14, 'rgba(253,251,242,.3)', 1.2, 0.5);
+R.glow(0, -2, 14, 20, LAV, 0.25, 10);
+for (var i = 0; i < 4; i++) {
+  var pa = i / 4 * Math.PI * 2 + t * 0.06, pr = 22 + Math.sin(t * 0.04 + i) * 3;
+  var px = Math.cos(pa) * pr, py = Math.sin(pa) * pr * 0.5 - 4;
+  G.save(); G.globalAlpha = 0.45 + Math.sin(t * 0.05 + i) * 0.15;
+  R.L([[px - 2, py], [px + 2, py], [px, py - 4]], SKY, 10 + i, {ns:true});
+  G.restore();
+}
+R.Ld(-5, -8, 3, WHT, 20, {ns:true}); R.Ld(5, -8, 3, WHT, 21, {ns:true});
+R.Ld(-5, -8, 1.5, DRK, 22, {ns:true}); R.Ld(5, -8, 1.5, DRK, 23, {ns:true});
+R.glow(-5, -8, 4, 4, SKY, 0.4, 3); R.glow(5, -8, 4, 4, SKY, 0.4, 3);
+G.restore();
+},
+geode: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.042) * 3;
+G.save(); G.translate(0, bob);
+R.gshadow(0, 48, 32, 6);
+var TD = '#2a6063', LAV = '#9c8fc0', LAVD = '#7c6fa8', WHT = '#fdfbf2', DRK = '#1f4244';
+R.L([[-30, -8], [-32, 10], [-26, 26], [-14, 34], [0, 36], [14, 34], [26, 26], [32, 10], [30, -8], [22, -20], [10, -26], [0, -28], [-10, -26], [-22, -20]], TD, 1, {sx:4, sy:6, sp:16, sa:.54});
+R.L([[-24, -6], [-26, 8], [-20, 22], [-10, 28], [0, 30], [10, 28], [20, 22], [26, 8], [24, -6], [16, -16], [0, -22], [-16, -16]], '#44888a', 2, {sx:3, sy:4, sp:12, sa:.44});
+R.L([[-12, 2], [-8, -8], [0, -12], [8, -8], [12, 2], [10, 14], [0, 18], [-10, 14]], LAV, 10, {sx:2, sy:3, sp:8, sa:.42});
+R.L([[-8, 4], [-4, -4], [0, -8], [4, -4], [8, 4], [6, 12], [0, 14], [-6, 12]], LAVD, 11, {sx:1, sy:2, sp:5, sa:.34});
+R.L([[0, -8], [6, 4], [0, 14], [-6, 4]], WHT, 12, {sx:1, sy:1, sp:4, sa:.22});
+R.glow(0, 4, 12, 14, LAV, 0.35 + Math.sin(t * 0.05) * 0.1, 10);
+for (var i = 0; i < 5; i++) {
+  var ca = (i / 5) * Math.PI + 0.3, cr = 8 + i * 2;
+  var cx = Math.cos(ca) * cr, cy = Math.sin(ca) * cr + 2;
+  R.L([[cx - 2, cy - 3], [cx + 2, cy - 3], [cx + 1, cy + 4], [cx - 1, cy + 4]], LAV, 20 + i, {sx:1, sy:2, sp:3, sa:.38});
+  R.glow(cx, cy, 3, 4, LAVD, 0.3, 3);
+}
+R.Ld(-8, -2, 4, WHT, 30, {ns:true}); R.Ld(8, -2, 4, WHT, 31, {ns:true});
+R.Ld(-8, -2, 2, DRK, 32, {ns:true}); R.Ld(8, -2, 2, DRK, 33, {ns:true});
+R.glow(-8, -2, 5, 5, LAV, 0.35, 4); R.glow(8, -2, 5, 5, LAV, 0.35, 4);
+G.restore();
+},
+prismling: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.065) * 5;
+G.save(); G.translate(0, bob);
+R.gshadow(0, 34, 16, 4);
+var LAV = '#9c8fc0', SKY = '#a4c8d8', ROSE = '#e8a09a', GOLD = '#ecb964', WHT = '#fdfbf2', DRK = '#1f4244';
+var spin = t * 0.05;
+R.L([[0, -18], [14, -6], [14, 10], [0, 20], [-14, 10], [-14, -6]], LAV, 1, {sx:2, sy:4, sp:9, sa:.46});
+R.L([[0, -12], [10, -2], [10, 8], [0, 14], [-10, 8], [-10, -2]], SKY, 2, {sx:2, sy:3, sp:6, sa:.34});
+R.glow(0, 2, 12, 16, WHT, 0.2 + Math.sin(t * 0.06) * 0.08, 8);
+var cols = [0xe8a09a, 0xa4c8d8, 0xecb964, 0x9c8fc0];
+var cstrs = [ROSE, SKY, GOLD, LAV];
+for (var i = 0; i < 4; i++) {
+  var ra = i / 4 * Math.PI * 2 + spin, rr = 18;
+  var rx = Math.cos(ra) * rr, ry = Math.sin(ra) * rr * 0.5;
+  G.save(); G.globalAlpha = 0.55;
+  R.Ld(rx, ry, 3, cstrs[i], 10 + i, {ns:true});
+  R.glow(rx, ry, 5, 5, cstrs[i], 0.4, 4);
+  G.restore();
+}
+R.Ld(-4, -4, 3, WHT, 20, {ns:true}); R.Ld(4, -4, 3, WHT, 21, {ns:true});
+R.Ld(-4, -4, 1.5, DRK, 22, {ns:true}); R.Ld(4, -4, 1.5, DRK, 23, {ns:true});
+G.save(); G.strokeStyle = DRK; G.lineWidth = 1.2; G.globalAlpha = 0.7;
+G.beginPath(); G.arc(0, 8, 4, 0, Math.PI); G.stroke(); G.restore();
+G.restore();
+},
+facet: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.038) * 3, sway = Math.sin(t * 0.025) * 0.02;
+G.save(); G.translate(0, bob); G.rotate(sway);
+R.gshadow(0, 62, 28, 6);
+var LAVD = '#7c6fa8', LAV = '#9c8fc0', TEAL = '#44888a', WHT = '#fdfbf2', DRK = '#1f4244', SKY = '#a4c8d8';
+R.L([[-12, 40], [-16, 40], [-18, 58], [-12, 60], [-8, 48]], LAVD, 1, {sx:2, sy:4, sp:8, sa:.46});
+R.L([[12, 40], [16, 40], [18, 58], [12, 60], [8, 48]], LAVD, 2, {sx:2, sy:4, sp:8, sa:.46});
+R.L([[-20, -10], [-24, 10], [-20, 40], [20, 40], [24, 10], [20, -10], [14, -22], [0, -26], [-14, -22]], LAVD, 10, {sx:4, sy:6, sp:16, sa:.52});
+R.L([[-16, -8], [-20, 8], [-16, 36], [16, 36], [20, 8], [16, -8], [10, -18], [0, -22], [-10, -18]], TEAL, 11, {sx:3, sy:4, sp:12, sa:.42});
+R.L([[-10, -4], [-12, 6], [-10, 30], [10, 30], [12, 6], [10, -4], [6, -12], [0, -14], [-6, -12]], LAV, 12, {sx:2, sy:3, sp:8, sa:.3});
+R.L([[-16, 6], [16, 6], [16, 12], [-16, 12]], SKY, 13, {sx:1, sy:2, sp:5, sa:.44});
+R.L([[-20, -10], [-36, -4], [-42, 10], [-38, 22], [-24, 18], [-18, 4]], LAVD, 20, {sx:3, sy:5, sp:10, sa:.48});
+R.L([[-18, -8], [-32, -2], [-36, 10], [-32, 18], [-22, 16], [-16, 4]], TEAL, 21, {sx:2, sy:3, sp:7, sa:.34});
+R.L([[20, -10], [36, -4], [42, 10], [38, 22], [24, 18], [18, 4]], LAVD, 22, {sx:3, sy:5, sp:10, sa:.48});
+R.L([[18, -8], [32, -2], [36, 10], [32, 18], [22, 16], [16, 4]], TEAL, 23, {sx:2, sy:3, sp:7, sa:.34});
+R.L([[-16, -22], [-12, -38], [-4, -44], [0, -46], [4, -44], [12, -38], [16, -22], [10, -14], [0, -12], [-10, -14]], LAVD, 30, {sx:3, sy:5, sp:12, sa:.5});
+R.L([[-12, -20], [-8, -34], [-2, -40], [0, -42], [2, -40], [8, -34], [12, -20], [6, -12], [0, -10], [-6, -12]], TEAL, 31, {sx:2, sy:3, sp:8, sa:.38});
+R.Ld(-6, -28, 5, WHT, 40, {ns:true}); R.Ld(6, -28, 5, WHT, 41, {ns:true});
+R.Ld(-6, -28, 2.5, DRK, 42, {ns:true}); R.Ld(6, -28, 2.5, DRK, 43, {ns:true});
+R.glow(-6, -28, 6, 6, SKY, 0.5 + Math.sin(t * 0.07) * 0.2, 5);
+R.glow(6, -28, 6, 6, SKY, 0.5 + Math.sin(t * 0.07) * 0.2, 5);
+G.restore();
+},
+theprism: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.032) * 5, pulse = Math.sin(t * 0.05) * 0.06 + 1.0;
+G.save(); G.translate(0, bob); G.scale(pulse, pulse);
+R.gshadow(0, 60, 50, 10);
+var LAV = '#9c8fc0', LAVD = '#7c6fa8', SKY = '#a4c8d8', WHT = '#fdfbf2', DRK = '#1f4244', ROSE = '#e8a09a', GOLD = '#ecb964', TEAL = '#44888a';
+var spin = t * 0.03;
+G.save(); G.rotate(spin);
+R.L([[0, -48], [42, -24], [42, 24], [0, 48], [-42, 24], [-42, -24]], LAVD, 1, {sx:4, sy:7, sp:20, sa:.54});
+R.L([[0, -40], [35, -20], [35, 20], [0, 40], [-35, 20], [-35, -20]], LAV, 2, {sx:3, sy:5, sp:14, sa:.44});
+R.L([[0, -30], [26, -15], [26, 15], [0, 30], [-26, 15], [-26, -15]], SKY, 3, {sx:2, sy:3, sp:9, sa:.32});
+R.L([[0, -18], [16, -9], [16, 9], [0, 18], [-16, 9], [-16, -9]], WHT, 4, {sx:1, sy:2, sp:5, sa:.22});
+G.restore();
+for (var i = 0; i < 6; i++) {
+  var ba = i / 6 * Math.PI * 2 + spin;
+  var bx = Math.cos(ba) * 42, by = Math.sin(ba) * 42;
+  var cols = [ROSE, GOLD, SKY, LAV, '#7fb3ae', '#e78f6c'];
+  G.save(); G.globalAlpha = 0.6 + Math.sin(t * 0.06 + i) * 0.2;
+  R.ln(0, 0, bx * 1.4, by * 1.4, cols[i], 2, 0.5);
+  R.glow(bx * 1.2, by * 1.2, 6, 6, cols[i], 0.5, 6);
+  G.restore();
+}
+R.glow(0, 0, 30, 30, WHT, 0.2 + Math.sin(t * 0.04) * 0.08, 16);
+for (var o = 0; o < 8; o++) {
+  var oa = o / 8 * Math.PI * 2 - t * 0.04;
+  var orb = 36 + Math.sin(t * 0.05 + o) * 4;
+  var ox = Math.cos(oa) * orb, oy = Math.sin(oa) * orb;
+  R.Ld(ox, oy, 3, WHT, 50 + o, {ns:true});
+  R.glow(ox, oy, 5, 5, LAV, 0.35, 4);
+}
+R.Ld(-10, -6, 6, WHT, 60, {ns:true}); R.Ld(10, -6, 6, WHT, 61, {ns:true});
+R.Ld(-10, -6, 3, DRK, 62, {ns:true}); R.Ld(10, -6, 3, DRK, 63, {ns:true});
+R.glow(-10, -6, 8, 8, SKY, 0.4, 5); R.glow(10, -6, 8, 8, SKY, 0.4, 5);
+R.L([[-8, 10], [0, 16], [8, 10]], LAV, 70, {sx:1, sy:1, sp:4, ns:true});
+G.restore();
+},
+};
+export var FLOOR7_MONSTERS = {
+pickpocket: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.06) * 4;
+G.save(); G.translate(0, bob);
+R.gshadow(0, 52, 20, 4);
+var GOLD = '#ecb964', SAND = '#d9cfb2', DRK = '#1f4244', WHT = '#fdfbf2', PEACH = '#f2bf9a';
+R.L([[-10, 30], [-14, 30], [-14, 50], [-8, 52], [-6, 38]], SAND, 1, {sx:2, sy:3, sp:6, sa:.44});
+R.L([[6, 30], [10, 30], [14, 50], [8, 52], [4, 38]], SAND, 2, {sx:2, sy:3, sp:6, sa:.44});
+R.L([[-14, -6], [-16, 8], [-12, 30], [12, 30], [16, 8], [14, -6], [8, -16], [0, -18], [-8, -16]], SAND, 10, {sx:3, sy:5, sp:12, sa:.48});
+R.L([[-10, -4], [-12, 6], [-8, 26], [8, 26], [12, 6], [10, -4], [6, -12], [0, -14], [-6, -12]], PEACH, 11, {sx:2, sy:3, sp:8, sa:.36});
+R.L([[-14, -6], [-28, 2], [-32, 14], [-26, 20], [-16, 12]], SAND, 20, {sx:2, sy:4, sp:8, sa:.44});
+R.L([[14, -6], [26, -2], [32, 8], [28, 16], [16, 10]], SAND, 22, {sx:2, sy:4, sp:8, sa:.44});
+R.L([[24, 4], [34, -2], [38, 6], [34, 12], [26, 10]], GOLD, 24, {sx:2, sy:3, sp:6, sa:.42});
+R.L([[26, 2], [32, 0], [34, 6], [30, 8]], GOLD, 25, {sx:1, sy:2, sp:4, sa:.36});
+R.glow(30, 5, 8, 8, GOLD, 0.4, 5);
+R.Ld(-5, -8, 3.5, WHT, 30, {ns:true}); R.Ld(5, -8, 3.5, WHT, 31, {ns:true});
+R.Ld(-5, -8, 1.8, DRK, 32, {ns:true}); R.Ld(5, -8, 1.8, DRK, 33, {ns:true});
+R.L([[-4, 0], [0, -2], [4, 0], [2, 3], [-2, 3]], DRK, 34, {ns:true});
+G.restore();
+},
+taxcollector: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.04) * 3, sway = Math.sin(t * 0.028) * 0.015;
+G.save(); G.translate(0, bob); G.rotate(sway);
+R.gshadow(0, 62, 26, 5);
+var SAND = '#d9cfb2', CREAM = '#f5eedd', DRK = '#1f4244', WHT = '#fdfbf2', GOLD = '#ecb964', PEACH = '#f2bf9a';
+R.L([[-12, 38], [-16, 38], [-16, 58], [-10, 60], [-8, 46]], SAND, 1, {sx:2, sy:4, sp:7, sa:.44});
+R.L([[8, 38], [12, 38], [16, 58], [10, 60], [6, 46]], SAND, 2, {sx:2, sy:4, sp:7, sa:.44});
+R.L([[-18, -8], [-22, 10], [-18, 38], [18, 38], [22, 10], [18, -8], [12, -20], [0, -24], [-12, -20]], SAND, 10, {sx:3, sy:6, sp:14, sa:.52});
+R.L([[-14, -6], [-18, 8], [-14, 34], [14, 34], [18, 8], [14, -6], [8, -16], [0, -20], [-8, -16]], CREAM, 11, {sx:2, sy:4, sp:10, sa:.4});
+R.L([[-12, 2], [12, 2], [12, 8], [-12, 8]], GOLD, 12, {sx:1, sy:2, sp:5, sa:.46});
+R.L([[-18, -8], [-34, -4], [-40, 8], [-36, 18], [-22, 14], [-16, 2]], SAND, 20, {sx:3, sy:4, sp:10, sa:.46});
+R.L([[-38, 4], [-42, 12], [-36, 20], [-28, 16]], CREAM, 21, {sx:2, sy:3, sp:6, sa:.34});
+R.L([[18, -8], [32, -14], [38, -6], [34, 4], [20, 2]], SAND, 22, {sx:3, sy:4, sp:10, sa:.46});
+R.L([[30, -12], [36, -6], [34, 2], [26, 0]], CREAM, 23, {sx:2, sy:3, sp:6, sa:.34});
+R.L([[-16, -20], [-12, -36], [-4, -40], [0, -42], [4, -40], [12, -36], [16, -20]], SAND, 30, {sx:3, sy:4, sp:10, sa:.48});
+R.L([[-12, -18], [-8, -32], [-2, -36], [0, -38], [2, -36], [8, -32], [12, -18]], CREAM, 31, {sx:2, sy:3, sp:7, sa:.36});
+R.L([[-14, -38], [14, -38], [16, -42], [0, -48], [-16, -42]], SAND, 32, {sx:2, sy:3, sp:6, sa:.44});
+R.Ld(-6, -26, 4, WHT, 40, {ns:true}); R.Ld(6, -26, 4, WHT, 41, {ns:true});
+R.Ld(-6, -26, 2, DRK, 42, {ns:true}); R.Ld(6, -26, 2, DRK, 43, {ns:true});
+R.L([[-6, -18], [0, -14], [6, -18]], DRK, 44, {ns:true});
+G.restore();
+},
+merchant: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.05) * 4;
+G.save(); G.translate(0, bob);
+R.gshadow(0, 52, 22, 5);
+var PEACH = '#f2bf9a', GOLD = '#ecb964', SAND = '#d9cfb2', DRK = '#1f4244', WHT = '#fdfbf2', CORAL = '#e78f6c';
+R.L([[-10, 30], [-14, 30], [-14, 50], [-8, 52], [-6, 38]], SAND, 1, {sx:2, sy:3, sp:6, sa:.44});
+R.L([[6, 30], [10, 30], [14, 50], [8, 52], [4, 38]], SAND, 2, {sx:2, sy:3, sp:6, sa:.44});
+R.L([[-18, -10], [-22, 6], [-18, 30], [18, 30], [22, 6], [18, -10], [12, -22], [0, -26], [-12, -22]], CORAL, 10, {sx:3, sy:5, sp:14, sa:.5});
+R.L([[-14, -8], [-18, 4], [-14, 26], [14, 26], [18, 4], [14, -8], [8, -18], [0, -22], [-8, -18]], PEACH, 11, {sx:2, sy:4, sp:10, sa:.38});
+R.L([[-16, -22], [-20, -14], [-26, -10], [-24, -26], [-18, -32], [-8, -30]], CORAL, 20, {sx:2, sy:3, sp:6, sa:.46});
+R.L([[16, -22], [20, -14], [26, -10], [24, -26], [18, -32], [8, -30]], CORAL, 21, {sx:2, sy:3, sp:6, sa:.46});
+R.L([[18, 2], [30, -4], [34, 6], [30, 14], [22, 10]], SAND, 22, {sx:2, sy:3, sp:7, sa:.42});
+R.L([[24, 0], [32, -2], [34, 6], [28, 10]], GOLD, 23, {sx:1, sy:2, sp:4, sa:.36});
+R.glow(28, 4, 6, 6, GOLD, 0.35, 4);
+R.Ld(-6, -16, 4, WHT, 30, {ns:true}); R.Ld(6, -16, 4, WHT, 31, {ns:true});
+R.Ld(-6, -16, 2, DRK, 32, {ns:true}); R.Ld(6, -16, 2, DRK, 33, {ns:true});
+G.save(); G.strokeStyle = DRK; G.lineWidth = 1.5; G.globalAlpha = 0.7;
+G.beginPath(); G.arc(0, -6, 4, 0.2, Math.PI - 0.2); G.stroke(); G.restore();
+G.restore();
+},
+banker: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.035) * 3, sway = Math.sin(t * 0.022) * 0.018;
+G.save(); G.translate(0, bob); G.rotate(sway);
+R.gshadow(0, 68, 34, 7);
+var GOLD = '#ecb964', SAND = '#d9cfb2', DRK = '#1f4244', WHT = '#fdfbf2', CREAM = '#f5eedd', ORA = '#e39a4a';
+R.L([[-14, 42], [-18, 42], [-20, 62], [-14, 64], [-10, 52]], SAND, 1, {sx:2, sy:4, sp:8, sa:.46});
+R.L([[10, 42], [14, 42], [20, 62], [14, 64], [8, 52]], SAND, 2, {sx:2, sy:4, sp:8, sa:.46});
+R.L([[-28, -10], [-32, 10], [-28, 42], [28, 42], [32, 10], [28, -10], [20, -24], [0, -28], [-20, -24]], SAND, 10, {sx:4, sy:7, sp:18, sa:.54});
+R.L([[-24, -8], [-28, 8], [-24, 38], [24, 38], [28, 8], [24, -8], [16, -20], [0, -24], [-16, -20]], CREAM, 11, {sx:3, sy:5, sp:12, sa:.42});
+R.L([[-16, -4], [-18, 6], [-16, 34], [16, 34], [18, 6], [16, -4], [10, -14], [0, -16], [-10, -14]], WHT, 12, {sx:2, sy:3, sp:8, sa:.28});
+R.L([[-20, 4], [20, 4], [20, 12], [-20, 12]], ORA, 13, {sx:1, sy:2, sp:6, sa:.48});
+R.Ld(0, -2, 6, ORA, 14, {sx:1, sy:2, sp:4, sa:.46});
+R.glow(0, 8, 16, 5, ORA, 0.45, 6);
+R.L([[-28, -10], [-44, -4], [-50, 10], [-44, 22], [-30, 16], [-26, 2]], SAND, 20, {sx:3, sy:5, sp:10, sa:.48});
+R.L([[28, -10], [44, -4], [50, 10], [44, 22], [30, 16], [26, 2]], SAND, 22, {sx:3, sy:5, sp:10, sa:.48});
+for (var i = 0; i < 4; i++) {
+  var cx = -18 + i * 12, cy = 22 + Math.sin(t * 0.05 + i * 0.8) * 2;
+  R.Ld(cx, cy, 5, GOLD, 30 + i, {sx:1, sy:1, sp:4, sa:.42});
+  R.Ld(cx, cy - 6, 5, GOLD, 34 + i, {sx:1, sy:1, sp:4, sa:.38});
+  R.glow(cx, cy - 3, 6, 8, GOLD, 0.3, 4);
+}
+R.L([[-18, -24], [-14, -40], [-6, -46], [0, -48], [6, -46], [14, -40], [18, -24]], SAND, 50, {sx:3, sy:5, sp:12, sa:.5});
+R.L([[-14, -22], [-10, -36], [-4, -42], [0, -44], [4, -42], [10, -36], [14, -22]], CREAM, 51, {sx:2, sy:3, sp:8, sa:.38});
+R.Ld(-7, -32, 5, WHT, 60, {ns:true}); R.Ld(7, -32, 5, WHT, 61, {ns:true});
+R.Ld(-7, -32, 2.5, DRK, 62, {ns:true}); R.Ld(7, -32, 2.5, DRK, 63, {ns:true});
+R.L([[-8, -22], [-4, -20], [0, -21], [4, -20], [8, -22]], DRK, 64, {ns:true});
+G.restore();
+},
+counterfeiter: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.03) * 5, pulse = Math.sin(t * 0.045) * 0.07 + 1.0;
+G.save(); G.translate(0, bob); G.scale(pulse, pulse);
+R.gshadow(0, 58, 46, 9);
+var GOLD = '#ecb964', SAND = '#d9cfb2', DRK = '#1f4244', WHT = '#fdfbf2', ORA = '#e39a4a', PEACH = '#f2bf9a', CREAM = '#f5eedd';
+var morph = Math.sin(t * 0.04);
+R.L([[-34, -30 + morph * 4], [-20, -48], [0, -54 + morph * 2], [20, -48], [34, -30 + morph * 4], [38, -4], [34, 20], [24, 38], [14, 46], [0, 50], [-14, 46], [-24, 38], [-34, 20], [-38, -4]], ORA, 1, {sx:4, sy:7, sp:20, sa:.54});
+R.L([[-28, -26 + morph * 3], [-16, -42], [0, -48 + morph * 2], [16, -42], [28, -26 + morph * 3], [32, -2], [28, 16], [20, 32], [10, 40], [0, 44], [-10, 40], [-20, 32], [-28, 16], [-32, -2]], GOLD, 2, {sx:3, sy:5, sp:16, sa:.46});
+R.L([[-18, -20 + morph * 2], [-8, -34], [0, -38 + morph], [8, -34], [18, -20 + morph * 2], [22, 0], [18, 14], [10, 26], [0, 30], [-10, 26], [-18, 14], [-22, 0]], PEACH, 3, {sx:2, sy:3, sp:10, sa:.32});
+R.glow(0, -4, 24, 30, GOLD, 0.2, 14);
+for (var i = 0; i < 8; i++) {
+  var ca = i / 8 * Math.PI * 2 + t * 0.035;
+  var cr = 32 + Math.sin(t * 0.04 + i) * 4;
+  var cx = Math.cos(ca) * cr, cy = Math.sin(ca) * cr;
+  R.Ld(cx, cy, 4, GOLD, 10 + i, {sx:1, sy:1, sp:4, sa:.4});
+  R.glow(cx, cy, 6, 6, ORA, 0.35, 4);
+}
+for (var j = 0; j < 5; j++) {
+  var ja = j / 5 * Math.PI * 2 - t * 0.025;
+  var jr = 20;
+  var jx = Math.cos(ja) * jr, jy = Math.sin(ja) * jr - 4;
+  R.Ld(jx, jy, 5, CREAM, 20 + j, {sx:1, sy:1, sp:5, sa:.36});
+  R.glow(jx, jy, 7, 7, WHT, 0.2, 4);
+}
+R.Ld(-12, -12, 7, WHT, 30, {ns:true}); R.Ld(12, -12, 7, WHT, 31, {ns:true});
+R.Ld(-12, -12, 3.5, DRK, 32, {ns:true}); R.Ld(12, -12, 3.5, DRK, 33, {ns:true});
+R.glow(-12, -12, 8, 8, GOLD, 0.35, 5); R.glow(12, -12, 8, 8, GOLD, 0.35, 5);
+R.L([[-10, 8], [-4, 4], [0, 8], [4, 4], [10, 8], [6, 14], [0, 12], [-6, 14]], ORA, 40, {sx:2, sy:1, sp:5});
+for (var k = 0; k < 6; k++) {
+  var ph = ((t * 0.025 + k * 0.2) % 1);
+  var kx = -20 + k * 8 + Math.sin(t * 0.03 + k) * 4;
+  var ky = 30 + ph * 20;
+  var kal = (1 - ph) * 0.6;
+  G.save(); G.globalAlpha = kal;
+  R.Ld(kx, ky, 4, GOLD, 50 + k, {ns:true});
+  G.restore();
+}
+G.restore();
+},
+};
+export var FLOOR8_MONSTERS = {
+bookworm_e: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.055) * 4;
+G.save(); G.translate(0, bob);
+R.gshadow(0, 42, 18, 4);
+var SAND = '#d9cfb2', CREAM = '#f5eedd', DRK = '#1f4244', WHT = '#fdfbf2', PEACH = '#f2bf9a';
+var wriggle = Math.sin(t * 0.07) * 3;
+R.L([[-8, 26], [8, 26], [10, 32], [6, 38], [-6, 38], [-10, 32]], CREAM, 1, {sx:2, sy:3, sp:6, sa:.42});
+var segs = 6;
+for (var i = 0; i < segs; i++) {
+  var sy = 20 - i * 8, sw = Math.sin(t * 0.06 + i * 0.5) * wriggle;
+  var w = 10 - i * 0.5;
+  R.L([[sw - w, sy], [sw + w, sy], [sw + w, sy + 8], [sw - w, sy + 8]], i % 2 === 0 ? SAND : CREAM, 10 + i, {sx:2, sy:3, sp:6, sa:.42});
+}
+var hw = Math.sin(t * 0.06) * wriggle;
+R.L([[hw - 10, -26], [hw + 10, -26], [hw + 12, -14], [hw + 8, -8], [hw - 8, -8], [hw - 12, -14]], PEACH, 20, {sx:2, sy:3, sp:8, sa:.44});
+R.L([[hw - 6, -24], [hw + 6, -24], [hw + 8, -14], [hw + 4, -10], [hw - 4, -10], [hw - 8, -14]], SAND, 21, {sx:1, sy:2, sp:5, sa:.32});
+R.Ld(hw - 4, -18, 3, WHT, 30, {ns:true}); R.Ld(hw + 4, -18, 3, WHT, 31, {ns:true});
+R.Ld(hw - 4, -18, 1.5, DRK, 32, {ns:true}); R.Ld(hw + 4, -18, 1.5, DRK, 33, {ns:true});
+G.save(); G.strokeStyle = SAND; G.lineWidth = 0.8; G.globalAlpha = 0.6;
+G.beginPath(); G.moveTo(hw - 8, -22); G.lineTo(hw - 12, -26); G.lineTo(hw - 6, -24);
+G.moveTo(hw + 8, -22); G.lineTo(hw + 12, -26); G.lineTo(hw + 6, -24);
+G.stroke(); G.restore();
+G.save(); G.strokeStyle = DRK; G.lineWidth = 1; G.globalAlpha = 0.6;
+G.beginPath(); G.arc(hw, -12, 3, 0.2, Math.PI - 0.2); G.stroke(); G.restore();
+G.restore();
+},
+inkblot: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.048) * 5;
+G.save(); G.translate(0, bob);
+R.gshadow(0, 36, 24, 5);
+var TD = '#2a6063', LAV = '#9c8fc0', DRK = '#1f4244', WHT = '#fdfbf2', TEAL = '#44888a';
+var morph = Math.sin(t * 0.04);
+R.L([[-24 + morph * 4, -8], [-28, 6], [-22, 20], [-10, 26 + morph * 2], [0, 28], [10, 26 + morph * 2], [22, 20], [28, 6], [24 - morph * 4, -8], [16, -18], [0, -22 + morph * 3], [-16, -18]], TD, 1, {sx:4, sy:6, sp:14, sa:.54});
+R.L([[-18 + morph * 3, -6], [-22, 4], [-16, 16], [-6, 22 + morph], [0, 24], [6, 22 + morph], [16, 16], [22, 4], [18 - morph * 3, -6], [10, -14], [0, -18 + morph * 2], [-10, -14]], TEAL, 2, {sx:3, sy:4, sp:10, sa:.44});
+R.glow(0, 4, 18, 18, LAV, 0.2 + Math.sin(t * 0.05) * 0.08, 10);
+for (var i = 0; i < 6; i++) {
+  var ta = i / 6 * Math.PI * 2 + t * 0.03;
+  var tr = 18 + Math.sin(t * 0.04 + i) * 4;
+  var tx = Math.cos(ta) * tr + morph * 2, ty = Math.sin(ta) * tr * 0.6 + 2;
+  G.save(); G.globalAlpha = 0.4 + Math.sin(t * 0.05 + i) * 0.15;
+  R.Ld(tx, ty, 3 + i % 2, LAV, 10 + i, {ns:true});
+  G.restore();
+}
+R.Ld(-7, -4, 4, WHT, 20, {ns:true}); R.Ld(7, -4, 4, WHT, 21, {ns:true});
+R.Ld(-7, -4, 2, DRK, 22, {ns:true}); R.Ld(7, -4, 2, DRK, 23, {ns:true});
+R.glow(-7, -4, 5, 5, LAV, 0.4, 4); R.glow(7, -4, 5, 5, LAV, 0.4, 4);
+G.restore();
+},
+riddler: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.045) * 4;
+G.save(); G.translate(0, bob);
+R.gshadow(0, 52, 30, 6);
+var LAV = '#9c8fc0', GOLD = '#ecb964', DRK = '#1f4244', WHT = '#fdfbf2', LAVD = '#7c6fa8', SAND = '#d9cfb2';
+R.L([[-10, 30], [-14, 30], [-16, 48], [-10, 50], [-6, 38]], LAVD, 1, {sx:2, sy:3, sp:6, sa:.44});
+R.L([[6, 30], [10, 30], [16, 48], [10, 50], [4, 38]], LAVD, 2, {sx:2, sy:3, sp:6, sa:.44});
+R.L([[-18, -4], [-22, 10], [-18, 30], [18, 30], [22, 10], [18, -4], [12, -14], [0, -18], [-12, -14]], LAV, 10, {sx:3, sy:5, sp:14, sa:.5});
+R.L([[-14, -2], [-18, 8], [-14, 26], [14, 26], [18, 8], [14, -2], [8, -10], [0, -14], [-8, -10]], LAVD, 11, {sx:2, sy:4, sp:10, sa:.38});
+R.L([[-22, 14], [-16, 10], [-18, 18], [-24, 20]], LAVD, 20, {sx:2, sy:3, sp:6, sa:.42});
+R.L([[22, 14], [16, 10], [18, 18], [24, 20]], LAVD, 21, {sx:2, sy:3, sp:6, sa:.42});
+R.L([[-14, -14], [-10, -28], [-2, -32], [0, -34], [2, -32], [10, -28], [14, -14]], LAV, 30, {sx:3, sy:4, sp:10, sa:.48});
+R.L([[-10, -12], [-6, -24], [-2, -28], [0, -30], [2, -28], [6, -24], [10, -12]], LAVD, 31, {sx:2, sy:3, sp:7, sa:.36});
+R.L([[-18, -32], [18, -32], [20, -36], [0, -44], [-20, -36]], LAV, 32, {sx:2, sy:3, sp:6, sa:.44});
+for (var i = 0; i < 3; i++) {
+  var qa = i / 3 * Math.PI * 2 + t * 0.04;
+  var qx = Math.cos(qa) * 24, qy = Math.sin(qa) * 20 - 4;
+  G.save(); G.font = 'bold 12px serif'; G.textAlign = 'center'; G.textBaseline = 'middle';
+  G.fillStyle = GOLD; G.globalAlpha = 0.5 + Math.sin(t * 0.05 + i) * 0.2;
+  G.fillText('?', qx, qy); G.restore();
+}
+R.Ld(-5, -22, 4, WHT, 40, {ns:true}); R.Ld(5, -22, 4, WHT, 41, {ns:true});
+R.Ld(-5, -22, 2, DRK, 42, {ns:true}); R.Ld(5, -22, 2, DRK, 43, {ns:true});
+R.glow(-5, -22, 5, 5, GOLD, 0.4, 4); R.glow(5, -22, 5, 5, GOLD, 0.4, 4);
+G.restore();
+},
+archivist: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.034) * 3, sway = Math.sin(t * 0.022) * 0.015;
+G.save(); G.translate(0, bob); G.rotate(sway);
+R.gshadow(0, 66, 30, 7);
+var SAND = '#d9cfb2', LAVD = '#7c6fa8', LAV = '#9c8fc0', DRK = '#1f4244', WHT = '#fdfbf2', CREAM = '#f5eedd';
+R.L([[-12, 42], [-16, 42], [-18, 62], [-12, 64], [-8, 50]], LAVD, 1, {sx:2, sy:4, sp:8, sa:.46});
+R.L([[8, 42], [12, 42], [18, 62], [12, 64], [6, 50]], LAVD, 2, {sx:2, sy:4, sp:8, sa:.46});
+R.L([[-22, -8], [-26, 10], [-22, 42], [22, 42], [26, 10], [22, -8], [16, -22], [0, -26], [-16, -22]], SAND, 10, {sx:4, sy:6, sp:16, sa:.52});
+R.L([[-18, -6], [-22, 8], [-18, 38], [18, 38], [22, 8], [18, -6], [12, -18], [0, -22], [-12, -18]], LAVD, 11, {sx:3, sy:4, sp:12, sa:.42});
+R.L([[-12, -2], [-14, 6], [-12, 34], [12, 34], [14, 6], [12, -2], [6, -12], [0, -14], [-6, -12]], LAV, 12, {sx:2, sy:3, sp:8, sa:.3});
+R.L([[-22, -8], [-38, -2], [-44, 12], [-40, 24], [-26, 18], [-20, 4]], SAND, 20, {sx:3, sy:5, sp:10, sa:.48});
+R.L([[22, -8], [38, -2], [44, 12], [40, 24], [26, 18], [20, 4]], SAND, 22, {sx:3, sy:5, sp:10, sa:.48});
+R.L([[-18, -22], [-14, -38], [-6, -46], [0, -48], [6, -46], [14, -38], [18, -22]], LAVD, 30, {sx:3, sy:5, sp:12, sa:.5});
+R.L([[-14, -20], [-10, -34], [-4, -42], [0, -44], [4, -42], [10, -34], [14, -20]], LAV, 31, {sx:2, sy:3, sp:8, sa:.38});
+R.L([[-20, -42], [0, -52], [20, -42], [16, -38], [0, -46], [-16, -38]], SAND, 32, {sx:2, sy:3, sp:7, sa:.44});
+for (var i = 0; i < 3; i++) {
+  var ba = (i - 1) * 0.5 + Math.sin(t * 0.03 + i * 1.2) * 0.15;
+  var br = 32 + i * 6;
+  var bx = Math.cos(ba) * br, by = Math.sin(ba) * br - 10;
+  R.L([[bx - 6, by - 4], [bx + 6, by - 4], [bx + 6, by + 6], [bx - 6, by + 6]], CREAM, 40 + i, {sx:2, sy:2, sp:6, sa:.4});
+  R.L([[bx - 4, by - 2], [bx + 4, by - 2], [bx + 4, by + 4], [bx - 4, by + 4]], SAND, 41 + i, {sx:1, sy:1, sp:4, sa:.28});
+  R.glow(bx, by, 8, 8, LAV, 0.25, 5);
+}
+R.Ld(-7, -32, 5, WHT, 50, {ns:true}); R.Ld(7, -32, 5, WHT, 51, {ns:true});
+R.Ld(-7, -32, 2.5, DRK, 52, {ns:true}); R.Ld(7, -32, 2.5, DRK, 53, {ns:true});
+R.glow(-7, -32, 6, 6, LAV, 0.4, 4); R.glow(7, -32, 6, 6, LAV, 0.4, 4);
+R.L([[-6, -18], [0, -14], [6, -18]], LAVD, 54, {sx:1, sy:1, sp:3, ns:true});
+G.restore();
+},
+theparadox: function(R, t) {
+var G = R.G, bob = Math.sin(t * 0.028) * 5, pulse = Math.sin(t * 0.04) * 0.05 + 1.0;
+G.save(); G.translate(0, bob); G.scale(pulse, pulse);
+R.gshadow(0, 60, 48, 10);
+var LAV = '#9c8fc0', LAVD = '#7c6fa8', TEAL = '#44888a', TD = '#2a6063', WHT = '#fdfbf2', DRK = '#1f4244', SKY = '#a4c8d8', GOLD = '#ecb964';
+var warp = t * 0.03;
+R.L([[-36, -32], [-20, -48], [0, -54], [20, -48], [36, -32], [40, -6], [36, 20], [26, 38], [14, 46], [0, 50], [-14, 46], [-26, 38], [-36, 20], [-40, -6]], TD, 1, {sx:4, sy:7, sp:20, sa:.54});
+R.L([[-30, -28], [-16, -42], [0, -48], [16, -42], [30, -28], [34, -4], [30, 16], [22, 32], [12, 40], [0, 44], [-12, 40], [-22, 32], [-30, 16], [-34, -4]], LAVD, 2, {sx:3, sy:5, sp:16, sa:.46});
+R.L([[-20, -22], [-10, -34], [0, -38], [10, -34], [20, -22], [24, -2], [20, 12], [14, 24], [0, 30], [-14, 24], [-20, 12], [-24, -2]], LAV, 3, {sx:2, sy:3, sp:10, sa:.34});
+R.glow(0, 0, 28, 32, LAV, 0.18, 16);
+G.save(); G.rotate(warp);
+for (var i = 0; i < 3; i++) {
+  var tr = 16 + i * 8;
+  var pts = [];
+  for (var j = 0; j < 4; j++) {
+    var a = j / 4 * Math.PI * 2 + i * 0.3;
+    pts.push([Math.cos(a) * tr, Math.sin(a) * tr - 4]);
+  }
+  G.save(); G.strokeStyle = i === 0 ? SKY : (i === 1 ? LAV : TEAL);
+  G.lineWidth = 1.5; G.globalAlpha = 0.3 + Math.sin(t * 0.05 + i) * 0.1;
+  G.beginPath(); G.moveTo(pts[0][0], pts[0][1]);
+  for (var k = 1; k < pts.length; k++) G.lineTo(pts[k][0], pts[k][1]);
+  G.closePath(); G.stroke(); G.restore();
+}
+G.restore();
+for (var i = 0; i < 6; i++) {
+  var oa = i / 6 * Math.PI * 2 + warp * 0.8;
+  var orb = 34 + Math.sin(t * 0.04 + i * 1.1) * 4;
+  var ox = Math.cos(oa) * orb, oy = Math.sin(oa) * orb;
+  R.Ld(ox, oy, 3, SKY, 20 + i, {ns:true});
+  R.glow(ox, oy, 5, 5, LAV, 0.3, 4);
+}
+for (var m = 0; m < 4; m++) {
+  var ma = m / 4 * Math.PI * 2 - warp * 1.2;
+  var mr = 22;
+  var mx = Math.cos(ma) * mr, my = Math.sin(ma) * mr - 2;
+  R.Ld(mx, my, 4, TEAL, 30 + m, {sx:1, sy:1, sp:5, sa:.36});
+  R.glow(mx, my, 6, 6, TEAL, 0.25, 4);
+}
+R.Ld(0, -18, 10, WHT, 40, {sx:2, sy:2, sp:8});
+R.glow(0, -18, 14, 14, GOLD, 0.3 + Math.sin(t * 0.06) * 0.1, 8);
+G.save(); G.font = 'bold 16px serif'; G.textAlign = 'center'; G.textBaseline = 'middle';
+G.fillStyle = DRK; G.globalAlpha = 0.75; G.fillText('∞', 0, -18); G.restore();
+R.Ld(-14, -6, 7, WHT, 50, {ns:true}); R.Ld(14, -6, 7, WHT, 51, {ns:true});
+R.Ld(-14, -6, 3.5, DRK, 52, {ns:true}); R.Ld(14, -6, 3.5, DRK, 53, {ns:true});
+R.glow(-14, -6, 8, 8, LAV, 0.3, 5); R.glow(14, -6, 8, 8, LAV, 0.3, 5);
+R.L([[-10, 14], [0, 22], [10, 14]], LAVD, 60, {sx:1, sy:1, sp:4, ns:true});
+G.restore();
+},
+};
 export var BOSSES = {
 sigma: function(R, t) {
 var G = R.G; G.save();
@@ -791,695 +1207,6 @@ for (var o = 0; o < 8; o++) {
   var ox = Math.cos(oa) * orb, oy = Math.sin(oa) * orb - 2;
   R.Ld(ox, oy, 2.5, GOLD, 370+o, {ns:true});
   R.glow(ox, oy, 4, 4, GOLD, 0.3, 3);
-}
-G.restore();
-},
-};
-
-// ─── FLOOR 6: CRYSTAL CAVERNS (Geometry) ────────────────────────
-
-export var FLOOR6_MONSTERS = {
-shard: function(R,t){
-var G=R.G,bob=Math.sin(t*.048)*6,rot=Math.sin(t*.032)*.15;
-G.save();G.translate(0,bob);G.rotate(rot);
-var LAV='#9c8fc0',LAVD='#7c6fa8',SKY='#a4c8d8',WHT='#fdfbf2',INK='#1f4244';
-R.gshadow(0,52,20,4);
-// Main diamond body — faceted crystal shape
-R.L([[0,-48],[18,-28],[22,-8],[16,16],[0,38],[-16,16],[-22,-8],[-18,-28]],LAVD,1,{sx:3,sy:5,sp:14,sa:.52});
-R.L([[0,-42],[14,-24],[18,-6],[12,14],[0,32],[-12,14],[-18,-6],[-14,-24]],LAV,2,{sx:2,sy:4,sp:10,sa:.42});
-// Inner facet lines — geometric detail
-R.L([[0,-42],[14,-24],[0,-6],[-14,-24]],SKY,3,{sx:1,sy:2,sp:6,sa:.22});
-R.L([[0,-6],[18,-6],[12,14],[0,32],[-12,14],[-18,-6]],SKY,4,{sx:1,sy:2,sp:6,sa:.18});
-// Central spine line
-G.save();G.strokeStyle='rgba(164,200,216,.45)';G.lineWidth=1.6;
-G.beginPath();G.moveTo(0,-42);G.lineTo(0,32);G.stroke();
-G.beginPath();G.moveTo(-18,-6);G.lineTo(18,-6);G.stroke();G.restore();
-// Light reflection highlights
-R.L([[-10,-30],[-4,-36],[2,-28],[-4,-22]],WHT,5,{sx:1,sy:1,sp:4,sa:.18,ns:true});
-R.L([[6,-18],[12,-22],[14,-14],[8,-12]],WHT,6,{sx:1,sy:1,sp:3,sa:.14,ns:true});
-// Top facet accent
-R.L([[0,-48],[8,-36],[0,-28],[-8,-36]],SKY,7,{sx:1,sy:2,sp:5,sa:.32});
-// Glow effects
-R.glow(0,-6,14,20,LAV,.28,10);
-R.glow(0,-6,6,8,WHT,.18,4);
-// Sparkle particles orbiting
-for(var i=0;i<5;i++){
-  var ph=((t*.022+i*.2)%1),spa=i/5*Math.PI*2+t*.6;
-  var spx=Math.cos(spa)*24,spy=Math.sin(spa)*16-6;
-  var sal=(1-Math.abs(ph-.5)*2)*.55;
-  G.save();G.globalAlpha=sal;
-  R.Ld(spx,spy,2+Math.sin(t*2+i)*.8,WHT,10+i,{ns:true});
-  R.glow(spx,spy,4,4,SKY,sal*.5,3);G.restore();
-}
-G.restore();
-},
-geode: function(R,t){
-var G=R.G,bob=Math.sin(t*.04)*3,crack=Math.sin(t*.025)*.08;
-G.save();G.translate(0,bob);
-var TELD='#2a6063',TEL='#44888a',LAV='#9c8fc0',LAVD='#7c6fa8',WHT='#fdfbf2',INK='#1f4244';
-R.gshadow(0,48,30,6);
-// Outer rock shell — rough and cracked
-R.L([[-34,-18],[-38,-6],[-36,14],[-28,28],[-14,36],[0,38],[14,36],[28,28],[36,14],[38,-6],[34,-18],[24,-30],[10,-36],[0,-38],[-10,-36],[-24,-30]],TELD,1,{sx:4,sy:6,sp:18,sa:.56});
-R.L([[-28,-14],[-32,-4],[-30,12],[-22,24],[-10,30],[0,32],[10,30],[22,24],[30,12],[32,-4],[28,-14],[18,-24],[6,-30],[0,-32],[-6,-30],[-18,-24]],TEL,2,{sx:3,sy:4,sp:12,sa:.44});
-// Crack lines across the shell
-G.save();G.strokeStyle='rgba(31,66,68,.65)';G.lineWidth=2;
-G.beginPath();G.moveTo(-20,-28);G.lineTo(-12,-10);G.lineTo(-8,8);G.stroke();
-G.beginPath();G.moveTo(16,-26);G.lineTo(10,-8);G.lineTo(14,10);G.stroke();
-G.beginPath();G.moveTo(-6,-32);G.lineTo(2,-14);G.lineTo(-2,6);G.stroke();G.restore();
-// Crystal interior peeking through cracks
-R.L([[-14,-12],[-8,-20],[0,-16],[4,-8],[-4,-4],[-12,-6]],LAV,10,{sx:2,sy:3,sp:8,sa:.48});
-R.L([[-10,-14],[-6,-18],[0,-14],[2,-8],[-4,-6],[-8,-8]],WHT,11,{sx:1,sy:1,sp:4,sa:.22,ns:true});
-R.L([[6,-10],[14,-16],[18,-8],[14,2],[8,0]],LAVD,12,{sx:2,sy:3,sp:7,sa:.46});
-R.L([[8,-8],[12,-14],[16,-8],[12,0],[8,-2]],LAV,13,{sx:1,sy:2,sp:5,sa:.28});
-// Small crystal clusters at crack openings
-R.L([[-4,2],[-2,-6],[2,-4],[4,4],[0,8]],LAVD,14,{sx:2,sy:3,sp:6,sa:.42});
-R.L([[-2,0],[0,-4],[2,-2],[2,4],[0,6]],LAV,15,{sx:1,sy:1,sp:4,sa:.24});
-// Crystal glow from interior
-R.glow(-4,-10,10,10,LAV,.35+Math.sin(t*1.8)*.12,8);
-R.glow(10,-6,8,8,LAV,.28+Math.sin(t*2.2)*.1,6);
-R.glow(0,2,6,6,LAVD,.22,5);
-// Tiny sparkles on crystal surfaces
-for(var i=0;i<4;i++){
-  var sx=[-8,4,12,-2][i],sy=[-16,-12,-6,0][i];
-  var sal=.4+Math.sin(t*3+i*1.5)*.3;
-  G.save();G.globalAlpha=sal;
-  R.Ld(sx,sy,1.5,WHT,20+i,{ns:true});G.restore();
-}
-G.restore();
-},
-prismling: function(R,t){
-var G=R.G,bob=Math.sin(t*.055)*5,spin=t*.04;
-G.save();G.translate(0,bob);
-var LAV='#9c8fc0',SKY='#a4c8d8',GOLD='#ecb964',WHT='#fdfbf2',INK='#1f4244',LAVD='#7c6fa8';
-R.gshadow(0,40,18,4);
-// Prismatic triangular body — main form
-var colorCycle=Math.sin(t*1.2);
-var bodyCol=colorCycle>0.3?LAV:colorCycle>-0.3?SKY:GOLD;
-R.L([[0,-36],[24,18],[-24,18]],LAVD,1,{sx:3,sy:5,sp:12,sa:.52});
-R.L([[0,-28],[18,14],[-18,14]],bodyCol,2,{sx:2,sy:3,sp:8,sa:.42});
-// Inner triangle refraction
-R.L([[0,-18],[10,8],[-10,8]],SKY,3,{sx:1,sy:2,sp:6,sa:.28});
-// Refraction detail lines
-G.save();G.strokeStyle='rgba(253,251,242,.4)';G.lineWidth=1.2;
-G.beginPath();G.moveTo(0,-28);G.lineTo(10,8);G.stroke();
-G.beginPath();G.moveTo(0,-28);G.lineTo(-10,8);G.stroke();
-G.beginPath();G.moveTo(-18,14);G.lineTo(18,14);G.stroke();G.restore();
-// Light beams emanating from vertices
-var beamAlpha=.25+Math.sin(t*2.4)*.15;
-G.save();G.globalAlpha=beamAlpha;G.strokeStyle=GOLD;G.lineWidth=2;G.lineCap='round';
-G.beginPath();G.moveTo(0,-36);G.lineTo(-8,-52);G.stroke();
-G.beginPath();G.moveTo(0,-36);G.lineTo(8,-52);G.stroke();
-G.beginPath();G.moveTo(24,18);G.lineTo(36,26);G.stroke();
-G.beginPath();G.moveTo(-24,18);G.lineTo(-36,26);G.stroke();G.restore();
-// Glow at center
-R.glow(0,-4,10,14,bodyCol,.32,8);
-R.glow(0,-4,4,6,WHT,.2,3);
-// Eyes on the prismatic face
-R.Ld(-6,-4,3,WHT,10,{ns:true});R.Ld(6,-4,3,WHT,11,{ns:true});
-R.Ld(-6,-4,1.5,INK,12,{ns:true});R.Ld(6,-4,1.5,INK,13,{ns:true});
-R.glow(-6,-4,4,4,LAV,.3,3);R.glow(6,-4,4,4,LAV,.3,3);
-// Tiny mouth
-R.L([[-3,4],[0,7],[3,4]],LAVD,14,{sx:1,sy:1,sp:3,ns:true});
-// Orbiting color motes
-for(var i=0;i<3;i++){
-  var ma=i/3*Math.PI*2+t*1.4;
-  var mr=22+Math.sin(t*2+i)*3;
-  var mx=Math.cos(ma)*mr,my=Math.sin(ma)*mr*.6-4;
-  var mcol=[LAV,SKY,GOLD][i];
-  R.Ld(mx,my,2.5,mcol,20+i,{ns:true});
-  R.glow(mx,my,5,5,mcol,.35,4);
-}
-G.restore();
-},
-facet: function(R,t){
-var G=R.G,bob=Math.sin(t*.035)*2,breathe=Math.sin(t*.04)*.03;
-G.save();G.translate(0,bob);G.scale(1+breathe,1-breathe*.5);
-var LAVD='#7c6fa8',TEL='#44888a',TELD='#2a6063',LAV='#9c8fc0',WHT='#fdfbf2',INK='#1f4244';
-R.gshadow(0,56,28,6);
-// Legs — armored
-R.L([[-14,32],[-18,36],[-20,52],[-16,56],[-8,56],[-6,52],[-10,36]],TELD,1,{sx:2,sy:4,sp:8,sa:.48});
-R.L([[10,36],[6,52],[8,56],[16,56],[20,52],[18,36],[14,32]],TELD,2,{sx:2,sy:4,sp:8,sa:.48});
-R.L([[-12,34],[-16,38],[-18,50],[-14,54],[-8,54],[-6,50],[-10,38]],TEL,3,{sx:1,sy:3,sp:6,sa:.34});
-R.L([[10,38],[6,50],[8,54],[14,54],[18,50],[16,38],[12,34]],TEL,4,{sx:1,sy:3,sp:6,sa:.34});
-// Torso — crystal armor plating
-R.L([[-22,-8],[-26,6],[-24,24],[-14,34],[14,34],[24,24],[26,6],[22,-8],[14,-16],[0,-18],[-14,-16]],TELD,10,{sx:3,sy:5,sp:16,sa:.54});
-R.L([[-18,-6],[-22,4],[-20,20],[-10,30],[10,30],[20,20],[22,4],[18,-6],[10,-14],[0,-16],[-10,-14]],TEL,11,{sx:2,sy:4,sp:12,sa:.42});
-// Chest plate — geometric crystal
-R.L([[-12,0],[0,-10],[12,0],[8,16],[-8,16]],LAVD,12,{sx:2,sy:3,sp:8,sa:.48});
-R.L([[-8,2],[0,-6],[8,2],[6,12],[-6,12]],LAV,13,{sx:1,sy:2,sp:5,sa:.32});
-R.glow(0,4,8,8,LAV,.22,6);
-// Arms
-R.L([[-26,2],[-42,-4],[-48,8],[-40,18],[-28,14]],TELD,20,{sx:3,sy:4,sp:10,sa:.5});
-R.L([[-24,4],[-38,-2],[-44,8],[-36,16],[-26,12]],TEL,21,{sx:2,sy:3,sp:7,sa:.36});
-R.L([[26,2],[42,-4],[48,8],[40,18],[28,14]],TELD,22,{sx:3,sy:4,sp:10,sa:.5});
-R.L([[24,4],[38,-2],[44,8],[36,16],[26,12]],TEL,23,{sx:2,sy:3,sp:7,sa:.36});
-// Crystal shoulder pads
-R.L([[-28,-2],[-36,-12],[-30,-18],[-22,-10],[-24,0]],LAVD,30,{sx:2,sy:3,sp:7,sa:.5});
-R.L([[-26,-4],[-32,-12],[-28,-16],[-22,-8],[-24,-2]],LAV,31,{sx:1,sy:2,sp:5,sa:.34});
-R.glow(-30,-12,5,5,LAV,.3,4);
-R.L([[24,0],[22,-10],[30,-18],[36,-12],[28,-2]],LAVD,32,{sx:2,sy:3,sp:7,sa:.5});
-R.L([[24,-2],[22,-8],[28,-16],[32,-12],[26,-4]],LAV,33,{sx:1,sy:2,sp:5,sa:.34});
-R.glow(30,-12,5,5,LAV,.3,4);
-// Head with crystal helmet
-R.L([[-14,-18],[-16,-30],[-12,-42],[-4,-48],[4,-48],[12,-42],[16,-30],[14,-18],[8,-14],[0,-12],[-8,-14]],TELD,40,{sx:3,sy:5,sp:12,sa:.54});
-R.L([[-10,-18],[-12,-28],[-8,-38],[-2,-44],[2,-44],[8,-38],[12,-28],[10,-18],[6,-14],[0,-12],[-6,-14]],TEL,41,{sx:2,sy:3,sp:8,sa:.42});
-// Helmet crest — crystal spike
-R.L([[0,-48],[4,-58],[0,-66],[-4,-58]],LAVD,42,{sx:2,sy:3,sp:6,sa:.48});
-R.L([[0,-50],[2,-56],[0,-62],[-2,-56]],LAV,43,{sx:1,sy:1,sp:4,sa:.3});
-R.glow(0,-62,4,4,LAV,.4,5);
-// Eyes
-R.Ld(-6,-28,4,WHT,50,{ns:true});R.Ld(6,-28,4,WHT,51,{ns:true});
-R.Ld(-6,-28,2,INK,52,{ns:true});R.Ld(6,-28,2,INK,53,{ns:true});
-R.glow(-6,-28,5,5,LAV,.35,4);R.glow(6,-28,5,5,LAV,.35,4);
-G.restore();
-},
-theprism: function(R,t){
-var G=R.G,bob=Math.sin(t*.03)*5,rot=t*.028;
-G.save();G.translate(0,bob);
-var LAV='#9c8fc0',LAVD='#7c6fa8',SKY='#a4c8d8',GOLD='#ecb964',WHT='#fdfbf2',INK='#1f4244',TELD='#2a6063';
-R.gshadow(0,62,46,10);
-// Massive rotating prism — outer shell
-G.save();G.rotate(rot);
-R.L([[0,-56],[48,-28],[48,28],[0,56],[-48,28],[-48,-28]],TELD,1,{sx:4,sy:7,sp:22,sa:.56});
-R.L([[0,-48],[40,-24],[40,24],[0,48],[-40,24],[-40,-24]],LAVD,2,{sx:3,sy:5,sp:16,sa:.48});
-R.L([[0,-38],[32,-19],[32,19],[0,38],[-32,19],[-32,-19]],LAV,3,{sx:2,sy:4,sp:12,sa:.38});
-// Inner faceted structure
-R.L([[0,-26],[22,-13],[22,13],[0,26],[-22,13],[-22,-13]],SKY,4,{sx:2,sy:3,sp:8,sa:.28});
-// Facet edge lines
-G.save();G.strokeStyle='rgba(253,251,242,.35)';G.lineWidth=1.8;
-G.beginPath();G.moveTo(0,-48);G.lineTo(0,48);G.stroke();
-G.beginPath();G.moveTo(-40,-24);G.lineTo(40,24);G.stroke();
-G.beginPath();G.moveTo(-40,24);G.lineTo(40,-24);G.stroke();G.restore();
-// Highlight facets — shifting colors
-var faceC=Math.sin(t*1.5);
-R.L([[0,-48],[40,-24],[0,0]],faceC>0?GOLD:SKY,5,{sx:1,sy:2,sp:6,sa:.14,ns:true});
-R.L([[0,0],[-40,24],[0,48]],faceC>0?SKY:GOLD,6,{sx:1,sy:2,sp:6,sa:.14,ns:true});
-G.restore();
-// Light beams shooting outward from each face
-var beamCols=[GOLD,SKY,LAV,'#e8a09a','#f2bf9a',GOLD];
-for(var i=0;i<6;i++){
-  var ba=i/6*Math.PI*2+rot;
-  var bx1=Math.cos(ba)*42,by1=Math.sin(ba)*42;
-  var bx2=Math.cos(ba)*72,by2=Math.sin(ba)*72;
-  var bAlpha=.25+Math.sin(t*2.4+i*1.2)*.18;
-  G.save();G.strokeStyle=beamCols[i];G.lineWidth=3;G.globalAlpha=bAlpha;G.lineCap='round';
-  G.beginPath();G.moveTo(bx1,by1);G.lineTo(bx2,by2);G.stroke();G.restore();
-  R.glow(bx2,by2,6,6,beamCols[i],bAlpha*.6,5);
-}
-// Central core glow
-R.glow(0,0,18,18,WHT,.3+Math.sin(t*2)*.1,12);
-R.glow(0,0,30,30,LAV,.18,16);
-// Eyes embedded in center facet
-R.Ld(-10,-6,6,WHT,20,{ns:true});R.Ld(10,-6,6,WHT,21,{ns:true});
-R.Ld(-10,-6,3,INK,22,{ns:true});R.Ld(10,-6,3,INK,23,{ns:true});
-R.glow(-10,-6,8,8,LAV,.35,5);R.glow(10,-6,8,8,LAV,.35,5);
-// Mouth — geometric slit
-R.L([[-8,8],[0,14],[8,8],[4,10],[0,12],[-4,10]],LAVD,24,{sx:1,sy:1,sp:4,ns:true});
-// Orbiting crystal shards
-for(var j=0;j<8;j++){
-  var oa=j/8*Math.PI*2-t*.5;
-  var od=52+Math.sin(t+j*1.1)*6;
-  var ox=Math.cos(oa)*od,oy=Math.sin(oa)*od;
-  R.L([[ox,oy-5],[ox+3,oy],[ox,oy+5],[ox-3,oy]],LAV,30+j,{sx:1,sy:1,sp:4,sa:.44,ns:true});
-  R.glow(ox,oy,4,4,SKY,.3,3);
-}
-// Rainbow shimmer ring
-for(var k=0;k<12;k++){
-  var ra=k/12*Math.PI*2+t*1.2;
-  var rr=36;
-  var rx=Math.cos(ra)*rr,ry=Math.sin(ra)*rr;
-  var rcol=[GOLD,SKY,LAV,'#e8a09a'][k%4];
-  var rAlpha=.2+Math.sin(t*3+k)*.12;
-  G.save();G.globalAlpha=rAlpha;
-  R.Ld(rx,ry,2,rcol,42+k,{ns:true});G.restore();
-}
-G.restore();
-},
-};
-
-// ─── FLOOR 7: MARKET SQUARE (Money) ─────────────────────────────
-
-export var FLOOR7_MONSTERS = {
-pickpocket: function(R,t){
-var G=R.G,bob=Math.sin(t*.06)*3,dart=Math.sin(t*.09)*4;
-G.save();G.translate(dart*.3,bob);
-var GOLD='#ecb964',SAND='#d9cfb2',SANDL='#f5eedd',INK='#1f4244',FRSTD='#2a5240',FRST='#3c6b4f';
-R.gshadow(0,48,22,5);
-// Hunched body — small and sneaky
-R.L([[-16,-6],[-20,8],[-18,24],[-10,34],[10,34],[18,24],[20,8],[16,-6],[8,-14],[0,-16],[-8,-14]],FRST,1,{sx:3,sy:5,sp:14,sa:.52});
-R.L([[-12,-4],[-16,6],[-14,20],[-6,30],[6,30],[14,20],[16,6],[12,-4],[6,-12],[0,-14],[-6,-12]],SAND,2,{sx:2,sy:4,sp:10,sa:.4});
-// Ragged cloak/hood
-R.L([[-18,-2],[-22,10],[-20,28],[-12,36],[12,36],[20,28],[22,10],[18,-2],[10,-12],[0,-14],[-10,-12]],FRSTD,3,{sx:3,sy:5,sp:12,sa:.48});
-R.L([[-14,-2],[-18,8],[-16,24],[-8,32],[8,32],[16,24],[18,8],[14,-2],[8,-10],[0,-12],[-8,-10]],FRST,4,{sx:2,sy:3,sp:8,sa:.36});
-// Long sneaky arms
-var armSwing=Math.sin(t*.07)*8;
-R.L([[-20,10],[-32,6+armSwing],[-38,14+armSwing],[-34,20+armSwing],[-24,16]],FRST,10,{sx:2,sy:3,sp:8,sa:.46});
-R.L([[-30,8+armSwing],[-36,14+armSwing],[-32,18+armSwing],[-26,14]],SAND,11,{sx:1,sy:2,sp:5,sa:.32});
-// Grabbing fingers
-R.L([[-36,14+armSwing],[-40,12+armSwing],[-42,16+armSwing],[-38,18+armSwing]],SAND,12,{sx:1,sy:1,sp:3,sa:.38});
-R.L([[20,10],[32,6-armSwing],[38,14-armSwing],[34,20-armSwing],[24,16]],FRST,13,{sx:2,sy:3,sp:8,sa:.46});
-R.L([[30,8-armSwing],[36,14-armSwing],[32,18-armSwing],[26,14]],SAND,14,{sx:1,sy:2,sp:5,sa:.32});
-// Coin pouch at hip
-R.Le(12,26,8,6,SAND,20,{sx:2,sy:3,sp:7,sa:.46});
-R.Le(12,26,5,4,GOLD,21,{sx:1,sy:2,sp:5,sa:.34});
-// Coins peeking out
-R.Ld(10,22,3,GOLD,22,{ns:true});R.Ld(14,23,2.5,GOLD,23,{ns:true});
-R.glow(12,24,6,4,GOLD,.25,4);
-// Head — hooded, darting eyes
-R.L([[-12,-14],[-14,-26],[-10,-36],[-4,-40],[4,-40],[10,-36],[14,-26],[12,-14],[6,-10],[0,-8],[-6,-10]],FRSTD,30,{sx:3,sy:4,sp:10,sa:.52});
-R.L([[-8,-14],[-10,-24],[-6,-32],[-2,-36],[2,-36],[6,-32],[10,-24],[8,-14],[4,-10],[0,-8],[-4,-10]],FRST,31,{sx:2,sy:3,sp:7,sa:.4});
-// Darting eyes — shifted with dart
-R.Ld(-5+dart*.15,-24,3,SANDL,40,{ns:true});R.Ld(5+dart*.15,-24,3,SANDL,41,{ns:true});
-R.Ld(-5+dart*.15,-24,1.5,INK,42,{ns:true});R.Ld(5+dart*.15,-24,1.5,INK,43,{ns:true});
-// Sneaky grin
-R.L([[-4,-16],[0,-14],[4,-16],[2,-15],[-2,-15]],INK,44,{ns:true});
-// Feet
-R.L([[-12,34],[-16,38],[-14,42],[-6,42],[-8,36]],FRSTD,50,{sx:1,sy:2,sp:5,sa:.44});
-R.L([[8,36],[6,42],[14,42],[16,38],[12,34]],FRSTD,51,{sx:1,sy:2,sp:5,sa:.44});
-G.restore();
-},
-taxcollector: function(R,t){
-var G=R.G,bob=Math.sin(t*.03)*2;
-G.save();G.translate(0,bob);
-var SAND='#d9cfb2',CREAM='#f5eedd',INK='#1f4244',TELD='#2a6063',TEL='#44888a',CORAL='#d06a4d';
-R.gshadow(0,58,26,6);
-// Tall rigid body — bureaucratic robes
-R.L([[-18,-12],[-22,4],[-20,28],[-16,42],[-10,48],[10,48],[16,42],[20,28],[22,4],[18,-12],[10,-20],[0,-22],[-10,-20]],TELD,1,{sx:3,sy:5,sp:16,sa:.54});
-R.L([[-14,-10],[-18,2],[-16,24],[-12,38],[-6,44],[6,44],[12,38],[16,24],[18,2],[14,-10],[8,-18],[0,-20],[-8,-18]],SAND,2,{sx:2,sy:4,sp:12,sa:.42});
-// Stiff collar
-R.L([[-14,-10],[-18,-14],[-12,-20],[12,-20],[18,-14],[14,-10]],CREAM,3,{sx:2,sy:3,sp:8,sa:.38});
-R.L([[-10,-10],[-14,-14],[-8,-18],[8,-18],[14,-14],[10,-10]],SAND,4,{sx:1,sy:2,sp:5,sa:.26});
-// Belt/sash
-R.L([[-18,10],[18,10],[16,16],[-16,16]],TEL,5,{sx:2,sy:3,sp:8,sa:.44});
-R.L([[-4,10],[4,10],[4,16],[-4,16]],TELD,6,{sx:1,sy:1,sp:4,sa:.36});
-// Arms — one holding scroll, other holding stamp
-R.L([[-22,0],[-36,-4],[-42,6],[-38,14],[-24,10]],SAND,10,{sx:2,sy:3,sp:8,sa:.44});
-R.L([[22,0],[36,-4],[42,6],[38,14],[24,10]],SAND,11,{sx:2,sy:3,sp:8,sa:.44});
-// Scroll in left hand
-R.L([[-38,0],[-44,-6],[-50,-4],[-50,10],[-44,12],[-38,8]],CREAM,12,{sx:2,sy:3,sp:7,sa:.42});
-R.L([[-42,-4],[-48,-2],[-48,8],[-42,10]],CREAM,13,{sx:1,sy:1,sp:4,sa:.28});
-// Text lines on scroll
-G.save();G.strokeStyle='rgba(31,66,68,.35)';G.lineWidth=.8;
-for(var i=0;i<4;i++){var ly=-2+i*3;G.beginPath();G.moveTo(-47,ly);G.lineTo(-42,ly);G.stroke();}G.restore();
-// Stamp in right hand
-R.L([[36,2],[40,-2],[46,-2],[46,6],[40,6]],CORAL,14,{sx:2,sy:2,sp:5,sa:.46});
-R.L([[40,6],[46,6],[46,10],[40,10]],TELD,15,{sx:1,sy:2,sp:4,sa:.38});
-// Stern head
-R.L([[-12,-22],[-14,-34],[-10,-44],[-4,-48],[4,-48],[10,-44],[14,-34],[12,-22],[6,-18],[0,-16],[-6,-18]],SAND,20,{sx:3,sy:4,sp:10,sa:.48});
-R.L([[-8,-22],[-10,-32],[-6,-40],[-2,-44],[2,-44],[6,-40],[10,-32],[8,-22],[4,-18],[0,-16],[-4,-18]],CREAM,21,{sx:2,sy:3,sp:7,sa:.34});
-// Stern brow ridge
-R.L([[-10,-34],[-6,-36],[6,-36],[10,-34],[8,-32],[-8,-32]],SAND,22,{sx:1,sy:1,sp:4,sa:.38});
-// Eyes — stern, narrow
-R.L([[-8,-30],[-4,-32],[-2,-28],[-6,-28]],INK,30,{ns:true});
-R.L([[2,-32],[6,-30],[8,-28],[4,-28]],INK,31,{ns:true});
-// Flat frowning mouth
-R.L([[-6,-24],[0,-22],[6,-24],[4,-23],[-4,-23]],INK,32,{ns:true});
-// Hat/cap
-R.L([[-16,-44],[-12,-52],[-4,-56],[4,-56],[12,-52],[16,-44],[10,-42],[-10,-42]],TELD,40,{sx:2,sy:3,sp:8,sa:.5});
-R.L([[-12,-44],[-8,-50],[-2,-54],[2,-54],[8,-50],[12,-44],[6,-42],[-6,-42]],TEL,41,{sx:1,sy:2,sp:6,sa:.36});
-G.restore();
-},
-merchant: function(R,t){
-var G=R.G,bob=Math.sin(t*.038)*3,sway=Math.sin(t*.025)*.02;
-G.save();G.translate(0,bob);G.rotate(sway);
-var PEACH='#f2bf9a',GOLD='#ecb964',SAND='#d9cfb2',INK='#1f4244',FRSTD='#2a5240',FRST='#3c6b4f',WHT='#fdfbf2';
-R.gshadow(0,54,28,6);
-// Cloaked body — mysterious merchant
-R.L([[-20,-8],[-26,8],[-24,30],[-16,44],[-8,48],[8,48],[16,44],[24,30],[26,8],[20,-8],[12,-18],[0,-22],[-12,-18]],FRSTD,1,{sx:3,sy:6,sp:16,sa:.54});
-R.L([[-16,-6],[-22,6],[-20,26],[-12,40],[-4,44],[4,44],[12,40],[20,26],[22,6],[16,-6],[8,-16],[0,-20],[-8,-16]],FRST,2,{sx:2,sy:4,sp:12,sa:.42});
-// Cloak folds
-G.save();G.strokeStyle='rgba(42,82,64,.4)';G.lineWidth=1.5;
-G.beginPath();G.moveTo(-8,-16);G.lineTo(-14,44);G.stroke();
-G.beginPath();G.moveTo(8,-16);G.lineTo(14,44);G.stroke();
-G.beginPath();G.moveTo(0,-20);G.lineTo(0,44);G.stroke();G.restore();
-// Balance scales in front
-var scaleL=Math.sin(t*.8)*4,scaleR=-scaleL;
-// Scale beam
-R.ln(-24,8+scaleL,24,8+scaleR,GOLD,2,.7);
-// Center pivot
-R.L([[-2,4],[2,4],[2,12],[-2,12]],GOLD,10,{sx:1,sy:2,sp:4,sa:.44});
-R.Ld(0,4,3,GOLD,11,{sx:1,sy:1,sp:4,sa:.36});
-// Left pan
-R.L([[-30,8+scaleL],[-18,8+scaleL],[-16,14+scaleL],[-32,14+scaleL]],PEACH,12,{sx:2,sy:2,sp:6,sa:.42});
-R.L([[-28,10+scaleL],[-20,10+scaleL],[-18,14+scaleL],[-30,14+scaleL]],GOLD,13,{sx:1,sy:1,sp:4,sa:.28});
-// Weights on left pan
-R.Ld(-26,8+scaleL,3,SAND,14,{ns:true});R.Ld(-22,8+scaleL,2.5,SAND,15,{ns:true});
-// Right pan
-R.L([[18,8+scaleR],[30,8+scaleR],[32,14+scaleR],[16,14+scaleR]],PEACH,16,{sx:2,sy:2,sp:6,sa:.42});
-R.L([[20,10+scaleR],[28,10+scaleR],[30,14+scaleR],[18,14+scaleR]],GOLD,17,{sx:1,sy:1,sp:4,sa:.28});
-// Coins on right pan
-R.Ld(22,8+scaleR,2.5,GOLD,18,{ns:true});R.Ld(26,8+scaleR,3,GOLD,19,{ns:true});
-// Hooded head — face in shadow
-R.L([[-14,-18],[-18,-30],[-14,-44],[-6,-50],[6,-50],[14,-44],[18,-30],[14,-18],[8,-14],[0,-12],[-8,-14]],FRSTD,20,{sx:3,sy:5,sp:12,sa:.54});
-R.L([[-10,-18],[-14,-28],[-10,-40],[-4,-46],[4,-46],[10,-40],[14,-28],[10,-18],[6,-14],[0,-12],[-6,-14]],FRST,21,{sx:2,sy:3,sp:8,sa:.42});
-// Shadowed face
-R.Le(0,-28,8,6,INK,22,{sx:1,sy:1,sp:4,sa:.28});
-// Glowing eyes peering from shadow
-R.Ld(-4,-30,2.5,GOLD,30,{ns:true});R.Ld(4,-30,2.5,GOLD,31,{ns:true});
-R.glow(-4,-30,4,4,GOLD,.45,4);R.glow(4,-30,4,4,GOLD,.45,4);
-G.restore();
-},
-banker: function(R,t){
-var G=R.G,bob=Math.sin(t*.032)*2;
-G.save();G.translate(0,bob);
-var GOLD='#ecb964',SAND='#d9cfb2',CREAM='#f5eedd',INK='#1f4244',TELD='#2a6063',TEL='#44888a';
-R.gshadow(0,52,32,7);
-// Vault-shaped boxy body
-R.L([[-28,-20],[-28,28],[28,28],[28,-20],[20,-28],[-20,-28]],TELD,1,{sx:4,sy:6,sp:18,sa:.56});
-R.L([[-24,-18],[-24,24],[24,24],[24,-18],[16,-24],[-16,-24]],TEL,2,{sx:3,sy:4,sp:14,sa:.44});
-R.L([[-20,-14],[-20,20],[20,20],[20,-14],[12,-20],[-12,-20]],SAND,3,{sx:2,sy:3,sp:10,sa:.32});
-// Vault door circular dial on front
-R.Ld(0,2,12,TELD,10,{sx:2,sy:3,sp:10,sa:.48});
-R.Ld(0,2,9,TEL,11,{sx:1,sy:2,sp:7,sa:.36});
-R.Ld(0,2,5,SAND,12,{sx:1,sy:1,sp:4,sa:.24});
-// Dial markings
-for(var i=0;i<8;i++){
-  var da=i/8*Math.PI*2+t*.3;
-  var dx1=Math.cos(da)*7,dy1=Math.sin(da)*7+2;
-  var dx2=Math.cos(da)*10,dy2=Math.sin(da)*10+2;
-  R.ln(dx1,dy1,dx2,dy2,INK,1.2,.5);
-}
-// Dial handle
-var handleA=t*.6;
-R.ln(0,2,Math.cos(handleA)*6,Math.sin(handleA)*6+2,GOLD,2,.7);
-R.Ld(Math.cos(handleA)*6,Math.sin(handleA)*6+2,2,GOLD,13,{ns:true});
-// Vault hinges on side
-R.L([[-28,-12],[-32,-10],[-32,-6],[-28,-4]],TELD,14,{sx:1,sy:2,sp:4,sa:.46});
-R.L([[-28,8],[-32,10],[-32,14],[-28,16]],TELD,15,{sx:1,sy:2,sp:4,sa:.46});
-// Coin stacks on shoulders
-[[-22,-20],[-16,-20],[-10,-20]].forEach(function(p,i){
-  var h=6+i*3;
-  R.L([[p[0]-3,p[1]],[p[0]+3,p[1]],[p[0]+3,p[1]-h],[p[0]-3,p[1]-h]],GOLD,20+i,{sx:1,sy:2,sp:4,sa:.44});
-  R.Ld(p[0],p[1]-h-2,3.5,GOLD,23+i,{ns:true});
-  R.glow(p[0],p[1]-h-2,3,3,GOLD,.2,3);
-});
-[[10,-20],[16,-20],[22,-20]].forEach(function(p,i){
-  var h=8+i*2;
-  R.L([[p[0]-3,p[1]],[p[0]+3,p[1]],[p[0]+3,p[1]-h],[p[0]-3,p[1]-h]],GOLD,30+i,{sx:1,sy:2,sp:4,sa:.44});
-  R.Ld(p[0],p[1]-h-2,3.5,GOLD,33+i,{ns:true});
-  R.glow(p[0],p[1]-h-2,3,3,GOLD,.2,3);
-});
-// Stubby legs
-R.L([[-18,28],[-20,36],[-16,42],[-10,42],[-12,36],[-14,28]],TELD,40,{sx:2,sy:3,sp:6,sa:.46});
-R.L([[14,28],[12,36],[10,42],[16,42],[20,36],[18,28]],TELD,41,{sx:2,sy:3,sp:6,sa:.46});
-// Stubby arms
-R.L([[-28,0],[-36,-4],[-40,4],[-36,10],[-28,8]],TEL,42,{sx:2,sy:3,sp:7,sa:.42});
-R.L([[28,0],[36,-4],[40,4],[36,10],[28,8]],TEL,43,{sx:2,sy:3,sp:7,sa:.42});
-// Eyes — two dots on upper vault face
-R.Ld(-8,-14,4,CREAM,50,{ns:true});R.Ld(8,-14,4,CREAM,51,{ns:true});
-R.Ld(-8,-14,2,INK,52,{ns:true});R.Ld(8,-14,2,INK,53,{ns:true});
-// Keyhole mouth
-R.Ld(0,-6,2,INK,54,{ns:true});
-R.L([[-.8,-6],[.8,-6],[1.2,-2],[-.4,-2]],INK,55,{ns:true});
-G.restore();
-},
-counterfeiter: function(R,t){
-var G=R.G,bob=Math.sin(t*.028)*5,morph=Math.sin(t*.6);
-G.save();G.translate(0,bob);
-var GOLD='#ecb964',SAND='#d9cfb2',CREAM='#f5eedd',LAV='#9c8fc0',LAVD='#7c6fa8',INK='#1f4244',GOLDD='#e39a4a';
-R.gshadow(0,62,48,10);
-// Massive amorphous golden body — shape-shifting
-var wobble1=Math.sin(t*.7)*6,wobble2=Math.sin(t*.9)*4,wobble3=Math.sin(t*1.1)*5;
-R.L([[-36+wobble1,-30],[-42+wobble2,-8],[-38+wobble3,16],[-28,36],[-14,46],[0,50],[14,46],[28,36],[38-wobble3,16],[42-wobble2,-8],[36-wobble1,-30],[22,-44],[8,-50],[0,-52],[-8,-50],[-22,-44]],GOLDD,1,{sx:4,sy:7,sp:22,sa:.56});
-R.L([[-30+wobble1*.7,-26],[-36+wobble2*.7,-6],[-32+wobble3*.7,14],[-22,32],[-10,40],[0,44],[10,40],[22,32],[32-wobble3*.7,14],[36-wobble2*.7,-6],[30-wobble1*.7,-26],[18,-38],[6,-44],[0,-46],[-6,-44],[-18,-38]],GOLD,2,{sx:3,sy:5,sp:16,sa:.48});
-R.L([[-22+wobble1*.4,-20],[-26+wobble2*.4,-4],[-22+wobble3*.4,12],[-14,26],[-4,34],[0,36],[4,34],[14,26],[22-wobble3*.4,12],[26-wobble2*.4,-4],[22-wobble1*.4,-20],[12,-30],[4,-36],[0,-38],[-4,-36],[-12,-30]],CREAM,3,{sx:2,sy:3,sp:10,sa:.32});
-// Shimmering surface texture
-for(var i=0;i<8;i++){
-  var shimA=i/8*Math.PI*2+t*1.6;
-  var shimR=18+Math.sin(t+i*1.3)*6;
-  var shimX=Math.cos(shimA)*shimR,shimY=Math.sin(shimA)*shimR-4;
-  var shimAlpha=.15+Math.sin(t*2.8+i)*.1;
-  G.save();G.globalAlpha=shimAlpha;
-  R.Le(shimX,shimY,6,4,CREAM,10+i,{ns:true,sx:0,sy:0,sp:2,sa:.2});G.restore();
-}
-// Floating counterfeit coins orbiting
-for(var j=0;j<6;j++){
-  var ca=j/6*Math.PI*2-t*.5;
-  var cr=44+Math.sin(t*.8+j)*6;
-  var cx=Math.cos(ca)*cr,cy=Math.sin(ca)*cr*.65;
-  var coinFlip=Math.abs(Math.cos(ca+t*.3));
-  R.Le(cx,cy,5*coinFlip+1,5,GOLD,20+j,{sx:1,sy:2,sp:4,sa:.44});
-  R.glow(cx,cy,4,4,GOLD,.25,3);
-  // Coin edge detail
-  if(coinFlip>.3){R.Le(cx,cy,3*coinFlip,3,CREAM,26+j,{ns:true,sx:0,sy:0,sp:1,sa:.16});}
-}
-// Eyes — large, golden, knowing
-R.Ld(-12,-14,7,CREAM,40,{ns:true});R.Ld(12,-14,7,CREAM,41,{ns:true});
-R.Ld(-12,-14,4,INK,42,{ns:true});R.Ld(12,-14,4,INK,43,{ns:true});
-R.glow(-12,-14,8,8,GOLD,.3,5);R.glow(12,-14,8,8,GOLD,.3,5);
-// Lavender accent highlights
-R.glow(-20,-30,8,6,LAV,.18,6);R.glow(20,-30,8,6,LAV,.18,6);
-R.glow(0,20,16,10,GOLD,.15,10);
-// Shifting mouth
-R.L([[-10,2],[-4,-2],[0,0],[4,-2],[10,2],[6,6],[0,8],[-6,6]],GOLDD,44,{sx:1,sy:1,sp:4,ns:true});
-// Central body glow
-R.glow(0,-4,22,28,GOLD,.18,14);
-R.glow(0,-4,10,12,CREAM,.12,6);
-G.restore();
-},
-};
-
-// ─── FLOOR 8: INFINITY LIBRARY (Word Problems) ──────────────────
-
-export var FLOOR8_MONSTERS = {
-bookworm_e: function(R,t){
-var G=R.G,bob=Math.sin(t*.05)*3,wiggle=Math.sin(t*.08)*4;
-G.save();G.translate(0,bob);
-var SAND='#d9cfb2',CREAM='#f5eedd',INK='#1f4244',FRST='#3c6b4f',FRSTD='#2a5240',PEACH='#f2bf9a',GOLD='#ecb964';
-R.gshadow(0,46,26,5);
-// Open book — base
-R.L([[-30,10],[-28,-2],[-4,-6],[-2,4]],CREAM,1,{sx:2,sy:3,sp:10,sa:.42});
-R.L([[2,4],[4,-6],[28,-2],[30,10]],CREAM,2,{sx:2,sy:3,sp:10,sa:.42});
-// Book cover edges
-R.L([[-32,10],[-30,-4],[-4,-8],[-2,4],[-4,12],[-30,14]],SAND,3,{sx:2,sy:3,sp:8,sa:.46});
-R.L([[2,4],[4,-8],[30,-4],[32,10],[30,14],[4,12]],SAND,4,{sx:2,sy:3,sp:8,sa:.46});
-// Book spine
-R.L([[-2,4],[2,4],[2,14],[-2,14]],FRSTD,5,{sx:1,sy:2,sp:4,sa:.44});
-// Text lines on pages
-G.save();G.strokeStyle='rgba(31,66,68,.25)';G.lineWidth=.7;
-for(var i=0;i<4;i++){var ly=0+i*3;G.beginPath();G.moveTo(-26,ly);G.lineTo(-6,ly-2);G.stroke();
-G.beginPath();G.moveTo(6,ly-2);G.lineTo(26,ly);G.stroke();}G.restore();
-// Fluttering page corners
-var flutter=Math.sin(t*2.5)*3;
-R.L([[-28,-2],[-24,-6-flutter],[-20,-2]],CREAM,6,{sx:1,sy:1,sp:3,sa:.28,ns:true});
-R.L([[20,-2],[24,-6+flutter],[28,-2]],CREAM,7,{sx:1,sy:1,sp:3,sa:.28,ns:true});
-// Worm body — curvy, emerging from book
-var segs=8;
-for(var s=0;s<segs;s++){
-  var p=s/segs;
-  var wx=wiggle*p*Math.sin(t*.06+s*.8);
-  var wy=-8-p*36;
-  var wr=5-p*1.2;
-  var wc=s%2===0?FRST:FRSTD;
-  R.Le(wx,wy,wr,wr*.8,wc,10+s,{sx:1,sy:2,sp:5,sa:.42});
-}
-// Worm belly highlight
-for(var s2=0;s2<segs-2;s2++){
-  var p2=s2/segs;
-  var wx2=wiggle*p2*Math.sin(t*.06+s2*.8);
-  var wy2=-8-p2*36;
-  R.Le(wx2,wy2,3-p2,2,PEACH,20+s2,{sx:0,sy:0,sp:2,sa:.24,ns:true});
-}
-// Worm head
-var headX=wiggle*.9*Math.sin(t*.06+(segs-1)*.8);
-var headY=-8-38;
-R.Ld(headX,headY,6,FRST,30,{sx:2,sy:2,sp:6,sa:.44});
-R.Ld(headX,headY,4,PEACH,31,{sx:1,sy:1,sp:4,sa:.28});
-// Tiny round glasses
-G.save();G.strokeStyle=GOLD;G.lineWidth=1.2;G.globalAlpha=.7;
-G.beginPath();G.arc(headX-4,headY-1,3,0,Math.PI*2);G.stroke();
-G.beginPath();G.arc(headX+4,headY-1,3,0,Math.PI*2);G.stroke();
-G.beginPath();G.moveTo(headX-1,headY-1);G.lineTo(headX+1,headY-1);G.stroke();G.restore();
-// Eyes behind glasses
-R.Ld(headX-4,headY-1,1.5,INK,32,{ns:true});R.Ld(headX+4,headY-1,1.5,INK,33,{ns:true});
-// Happy mouth
-R.L([[headX-2,headY+2],[headX,headY+4],[headX+2,headY+2]],INK,34,{ns:true});
-G.restore();
-},
-inkblot: function(R,t){
-var G=R.G,bob=Math.sin(t*.042)*4,morph=Math.sin(t*.6);
-G.save();G.translate(0,bob);
-var TELD='#2a6063',LAV='#9c8fc0',LAVD='#7c6fa8',INK='#1f4244',WHT='#fdfbf2',SKY='#a4c8d8';
-R.gshadow(0,44,28,6);
-// Amorphous ink blob body — shifts form
-var m1=Math.sin(t*.7)*8,m2=Math.sin(t*.9)*6,m3=Math.sin(t*1.1)*7;
-R.L([[-24+m1,-22],[-32+m2,-4],[-28+m3,14],[-18,26],[-6,32],[0,34],[6,32],[18,26],[28-m3,14],[32-m2,-4],[24-m1,-22],[14,-32],[4,-36],[0,-38],[-4,-36],[-14,-32]],INK,1,{sx:4,sy:6,sp:18,sa:.58});
-R.L([[-18+m1*.6,-18],[-26+m2*.6,-2],[-22+m3*.6,12],[-12,22],[-4,28],[0,30],[4,28],[12,22],[22-m3*.6,12],[26-m2*.6,-2],[18-m1*.6,-18],[10,-26],[2,-30],[0,-32],[-2,-30],[-10,-26]],TELD,2,{sx:3,sy:4,sp:14,sa:.48});
-// Darker inner core
-R.L([[-10+m1*.3,-12],[-14+m2*.3,0],[-10+m3*.3,8],[-4,14],[0,16],[4,14],[10-m3*.3,8],[14-m2*.3,0],[10-m1*.3,-12],[4,-18],[0,-20],[-4,-18]],LAVD,3,{sx:2,sy:3,sp:8,sa:.32});
-// Dripping ink particles falling
-for(var i=0;i<6;i++){
-  var dph=((t*.03+i*.17)%1);
-  var dx=[-18,-8,4,14,-12,8][i]+Math.sin(t*.5+i)*3;
-  var dy=30+dph*40;
-  var dAlpha=(1-dph)*.55;
-  var dSize=3+dph*2;
-  G.save();G.globalAlpha=dAlpha;
-  R.Le(dx,dy,dSize,dSize*1.4,INK,10+i,{ns:true,sx:0,sy:0,sp:2,sa:.2});G.restore();
-}
-// Mysterious glowing eyes
-R.Ld(-8,-10,5,LAV,20,{ns:true});R.Ld(8,-10,5,LAV,21,{ns:true});
-R.Ld(-8,-10,2.5,WHT,22,{ns:true});R.Ld(8,-10,2.5,WHT,23,{ns:true});
-R.glow(-8,-10,6,6,LAV,.45,5);R.glow(8,-10,6,6,LAV,.45,5);
-// Occasional ink tendrils extending
-var tendA=[-.8,-.2,.4,1.0];
-tendA.forEach(function(a,i){
-  var tLen=16+Math.sin(t*1.2+i*1.5)*6;
-  var tx=Math.cos(a)*tLen+m1*.3,ty=Math.sin(a)*tLen+20;
-  G.save();G.strokeStyle=INK;G.lineWidth=3-i*.4;G.lineCap='round';G.globalAlpha=.65;
-  G.beginPath();G.moveTo(Math.cos(a)*8,Math.sin(a)*8+14);G.lineTo(tx,ty);G.stroke();G.restore();
-  R.Ld(tx,ty,2,TELD,30+i,{ns:true});
-});
-G.restore();
-},
-riddler: function(R,t){
-var G=R.G,bob=Math.sin(t*.038)*3;
-G.save();G.translate(0,bob);
-var LAV='#9c8fc0',LAVD='#7c6fa8',GOLD='#ecb964',SAND='#d9cfb2',INK='#1f4244',WHT='#fdfbf2',CREAM='#f5eedd';
-R.gshadow(0,52,36,7);
-// Sphinx body — reclining feline form
-R.L([[-28,16],[-32,24],[-30,36],[-22,42],[-8,44],[8,44],[22,42],[30,36],[32,24],[28,16],[22,14],[10,12],[-10,12],[-22,14]],LAVD,1,{sx:3,sy:5,sp:16,sa:.52});
-R.L([[-24,18],[-26,24],[-24,34],[-18,38],[-6,40],[6,40],[18,38],[24,34],[26,24],[24,18],[16,16],[6,14],[-6,14],[-16,16]],LAV,2,{sx:2,sy:3,sp:10,sa:.4});
-// Front paws
-R.L([[-22,36],[-28,38],[-30,44],[-24,46],[-16,44],[-18,38]],LAVD,3,{sx:2,sy:3,sp:6,sa:.46});
-R.L([[18,38],[16,44],[24,46],[30,44],[28,38],[22,36]],LAVD,4,{sx:2,sy:3,sp:6,sa:.46});
-// Sphinx torso rising up
-R.L([[-14,14],[-18,4],[-16,-10],[-10,-22],[-4,-28],[4,-28],[10,-22],[16,-10],[18,4],[14,14],[6,12],[-6,12]],LAVD,10,{sx:3,sy:5,sp:14,sa:.52});
-R.L([[-10,12],[-14,2],[-12,-8],[-6,-18],[-2,-24],[2,-24],[6,-18],[12,-8],[14,2],[10,12],[4,10],[-4,10]],LAV,11,{sx:2,sy:3,sp:10,sa:.4});
-// Sphinx head
-R.L([[-12,-24],[-14,-34],[-10,-44],[-4,-50],[4,-50],[10,-44],[14,-34],[12,-24],[6,-20],[0,-18],[-6,-20]],LAVD,20,{sx:3,sy:4,sp:10,sa:.52});
-R.L([[-8,-24],[-10,-32],[-6,-40],[-2,-46],[2,-46],[6,-40],[10,-32],[8,-24],[4,-20],[0,-18],[-4,-20]],LAV,21,{sx:2,sy:3,sp:7,sa:.4});
-// Headdress/crown
-R.L([[-14,-34],[-16,-42],[-12,-50],[0,-54],[12,-50],[16,-42],[14,-34]],GOLD,22,{sx:2,sy:3,sp:8,sa:.48});
-R.L([[-10,-36],[-12,-42],[-8,-48],[0,-50],[8,-48],[12,-42],[10,-36]],SAND,23,{sx:1,sy:2,sp:5,sa:.32});
-// Wise eyes
-R.Ld(-5,-34,4,WHT,30,{ns:true});R.Ld(5,-34,4,WHT,31,{ns:true});
-R.Ld(-5,-34,2,INK,32,{ns:true});R.Ld(5,-34,2,INK,33,{ns:true});
-R.glow(-5,-34,5,5,GOLD,.3,4);R.glow(5,-34,5,5,GOLD,.3,4);
-// Enigmatic smile
-R.L([[-4,-26],[0,-24],[4,-26],[2,-25],[-2,-25]],INK,34,{ns:true});
-// Floating question marks
-for(var i=0;i<4;i++){
-  var qa=i/4*Math.PI*2+t*.7;
-  var qr=28+Math.sin(t+i*1.2)*4;
-  var qx=Math.cos(qa)*qr,qy=Math.sin(qa)*qr*.5-20;
-  var qAlpha=.35+Math.sin(t*2+i)*.18;
-  G.save();G.font='bold 14px serif';G.textAlign='center';G.textBaseline='middle';
-  G.fillStyle=GOLD;G.globalAlpha=qAlpha;G.fillText('?',qx,qy);G.restore();
-  R.glow(qx,qy,4,4,GOLD,qAlpha*.4,3);
-}
-G.restore();
-},
-archivist: function(R,t){
-var G=R.G,bob=Math.sin(t*.034)*4,sway=Math.sin(t*.022)*.018;
-G.save();G.translate(0,bob);G.rotate(sway);
-var SAND='#d9cfb2',LAVD='#7c6fa8',LAV='#9c8fc0',INK='#1f4244',WHT='#fdfbf2',CREAM='#f5eedd',GOLD='#ecb964';
-R.gshadow(0,58,26,6);
-// Tall robed body
-R.L([[-18,-14],[-24,4],[-22,28],[-16,44],[-10,50],[10,50],[16,44],[22,28],[24,4],[18,-14],[10,-24],[0,-28],[-10,-24]],LAVD,1,{sx:3,sy:6,sp:18,sa:.54});
-R.L([[-14,-12],[-20,2],[-18,24],[-12,40],[-6,46],[6,46],[12,40],[18,24],[20,2],[14,-12],[8,-22],[0,-26],[-8,-22]],SAND,2,{sx:2,sy:4,sp:12,sa:.42});
-// Robe fold lines
-G.save();G.strokeStyle='rgba(124,111,168,.3)';G.lineWidth=1.2;
-G.beginPath();G.moveTo(-6,-22);G.lineTo(-10,46);G.stroke();
-G.beginPath();G.moveTo(6,-22);G.lineTo(10,46);G.stroke();
-G.beginPath();G.moveTo(0,-26);G.lineTo(0,46);G.stroke();G.restore();
-// Glowing rune symbols on robe
-var runePositions=[[-8,0],[6,4],[-4,18],[8,22],[0,34]];
-runePositions.forEach(function(p,i){
-  var rAlpha=.3+Math.sin(t*2.2+i*1.4)*.18;
-  G.save();G.globalAlpha=rAlpha;
-  R.Ld(p[0],p[1],3,LAV,10+i,{ns:true});
-  R.glow(p[0],p[1],5,5,LAV,rAlpha*.5,4);G.restore();
-});
-// Hooded head
-R.L([[-14,-24],[-18,-36],[-14,-50],[-6,-58],[6,-58],[14,-50],[18,-36],[14,-24],[8,-20],[0,-18],[-8,-20]],LAVD,20,{sx:3,sy:5,sp:12,sa:.54});
-R.L([[-10,-24],[-14,-34],[-10,-46],[-4,-52],[4,-52],[10,-46],[14,-34],[10,-24],[6,-20],[0,-18],[-6,-20]],SAND,21,{sx:2,sy:3,sp:8,sa:.42});
-// Eyes peering from hood
-R.Ld(-5,-36,3.5,WHT,30,{ns:true});R.Ld(5,-36,3.5,WHT,31,{ns:true});
-R.Ld(-5,-36,1.8,INK,32,{ns:true});R.Ld(5,-36,1.8,INK,33,{ns:true});
-R.glow(-5,-36,4,4,LAV,.35,4);R.glow(5,-36,4,4,LAV,.35,4);
-// Orbiting floating books
-for(var i=0;i<4;i++){
-  var ba=i/4*Math.PI*2+t*.6;
-  var br=32+Math.sin(t*.8+i)*4;
-  var bx=Math.cos(ba)*br,by=Math.sin(ba)*br*.5-10;
-  var bFlap=Math.sin(t*2+i)*2;
-  // Book shape
-  R.L([[bx-6,by-4],[bx+6,by-4],[bx+6,by+4],[bx-6,by+4]],LAVD,40+i*3,{sx:1,sy:2,sp:5,sa:.44});
-  R.L([[bx-5,by-3],[bx+5,by-3],[bx+5,by+3],[bx-5,by+3]],CREAM,41+i*3,{sx:1,sy:1,sp:3,sa:.28});
-  // Open page flap
-  R.L([[bx-5,by-3-bFlap],[bx,by-5-bFlap],[bx+5,by-3+bFlap]],CREAM,42+i*3,{ns:true,sx:0,sy:0,sp:2,sa:.2});
-  R.glow(bx,by,6,4,LAV,.2,3);
-}
-// Raised arms (hidden in sleeves)
-R.L([[-22,0],[-30,-6],[-34,-2],[-30,4],[-24,4]],LAVD,60,{sx:2,sy:3,sp:6,sa:.46});
-R.L([[22,0],[30,-6],[34,-2],[30,4],[24,4]],LAVD,61,{sx:2,sy:3,sp:6,sa:.46});
-G.restore();
-},
-theparadox: function(R,t){
-var G=R.G,bob=Math.sin(t*.026)*4,warp=Math.sin(t*.5);
-G.save();G.translate(0,bob);
-var LAV='#9c8fc0',LAVD='#7c6fa8',TEL='#44888a',TELD='#2a6063',WHT='#fdfbf2',INK='#1f4244',SKY='#a4c8d8',GOLD='#ecb964';
-R.gshadow(0,64,50,10);
-// Impossible geometric outer shell — shifting perspectives
-var shift=Math.sin(t*.4)*4;
-// Large Penrose-triangle-inspired frame — three interlocking beams
-// Top beam
-R.L([[-8,-48+shift],[8,-48-shift],[32,-18-shift],[28,-10+shift],[-4,-38+shift],[-8,-42+shift]],TELD,1,{sx:3,sy:5,sp:16,sa:.54});
-R.L([[-4,-44+shift],[4,-44-shift],[26,-18-shift],[24,-12+shift],[-2,-36+shift],[-4,-40+shift]],TEL,2,{sx:2,sy:3,sp:10,sa:.42});
-// Right beam
-R.L([[28,-10+shift],[32,-18-shift],[32,24+shift],[24,28-shift],[22,6+shift],[26,-8-shift]],TELD,3,{sx:3,sy:5,sp:16,sa:.54});
-R.L([[26,-8-shift],[28,-14+shift],[28,22+shift],[22,24-shift],[20,6+shift],[24,-6-shift]],TEL,4,{sx:2,sy:3,sp:10,sa:.42});
-// Left beam
-R.L([[-32,24-shift],[-28,28+shift],[-8,-48+shift],[-4,-42-shift],[-24,18-shift],[-28,22+shift]],TELD,5,{sx:3,sy:5,sp:16,sa:.54});
-R.L([[-28,22-shift],[-24,24+shift],[-4,-42+shift],[0,-38-shift],[-20,16-shift],[-24,20+shift]],TEL,6,{sx:2,sy:3,sp:10,sa:.42});
-// Impossible staircase segments inside
-var stairN=6;
-for(var i=0;i<stairN;i++){
-  var sa2=i/stairN*Math.PI*2+t*.3;
-  var sr=16+Math.sin(t*.7+i)*3;
-  var sx=Math.cos(sa2)*sr,sy=Math.sin(sa2)*sr;
-  var sw=8,sh=4+Math.sin(t+i)*2;
-  R.L([[sx-sw/2,sy-sh],[sx+sw/2,sy-sh],[sx+sw/2,sy],[sx-sw/2,sy]],LAV,10+i,{sx:1,sy:2,sp:5,sa:.38});
-  R.L([[sx+sw/2,sy-sh],[sx+sw/2+3,sy-sh+2],[sx+sw/2+3,sy+2],[sx+sw/2,sy]],LAVD,16+i,{sx:1,sy:1,sp:4,sa:.28});
-}
-// Glowing seams where impossible geometry meets
-G.save();G.strokeStyle=SKY;G.lineWidth=2;G.globalAlpha=.4+Math.sin(t*1.8)*.15;G.lineCap='round';
-G.beginPath();G.moveTo(-8,-48+shift);G.lineTo(32,-18-shift);G.stroke();
-G.beginPath();G.moveTo(32,-18-shift);G.lineTo(32,24+shift);G.stroke();
-G.beginPath();G.moveTo(-32,24-shift);G.lineTo(-8,-48+shift);G.stroke();G.restore();
-// Contradiction vertices — glowing paradox points
-[[-8,-48],[32,-18],[32,24],[-32,24]].forEach(function(p,i){
-  var pShift=i<2?shift:-shift;
-  R.glow(p[0],p[1]+pShift,8,8,SKY,.35+Math.sin(t*2.4+i)*.15,6);
-  R.Ld(p[0],p[1]+pShift,4,WHT,30+i,{ns:true});
-});
-// Central impossible knot — where perspectives converge
-R.glow(0,0,16,16,LAV,.28+Math.sin(t*2)*.1,10);
-R.glow(0,0,8,8,WHT,.18,5);
-// Reality-warping ripple rings
-for(var r=0;r<3;r++){
-  var rph=((t*.02+r*.33)%1);
-  var rr=10+rph*40;
-  var rAlpha=(1-rph)*.25;
-  G.save();G.strokeStyle=LAV;G.lineWidth=1.5;G.globalAlpha=rAlpha;
-  G.beginPath();G.ellipse(0,0,rr,rr*.5,0,0,Math.PI*2);G.stroke();G.restore();
-}
-// Eyes — asymmetric, reality-bending
-R.Ld(-10,-6,6,WHT,40,{ns:true});R.Ld(12,-2,6,WHT,41,{ns:true});
-R.Ld(-10,-6,3,INK,42,{ns:true});R.Ld(12,-2,3,INK,43,{ns:true});
-R.glow(-10,-6,8,8,LAV,.4,5);R.glow(12,-2,8,8,TEL,.4,5);
-// Enigmatic expression
-R.L([[-6,10],[0,14],[6,10],[8,12],[0,18],[-8,12]],LAVD,44,{sx:1,sy:1,sp:4,ns:true});
-// Floating glitch particles
-for(var g=0;g<10;g++){
-  var ga=g/10*Math.PI*2-t*.4;
-  var gr=42+Math.sin(t*.6+g*1.3)*8;
-  var gx=Math.cos(ga)*gr,gy=Math.sin(ga)*gr*.6;
-  var gAlpha=.2+Math.sin(t*3+g)*.15;
-  G.save();G.globalAlpha=gAlpha;
-  R.L([[gx-3,gy-2],[gx+2,gy-3],[gx+3,gy+2],[gx-2,gy+3]],g%2===0?LAV:TEL,50+g,{ns:true,sx:0,sy:0,sp:2,sa:.2});
-  G.restore();
 }
 G.restore();
 },
