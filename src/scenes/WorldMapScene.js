@@ -140,6 +140,16 @@ export class WorldMapScene extends Phaser.Scene {
       }
       this._parallaxObjects.push(screenObjs);
 
+      // Clip each screen's background to its boundary — prevents the
+      // purple/teal bleed from adjacent screens' hill graphics.
+      if (screenObjs.length > 0) {
+        const maskGfx = this.add.graphics();
+        maskGfx.fillStyle(0xffffff);
+        maskGfx.fillRect(offsetX, 0, SCREEN_W, GAME_HEIGHT);
+        const mask = maskGfx.createGeometryMask();
+        screenObjs.forEach(obj => { if (obj.setMask) obj.setMask(mask); });
+      }
+
       if (s > this.maxScreen) {
         const screenNames = ['', 'CRYSTAL CAVES', 'STARLIT HIGHLANDS'];
         this.add.rectangle(

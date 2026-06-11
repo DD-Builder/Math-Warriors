@@ -377,7 +377,7 @@ export class MazeScene extends Phaser.Scene {
     const heroLeader = this.party[0];
     if (heroLeader) {
       setSkipCanvasHero(true);
-      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.09, floorId: this.floorId || 1 });
+      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.28, floorId: this.floorId || 1 });
       this.heroSprite.setDepth(10);
       this.heroSprite.setIdle();
       this._heroWasMoving = false;
@@ -817,7 +817,7 @@ export class MazeScene extends Phaser.Scene {
     const cardGap = 24;
     const availableW = GAME_WIDTH - 60;
     const cardW = Math.min(140, Math.floor((availableW - (cols - 1) * cardGap) / cols));
-    const cardH = 180;
+    const cardH = 220;
     const gridW = cols * cardW + (cols - 1) * cardGap;
     const startX = GAME_WIDTH / 2 - gridW / 2 + cardW / 2;
     const rows = Math.ceil(unlocked.length / cols);

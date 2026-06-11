@@ -71,7 +71,7 @@ export class GalleryScene extends Phaser.Scene {
         // Full color portrait
         const evoStage = getEvolutionStage(save, hero.id);
         const sprite = createAnimatedHero(this, cx, cy - 20, hero, {
-          scale: 0.15, evolutionStage: evoStage,
+          scale: 0.35, evolutionStage: evoStage,
         });
         if (sprite.setSelectionSway) sprite.setSelectionSway();
         sprite.setDepth(1001);

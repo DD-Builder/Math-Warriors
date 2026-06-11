@@ -131,11 +131,11 @@ export class CutsceneScene extends Phaser.Scene {
       w: 200, h: 60, color: PAPER.orange, fontSize: 22,
       onClick: () => this.onTap(),
     });
-    // Fix advance button to camera so it stays visible during pans
-    if (this.advanceBtn.bg) this.advanceBtn.bg.setScrollFactor(0);
-    if (this.advanceBtn.shadow) this.advanceBtn.shadow.setScrollFactor(0);
-    if (this.advanceBtn.label) this.advanceBtn.label.setScrollFactor(0);
-    if (this.advanceBtn.zone) this.advanceBtn.zone.setScrollFactor(0);
+    // Fix advance button to camera so it stays visible during pans,
+    // and always renders above panel content (depth 50+).
+    [this.advanceBtn.bg, this.advanceBtn.shadow, this.advanceBtn.label, this.advanceBtn.zone].forEach((el, i) => {
+      if (el) { el.setScrollFactor(0); el.setDepth(49 + i); }
+    });
 
     this.input.on('pointerdown', () => this.onTap());
 
