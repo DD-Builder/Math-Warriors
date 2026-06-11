@@ -423,6 +423,144 @@ R.L([[-10,10],[-6,8],[0,9],[6,8],[10,10],[8,13],[0,12],[-8,13]],MAG4,31,{ns:true
 R.gshadow(0,46,38,7);G.restore();
 },
 };
+export var FLOOR5_ART = {
+frostbite: function(R,t){
+var G=R.G,bob=Math.sin(t*.062)*5;
+G.save();G.translate(0,bob);
+R.gshadow(0,44,18,4);
+// Diamond body
+R.L([[0,-22],[14,-4],[0,14],[-14,-4]],'#a4c8d8',1,{sx:3,sy:5,sp:10,sa:.46});
+R.L([[0,-17],[10,-3],[0,9],[-10,-3]],'#fdfbf2',2,{sx:2,sy:3,sp:6,sa:.3});
+// Left crystalline wing
+R.L([[-14,-4],[-36,-16],[-40,-8],[-30,2],[-14,6]],  '#a4c8d8',10,{sx:3,sy:4,sp:9,sa:.44});
+R.L([[-14,-2],[-30,-12],[-32,-6],[-22,2],[-14,4]],  '#fdfbf2',11,{sx:2,sy:2,sp:5,sa:.28});
+R.L([[-36,-16],[-44,-6],[-40,-8]],'#7fb3ae',12,{sx:1,sy:2,sp:4,sa:.4});
+// Right crystalline wing
+R.L([[14,-4],[36,-16],[40,-8],[30,2],[14,6]],  '#a4c8d8',13,{sx:3,sy:4,sp:9,sa:.44});
+R.L([[14,-2],[30,-12],[32,-6],[22,2],[14,4]],  '#fdfbf2',14,{sx:2,sy:2,sp:5,sa:.28});
+R.L([[36,-16],[44,-6],[40,-8]],'#7fb3ae',15,{sx:1,sy:2,sp:4,sa:.4});
+// Eyes
+R.Ld(-5,-6,4,'#fdfbf2',20,{ns:true});R.Ld(5,-6,4,'#fdfbf2',21,{ns:true});
+R.Ld(-5,-6,2,'#1f4244',22,{ns:true});R.Ld(5,-6,2,'#1f4244',23,{ns:true});
+// Icy floating particles around body
+for(var i=0;i<6;i++){var ph=((t*.028+i*.22)%1),pa=i/6*Math.PI*2+t*.04,pr=22+i*3;var px=Math.cos(pa)*pr,py=Math.sin(pa)*pr*.55-4,al=(1-Math.abs(ph-.5)*2+.3)*.55;G.save();G.globalAlpha=al;R.L([[px-2,py],[px+2,py],[px,py-3]],'#fdfbf2',30+i,{ns:true});G.restore();}
+G.restore();
+},
+icicle: function(R,t){
+var G=R.G,bob=Math.sin(t*.048)*4;
+G.save();G.translate(0,bob);
+R.gshadow(0,52,14,4);
+// Stubby legs
+R.L([[-10,34],[-14,34],[-16,52],[-10,52],[-6,40]],  '#7fb3ae',1,{sx:2,sy:3,sp:6,sa:.44});
+R.L([[10,34],[14,34],[16,52],[10,52],[6,40]],  '#7fb3ae',2,{sx:2,sy:3,sp:6,sa:.44});
+// Main tall icicle body
+R.L([[0,-52],[18,-28],[22,12],[16,36],[-16,36],[-22,12],[-18,-28]],'#44888a',10,{sx:4,sy:6,sp:14,sa:.52});
+R.L([[0,-46],[14,-24],[17,10],[12,32],[-12,32],[-17,10],[-14,-24]],'#7fb3ae',11,{sx:3,sy:4,sp:9,sa:.4});
+R.L([[0,-38],[8,-18],[10,8],[6,28],[-6,28],[-10,8],[-8,-18]],'#fdfbf2',12,{sx:2,sy:3,sp:6,sa:.26});
+// Icy drips at bottom
+for(var i=0;i<4;i++){var dph=((t*.032+i*.28)%1),dx=-12+i*8,dy=32+dph*16,dal=(1-dph)*.65;G.save();G.globalAlpha=dal;R.L([[dx-2,dy],[dx+2,dy],[dx,dy+6]],'#a4c8d8',20+i,{ns:true,sx:0,sy:0,sp:2,sa:.2});G.restore();}
+// Angular face - eyes
+R.L([[-8,-16],[-3,-20],[0,-15],[-4,-11]],'#1f4244',30,{ns:true});
+R.L([[0,-20],[5,-16],[3,-11],[-2,-14]],'#1f4244',31,{ns:true});
+// Frown
+R.L([[-8,4],[-4,8],[0,10],[4,8],[8,4],[6,6],[0,8],[-6,6]],'#2a6063',32,{ns:true});
+G.restore();
+},
+snowdrift: function(R,t){
+var G=R.G,bob=Math.sin(t*.038)*6+Math.sin(t*.071)*2;
+G.save();G.translate(0,bob);
+R.gshadow(0,38,32,5);
+// Puffy cloud body — overlapping ellipses
+R.Le(-18,6,18,15,'#e8dec6',1,{sx:3,sy:4,sp:10,sa:.42});
+R.Le(18,6,18,15,'#e8dec6',2,{sx:3,sy:4,sp:10,sa:.42});
+R.Le(0,-2,22,17,'#fdfbf2',3,{sx:3,sy:5,sp:12,sa:.44});
+R.Le(-14,-10,14,12,'#fdfbf2',4,{sx:2,sy:3,sp:8,sa:.36});
+R.Le(14,-10,14,12,'#fdfbf2',5,{sx:2,sy:3,sp:8,sa:.36});
+R.Le(0,-18,12,10,'#fdfbf2',6,{sx:2,sy:3,sp:7,sa:.32});
+R.Le(0,4,18,14,'#f5eedd',7,{sx:2,sy:3,sp:8,sa:.3});
+// Swirling snow particles
+for(var i=0;i<8;i++){var pa=((t*.024+i*.14)%1)*Math.PI*2,pr=28+i%3*6;var px=Math.cos(pa)*pr,py=Math.sin(pa)*pr*.52-6,ps=2+i%3,al=.35+Math.sin(t*.04+i)*.15;G.save();G.globalAlpha=al;R.Ld(px,py,ps,'#fdfbf2',20+i,{ns:true});G.restore();}
+// Gentle eyes
+R.Ld(-7,-6,4,'#fdfbf2',30,{ns:true});R.Ld(7,-6,4,'#fdfbf2',31,{ns:true});
+R.Ld(-7,-6,2,'#1f4244',32,{ns:true});R.Ld(7,-6,2,'#1f4244',33,{ns:true});
+// Tiny arc mouth
+G.save();G.strokeStyle='#44888a';G.lineWidth=1.8;G.globalAlpha=.7;G.beginPath();G.arc(0,2,5,0,Math.PI);G.stroke();G.restore();
+G.restore();
+},
+glacial: function(R,t){
+var G=R.G,sway=Math.sin(t*.022)*.018,bob=Math.sin(t*.03)*3;
+G.save();G.translate(0,bob);G.rotate(sway);
+R.gshadow(0,72,34,6);
+var ICE='#44888a',ICEL='#7fb3ae',ICE2='#a4c8d8',WHT='#fdfbf2',DRK='#1f4244';
+// Thick legs
+R.L([[-18,40],[-22,40],[-22,70],[-16,70],[-14,50]],ICE,1,{sx:3,sy:5,sp:10,sa:.48});
+R.L([[14,40],[18,40],[22,40],[22,70],[16,70],[14,50]],ICE,2,{sx:3,sy:5,sp:10,sa:.48});
+// Large blocky body
+R.L([[-28,-16],[-32,6],[-28,40],[28,40],[32,6],[28,-16],[20,-26],[0,-30],[-20,-26]],ICE,10,{sx:4,sy:7,sp:20,sa:.54});
+R.L([[-24,-12],[-27,6],[-24,36],[24,36],[27,6],[24,-12],[16,-22],[0,-26],[-16,-22]],ICEL,11,{sx:3,sy:5,sp:14,sa:.44});
+R.L([[-16,-8],[-18,4],[-16,30],[16,30],[18,4],[16,-8],[8,-16],[0,-18],[-8,-16]],ICE2,12,{sx:2,sy:3,sp:8,sa:.3});
+// Chest armor plates (geometric layers)
+R.L([[-20,2],[20,2],[22,18],[-22,18]],ICE,13,{sx:2,sy:3,sp:8,sa:.48});
+R.L([[-16,4],[16,4],[17,16],[-17,16]],ICEL,14,{sx:2,sy:2,sp:6,sa:.34});
+R.L([[-10,6],[10,6],[10,14],[-10,14]],ICE2,15,{sx:1,sy:2,sp:4,sa:.22});
+// Left arm
+R.L([[-28,-10],[-46,-2],[-50,14],[-42,24],[-30,18],[-26,4]],ICE,20,{sx:3,sy:5,sp:12,sa:.5});
+R.L([[-28,-8],[-42,0],[-46,13],[-40,20],[-28,16],[-24,4]],ICEL,21,{sx:2,sy:3,sp:8,sa:.36});
+// Right arm
+R.L([[28,-10],[46,-2],[50,14],[42,24],[30,18],[26,4]],ICE,22,{sx:3,sy:5,sp:12,sa:.5});
+R.L([[28,-8],[42,0],[46,13],[40,20],[28,16],[24,4]],ICEL,23,{sx:2,sy:3,sp:8,sa:.36});
+// Head
+R.L([[-22,-26],[-18,-42],[-8,-50],[0,-52],[8,-50],[18,-42],[22,-26],[16,-16],[0,-14],[-16,-16]],ICE,30,{sx:3,sy:5,sp:13,sa:.52});
+R.L([[-18,-24],[-14,-38],[-6,-46],[0,-48],[6,-46],[14,-38],[18,-24],[12,-14],[0,-12],[-12,-14]],ICEL,31,{sx:2,sy:3,sp:9,sa:.4});
+// Glowing ice eyes
+R.Ld(-8,-32,5,WHT,40,{ns:true});R.Ld(8,-32,5,WHT,41,{ns:true});
+R.Ld(-8,-32,3,DRK,42,{ns:true});R.Ld(8,-32,3,DRK,43,{ns:true});
+R.glow(-8,-32,6,6,ICE2,.6+Math.sin(t*.06)*.2,5);R.glow(8,-32,6,6,ICE2,.6+Math.sin(t*.06)*.2,5);
+G.restore();
+},
+absolutezero: function(R,t){
+var G=R.G,bob=Math.sin(t*.028)*6,sway=Math.sin(t*.019)*.022;
+G.save();G.translate(0,bob);G.rotate(sway);
+R.gshadow(0,82,54,10);
+var DRGN='#2a6063',DRGNM='#44888a',DRGNL='#7fb3ae',SCALE='#a4c8d8',WHT='#fdfbf2',DRK='#1f4244',GLOW='#fdfbf2';
+// Serpentine tail layers
+R.L([[20,50],[38,46],[52,36],[60,20],[56,4],[44,-6],[32,2],[24,20],[20,38]],DRGN,1,{sx:3,sy:5,sp:13,sa:.5});
+R.L([[22,48],[36,44],[48,34],[55,20],[52,6],[42,-2],[30,4],[23,20],[22,36]],DRGNM,2,{sx:2,sy:4,sp:9,sa:.38});
+R.L([[26,44],[38,40],[48,30],[52,18],[48,8],[40,2],[30,8],[26,22],[26,38]],DRGNL,3,{sx:2,sy:3,sp:7,sa:.26});
+// Crystal spines along back
+[[48,10,54,0,5],[38,-2,44,-12,4],[26,-8,30,-18,5],[14,-18,16,-30,4],[2,-26,2,-38,5]].forEach(function(s,i){R.L([[s[0]-s[4]*.5,s[1]],[s[0]+s[4]*.5,s[1]],[s[2]+1.5,s[3]],[s[2],s[3]-4],[s[2]-1.5,s[3]]],SCALE,10+i,{sx:2,sy:3,sp:6,sa:.46});R.L([[s[0],s[1]],[s[2]+.5,s[3]],[s[2]-0.5,s[3]]],WHT,11+i,{sx:1,sy:1,sp:3,sa:.2,ns:true});R.glow(s[2],s[3],3,3,SCALE,.28+Math.sin(t*.08+i*.7)*.12,4);});
+// Main body
+R.L([[-22,-4],[-28,20],[-26,50],[-10,60],[10,60],[26,50],[28,20],[22,-4],[14,-14],[0,-18],[-14,-14]],DRGN,20,{sx:4,sy:7,sp:20,sa:.56});
+R.L([[-18,-2],[-24,18],[-22,46],[-8,56],[8,56],[22,46],[24,18],[18,-2],[10,-12],[0,-16],[-10,-12]],DRGNM,21,{sx:3,sy:5,sp:14,sa:.46});
+R.L([[-12,2],[-16,18],[-14,42],[-4,50],[4,50],[14,42],[16,18],[12,2],[6,-10],[0,-12],[-6,-10]],DRGNL,22,{sx:2,sy:3,sp:9,sa:.32});
+// Scales on body (geometric patches)
+[[-14,8],[12,6],[-10,24],[14,22],[-12,38],[10,36]].forEach(function(p,i){R.Le(p[0],p[1],7,5,SCALE,30+i,{sx:1,sy:2,sp:4,sa:.36});R.Le(p[0],p[1],4,3,WHT,31+i,{sx:0,sy:0,sp:2,sa:.18,ns:true});});
+// Left wing
+R.L([[-22,4],[-50,-6],[-66,-24],[-64,-44],[-48,-46],[-28,-28],[-20,2]],DRGN,40,{sx:4,sy:6,sp:18,sa:.52});
+R.L([[-22,4],[-46,-4],[-60,-20],[-58,-38],[-44,-40],[-26,-24],[-20,2]],DRGNM,41,{sx:3,sy:4,sp:12,sa:.4});
+R.L([[-22,4],[-40,-2],[-52,-16],[-50,-32],[-38,-34],[-24,-20],[-20,2]],DRGNL,42,{sx:2,sy:3,sp:7,sa:.26});
+// Wing spines
+[[-52,-8],[-62,-22],[-60,-36]].forEach(function(p,i){R.L([[p[0]-3,p[1]],[p[0]+3,p[1]],[p[0]+1,p[1]-10],[p[0],p[1]-13],[p[0]-1,p[1]-10]],SCALE,50+i,{sx:1,sy:2,sp:4,sa:.44});R.glow(p[0],p[1]-11,3,3,SCALE,.3+Math.sin(t*.07+i)*.12,4);});
+// Head
+R.L([[-24,-18],[-20,-40],[-8,-56],[0,-60],[8,-56],[20,-40],[24,-18],[18,-8],[0,-4],[-18,-8]],DRGN,60,{sx:4,sy:6,sp:16,sa:.56});
+R.L([[-20,-16],[-16,-36],[-6,-50],[0,-54],[6,-50],[16,-36],[20,-16],[14,-6],[0,-2],[-14,-6]],DRGNM,61,{sx:3,sy:4,sp:11,sa:.44});
+// Horns
+R.L([[-12,-40],[-18,-56],[-14,-62],[-8,-52],[-10,-40]],DRGN,70,{sx:2,sy:4,sp:8,sa:.5});R.L([[-12,-40],[-16,-54],[-12,-60],[-8,-50],[-10,-40]],SCALE,71,{sx:1,sy:2,sp:4,sa:.28});
+R.L([[10,-40],[14,-56],[18,-62],[12,-52],[12,-40]],DRGN,72,{sx:2,sy:4,sp:8,sa:.5});R.L([[10,-40],[12,-54],[16,-60],[12,-50],[10,-40]],SCALE,73,{sx:1,sy:2,sp:4,sa:.28});
+// Eyes
+R.Ld(-9,-30,6,WHT,80,{ns:true});R.Ld(9,-30,6,WHT,81,{ns:true});
+R.Ld(-9,-30,3.5,DRK,82,{ns:true});R.Ld(9,-30,3.5,DRK,83,{ns:true});
+R.glow(-9,-30,8,8,SCALE,.65+Math.sin(t*.09)*.2,6);R.glow(9,-30,8,8,SCALE,.65+Math.sin(t*.09)*.2,6);
+// Jaw and teeth
+R.L([[-18,-18],[-12,-10],[0,-8],[12,-10],[18,-18],[14,-14],[0,-12],[-14,-14]],DRK,84,{ns:true});
+[[-12,-18],[-6,-18],[0,-18],[6,-18],[12,-18]].forEach(function(p,i){R.L([[p[0]-3,p[1]],[p[0]+3,p[1]],[p[0],p[1]+6]],WHT,85+i,{ns:true});});
+// Frost breath particles (animated)
+for(var i=0;i<10;i++){var ph=((t*.036+i*.11)%1),bx=-24-ph*38,by=-24-ph*12+Math.sin(t*.1+i)*10,bs=3+ph*5,bal=(1-ph)*.62;G.save();G.globalAlpha=bal;R.Le(bx,by,bs,bs*.6,SCALE,90+i,{ns:true,sx:0,sy:0,sp:2,sa:.2});R.glow(bx,by,bs+2,bs*.8,WHT,bal*.5,4);G.restore();}
+// Body glow effects
+R.glow(0,24,18,28,SCALE,.15,14);R.glow(-9,-30,10,10,SCALE,.22,8);R.glow(9,-30,10,10,SCALE,.22,8);
+G.restore();
+},
+};
 export var FLOOR5_MONSTERS = {
 runebound: function(R, t) {
 var G = R.G; G.save();

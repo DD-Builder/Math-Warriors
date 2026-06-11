@@ -12,19 +12,17 @@
 
 import { mkRng } from './legacyRenderer.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
-import { PAPER } from '../config.js';
+import { MAZE_PERSPECTIVE } from '../systems/perspective.js';
 
 // ─── PALETTE (exact copy from reference) ────────────────────────
 
-function _hex(n) { return '#' + n.toString(16).padStart(6, '0'); }
-
 var LV_PAL = {
-  dirt: _hex(PAPER.sand), dirtL: _hex(PAPER.creamD), soil: _hex(PAPER.sand),
-  stone: _hex(PAPER.creamD), stoneD: _hex(PAPER.sand), stoneL: _hex(PAPER.cream), mortar: _hex(PAPER.sageD),
-  hedge0: _hex(PAPER.forestD), hedge1: _hex(PAPER.forest), hedge2: _hex(PAPER.forestL), hedge3: _hex(PAPER.leaf), hedgeHL: _hex(PAPER.sage),
-  rose: _hex(PAPER.rose), roseL: _hex(PAPER.coral), gold: _hex(PAPER.orange), goldL: _hex(PAPER.gold), cream: _hex(PAPER.cream),
-  pond0: _hex(PAPER.tealD), pond1: _hex(PAPER.teal), pond2: _hex(PAPER.tealL), pondHL: _hex(PAPER.sky),
-  fairy0: _hex(PAPER.sky), fairy1: _hex(PAPER.gold), fairy2: _hex(PAPER.tealL)
+  dirt: '#3c2010', dirtL: '#4e2e18', soil: '#5a3820',
+  stone: '#c8b890', stoneD: '#a89870', stoneL: '#dccca8', mortar: '#787060',
+  hedge0: '#1a3c10', hedge1: '#2a5c1e', hedge2: '#3a7828', hedge3: '#4a9830', hedgeHL: '#60b840',
+  rose: '#c02860', roseL: '#e84888', gold: '#c07818', goldL: '#e8a030', cream: '#f0e4cc',
+  pond0: '#1a3040', pond1: '#2a5060', pond2: '#3a7080', pondHL: '#6ab0c8',
+  fairy0: '#88aaff', fairy1: '#ffaa44', fairy2: '#44ffaa'
 };
 
 // ─── FLOOR PALETTES ─────────────────────────────────────────────
@@ -32,81 +30,81 @@ var LV_PAL = {
 var FLOOR_PALS = {
   2: { // Tidepool — three zones: marsh, beach, water
     // Marsh sub-palette
-    marsh_wall0: _hex(PAPER.forestD), marsh_wall1: _hex(PAPER.forest), marsh_floor: _hex(PAPER.forestL), marsh_floorL: _hex(PAPER.leaf),
+    marsh_wall0: '#2a4818', marsh_wall1: '#3a6028', marsh_floor: '#3a5020', marsh_floorL: '#4a6030',
     // Beach sub-palette
-    beach_wall0: _hex(PAPER.sand), beach_wall1: _hex(PAPER.creamD), beach_floor: _hex(PAPER.cream), beach_floorL: _hex(PAPER.white),
-    beach_path: _hex(PAPER.sageD), beach_pathL: _hex(PAPER.sage),
+    beach_wall0: '#a08050', beach_wall1: '#b89060', beach_floor: '#d8c090', beach_floorL: '#e8d0a0',
+    beach_path: '#8a7040', beach_pathL: '#a08850',
     // Water sub-palette
-    water_wall0: _hex(PAPER.tealD), water_wall1: _hex(PAPER.teal), water_floor: _hex(PAPER.tealL), water_floorL: _hex(PAPER.sky),
-    water_path: _hex(PAPER.sageD), water_pathL: _hex(PAPER.sage),
+    water_wall0: '#1a3858', water_wall1: '#2a4868', water_floor: '#2090b0', water_floorL: '#30a8c8',
+    water_path: '#607888', water_pathL: '#7898a8',
     // Shared
-    accent: _hex(PAPER.rose), coral: _hex(PAPER.coral), waterHL: _hex(PAPER.sky),
+    accent: '#e06888', coral: '#e87060', waterHL: '#60d0e8',
     // Legacy compatibility
-    wall0: _hex(PAPER.sand), wall1: _hex(PAPER.creamD), wall2: _hex(PAPER.sand), wall3: _hex(PAPER.creamD),
-    floor0: _hex(PAPER.creamD), floorL: _hex(PAPER.cream),
-    path0: _hex(PAPER.sageD), pathS: _hex(PAPER.sage), pathL: _hex(PAPER.creamD),
-    water0: _hex(PAPER.teal), water1: _hex(PAPER.tealL),
-    accentL: _hex(PAPER.rose),
+    wall0: '#6a5838', wall1: '#7a6848', wall2: '#8a7858', wall3: '#9a8868',
+    floor0: '#c8b890', floorL: '#d8c8a0',
+    path0: '#8a7050', pathS: '#a08860', pathL: '#b8a070',
+    water0: '#2890b0', water1: '#38a8c8',
+    accentL: '#f088a0',
   },
   3: { // Cloud — three zones: calm sky, storm, sunset heights
     // Calm Sky sub-palette (top-left, d<16)
-    calm_wall: _hex(PAPER.sky), calm_wallD: _hex(PAPER.tealL), calm_floor: _hex(PAPER.cream), calm_floorL: _hex(PAPER.white),
-    calm_path: _hex(PAPER.sand), calm_pathL: _hex(PAPER.creamD),
+    calm_wall: '#c0d8f0', calm_wallD: '#8aa8c8', calm_floor: '#a0b8d8', calm_floorL: '#a0b8d0',
+    calm_path: '#c8b070', calm_pathL: '#d8c080',
     // Storm sub-palette (middle, 16<=d<36)
-    storm_wall: _hex(PAPER.tealD), storm_wallD: _hex(PAPER.inkTeal), storm_floor: _hex(PAPER.teal), storm_floorL: _hex(PAPER.tealL),
-    storm_path: _hex(PAPER.sageD), storm_pathL: _hex(PAPER.sage),
+    storm_wall: '#3a3858', storm_wallD: '#1a1830', storm_floor: '#3a3850', storm_floorL: '#4a4860',
+    storm_path: '#484860', storm_pathL: '#585870',
     // Sunset Heights sub-palette (bottom-right, d>=36)
-    sunset_wall: _hex(PAPER.peach), sunset_wallD: _hex(PAPER.coral), sunset_floor: _hex(PAPER.peach), sunset_floorL: _hex(PAPER.cream),
-    sunset_path: _hex(PAPER.orange), sunset_pathL: _hex(PAPER.gold),
+    sunset_wall: '#d8a070', sunset_wallD: '#a07048', sunset_floor: '#c8a070', sunset_floorL: '#d8b080',
+    sunset_path: '#d0a050', sunset_pathL: '#e0b060',
     // Shared
-    water0: _hex(PAPER.sky), water1: _hex(PAPER.cream), waterHL: _hex(PAPER.white),
-    accent: _hex(PAPER.gold), accentL: _hex(PAPER.gold), wisp: _hex(PAPER.cream),
+    water0: '#c8d8e8', water1: '#d8e8f8', waterHL: '#f0f8ff',
+    accent: '#f8d830', accentL: '#ffe848', wisp: '#e0e8f0',
     // Legacy compatibility
-    wall0: _hex(PAPER.tealD), wall1: _hex(PAPER.teal), wall2: _hex(PAPER.tealL), wall3: _hex(PAPER.sky),
-    floor0: _hex(PAPER.sageD), floorL: _hex(PAPER.sage),
-    path0: _hex(PAPER.sage), pathS: _hex(PAPER.creamD), pathL: _hex(PAPER.cream),
+    wall0: '#1a2030', wall1: '#283040', wall2: '#384050', wall3: '#485868',
+    floor0: '#607080', floorL: '#788898',
+    path0: '#8898a8', pathS: '#a0b0c0', pathL: '#b8c8d8',
   },
   4: { // Ember
-    wall0: _hex(PAPER.coralD), wall1: _hex(PAPER.coral), wall2: _hex(PAPER.peach), wall3: _hex(PAPER.orange),
-    floor0: _hex(PAPER.sand), floorL: _hex(PAPER.creamD),
-    path0: _hex(PAPER.sageD), pathS: _hex(PAPER.sage), pathL: _hex(PAPER.creamD),
-    water0: _hex(PAPER.coral), water1: _hex(PAPER.peach), waterHL: _hex(PAPER.orange),
-    accent: _hex(PAPER.coral), accentL: _hex(PAPER.peach), ember: _hex(PAPER.gold),
+    wall0: '#1a0808', wall1: '#280e08', wall2: '#381408', wall3: '#481c0c',
+    floor0: '#3a2010', floorL: '#4a2818',
+    path0: '#584030', pathS: '#685040', pathL: '#786050',
+    water0: '#601808', water1: '#802010', waterHL: '#e06010',
+    accent: '#e04008', accentL: '#f06818', ember: '#ff8020',
   },
   5: { // Arcane (now Frozen Peak)
-    wall0: _hex(PAPER.tealD), wall1: _hex(PAPER.teal), wall2: _hex(PAPER.tealL), wall3: _hex(PAPER.sky),
-    floor0: _hex(PAPER.sky), floorL: _hex(PAPER.cream),
-    path0: _hex(PAPER.cream), pathS: _hex(PAPER.creamD), pathL: _hex(PAPER.white),
-    water0: _hex(PAPER.teal), water1: _hex(PAPER.tealL), waterHL: _hex(PAPER.sky),
-    accent: _hex(PAPER.white), accentL: _hex(PAPER.cream), rune: _hex(PAPER.tealL),
+    wall0: '#304858', wall1: '#406070', wall2: '#507888', wall3: '#6090a0',
+    floor0: '#6898b8', floorL: '#78a8c8',
+    path0: '#88b8d8', pathS: '#98c8e0', pathL: '#a8d0e8',
+    water0: '#4878a0', water1: '#5888b0', waterHL: '#90d0f0',
+    accent: '#c0e8ff', accentL: '#d8f0ff', rune: '#80c0e0',
   },
   6: { // Crystal Caverns
-    wall0: _hex(PAPER.lavenderD), wall1: _hex(PAPER.lavender), wall2: _hex(PAPER.tealD), wall3: _hex(PAPER.teal),
-    floor0: _hex(PAPER.lavenderD), floorL: _hex(PAPER.lavender),
-    path0: _hex(PAPER.lavender), pathS: _hex(PAPER.tealL), pathL: _hex(PAPER.sky),
-    water0: _hex(PAPER.tealD), water1: _hex(PAPER.teal), waterHL: _hex(PAPER.lavender),
-    accent: _hex(PAPER.lavender), accentL: _hex(PAPER.rose), rune: _hex(PAPER.sky),
+    wall0: '#381060', wall1: '#481878', wall2: '#582090', wall3: '#6828a8',
+    floor0: '#4a2880', floorL: '#5a3898',
+    path0: '#7048b0', pathS: '#8058c0', pathL: '#9068d0',
+    water0: '#3818a0', water1: '#4828b0', waterHL: '#8060e0',
+    accent: '#c098f0', accentL: '#d0a8ff', rune: '#a070e0',
   },
   7: { // Market Square
-    wall0: _hex(PAPER.sand), wall1: _hex(PAPER.creamD), wall2: _hex(PAPER.cream), wall3: _hex(PAPER.peach),
-    floor0: _hex(PAPER.cream), floorL: _hex(PAPER.white),
-    path0: _hex(PAPER.sand), pathS: _hex(PAPER.creamD), pathL: _hex(PAPER.cream),
-    water0: _hex(PAPER.sageD), water1: _hex(PAPER.sage), waterHL: _hex(PAPER.gold),
-    accent: _hex(PAPER.gold), accentL: _hex(PAPER.orange), rune: _hex(PAPER.gold),
+    wall0: '#4a3818', wall1: '#5a4828', wall2: '#6a5838', wall3: '#7a6848',
+    floor0: '#786030', floorL: '#887040',
+    path0: '#a08850', pathS: '#b09860', pathL: '#c0a870',
+    water0: '#605020', water1: '#706030', waterHL: '#c0a050',
+    accent: '#e8c048', accentL: '#f0d058', rune: '#d0a830',
   },
   8: { // Infinity Library
-    wall0: _hex(PAPER.forestD), wall1: _hex(PAPER.forest), wall2: _hex(PAPER.forestL), wall3: _hex(PAPER.leaf),
-    floor0: _hex(PAPER.sand), floorL: _hex(PAPER.creamD),
-    path0: _hex(PAPER.sageD), pathS: _hex(PAPER.sage), pathL: _hex(PAPER.creamD),
-    water0: _hex(PAPER.forestD), water1: _hex(PAPER.forest), waterHL: _hex(PAPER.sageD),
-    accent: _hex(PAPER.orange), accentL: _hex(PAPER.gold), rune: _hex(PAPER.gold),
+    wall0: '#1a1008', wall1: '#2a1810', wall2: '#3a2818', wall3: '#4a3820',
+    floor0: '#382010', floorL: '#483018',
+    path0: '#584020', pathS: '#685028', pathL: '#786030',
+    water0: '#281808', water1: '#382010', waterHL: '#806030',
+    accent: '#c09848', accentL: '#d0a858', rune: '#a08030',
   },
   9: { // The Mending Room (arcane)
-    wall0: _hex(PAPER.inkTeal), wall1: _hex(PAPER.tealD), wall2: _hex(PAPER.teal), wall3: _hex(PAPER.tealL),
-    floor0: _hex(PAPER.tealD), floorL: _hex(PAPER.teal),
-    path0: _hex(PAPER.lavenderD), pathS: _hex(PAPER.lavender), pathL: _hex(PAPER.sky),
-    water0: _hex(PAPER.inkTeal), water1: _hex(PAPER.tealD), waterHL: _hex(PAPER.lavender),
-    accent: _hex(PAPER.rose), accentL: _hex(PAPER.lavender), rune: _hex(PAPER.lavender),
+    wall0: '#100818', wall1: '#180c28', wall2: '#201038', wall3: '#281848',
+    floor0: '#201030', floorL: '#281840',
+    path0: '#382050', pathS: '#483068', pathL: '#584080',
+    water0: '#180830', water1: '#200c40', waterHL: '#6030c0',
+    accent: '#c060f0', accentL: '#d880ff', rune: '#8040d0',
   },
 };
 
@@ -115,13 +113,13 @@ var _transformed = false;
 
 // ─── FOG COLOR (derived from floor palette) ─────────────────────
 
-var _fogR = 217, _fogG = 207, _fogB = 178;
-var _fogColor = 'rgb(217,207,178)';
-var _fogColorMinimap = 'rgb(223,211,180)';
-var _fogColorMinimapBg = 'rgb(217,207,178)';
+var _fogR = 8, _fogG = 4, _fogB = 2;
+var _fogColor = 'rgb(8,4,2)';
+var _fogColorMinimap = '#080402';
+var _fogColorMinimapBg = '#080402';
 
 function _updateFogColor() {
-  var fogHex = (FLOOR_PALETTES[_floorTheme] && FLOOR_PALETTES[_floorTheme].fog) || PAPER.sand;
+  var fogHex = (FLOOR_PALETTES[_floorTheme] && FLOOR_PALETTES[_floorTheme].fog) || 0x080402;
   _fogR = (fogHex >> 16) & 0xff;
   _fogG = (fogHex >> 8) & 0xff;
   _fogB = fogHex & 0xff;
@@ -154,8 +152,6 @@ var _gs = null;        // game state {fairies, hasKey, dead, flash}
 var _party = null;     // {x, y, vx, vy, speed, trail, trailLen, facing, animT}
 var _heroCanvases = null;
 var _deathParticles = [];
-var _dustParticles = []; // footstep dust puffs {x,y,vx,vy,t,maxT}
-var _lastDustMs = 0;     // timestamp of last footstep puff spawn
 var _minimapCanvas = null;
 var _minimapG = null;
 
@@ -169,7 +165,7 @@ function LV_ellipse(cx, cy, rx, ry, rot) {
 
 function LV_cut(color, elev, fn) {
   _G.save();
-  _G.shadowColor = 'rgba(31,61,63,0.2)';
+  _G.shadowColor = 'rgba(14,6,2,0.58)';
   _G.shadowBlur = elev * 2.8;
   _G.shadowOffsetX = elev * 0.25;
   _G.shadowOffsetY = elev * 1.3;
@@ -250,9 +246,9 @@ function LV_drawWall(sx, sy, ts, tx, ty) {
       LV_cut(LV_PAL.goldL, 1, function () { _G.arc(fx, fy, fsz * 0.38, 0, Math.PI * 2); });
     }
   } else {
-    LV_cut(_hex(PAPER.forestD), 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(_hex(PAPER.forest), 5, function () { var r2 = mkRng(tx * 7 + ty * 11); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.1 + r() * 0.1), 4 + Math.floor(r() * 3), r2, 0.7); });
-    LV_cut(_hex(PAPER.leaf), 3, function () { var r2 = mkRng(tx * 13 + ty * 17); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.25 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.6); });
+    LV_cut('#1a3c0e', 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#2e6020', 5, function () { var r2 = mkRng(tx * 7 + ty * 11); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.1 + r() * 0.1), 4 + Math.floor(r() * 3), r2, 0.7); });
+    LV_cut('#4a8830', 3, function () { var r2 = mkRng(tx * 13 + ty * 17); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.25 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.6); });
     var cr = mkRng(tx * 31 + ty * 53 + 3);
     for (var c = 0; c < 3 + Math.floor(cr() * 4); c++) {
       var cbx = sx + ts * (0.08 + cr() * 0.84), cby = sy + ts * (0.05 + cr() * 0.35);
@@ -260,17 +256,6 @@ function LV_drawWall(sx, sy, ts, tx, ty) {
       LV_cut(cbc, 2, function () { _G.arc(cbx, cby, ts * 0.07, 0, Math.PI * 2); });
     }
   }
-  // Stone block detail: 2 thin horizontal lines + 1 vertical line
-  _G.save();
-  _G.strokeStyle = 'rgba(31,61,63,0.08)';
-  _G.lineWidth = 1;
-  _G.beginPath();
-  _G.moveTo(sx, sy + ts / 3); _G.lineTo(sx + ts, sy + ts / 3);
-  _G.moveTo(sx, sy + ts * 2 / 3); _G.lineTo(sx + ts, sy + ts * 2 / 3);
-  var vx = sx + (tx * 7 + ty * 13) % ts;
-  _G.moveTo(vx, sy); _G.lineTo(vx, sy + ts);
-  _G.stroke();
-  _G.restore();
 }
 
 function LV_drawFloor(sx, sy, ts, tx, ty) {
@@ -286,18 +271,9 @@ function LV_drawFloor(sx, sy, ts, tx, ty) {
     LV_cut(fc, 1, function() { _G.arc(fx, fy, ts * 0.06 + fr() * ts * 0.03, 0, Math.PI * 2); });
     if (fr() < 0.4) {
       var lx = sx + ts * (0.15 + fr() * 0.7), ly = sy + ts * (0.15 + fr() * 0.5);
-      LV_cut(_hex(PAPER.leaf), 0, function() { _G.arc(lx, ly, ts * 0.04, 0, Math.PI * 2); });
+      LV_cut('#50a838', 0, function() { _G.arc(lx, ly, ts * 0.04, 0, Math.PI * 2); });
     }
   }
-  // Subtle grain dots
-  _G.save();
-  _G.fillStyle = 'rgba(31,61,63,0.06)';
-  for (var gi = 0; gi < 4; gi++) {
-    var gx = sx + (tx * 31 + ty * 17 + gi * 7) % ts;
-    var gy = sy + (tx * 13 + ty * 41 + gi * 11) % ts;
-    _G.beginPath(); _G.arc(gx, gy, 1, 0, Math.PI * 2); _G.fill();
-  }
-  _G.restore();
 }
 
 function LV_drawPath(sx, sy, ts, tx, ty) {
@@ -307,32 +283,12 @@ function LV_drawPath(sx, sy, ts, tx, ty) {
     var st = stones[si]; var sr = mkRng(tx * 41 + ty * 83 + si * 11);
     LV_cut(si % 2 === 0 ? LV_PAL.stone : LV_PAL.stoneD, 2, (function (st2, sr2) { return function () { LV_wobRect(st2[0] + sr2() * 2, st2[1] + sr2() * 2, st2[2] - sr2() * 2, st2[3] - sr2() * 2, mkRng(si * 7 + tx + ty), 1.5); }; })(st, sr));
   }
-  // Cobblestone highlights: 3 small lighter circles down the center
-  _G.save();
-  _G.fillStyle = 'rgba(253,251,242,0.1)';
-  for (var ci = 0; ci < 3; ci++) {
-    _G.beginPath();
-    _G.arc(sx + ts * 0.5, sy + ts * (0.2 + ci * 0.3), 2, 0, Math.PI * 2);
-    _G.fill();
-  }
-  _G.restore();
 }
 
 function LV_drawWater(sx, sy, ts, tx, ty, t) {
   LV_cut(LV_PAL.pond0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   LV_cut(LV_PAL.pond1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
   LV_cut(LV_PAL.pondHL, 0, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.18 + Math.sin(t * 2 + ty) * ts * 0.04, ts * 0.35, ts * 0.05); });
-  // Sine-wave ripple line
-  _G.save();
-  _G.strokeStyle = 'rgba(127,179,174,0.12)';
-  _G.lineWidth = 1;
-  _G.beginPath();
-  for (var wp = 0; wp <= ts; wp += 2) {
-    var wy = sy + ts * 0.5 + 2 * Math.sin(wp * 0.3 + tx * 0.5);
-    if (wp === 0) _G.moveTo(sx + wp, wy); else _G.lineTo(sx + wp, wy);
-  }
-  _G.stroke();
-  _G.restore();
 }
 
 // ─── FLOOR 2: TIDEPOOL TILES (zone-aware) ───────────────────────
@@ -351,23 +307,23 @@ function LV_drawWall_tidepool(sx, sy, ts, tx, ty) {
     // Marsh: dark green vegetation walls, swampy bumps, moss accents
     LV_cut(P.marsh_wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
     LV_cut(P.marsh_wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.55); });
-    LV_cut(_hex(PAPER.leaf), 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
+    LV_cut('#4a7838', 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
     // Moss accents
     if (r() < 0.35) {
       var mr = mkRng(tx * 17 + ty * 37 + 3); var mx = sx + ts * (0.2 + mr() * 0.6), my = sy + ts * (0.6 + mr() * 0.2);
-      LV_cut(_hex(PAPER.sage), 1, function () { _G.arc(mx, my, ts * 0.07, 0, Math.PI * 2); });
-      LV_cut(_hex(PAPER.sage), 0, function () { _G.arc(mx + ts * 0.04, my - ts * 0.02, ts * 0.04, 0, Math.PI * 2); });
+      LV_cut('#5a8838', 1, function () { _G.arc(mx, my, ts * 0.07, 0, Math.PI * 2); });
+      LV_cut('#6a9848', 0, function () { _G.arc(mx + ts * 0.04, my - ts * 0.02, ts * 0.04, 0, Math.PI * 2); });
     }
   } else if (zone === 1) {
     // Beach: sandy tan dunes, driftwood brown, flat tops
     LV_cut(P.beach_wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
     LV_cut(P.beach_wall1, 4, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.85); });
     // Flat dune top
-    LV_cut(_hex(PAPER.creamD), 2, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.05, ts * 0.84, ts * 0.2); });
+    LV_cut('#c8a070', 2, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.05, ts * 0.84, ts * 0.2); });
     // Driftwood
     if (r() < 0.25) {
       var dr = mkRng(tx * 23 + ty * 41);
-      _G.save(); _G.strokeStyle = _hex(PAPER.sageD); _G.lineWidth = 2; _G.globalAlpha = 0.6;
+      _G.save(); _G.strokeStyle = '#6a5030'; _G.lineWidth = 2; _G.globalAlpha = 0.6;
       _G.beginPath(); _G.moveTo(sx + ts * (0.2 + dr() * 0.3), sy + ts * (0.5 + dr() * 0.2));
       _G.lineTo(sx + ts * (0.5 + dr() * 0.3), sy + ts * (0.4 + dr() * 0.2)); _G.stroke(); _G.restore();
     }
@@ -375,7 +331,7 @@ function LV_drawWall_tidepool(sx, sy, ts, tx, ty) {
     // Water: dark blue-grey rock formations, coral accents
     LV_cut(P.water_wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
     LV_cut(P.water_wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.2 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.6); });
-    LV_cut(_hex(PAPER.tealL), 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.35 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
+    LV_cut('#3a5878', 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.35 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
     // Coral accents
     if (r() < 0.3) {
       var cr = mkRng(tx * 17 + ty * 37 + 3); var cx = sx + ts * (0.2 + cr() * 0.6), cy = sy + ts * (0.15 + cr() * 0.3);
@@ -392,22 +348,22 @@ function LV_drawFloor_tidepool(sx, sy, ts, tx, ty) {
     LV_cut(P.marsh_floor, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
     if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.marsh_floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
     // Puddle accents (dark circles)
-    if (r() < 0.3) { var pr2 = mkRng(tx * 43 + ty * 29); LV_cut(_hex(PAPER.forestD), 0, function () { _G.arc(sx + ts * (0.3 + pr2() * 0.4), sy + ts * (0.3 + pr2() * 0.4), ts * 0.08, 0, Math.PI * 2); }); }
+    if (r() < 0.3) { var pr2 = mkRng(tx * 43 + ty * 29); LV_cut('#2a3818', 0, function () { _G.arc(sx + ts * (0.3 + pr2() * 0.4), sy + ts * (0.3 + pr2() * 0.4), ts * 0.08, 0, Math.PI * 2); }); }
     // Transformation: lily pads on marsh
     if (_transformed && r() < 0.2) {
       var fr2 = mkRng(tx * 67 + ty * 31 + 99);
-      LV_cut(_hex(PAPER.leaf), 1, function() { _G.arc(sx + ts * (0.3 + fr2() * 0.4), sy + ts * (0.3 + fr2() * 0.4), ts * 0.07, 0, Math.PI * 2); });
+      LV_cut('#3a8830', 1, function() { _G.arc(sx + ts * (0.3 + fr2() * 0.4), sy + ts * (0.3 + fr2() * 0.4), ts * 0.07, 0, Math.PI * 2); });
     }
   } else if (zone === 1) {
     // Beach: light tan sand, flat, occasional tiny shell dots
     LV_cut(P.beach_floor, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
     if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.beach_floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.3 + pr() * 0.25), ts * (0.2 + pr() * 0.15)); }); }
     // Shell dots
-    if (r() < 0.2) { var sr = mkRng(tx * 43 + ty * 29); LV_cut(_hex(PAPER.cream), 0, function () { _G.arc(sx + ts * (0.3 + sr() * 0.4), sy + ts * (0.4 + sr() * 0.3), ts * 0.03, 0, Math.PI * 2); }); }
+    if (r() < 0.2) { var sr = mkRng(tx * 43 + ty * 29); LV_cut('#f0e8d0', 0, function () { _G.arc(sx + ts * (0.3 + sr() * 0.4), sy + ts * (0.4 + sr() * 0.3), ts * 0.03, 0, Math.PI * 2); }); }
     // Transformation: colorful shells and starfish on beach
     if (_transformed && r() < 0.22) {
       var fr2 = mkRng(tx * 67 + ty * 31 + 99);
-      var shCol = fr2() < 0.33 ? P.coral : fr2() < 0.66 ? P.accent : _hex(PAPER.peach);
+      var shCol = fr2() < 0.33 ? P.coral : fr2() < 0.66 ? P.accent : '#f0d0a0';
       LV_cut(shCol, 1, function() { _G.arc(sx + ts * (0.2 + fr2() * 0.6), sy + ts * (0.2 + fr2() * 0.6), ts * 0.05 + fr2() * ts * 0.03, 0, Math.PI * 2); });
     }
   } else {
@@ -433,12 +389,12 @@ function LV_drawPath_tidepool(sx, sy, ts, tx, ty) {
   var zone = LV_getZone2(tx, ty);
   if (zone === 0) {
     // Marsh: muddy boardwalk (dark brown planks)
-    LV_cut(_hex(PAPER.forestD), 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#3a2818', 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
     // Planks: horizontal lines
     for (var pi = 0; pi < 4; pi++) {
       var py = sy + ts * 0.05 + pi * ts * 0.24;
-      LV_cut(_hex(PAPER.forest), 2, function () { _G.rect(sx + ts * 0.04, py, ts * 0.92, ts * 0.18); });
-      LV_cut(_hex(PAPER.forestL), 1, function () { _G.rect(sx + ts * 0.08, py + ts * 0.02, ts * 0.84, ts * 0.06); });
+      LV_cut('#4a3828', 2, function () { _G.rect(sx + ts * 0.04, py, ts * 0.92, ts * 0.18); });
+      LV_cut('#5a4838', 1, function () { _G.rect(sx + ts * 0.08, py + ts * 0.02, ts * 0.84, ts * 0.06); });
     }
   } else if (zone === 1) {
     // Beach: sandy boardwalk (light tan planks)
@@ -446,11 +402,11 @@ function LV_drawPath_tidepool(sx, sy, ts, tx, ty) {
     for (var pi2 = 0; pi2 < 4; pi2++) {
       var py2 = sy + ts * 0.05 + pi2 * ts * 0.24;
       LV_cut(P.beach_pathL, 2, function () { _G.rect(sx + ts * 0.04, py2, ts * 0.92, ts * 0.18); });
-      LV_cut(_hex(PAPER.creamD), 1, function () { _G.rect(sx + ts * 0.08, py2 + ts * 0.02, ts * 0.84, ts * 0.06); });
+      LV_cut('#b89860', 1, function () { _G.rect(sx + ts * 0.08, py2 + ts * 0.02, ts * 0.84, ts * 0.06); });
     }
   } else {
     // Water: grey stepping stones (rounded rectangles in blue water)
-    LV_cut(_hex(PAPER.tealD), 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#1a6888', 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
     // Two stepping stones
     var sr = mkRng(tx * 41 + ty * 83 + 7);
     LV_cut(P.water_path, 3, function () {
@@ -472,19 +428,19 @@ function LV_drawWater_tidepool(sx, sy, ts, tx, ty, t) {
   var zone = LV_getZone2(tx, ty);
   if (zone === 0) {
     // Marsh: murky green pond
-    LV_cut(_hex(PAPER.forestD), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(_hex(PAPER.forest), 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
-    LV_cut(_hex(PAPER.forestL), 0, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.2 + Math.sin(t * 1.5 + ty) * ts * 0.04, ts * 0.35, ts * 0.04); });
+    LV_cut('#1a3020', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#2a4030', 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
+    LV_cut('#3a5840', 0, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.2 + Math.sin(t * 1.5 + ty) * ts * 0.04, ts * 0.35, ts * 0.04); });
   } else if (zone === 1) {
     // Beach: tidal pool (turquoise with sand border)
-    LV_cut(_hex(PAPER.sand), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(_hex(PAPER.teal), 3, function () { _G.rect(sx + ts * 0.1, sy + ts * 0.1, ts * 0.8, ts * 0.8); });
-    LV_cut(_hex(PAPER.tealL), 1, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.15, ts * 0.7, ts * 0.7); });
+    LV_cut('#b8a878', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#2890b0', 3, function () { _G.rect(sx + ts * 0.1, sy + ts * 0.1, ts * 0.8, ts * 0.8); });
+    LV_cut('#38a8c8', 1, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.15, ts * 0.7, ts * 0.7); });
     LV_cut(P.waterHL, 0, function () { _G.rect(sx + ts * 0.2, sy + ts * 0.2 + Math.sin(t * 1.8 + ty) * ts * 0.04, ts * 0.3, ts * 0.04); });
   } else {
     // Water: deep ocean blue with animated wave highlights
-    LV_cut(_hex(PAPER.tealD), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(_hex(PAPER.teal), 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.08, ts * 0.9, ts * 0.8); });
+    LV_cut('#0a2848', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#1a3858', 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.08, ts * 0.9, ts * 0.8); });
     // Animated wave highlights
     LV_cut(P.waterHL, 0, function () { _G.rect(sx + ts * 0.1, sy + ts * 0.15 + Math.sin(t * 2.2 + ty) * ts * 0.05, ts * 0.35, ts * 0.04); });
     LV_cut(P.waterHL, 0, function () { _G.rect(sx + ts * 0.5, sy + ts * 0.55 + Math.sin(t * 2.2 + ty + 1.5) * ts * 0.05, ts * 0.3, ts * 0.03); });
@@ -503,9 +459,9 @@ function LV_drawWall_cloud(sx, sy, ts, tx, ty) {
   var r = mkRng(tx * 31 + ty * 97 + 301);
 
   // Base colors per zone
-  var baseCol = zone === 0 ? _hex(PAPER.sky) : zone === 1 ? _hex(PAPER.tealD) : _hex(PAPER.peach);
-  var lightCol = zone === 0 ? _hex(PAPER.cream) : zone === 1 ? _hex(PAPER.teal) : _hex(PAPER.cream);
-  var highlightCol = zone === 0 ? _hex(PAPER.white) : zone === 1 ? _hex(PAPER.tealL) : _hex(PAPER.white);
+  var baseCol = zone === 0 ? '#c0d8f0' : zone === 1 ? '#3a3858' : '#d8a070';
+  var lightCol = zone === 0 ? '#d8e8f8' : zone === 1 ? '#4a4870' : '#e8b888';
+  var highlightCol = zone === 0 ? '#e8f0ff' : zone === 1 ? '#5a5888' : '#f0c8a0';
 
   // Base fill
   LV_cut(baseCol, 6, function() { _G.rect(sx, sy, ts + 1, ts + 1); });
@@ -543,7 +499,7 @@ function LV_drawFloor_cloud(sx, sy, ts, tx, ty) {
     if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.storm_floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
     // Lightning crack accents (thin yellow lines)
     if (r() < 0.15) {
-      _G.save(); _G.strokeStyle = _hex(PAPER.gold); _G.lineWidth = 0.8; _G.globalAlpha = 0.35;
+      _G.save(); _G.strokeStyle = '#f0d830'; _G.lineWidth = 0.8; _G.globalAlpha = 0.35;
       var cr = mkRng(tx * 43 + ty * 29);
       _G.beginPath(); _G.moveTo(sx + ts * (0.2 + cr() * 0.3), sy + ts * (0.2 + cr() * 0.2));
       _G.lineTo(sx + ts * (0.4 + cr() * 0.2), sy + ts * (0.5 + cr() * 0.2));
@@ -552,7 +508,7 @@ function LV_drawFloor_cloud(sx, sy, ts, tx, ty) {
     // Transformation: storm clearing - bright patches
     if (_transformed && r() < 0.18) {
       var fr3 = mkRng(tx * 67 + ty * 31 + 99);
-      LV_cut(_hex(PAPER.creamD), 0, function() { _G.arc(sx + ts * (0.25 + fr3() * 0.5), sy + ts * (0.25 + fr3() * 0.5), ts * 0.06, 0, Math.PI * 2); });
+      LV_cut('#e0d090', 0, function() { _G.arc(sx + ts * (0.25 + fr3() * 0.5), sy + ts * (0.25 + fr3() * 0.5), ts * 0.06, 0, Math.PI * 2); });
     }
   } else {
     // Sunset: Warm amber/gold stone
@@ -561,7 +517,7 @@ function LV_drawFloor_cloud(sx, sy, ts, tx, ty) {
     // Transformation: warm golden glow dots
     if (_transformed && r() < 0.2) {
       var fr3 = mkRng(tx * 67 + ty * 31 + 99);
-      LV_cut(_hex(PAPER.gold), 0, function() { _G.arc(sx + ts * (0.2 + fr3() * 0.6), sy + ts * (0.2 + fr3() * 0.6), ts * 0.05, 0, Math.PI * 2); });
+      LV_cut('#f0d060', 0, function() { _G.arc(sx + ts * (0.2 + fr3() * 0.6), sy + ts * (0.2 + fr3() * 0.6), ts * 0.05, 0, Math.PI * 2); });
     }
   }
 }
@@ -574,15 +530,15 @@ function LV_drawPath_cloud(sx, sy, ts, tx, ty) {
     for (var pi = 0; pi < 4; pi++) {
       var py = sy + ts * 0.05 + pi * ts * 0.24;
       LV_cut(P.calm_pathL, 2, function () { _G.rect(sx + ts * 0.04, py, ts * 0.92, ts * 0.18); });
-      LV_cut(_hex(PAPER.creamD), 1, function () { _G.rect(sx + ts * 0.08, py + ts * 0.02, ts * 0.84, ts * 0.06); });
+      LV_cut('#e0d090', 1, function () { _G.rect(sx + ts * 0.08, py + ts * 0.02, ts * 0.84, ts * 0.06); });
     }
   } else if (zone === 1) {
     // Storm: Cracked dark grey stone bridge
     LV_cut(P.storm_path, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.storm_pathL : _hex(PAPER.tealL), 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
+    for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.storm_pathL : '#505068', 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
     // Crack line
     if (r() < 0.3) {
-      _G.save(); _G.strokeStyle = _hex(PAPER.inkTeal); _G.lineWidth = 1; _G.globalAlpha = 0.5;
+      _G.save(); _G.strokeStyle = '#282838'; _G.lineWidth = 1; _G.globalAlpha = 0.5;
       var cr2 = mkRng(tx * 53 + ty * 37);
       _G.beginPath(); _G.moveTo(sx + ts * cr2() * 0.5, sy + ts * 0.1);
       _G.lineTo(sx + ts * (0.3 + cr2() * 0.4), sy + ts * 0.9); _G.stroke(); _G.restore();
@@ -593,10 +549,10 @@ function LV_drawPath_cloud(sx, sy, ts, tx, ty) {
     for (var pi2 = 0; pi2 < 4; pi2++) {
       var py2 = sy + ts * 0.05 + pi2 * ts * 0.24;
       LV_cut(P.sunset_pathL, 2, function () { _G.rect(sx + ts * 0.04, py2, ts * 0.92, ts * 0.18); });
-      LV_cut(_hex(PAPER.gold), 1, function () { _G.rect(sx + ts * 0.08, py2 + ts * 0.02, ts * 0.84, ts * 0.06); });
+      LV_cut('#e8c070', 1, function () { _G.rect(sx + ts * 0.08, py2 + ts * 0.02, ts * 0.84, ts * 0.06); });
     }
     // Warm glow overlay
-    _G.save(); _G.globalAlpha = 0.08; _G.fillStyle = _hex(PAPER.gold);
+    _G.save(); _G.globalAlpha = 0.08; _G.fillStyle = '#f0c040';
     _G.beginPath(); _G.arc(sx + ts * 0.5, sy + ts * 0.5, ts * 0.35, 0, Math.PI * 2); _G.fill(); _G.restore();
   }
 }
@@ -605,26 +561,26 @@ function LV_drawWater_cloud(sx, sy, ts, tx, ty, t) {
   var zone = LV_getZone3(tx, ty);
   if (zone === 0) {
     // Calm: Wispy white mist
-    LV_cut(_hex(PAPER.cream), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(_hex(PAPER.white), 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.12, ts * 0.84, ts * 0.7); });
-    LV_cut(_hex(PAPER.white), 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.4 + Math.sin(t * 1.5 + tx) * ts * 0.06, ts * 0.15, 0, Math.PI * 2); });
-    LV_cut(_hex(PAPER.white), 0, function () { _G.arc(sx + ts * 0.3, sy + ts * 0.6 + Math.sin(t * 1.2 + ty) * ts * 0.04, ts * 0.1, 0, Math.PI * 2); });
+    LV_cut('#e0e8f0', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#f0f4fa', 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.12, ts * 0.84, ts * 0.7); });
+    LV_cut('#ffffff', 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.4 + Math.sin(t * 1.5 + tx) * ts * 0.06, ts * 0.15, 0, Math.PI * 2); });
+    LV_cut('#f8fcff', 0, function () { _G.arc(sx + ts * 0.3, sy + ts * 0.6 + Math.sin(t * 1.2 + ty) * ts * 0.04, ts * 0.1, 0, Math.PI * 2); });
   } else if (zone === 1) {
     // Storm: Dark void (nearly black with distant stars)
-    LV_cut(_hex(PAPER.inkTeal), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(_hex(PAPER.tealD), 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.08, ts * 0.9, ts * 0.84); });
+    LV_cut('#0a0818', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#101028', 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.08, ts * 0.9, ts * 0.84); });
     // Distant stars
     var sr = mkRng(tx * 43 + ty * 67 + 303);
     for (var i = 0; i < 3; i++) {
       var stx = sx + ts * (0.1 + sr() * 0.8), sty = sy + ts * (0.1 + sr() * 0.8);
-      LV_cut(_hex(PAPER.sky), 0, function () { _G.arc(stx, sty, ts * 0.02, 0, Math.PI * 2); });
+      LV_cut('#a0a8c0', 0, function () { _G.arc(stx, sty, ts * 0.02, 0, Math.PI * 2); });
     }
   } else {
     // Sunset: Orange/pink sunset haze
-    LV_cut(_hex(PAPER.coral), 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-    LV_cut(_hex(PAPER.peach), 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.1, ts * 0.84, ts * 0.75); });
-    LV_cut(_hex(PAPER.peach), 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.45 + Math.sin(t * 1.3 + tx) * ts * 0.05, ts * 0.16, 0, Math.PI * 2); });
-    LV_cut(_hex(PAPER.cream), 0, function () { _G.arc(sx + ts * 0.35, sy + ts * 0.6 + Math.sin(t * 1.6 + ty) * ts * 0.03, ts * 0.1, 0, Math.PI * 2); });
+    LV_cut('#c87040', 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
+    LV_cut('#d88858', 3, function () { _G.rect(sx + ts * 0.08, sy + ts * 0.1, ts * 0.84, ts * 0.75); });
+    LV_cut('#e8a070', 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.45 + Math.sin(t * 1.3 + tx) * ts * 0.05, ts * 0.16, 0, Math.PI * 2); });
+    LV_cut('#f0b888', 0, function () { _G.arc(sx + ts * 0.35, sy + ts * 0.6 + Math.sin(t * 1.6 + ty) * ts * 0.03, ts * 0.1, 0, Math.PI * 2); });
   }
 }
 
@@ -645,7 +601,7 @@ function LV_drawFloor_ember(sx, sy, ts, tx, ty) {
   // Transformation: cooled rock patches (grey replacing red)
   if (_transformed && r() < 0.22) {
     var fr4 = mkRng(tx * 67 + ty * 31 + 99);
-    var coolCol = fr4() < 0.5 ? _hex(PAPER.sage) : _hex(PAPER.creamD);
+    var coolCol = fr4() < 0.5 ? '#606060' : '#787878';
     LV_cut(coolCol, 1, function() { _G.rect(sx + ts * (0.15 + fr4() * 0.3), sy + ts * (0.15 + fr4() * 0.3), ts * (0.2 + fr4() * 0.15), ts * (0.15 + fr4() * 0.1)); });
   }
 }
@@ -677,7 +633,7 @@ function LV_drawFloor_arcane(sx, sy, ts, tx, ty) {
   // Transformation: glowing rune wisps
   if (_transformed && r() < 0.2) {
     var fr5 = mkRng(tx * 67 + ty * 31 + 99);
-    LV_cut(P.rune || _hex(PAPER.tealL), 0, function() { _G.arc(sx + ts * (0.2 + fr5() * 0.6), sy + ts * (0.2 + fr5() * 0.6), ts * 0.05 + fr5() * ts * 0.02, 0, Math.PI * 2); });
+    LV_cut(P.rune || '#80c0e0', 0, function() { _G.arc(sx + ts * (0.2 + fr5() * 0.6), sy + ts * (0.2 + fr5() * 0.6), ts * 0.05 + fr5() * ts * 0.02, 0, Math.PI * 2); });
   }
 }
 function LV_drawPath_arcane(sx, sy, ts, tx, ty) {
@@ -700,47 +656,15 @@ function LV_drawWall_ice(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.18 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.6); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.32 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
   if (r() < 0.2) { LV_cut(P.accent, 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.06, 0, Math.PI * 2); }); }
-  // Angular crystalline edge highlights on ice walls
-  _G.save();
-  _G.strokeStyle = 'rgba(253,251,242,0.12)';
-  _G.lineWidth = 1;
-  var ir5 = mkRng(tx * 47 + ty * 59 + 605);
-  // Short diagonal white strokes at tile edges
-  var edgeX = ir5() < 0.5 ? sx + ts * 0.05 : sx + ts * 0.85;
-  var edgeY = sy + ts * (0.1 + ir5() * 0.3);
-  _G.beginPath(); _G.moveTo(edgeX, edgeY); _G.lineTo(edgeX + ts * 0.1, edgeY + ts * 0.15); _G.stroke();
-  if (ir5() < 0.6) {
-    edgeX = ir5() < 0.5 ? sx + ts * 0.9 : sx + ts * 0.1;
-    edgeY = sy + ts * (0.5 + ir5() * 0.3);
-    _G.beginPath(); _G.moveTo(edgeX, edgeY); _G.lineTo(edgeX - ts * 0.08, edgeY + ts * 0.12); _G.stroke();
-  }
-  _G.restore();
 }
 function LV_drawFloor_ice(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[5], r = mkRng(tx * 19 + ty * 53 + 602);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Ice crack lines on floor tiles (1-2 white lines, 0.15 alpha)
-  _G.save();
-  _G.strokeStyle = 'rgba(253,251,242,0.12)';
-  _G.lineWidth = 1;
-  var cr5 = mkRng(tx * 43 + ty * 71 + 607);
-  var crackCount = 1 + Math.floor(cr5() * 2);
-  for (var cci = 0; cci < crackCount; cci++) {
-    var cx1 = sx + ts * (0.1 + cr5() * 0.3);
-    var cy1 = sy + ts * (0.1 + cr5() * 0.3);
-    var angle5 = cr5() * Math.PI;
-    var clen = ts * (0.3 + cr5() * 0.3);
-    _G.beginPath();
-    _G.moveTo(cx1, cy1);
-    _G.lineTo(cx1 + Math.cos(angle5) * clen, cy1 + Math.sin(angle5) * clen);
-    _G.stroke();
-  }
-  _G.restore();
   // Transformation: thawed grass patches (green on ice)
   if (_transformed && r() < 0.22) {
     var fr5 = mkRng(tx * 67 + ty * 31 + 99);
-    var grassCol = fr5() < 0.5 ? _hex(PAPER.leaf) : _hex(PAPER.sage);
+    var grassCol = fr5() < 0.5 ? '#4a8830' : '#60a840';
     LV_cut(grassCol, 0, function() { _G.arc(sx + ts * (0.2 + fr5() * 0.6), sy + ts * (0.25 + fr5() * 0.5), ts * 0.06, 0, Math.PI * 2); });
   }
 }
@@ -764,47 +688,15 @@ function LV_drawWall_crystal(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.5); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
   if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); }
-  // Faceted crystal diagonal lines on walls
-  _G.save();
-  _G.strokeStyle = 'rgba(156,143,192,0.12)';
-  _G.lineWidth = 1;
-  var cr6 = mkRng(tx * 43 + ty * 67 + 706);
-  for (var ci = 0; ci < 2; ci++) {
-    _G.beginPath();
-    _G.moveTo(sx + cr6() * ts * 0.3, sy + cr6() * ts * 0.2);
-    _G.lineTo(sx + ts * (0.5 + cr6() * 0.5), sy + ts * (0.5 + cr6() * 0.5));
-    _G.stroke();
-  }
-  _G.restore();
 }
 function LV_drawFloor_crystal(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[6], r = mkRng(tx * 19 + ty * 53 + 702);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Diamond/hexagonal outlines on crystal floor tiles
-  _G.save();
-  _G.strokeStyle = 'rgba(156,143,192,0.12)';
-  _G.lineWidth = 1;
-  var dr6 = mkRng(tx * 37 + ty * 59 + 703);
-  for (var di = 0; di < 2; di++) {
-    var dcx = sx + ts * (0.2 + dr6() * 0.6);
-    var dcy = sy + ts * (0.2 + dr6() * 0.6);
-    var dsz = ts * 0.08;
-    _G.beginPath();
-    _G.moveTo(dcx, dcy - dsz);
-    _G.lineTo(dcx + dsz * 0.87, dcy - dsz * 0.5);
-    _G.lineTo(dcx + dsz * 0.87, dcy + dsz * 0.5);
-    _G.lineTo(dcx, dcy + dsz);
-    _G.lineTo(dcx - dsz * 0.87, dcy + dsz * 0.5);
-    _G.lineTo(dcx - dsz * 0.87, dcy - dsz * 0.5);
-    _G.closePath();
-    _G.stroke();
-  }
-  _G.restore();
   // Transformation: prismatic sparkle dots
   if (_transformed && r() < 0.2) {
     var fr6 = mkRng(tx * 67 + ty * 31 + 99);
-    var pCol = fr6() < 0.33 ? P.accent : fr6() < 0.66 ? _hex(PAPER.rose) : _hex(PAPER.tealL);
+    var pCol = fr6() < 0.33 ? P.accent : fr6() < 0.66 ? '#e060e0' : '#60e0e0';
     LV_cut(pCol, 0, function() { _G.arc(sx + ts * (0.2 + fr6() * 0.6), sy + ts * (0.2 + fr6() * 0.6), ts * 0.04 + fr6() * ts * 0.02, 0, Math.PI * 2); });
   }
 }
@@ -828,30 +720,11 @@ function LV_drawWall_market(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.18 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.6); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.32 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
   if (r() < 0.15) { LV_cut(P.accent, 0, function () { _G.rect(sx + ts * 0.3, sy + ts * 0.15, ts * 0.4, ts * 0.15); }); }
-  // Gold window-like rectangles on market walls (15% chance)
-  var wr7 = mkRng(tx * 53 + ty * 79 + 805);
-  if (wr7() < 0.15) {
-    _G.save();
-    _G.fillStyle = 'rgba(236,185,100,0.18)';
-    var wx = sx + ts * (0.25 + wr7() * 0.3);
-    var wy = sy + ts * (0.15 + wr7() * 0.2);
-    _G.fillRect(wx, wy, ts * 0.18, ts * 0.12);
-    _G.restore();
-  }
 }
 function LV_drawFloor_market(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[7], r = mkRng(tx * 19 + ty * 53 + 802);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.45) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Cobblestone 3x3 sub-grid pattern on market floor tiles
-  _G.save();
-  _G.strokeStyle = 'rgba(31,61,63,0.08)';
-  _G.lineWidth = 0.8;
-  for (var gi = 1; gi < 3; gi++) {
-    _G.beginPath(); _G.moveTo(sx + ts * gi / 3, sy); _G.lineTo(sx + ts * gi / 3, sy + ts); _G.stroke();
-    _G.beginPath(); _G.moveTo(sx, sy + ts * gi / 3); _G.lineTo(sx + ts, sy + ts * gi / 3); _G.stroke();
-  }
-  _G.restore();
   // Transformation: gold coin glints on the floor
   if (_transformed && r() < 0.2) {
     var fr7 = mkRng(tx * 67 + ty * 31 + 99);
@@ -878,37 +751,15 @@ function LV_drawWall_library(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.55); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
   if (r() < 0.18) { LV_cut(P.rune, 0, function () { _G.rect(sx + ts * 0.25, sy + ts * 0.1, ts * 0.5, ts * 0.08); }); }
-  // Horizontal rune-like lines on library walls (2-3 strokes)
-  _G.save();
-  _G.strokeStyle = 'rgba(227,154,74,0.12)';
-  _G.lineWidth = 0.8;
-  var lr8 = mkRng(tx * 47 + ty * 61 + 905);
-  var lineCount = 2 + Math.floor(lr8() * 2);
-  for (var li = 0; li < lineCount; li++) {
-    var ly = sy + ts * (0.25 + li * 0.22 + lr8() * 0.05);
-    _G.beginPath(); _G.moveTo(sx + ts * 0.1, ly); _G.lineTo(sx + ts * 0.9, ly); _G.stroke();
-  }
-  _G.restore();
 }
 function LV_drawFloor_library(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[8], r = mkRng(tx * 19 + ty * 53 + 902);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Subtle text-like marks (tiny horizontal dashes) on library floor
-  _G.save();
-  _G.strokeStyle = 'rgba(227,154,74,0.08)';
-  _G.lineWidth = 0.6;
-  var tr8 = mkRng(tx * 41 + ty * 73 + 906);
-  for (var ti = 0; ti < 4; ti++) {
-    var tdx = sx + ts * (0.15 + tr8() * 0.7);
-    var tdy = sy + ts * (0.15 + tr8() * 0.7);
-    _G.beginPath(); _G.moveTo(tdx, tdy); _G.lineTo(tdx + ts * 0.06 + tr8() * ts * 0.04, tdy); _G.stroke();
-  }
-  _G.restore();
   // Transformation: glowing page-light dots
   if (_transformed && r() < 0.18) {
     var fr8 = mkRng(tx * 67 + ty * 31 + 99);
-    LV_cut(P.accent || _hex(PAPER.orange), 0, function() { _G.arc(sx + ts * (0.2 + fr8() * 0.6), sy + ts * (0.2 + fr8() * 0.6), ts * 0.04, 0, Math.PI * 2); });
+    LV_cut(P.accent || '#c09848', 0, function() { _G.arc(sx + ts * (0.2 + fr8() * 0.6), sy + ts * (0.2 + fr8() * 0.6), ts * 0.04, 0, Math.PI * 2); });
   }
 }
 function LV_drawPath_library(sx, sy, ts, tx, ty) {
@@ -923,70 +774,7 @@ function LV_drawWater_library(sx, sy, ts, tx, ty, t) {
   LV_cut(P.accent, 0, function () { _G.arc(sx + ts * (0.35 + Math.sin(t * 1.5 + ty) * 0.1), sy + ts * 0.5, ts * 0.05, 0, Math.PI * 2); });
 }
 
-// ─── FLOOR 10: MENDING ROOM (The Mending Room, arcane variant) ──
-
-function LV_drawWall_mending(sx, sy, ts, tx, ty) {
-  var P = FLOOR_PALS[9], r = mkRng(tx * 31 + ty * 97 + 1001);
-  LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.5); });
-  LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
-  if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); _G.save(); _G.globalAlpha = 0.15; _G.fillStyle = P.accent || _hex(PAPER.rose); _G.beginPath(); _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
-  // Glowing rune circles on mending walls
-  var mr9 = mkRng(tx * 53 + ty * 71 + 1005);
-  if (mr9() < 0.25) {
-    _G.save();
-    _G.strokeStyle = P.rune || _hex(PAPER.lavender);
-    _G.lineWidth = 1;
-    _G.globalAlpha = 0.1;
-    var mcx = sx + ts * (0.3 + mr9() * 0.4);
-    var mcy = sy + ts * (0.2 + mr9() * 0.3);
-    _G.beginPath(); _G.arc(mcx, mcy, ts * 0.1, 0, Math.PI * 2); _G.stroke();
-    _G.restore();
-  }
-}
-function LV_drawFloor_mending(sx, sy, ts, tx, ty) {
-  var P = FLOOR_PALS[9], r = mkRng(tx * 19 + ty * 53 + 1002);
-  LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Equation-like symbols (+, x, =) on mending floor tiles
-  _G.save();
-  _G.strokeStyle = 'rgba(156,143,192,0.12)';
-  _G.lineWidth = 1;
-  var er9 = mkRng(tx * 37 + ty * 61 + 1003);
-  var sym = Math.floor(er9() * 3);
-  var ecx = sx + ts * (0.3 + er9() * 0.4);
-  var ecy = sy + ts * (0.3 + er9() * 0.4);
-  var esz = ts * 0.06;
-  _G.beginPath();
-  if (sym === 0) { // +
-    _G.moveTo(ecx - esz, ecy); _G.lineTo(ecx + esz, ecy);
-    _G.moveTo(ecx, ecy - esz); _G.lineTo(ecx, ecy + esz);
-  } else if (sym === 1) { // x
-    _G.moveTo(ecx - esz, ecy - esz); _G.lineTo(ecx + esz, ecy + esz);
-    _G.moveTo(ecx + esz, ecy - esz); _G.lineTo(ecx - esz, ecy + esz);
-  } else { // =
-    _G.moveTo(ecx - esz, ecy - esz * 0.4); _G.lineTo(ecx + esz, ecy - esz * 0.4);
-    _G.moveTo(ecx - esz, ecy + esz * 0.4); _G.lineTo(ecx + esz, ecy + esz * 0.4);
-  }
-  _G.stroke();
-  _G.restore();
-  // Transformation: glowing rune wisps
-  if (_transformed && r() < 0.2) {
-    var fr9 = mkRng(tx * 67 + ty * 31 + 99);
-    LV_cut(P.rune || _hex(PAPER.lavender), 0, function() { _G.arc(sx + ts * (0.2 + fr9() * 0.6), sy + ts * (0.2 + fr9() * 0.6), ts * 0.05 + fr9() * ts * 0.02, 0, Math.PI * 2); });
-  }
-}
-function LV_drawPath_mending(sx, sy, ts, tx, ty) {
-  var P = FLOOR_PALS[9];
-  LV_cut(P.path0, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.pathS : P.pathL, 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
-}
-function LV_drawWater_mending(sx, sy, ts, tx, ty, t) {
-  var P = FLOOR_PALS[9];
-  LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
-  LV_cut(P.accent || _hex(PAPER.rose), 0, function () { _G.arc(sx + ts * (0.4 + Math.sin(t * 2 + ty * 0.5) * 0.1), sy + ts * 0.45, ts * 0.08 + Math.sin(t * 3) * ts * 0.02, 0, Math.PI * 2); });
-}
+// ─── FLOOR 10: MENDING ROOM reuses arcane tile fns (floor 5 key=9) ──
 
 // ─── THEME DISPATCH ─────────────────────────────────────────────
 
@@ -999,7 +787,7 @@ var _tileFns = {
   6: { wall: LV_drawWall_crystal, floor: LV_drawFloor_crystal, path: LV_drawPath_crystal, water: LV_drawWater_crystal },
   7: { wall: LV_drawWall_market, floor: LV_drawFloor_market, path: LV_drawPath_market, water: LV_drawWater_market },
   8: { wall: LV_drawWall_library, floor: LV_drawFloor_library, path: LV_drawPath_library, water: LV_drawWater_library },
-  9: { wall: LV_drawWall_mending, floor: LV_drawFloor_mending, path: LV_drawPath_mending, water: LV_drawWater_mending },
+  9: { wall: LV_drawWall_arcane, floor: LV_drawFloor_arcane, path: LV_drawPath_arcane, water: LV_drawWater_arcane },
 };
 
 function _drawTile(tt, sx, sy, ts, tx, ty, t) {
@@ -1008,28 +796,18 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
   else if (tt === LV_TP) fns.path(sx, sy, ts, tx, ty);
   else if (tt === LV_TQ) fns.water(sx, sy, ts, tx, ty, t);
   else if (tt === LV_TS) {
-    // Secret passage — render as wall but with subtle visual hints
     fns.wall(sx, sy, ts, tx, ty);
-    // Slightly lighter overlay (5-10% lighter than normal wall)
-    _G.save();
-    _G.globalAlpha = 0.08;
-    _G.fillStyle = _hex(PAPER.white);
-    _G.fillRect(sx, sy, ts + 1, ts + 1);
-    _G.restore();
-    // Subtle crack line (1px, slightly darker) — hints at breakable wall
     var sr = mkRng(tx * 61 + ty * 89);
-    _G.save();
-    _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.08;
-    _G.strokeStyle = _hex(PAPER.inkTeal);
+    _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.1;
+    _G.strokeStyle = '#f0d060';
     _G.lineWidth = 1;
     _G.beginPath();
     var cx = sx + ts * (0.3 + sr() * 0.4);
-    _G.moveTo(cx, sy + ts * 0.15);
-    _G.lineTo(cx + ts * 0.06, sy + ts * 0.45);
-    _G.lineTo(cx - ts * 0.04, sy + ts * 0.75);
-    _G.lineTo(cx + ts * 0.02, sy + ts * 0.9);
+    _G.moveTo(cx, sy + ts * 0.2);
+    _G.lineTo(cx + ts * 0.05, sy + ts * 0.5);
+    _G.lineTo(cx - ts * 0.03, sy + ts * 0.8);
     _G.stroke();
-    _G.restore();
+    _G.globalAlpha = 1;
   }
   else fns.floor(sx, sy, ts, tx, ty);
 }
@@ -1038,45 +816,21 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
 
 function LV_drawChest(sx, sy, ts, o) {
   var x = sx + ts * 0.5, y = sy + ts * 0.62;
-  // Open transition: for ~400ms after o.openedAt the lid lifts/tilts open
-  // and gold sparkles rise, then it settles to a static open pose (prog=1).
-  var prog = o.open ? (o.openedAt ? Math.min(1, (Date.now() - o.openedAt) / 400) : 1) : 0;
-  LV_cut('rgba(31,61,63,0.18)', 0, function () { LV_ellipse(x, y + ts * 0.16, ts * 0.24, ts * 0.065, 0); });
-  var bc = o.open ? _hex(PAPER.forestD) : _hex(PAPER.forest);
+  LV_cut('rgba(14,6,2,0.28)', 0, function () { LV_ellipse(x, y + ts * 0.16, ts * 0.24, ts * 0.065, 0); });
+  var bc = o.open ? '#3a1c08' : '#5a3010', bl = o.open ? '#4e2c10' : '#7a4820';
   LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.28, y - ts * 0.02); _G.lineTo(x + ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.28, y - ts * 0.02); });
-  // Lid — rotated/offset upward as the chest opens
-  _G.save();
-  if (prog > 0) {
-    var hy = y - ts * 0.14; // hinge pivot near the lid base
-    _G.translate(x, hy - prog * ts * 0.16);
-    _G.rotate(-prog * 0.4);
-    _G.translate(-x, -hy);
-  }
   LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y - ts * 0.08); _G.lineTo(x + ts * 0.26, y - ts * 0.08); _G.lineTo(x + ts * 0.22, y - ts * 0.2); _G.bezierCurveTo(x + ts * 0.18, y - ts * 0.26, x - ts * 0.18, y - ts * 0.26, x - ts * 0.22, y - ts * 0.2); });
-  _G.restore();
   LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.27, y - ts * 0.02, ts * 0.54, ts * 0.038); });
   LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.055, y - ts * 0.055, ts * 0.11, ts * 0.09); });
-  // Gold sparkle dots rising while the lid swings open
-  if (prog > 0 && prog < 1) {
-    _G.save();
-    _G.globalAlpha = (1 - prog) * 0.9;
-    _G.fillStyle = LV_PAL.goldL;
-    for (var gp = 0; gp < 4; gp++) {
-      var gx = x + (gp - 1.5) * ts * 0.1;
-      var gy = y - ts * 0.18 - prog * ts * (0.25 + gp * 0.1);
-      _G.beginPath(); _G.arc(gx, gy, ts * 0.028, 0, Math.PI * 2); _G.fill();
-    }
-    _G.restore();
-  }
 }
 
 function LV_drawFairyCage(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var bob = Math.sin(t * 2.5) * ts * 0.02;
   // Base plate
-  LV_cut(_hex(PAPER.sageD), 3, function () { _G.rect(x - ts * 0.22, y + ts * 0.2, ts * 0.44, ts * 0.06); });
+  LV_cut('#8a7040', 3, function () { _G.rect(x - ts * 0.22, y + ts * 0.2, ts * 0.44, ts * 0.06); });
   // Cage bars (4 vertical lines + dome)
-  _G.save(); _G.strokeStyle = o.open ? _hex(PAPER.sageD) : _hex(PAPER.sand); _G.lineWidth = 1.5; _G.globalAlpha = 0.9;
+  _G.save(); _G.strokeStyle = o.open ? '#6a5030' : '#c0a050'; _G.lineWidth = 1.5; _G.globalAlpha = 0.9;
   for (var b = -1.5; b <= 1.5; b++) {
     var bx = x + b * ts * 0.1;
     _G.beginPath(); _G.moveTo(bx, y + ts * 0.2); _G.lineTo(bx, y - ts * 0.12 + bob); _G.stroke();
@@ -1084,25 +838,25 @@ function LV_drawFairyCage(sx, sy, ts, o, t) {
   // Dome arc
   _G.beginPath(); _G.arc(x, y - ts * 0.12 + bob, ts * 0.18, Math.PI, 0); _G.stroke();
   // Ring at top
-  LV_cut(_hex(PAPER.sand), 1, function () { _G.arc(x, y - ts * 0.3 + bob, ts * 0.04, 0, Math.PI * 2); });
+  LV_cut('#c0a050', 1, function () { _G.arc(x, y - ts * 0.3 + bob, ts * 0.04, 0, Math.PI * 2); });
   _G.restore();
   if (!o.open) {
     // Fairy inside — glowing circle bobbing
     var fy = y + Math.sin(t * 3.5) * ts * 0.06;
     _G.save(); _G.globalAlpha = 0.7 + Math.sin(t * 4) * 0.2;
-    _G.fillStyle = _hex(PAPER.sky); _G.beginPath(); _G.arc(x, fy, ts * 0.08, 0, Math.PI * 2); _G.fill();
-    _G.fillStyle = _hex(PAPER.white); _G.beginPath(); _G.arc(x - ts * 0.02, fy - ts * 0.02, ts * 0.04, 0, Math.PI * 2); _G.fill();
+    _G.fillStyle = '#88bbff'; _G.beginPath(); _G.arc(x, fy, ts * 0.08, 0, Math.PI * 2); _G.fill();
+    _G.fillStyle = '#ffffff'; _G.beginPath(); _G.arc(x - ts * 0.02, fy - ts * 0.02, ts * 0.04, 0, Math.PI * 2); _G.fill();
     // Sparkles
     for (var s = 0; s < 3; s++) {
       var sa = (s / 3) * Math.PI * 2 + t * 2;
       var sdx = Math.cos(sa) * ts * 0.14, sdy = Math.sin(sa) * ts * 0.1;
-      _G.fillStyle = _hex(PAPER.gold); _G.globalAlpha = 0.5 + Math.sin(t * 5 + s) * 0.3;
+      _G.fillStyle = '#ffe880'; _G.globalAlpha = 0.5 + Math.sin(t * 5 + s) * 0.3;
       _G.beginPath(); _G.arc(x + sdx, fy + sdy, ts * 0.025, 0, Math.PI * 2); _G.fill();
     }
     _G.restore();
   } else {
     // Door open — bent bar
-    _G.save(); _G.strokeStyle = _hex(PAPER.sageD); _G.lineWidth = 1.2; _G.globalAlpha = 0.6;
+    _G.save(); _G.strokeStyle = '#8a7040'; _G.lineWidth = 1.2; _G.globalAlpha = 0.6;
     _G.beginPath(); _G.moveTo(x + ts * 0.15, y + ts * 0.2); _G.lineTo(x + ts * 0.25, y); _G.stroke();
     _G.restore();
   }
@@ -1112,8 +866,8 @@ function LV_drawValve(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var radius = ts * 0.28;
   var rot = o.open ? 0.4 : t * 0.8;
-  var col = o.open ? _hex(PAPER.sageD) : _hex(PAPER.sage);
-  var colD = o.open ? _hex(PAPER.forestD) : _hex(PAPER.forestL);
+  var col = o.open ? '#8a5828' : '#b07838';
+  var colD = o.open ? '#6a4018' : '#906028';
   // Circle outline (wheel rim)
   _G.save();
   _G.strokeStyle = col; _G.lineWidth = ts * 0.05;
@@ -1132,7 +886,7 @@ function LV_drawValve(sx, sy, ts, o, t) {
   // Water drips below (when not open)
   if (!o.open) {
     var dripY = y + radius + ts * 0.08 + Math.sin(t * 4) * ts * 0.06;
-    _G.fillStyle = 'rgba(68,136,138,0.5)';
+    _G.fillStyle = 'rgba(64,160,220,0.6)';
     _G.beginPath(); _G.arc(x, dripY, ts * 0.04, 0, Math.PI * 2); _G.fill();
     _G.beginPath(); _G.arc(x - ts * 0.12, dripY + ts * 0.04, ts * 0.025, 0, Math.PI * 2); _G.fill();
   }
@@ -1143,10 +897,10 @@ function LV_drawBeacon(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.8;
   // Stone pillar
   var pw = ts * 0.18, ph = ts * 0.55;
-  LV_cut(_hex(PAPER.sageD), 4, function () { _G.rect(x - pw, y - ph, pw * 2, ph); });
-  LV_cut(_hex(PAPER.sage), 2, function () { _G.rect(x - pw + 2, y - ph + 2, pw * 2 - 4, ph - 4); });
+  LV_cut('#606060', 4, function () { _G.rect(x - pw, y - ph, pw * 2, ph); });
+  LV_cut('#787878', 2, function () { _G.rect(x - pw + 2, y - ph + 2, pw * 2 - 4, ph - 4); });
   // Bowl/brazier at top
-  LV_cut(_hex(PAPER.forestL), 3, function () {
+  LV_cut('#505050', 3, function () {
     _G.moveTo(x - ts * 0.16, y - ph + ts * 0.02);
     _G.lineTo(x + ts * 0.16, y - ph + ts * 0.02);
     _G.lineTo(x + ts * 0.12, y - ph - ts * 0.06);
@@ -1158,13 +912,13 @@ function LV_drawBeacon(sx, sy, ts, o, t) {
     var flicker = Math.sin(t * 5) * ts * 0.03;
     _G.save();
     _G.globalAlpha = 0.6 + Math.sin(t * 4) * 0.2;
-    _G.fillStyle = _hex(PAPER.orange);
+    _G.fillStyle = '#f0a020';
     _G.beginPath(); _G.arc(x + flicker, fy - ts * 0.06, ts * 0.09, 0, Math.PI * 2); _G.fill();
-    _G.fillStyle = _hex(PAPER.gold);
+    _G.fillStyle = '#f0d040';
     _G.beginPath(); _G.arc(x - flicker * 0.5, fy - ts * 0.1, ts * 0.06, 0, Math.PI * 2); _G.fill();
     // Glow
     _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
-    _G.fillStyle = _hex(PAPER.gold);
+    _G.fillStyle = '#f0c040';
     _G.beginPath(); _G.arc(x, fy - ts * 0.06, ts * 0.22, 0, Math.PI * 2); _G.fill();
     _G.restore();
   }
@@ -1173,7 +927,7 @@ function LV_drawBeacon(sx, sy, ts, o, t) {
 function LV_drawVent(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.7;
   // Rocky base (irregular)
-  LV_cut(_hex(PAPER.forestD), 4, function () {
+  LV_cut('#3a3030', 4, function () {
     _G.moveTo(x - ts * 0.3, y + ts * 0.1);
     _G.lineTo(x - ts * 0.22, y - ts * 0.14);
     _G.lineTo(x - ts * 0.08, y - ts * 0.18);
@@ -1181,7 +935,7 @@ function LV_drawVent(sx, sy, ts, o, t) {
     _G.lineTo(x + ts * 0.24, y - ts * 0.12);
     _G.lineTo(x + ts * 0.32, y + ts * 0.1);
   });
-  LV_cut(o.open ? _hex(PAPER.inkTeal) : _hex(PAPER.forestL), 2, function () {
+  LV_cut(o.open ? '#2a2020' : '#4a3828', 2, function () {
     _G.moveTo(x - ts * 0.18, y + ts * 0.06);
     _G.lineTo(x - ts * 0.12, y - ts * 0.08);
     _G.lineTo(x + ts * 0.1, y - ts * 0.1);
@@ -1196,7 +950,7 @@ function LV_drawVent(sx, sy, ts, o, t) {
       var px = x + Math.sin(phase * 1.7) * ts * 0.1;
       var py = y - ts * 0.15 - rise * ts * 0.4;
       _G.globalAlpha = (1 - rise) * 0.4;
-      _G.fillStyle = _hex(PAPER.sage);
+      _G.fillStyle = '#a0a0a0';
       _G.beginPath(); _G.arc(px, py, ts * (0.04 + rise * 0.03), 0, Math.PI * 2); _G.fill();
     }
     _G.restore();
@@ -1207,7 +961,7 @@ function LV_drawFragment(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   if (o.open) {
     // Empty pedestal
-    LV_cut(_hex(PAPER.tealD), 3, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
+    LV_cut('#484050', 3, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
     return;
   }
   var bob = Math.sin(t * 2.2) * ts * 0.04;
@@ -1215,18 +969,18 @@ function LV_drawFragment(sx, sy, ts, o, t) {
   // Glow
   _G.save();
   _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
-  _G.fillStyle = _hex(PAPER.lavenderD);
+  _G.fillStyle = '#8040d0';
   _G.beginPath(); _G.arc(x, fy, ts * 0.24, 0, Math.PI * 2); _G.fill();
   _G.restore();
   // Diamond shape
   var sz = ts * 0.16;
-  LV_cut(_hex(PAPER.lavender), 3, function () {
+  LV_cut('#a060e0', 3, function () {
     _G.moveTo(x, fy - sz);
     _G.lineTo(x + sz, fy);
     _G.lineTo(x, fy + sz);
     _G.lineTo(x - sz, fy);
   });
-  LV_cut(_hex(PAPER.rose), 1, function () {
+  LV_cut('#c080ff', 1, function () {
     _G.moveTo(x, fy - sz * 0.6);
     _G.lineTo(x + sz * 0.6, fy);
     _G.lineTo(x, fy + sz * 0.6);
@@ -1237,56 +991,56 @@ function LV_drawFragment(sx, sy, ts, o, t) {
   for (var s = 0; s < 3; s++) {
     var sa = (s / 3) * Math.PI * 2 + t * 1.8;
     var sdx = Math.cos(sa) * ts * 0.2, sdy = Math.sin(sa) * ts * 0.15;
-    _G.fillStyle = _hex(PAPER.rose); _G.globalAlpha = 0.4 + Math.sin(t * 4 + s) * 0.3;
+    _G.fillStyle = '#d0a0ff'; _G.globalAlpha = 0.4 + Math.sin(t * 4 + s) * 0.3;
     _G.beginPath(); _G.arc(x + sdx, fy + sdy, ts * 0.025, 0, Math.PI * 2); _G.fill();
   }
   _G.restore();
   // Pedestal
-  LV_cut(_hex(PAPER.tealD), 2, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
+  LV_cut('#484050', 2, function () { _G.rect(x - ts * 0.14, y + ts * 0.12, ts * 0.28, ts * 0.1); });
 }
 
 function LV_drawCrystal(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  if (o.open) { LV_cut(_hex(PAPER.tealD), 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
+  if (o.open) { LV_cut('#406080', 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
   var bob = Math.sin(t * 2.0) * ts * 0.04;
   var fy = y + bob;
-  _G.save(); _G.globalAlpha = 0.25 + Math.sin(t * 2.5) * 0.1; _G.fillStyle = _hex(PAPER.sky); _G.beginPath(); _G.arc(x, fy, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
+  _G.save(); _G.globalAlpha = 0.25 + Math.sin(t * 2.5) * 0.1; _G.fillStyle = '#80c8e8'; _G.beginPath(); _G.arc(x, fy, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
   var sz = ts * 0.16;
-  LV_cut(_hex(PAPER.tealL), 3, function () { _G.moveTo(x, fy - sz); _G.lineTo(x + sz * 0.7, fy); _G.lineTo(x, fy + sz); _G.lineTo(x - sz * 0.7, fy); });
-  LV_cut(_hex(PAPER.sky), 1, function () { _G.moveTo(x, fy - sz * 0.5); _G.lineTo(x + sz * 0.4, fy); _G.lineTo(x, fy + sz * 0.5); _G.lineTo(x - sz * 0.4, fy); });
+  LV_cut('#60b0d8', 3, function () { _G.moveTo(x, fy - sz); _G.lineTo(x + sz * 0.7, fy); _G.lineTo(x, fy + sz); _G.lineTo(x - sz * 0.7, fy); });
+  LV_cut('#90d0f0', 1, function () { _G.moveTo(x, fy - sz * 0.5); _G.lineTo(x + sz * 0.4, fy); _G.lineTo(x, fy + sz * 0.5); _G.lineTo(x - sz * 0.4, fy); });
 }
 
 function LV_drawGeoshard(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  if (o.open) { LV_cut(_hex(PAPER.lavenderD), 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
+  if (o.open) { LV_cut('#503080', 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
   var bob = Math.sin(t * 1.8) * ts * 0.03;
   var fy = y + bob;
-  _G.save(); _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1; _G.fillStyle = _hex(PAPER.lavender); _G.beginPath(); _G.arc(x, fy, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore();
+  _G.save(); _G.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1; _G.fillStyle = '#a060e0'; _G.beginPath(); _G.arc(x, fy, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore();
   var sz = ts * 0.18;
-  LV_cut(_hex(PAPER.lavenderD), 3, function () { _G.moveTo(x, fy - sz); _G.lineTo(x + sz * 0.87, fy + sz * 0.5); _G.lineTo(x - sz * 0.87, fy + sz * 0.5); });
-  LV_cut(_hex(PAPER.lavender), 1, function () { _G.moveTo(x, fy - sz * 0.5); _G.lineTo(x + sz * 0.43, fy + sz * 0.25); _G.lineTo(x - sz * 0.43, fy + sz * 0.25); });
+  LV_cut('#9050d0', 3, function () { _G.moveTo(x, fy - sz); _G.lineTo(x + sz * 0.87, fy + sz * 0.5); _G.lineTo(x - sz * 0.87, fy + sz * 0.5); });
+  LV_cut('#b080f0', 1, function () { _G.moveTo(x, fy - sz * 0.5); _G.lineTo(x + sz * 0.43, fy + sz * 0.25); _G.lineTo(x - sz * 0.43, fy + sz * 0.25); });
 }
 
 function LV_drawToken(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  if (o.open) { LV_cut(_hex(PAPER.sageD), 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
+  if (o.open) { LV_cut('#806020', 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
   var bob = Math.sin(t * 2.4) * ts * 0.03;
   var fy = y + bob;
-  _G.save(); _G.globalAlpha = 0.2 + Math.sin(t * 2.8) * 0.1; _G.fillStyle = _hex(PAPER.gold); _G.beginPath(); _G.arc(x, fy, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
-  LV_cut(_hex(PAPER.orange), 3, function () { _G.arc(x, fy, ts * 0.14, 0, Math.PI * 2); });
-  LV_cut(_hex(PAPER.gold), 1, function () { _G.arc(x, fy, ts * 0.09, 0, Math.PI * 2); });
-  LV_cut(_hex(PAPER.orange), 0, function () { _G.rect(x - ts * 0.02, fy - ts * 0.06, ts * 0.04, ts * 0.12); });
+  _G.save(); _G.globalAlpha = 0.2 + Math.sin(t * 2.8) * 0.1; _G.fillStyle = '#e8c040'; _G.beginPath(); _G.arc(x, fy, ts * 0.22, 0, Math.PI * 2); _G.fill(); _G.restore();
+  LV_cut('#c8a030', 3, function () { _G.arc(x, fy, ts * 0.14, 0, Math.PI * 2); });
+  LV_cut('#f0d050', 1, function () { _G.arc(x, fy, ts * 0.09, 0, Math.PI * 2); });
+  LV_cut('#c8a030', 0, function () { _G.rect(x - ts * 0.02, fy - ts * 0.06, ts * 0.04, ts * 0.12); });
 }
 
 function LV_drawPage(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  if (o.open) { LV_cut(_hex(PAPER.forestL), 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
+  if (o.open) { LV_cut('#604020', 2, function () { _G.rect(x - ts * 0.1, y + ts * 0.1, ts * 0.2, ts * 0.08); }); return; }
   var bob = Math.sin(t * 1.6) * ts * 0.04;
   var fy = y + bob;
-  _G.save(); _G.globalAlpha = 0.15 + Math.sin(t * 2) * 0.08; _G.fillStyle = _hex(PAPER.sand); _G.beginPath(); _G.arc(x, fy, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore();
-  LV_cut(_hex(PAPER.creamD), 3, function () { _G.rect(x - ts * 0.12, fy - ts * 0.16, ts * 0.24, ts * 0.32); });
-  LV_cut(_hex(PAPER.cream), 1, function () { _G.rect(x - ts * 0.08, fy - ts * 0.12, ts * 0.16, ts * 0.24); });
-  for (var l = 0; l < 3; l++) { LV_cut(_hex(PAPER.sageD), 0, function () { _G.rect(x - ts * 0.06, fy - ts * 0.08 + l * ts * 0.08, ts * 0.12, ts * 0.015); }); }
+  _G.save(); _G.globalAlpha = 0.15 + Math.sin(t * 2) * 0.08; _G.fillStyle = '#c8a060'; _G.beginPath(); _G.arc(x, fy, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore();
+  LV_cut('#d8c090', 3, function () { _G.rect(x - ts * 0.12, fy - ts * 0.16, ts * 0.24, ts * 0.32); });
+  LV_cut('#f0e8d0', 1, function () { _G.rect(x - ts * 0.08, fy - ts * 0.12, ts * 0.16, ts * 0.24); });
+  for (var l = 0; l < 3; l++) { LV_cut('#806040', 0, function () { _G.rect(x - ts * 0.06, fy - ts * 0.08 + l * ts * 0.08, ts * 0.12, ts * 0.015); }); }
 }
 
 function LV_drawPhase2Item(sx, sy, ts, o, t, mainCol, glowCol, shape) {
@@ -1309,32 +1063,32 @@ function LV_drawPhase2Item(sx, sy, ts, o, t, mainCol, glowCol, shape) {
   }
   _G.restore();
   var sparkX = x + Math.sin(t * 5) * ts * 0.15, sparkY = y + bob - ts * 0.1 + Math.cos(t * 4) * ts * 0.08;
-  _G.save(); _G.globalAlpha = 0.6 + Math.sin(t * 6) * 0.3; _G.fillStyle = _hex(PAPER.white);
+  _G.save(); _G.globalAlpha = 0.6 + Math.sin(t * 6) * 0.3; _G.fillStyle = '#ffffff';
   _G.beginPath(); _G.arc(sparkX, sparkY, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
 }
 
-function LV_drawRune(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.leaf), _hex(PAPER.forestL), 'diamond'); }
-function LV_drawCoralKey(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.coral), _hex(PAPER.coralD), 'key'); }
-function LV_drawWindChime(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.sky), _hex(PAPER.tealL), 'triangle'); }
-function LV_drawLavaBridge(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.coral), _hex(PAPER.coralD), 'diamond'); }
-function LV_drawThawCrystal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.orange), _hex(PAPER.coral), 'diamond'); }
-function LV_drawPrismShard(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.lavender), _hex(PAPER.lavenderD), 'triangle'); }
-function LV_drawVaultSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.sand), _hex(PAPER.sageD), 'circle'); }
-function LV_drawChapterSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.sand), _hex(PAPER.creamD), 'diamond'); }
-function LV_drawEqAnchor(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, _hex(PAPER.gold), _hex(PAPER.orange), 'circle'); }
+function LV_drawRune(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#60c080', '#40a060', 'diamond'); }
+function LV_drawCoralKey(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f08070', '#e06050', 'key'); }
+function LV_drawWindChime(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#c0d8f0', '#80b0e0', 'triangle'); }
+function LV_drawLavaBridge(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#d07030', '#c05020', 'diamond'); }
+function LV_drawThawCrystal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f0a040', '#e08020', 'diamond'); }
+function LV_drawPrismShard(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#d080f0', '#b060e0', 'triangle'); }
+function LV_drawVaultSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#b0a080', '#908060', 'circle'); }
+function LV_drawChapterSeal(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#c0a070', '#a08050', 'diamond'); }
+function LV_drawEqAnchor(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t, '#f0c040', '#d0a020', 'circle'); }
 
 function LV_drawDoor(sx, sy, ts, o, t) {
   if (o.open) return;
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  LV_cut(_hex(PAPER.forestD), 6, function() { _G.rect(sx + ts * 0.08, sy + ts * 0.05, ts * 0.84, ts * 0.9); });
-  var barColor = _hex(PAPER.sageD);
+  LV_cut('#5a4030', 6, function() { _G.rect(sx + ts * 0.08, sy + ts * 0.05, ts * 0.84, ts * 0.9); });
+  var barColor = '#8a6840';
   for (var b = 0; b < 4; b++) {
     var bx = sx + ts * (0.2 + b * 0.2);
     LV_cut(barColor, 3, (function(bx2) { return function() { _G.rect(bx2, sy + ts * 0.1, ts * 0.04, ts * 0.75); }; })(bx));
   }
   var lockAlpha = 0.6 + Math.sin(t * 2) * 0.2;
   _G.globalAlpha = lockAlpha;
-  _G.fillStyle = _hex(PAPER.gold);
+  _G.fillStyle = '#f0c040';
   _G.beginPath(); _G.arc(x, y - ts * 0.05, ts * 0.1, 0, Math.PI * 2); _G.fill();
   _G.fillRect(x - ts * 0.08, y, ts * 0.16, ts * 0.14);
   _G.globalAlpha = 1;
@@ -1343,9 +1097,9 @@ function LV_drawDoor(sx, sy, ts, o, t) {
 function LV_drawFountain(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.45;
   var depleted = o.uses <= 0;
-  var baseColor = depleted ? _hex(PAPER.sageD) : _hex(PAPER.teal);
-  var glowColor = depleted ? _hex(PAPER.forestD) : _hex(PAPER.tealL);
-  LV_cut(_hex(PAPER.sageD), 4, function() { _G.rect(sx + ts * 0.2, sy + ts * 0.7, ts * 0.6, ts * 0.15); });
+  var baseColor = depleted ? '#504840' : '#3090c0';
+  var glowColor = depleted ? '#383430' : '#60c0e8';
+  LV_cut('#706058', 4, function() { _G.rect(sx + ts * 0.2, sy + ts * 0.7, ts * 0.6, ts * 0.15); });
   LV_cut(baseColor, 3, function() { _G.beginPath(); LV_ellipse(x, y + ts * 0.15, ts * 0.3, ts * 0.12, 0); });
   if (!depleted) {
     var colAlpha = 0.4 + Math.sin(t * 3) * 0.15;
@@ -1353,7 +1107,7 @@ function LV_drawFountain(sx, sy, ts, o, t) {
     _G.fillStyle = glowColor;
     _G.beginPath(); _G.arc(x, y - ts * 0.05, ts * 0.08 + Math.sin(t * 2.5) * ts * 0.02, 0, Math.PI * 2); _G.fill();
     var sparkY = y - ts * 0.1 - (t * 0.5 % 0.3) * ts;
-    _G.fillStyle = _hex(PAPER.white);
+    _G.fillStyle = '#ffffff';
     _G.beginPath(); _G.arc(x + Math.sin(t * 4) * ts * 0.06, sparkY, ts * 0.025, 0, Math.PI * 2); _G.fill();
     _G.globalAlpha = 1;
   }
@@ -1365,43 +1119,43 @@ function LV_drawGoldChest(sx, sy, ts, o, t) {
   var opened = _gs.hasKey;
   var bob = (locked || opened) ? 0 : Math.sin(t * 2.2) * ts * 0.03;
   // Shadow
-  LV_cut('rgba(31,61,63,0.18)', 0, function () { LV_ellipse(x, y + ts * 0.22, ts * 0.3, ts * 0.07, 0); });
+  LV_cut('rgba(14,6,2,0.3)', 0, function () { LV_ellipse(x, y + ts * 0.22, ts * 0.3, ts * 0.07, 0); });
   // Body — bright gold when unlocked
-  var bodyCol = locked ? _hex(PAPER.forestD) : _hex(PAPER.orange);
+  var bodyCol = locked ? '#3a1a08' : '#e8a830';
   LV_cut(bodyCol, 7, function () { _G.moveTo(x - ts * 0.36, y + ts * 0.2); _G.lineTo(x + ts * 0.36, y + ts * 0.2); _G.lineTo(x + ts * 0.38, y - ts * 0.02); _G.lineTo(x + ts * 0.34, y - ts * 0.12); _G.lineTo(x - ts * 0.34, y - ts * 0.12); _G.lineTo(x - ts * 0.38, y - ts * 0.02); });
   // Lid
   if (opened) {
     // Lid tilted open behind
-    LV_cut(_hex(PAPER.orange), 5, function () { _G.moveTo(x - ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.26, y - ts * 0.34); _G.bezierCurveTo(x + ts * 0.2, y - ts * 0.42, x - ts * 0.2, y - ts * 0.42, x - ts * 0.26, y - ts * 0.34); });
+    LV_cut('#c08018', 5, function () { _G.moveTo(x - ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.3, y - ts * 0.12); _G.lineTo(x + ts * 0.26, y - ts * 0.34); _G.bezierCurveTo(x + ts * 0.2, y - ts * 0.42, x - ts * 0.2, y - ts * 0.42, x - ts * 0.26, y - ts * 0.34); });
     // Sparkles rising from open chest
     for (var sp = 0; sp < 4; sp++) {
       var spY = y - ts * 0.15 - Math.abs(Math.sin(t * 3 + sp * 1.5)) * ts * 0.3;
       var spX = x + (sp - 1.5) * ts * 0.12;
-      _G.save(); _G.globalAlpha = 0.5 + Math.sin(t * 4 + sp) * 0.3; _G.fillStyle = _hex(PAPER.gold); _G.beginPath(); _G.arc(spX, spY, ts * 0.03, 0, Math.PI * 2); _G.fill(); _G.restore();
+      _G.save(); _G.globalAlpha = 0.5 + Math.sin(t * 4 + sp) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(spX, spY, ts * 0.03, 0, Math.PI * 2); _G.fill(); _G.restore();
     }
   } else {
     // Lid closed
-    var lidCol = locked ? _hex(PAPER.inkTeal) : _hex(PAPER.orange);
+    var lidCol = locked ? '#2a1206' : '#c08018';
     LV_cut(lidCol, 6, function () { _G.moveTo(x - ts * 0.36, y - ts * 0.1 + bob); _G.lineTo(x + ts * 0.36, y - ts * 0.1 + bob); _G.lineTo(x + ts * 0.34, y - ts * 0.3 + bob); _G.bezierCurveTo(x + ts * 0.3, y - ts * 0.4 + bob, x - ts * 0.3, y - ts * 0.4 + bob, x - ts * 0.34, y - ts * 0.3 + bob); });
   }
   // Gold band
-  LV_cut(locked ? _hex(PAPER.forestD) : _hex(PAPER.gold), 3, function () { _G.rect(x - ts * 0.37, y - ts * 0.02, ts * 0.74, ts * 0.05); });
+  LV_cut(locked ? '#5a3010' : '#f0c040', 3, function () { _G.rect(x - ts * 0.37, y - ts * 0.02, ts * 0.74, ts * 0.05); });
   // Lock/clasp
-  LV_cut(locked ? _hex(PAPER.forestL) : _hex(PAPER.gold), 4, function () { _G.rect(x - ts * 0.08, y - ts * 0.07, ts * 0.16, ts * 0.13); });
+  LV_cut(locked ? '#6a3810' : '#f8d848', 4, function () { _G.rect(x - ts * 0.08, y - ts * 0.07, ts * 0.16, ts * 0.13); });
   // Corner gems (only when unlocked)
   if (!locked) {
-    LV_cut(_hex(PAPER.coral), 1, function () { _G.arc(x - ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
-    LV_cut(_hex(PAPER.teal), 1, function () { _G.arc(x + ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
-    LV_cut(_hex(PAPER.leaf), 1, function () { _G.arc(x - ts * 0.28, y - ts * 0.04, ts * 0.03, 0, Math.PI * 2); });
+    LV_cut('#e04040', 1, function () { _G.arc(x - ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
+    LV_cut('#4080e0', 1, function () { _G.arc(x + ts * 0.28, y + ts * 0.12, ts * 0.035, 0, Math.PI * 2); });
+    LV_cut('#40c040', 1, function () { _G.arc(x - ts * 0.28, y - ts * 0.04, ts * 0.03, 0, Math.PI * 2); });
   }
   // Glow aura when unlocked but not opened
-  if (!locked && !opened) { _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3.5) * 0.2; _G.fillStyle = _hex(PAPER.gold); _G.beginPath(); _G.arc(x, y - ts * 0.1 + bob, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
+  if (!locked && !opened) { _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3.5) * 0.2; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(x, y - ts * 0.1 + bob, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
 }
 
 function LV_drawPotion(sx, sy, ts, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5, bob = Math.sin(t * 2.5) * ts * 0.04;
-  LV_cut(_hex(PAPER.lavenderD), 4, function () { LV_ellipse(x, y + ts * 0.08 + bob, ts * 0.14, ts * 0.18, 0); });
-  LV_cut(_hex(PAPER.lavender), 2, function () { _G.rect(x - ts * 0.07, y - ts * 0.12 + bob, ts * 0.14, ts * 0.12); });
+  LV_cut('#401880', 4, function () { LV_ellipse(x, y + ts * 0.08 + bob, ts * 0.14, ts * 0.18, 0); });
+  LV_cut('#6828c0', 2, function () { _G.rect(x - ts * 0.07, y - ts * 0.12 + bob, ts * 0.14, ts * 0.12); });
   LV_cut(LV_PAL.stone, 1, function () { _G.rect(x - ts * 0.05, y - ts * 0.15 + bob, ts * 0.1, ts * 0.05); });
 }
 
@@ -1411,58 +1165,55 @@ function LV_drawGold(sx, sy, ts, o) {
 }
 
 function LV_drawEncounterIndicator(sx, sy, ts, o, t) {
-  // "Lurking monster" — a small dark shadow blob with two glowing eyes
-  // that blink every ~2s. Mysterious, not scary (audience: K-5 kids).
-  var x = sx + ts * 0.5, y = sy + ts * 0.58;
-  var phase = o.tx * 0.7 + o.ty * 1.3;
-  // Slow pulse — the blob gently swells and settles
-  var pulse = 1 + Math.sin(t * 1.5 + phase) * 0.08;
-  var P = FLOOR_PALS[_floorTheme];
-  var eyeCol = (P && (P.accentL || P.accent)) || LV_PAL.goldL;
+  // Themed pulsing indicator — visible hint that an encounter lurks here
+  var ecx = sx + ts * 0.5, ecy = sy + ts * 0.5;
+  var pulse = 0.3 + Math.sin(t * 3 + o.tx * 2 + o.ty * 3) * 0.15;
+  var eSize = ts * (0.12 + Math.sin(t * 2.5 + o.tx) * 0.03);
 
-  _G.save();
-  // Shadow blob (~20px wide ellipse, dark at half alpha)
-  _G.globalAlpha = 0.5;
-  _G.fillStyle = _hex(PAPER.inkTeal);
+  // Theme colors based on floor
+  var eColors = {
+    1: '#3a6828',  // Garden: green bush rustle
+    2: '#2888b8',  // Tidepool: blue bubble
+    3: '#606878',  // Cloud: gray swirl
+    4: '#c04010',  // Ember: red crack
+    5: '#4888a8',  // Frost: ice shimmer
+    6: '#6828a8',  // Crystal: purple glow
+    7: '#7a6848',  // Market: warm brown
+    8: '#3a2818',  // Library: dark amber
+    9: '#281848',  // Mending: arcane purple
+  };
+  var eColor = eColors[_floorTheme] || eColors[1];
+
+  _G.globalAlpha = pulse;
+  _G.fillStyle = eColor;
   _G.beginPath();
-  LV_ellipse(x, y + ts * 0.06, ts * 0.18 * pulse, ts * 0.08 * pulse, 0);
+  _G.arc(ecx, ecy, eSize, 0, Math.PI * 2);
   _G.fill();
-  // Soft rounded body rising out of the shadow
-  _G.globalAlpha = 0.35;
+  // Outer ring
+  _G.strokeStyle = eColor;
+  _G.lineWidth = 1;
   _G.beginPath();
-  LV_ellipse(x, y - ts * 0.04, ts * 0.13 * pulse, ts * 0.12 * pulse, 0);
-  _G.fill();
-  // Two small glowing eyes — close briefly every ~2 seconds (a blink)
-  var eyesOpen = ((t + phase) % 2) > 0.18;
-  if (eyesOpen) {
-    _G.globalAlpha = 0.8 + Math.sin(t * 3 + phase) * 0.2;
-    _G.fillStyle = eyeCol;
-    _G.beginPath();
-    _G.arc(x - ts * 0.05, y - ts * 0.06, ts * 0.022, 0, Math.PI * 2);
-    _G.fill();
-    _G.beginPath();
-    _G.arc(x + ts * 0.05, y - ts * 0.06, ts * 0.022, 0, Math.PI * 2);
-    _G.fill();
-  }
-  _G.restore();
+  _G.arc(ecx, ecy, eSize * 1.8, 0, Math.PI * 2);
+  _G.stroke();
+  _G.globalAlpha = 1;
 }
 
 function LV_drawMonster(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5, bob = Math.sin(t * 2.2 + o.tx) * ts * 0.05;
-  var col = o.kind === 'sprout' ? _hex(PAPER.leaf) : o.kind === 'weed' ? _hex(PAPER.sageD) : _hex(PAPER.coral);
-  var colL = o.kind === 'sprout' ? _hex(PAPER.sage) : o.kind === 'weed' ? _hex(PAPER.sand) : _hex(PAPER.peach);
+  var col = o.kind === 'sprout' ? '#3a8a20' : o.kind === 'weed' ? '#6a4010' : '#c04010';
+  var colL = o.kind === 'sprout' ? '#60b840' : o.kind === 'weed' ? '#8a5828' : '#e05828';
   LV_cut(col, 5, function () { _G.arc(x, y + bob, ts * 0.22, 0, Math.PI * 2); });
   LV_cut(colL, 2, function () { _G.arc(x, y + bob - ts * 0.06, ts * 0.14, 0, Math.PI * 2); });
-  LV_cut(_hex(PAPER.gold), 2, function () { _G.arc(x - ts * 0.08, y - ts * 0.05 + bob, ts * 0.058, 0, Math.PI * 2); _G.arc(x + ts * 0.08, y - ts * 0.05 + bob, ts * 0.058, 0, Math.PI * 2); });
-  LV_cut(_hex(PAPER.inkTeal), 0, function () { _G.arc(x - ts * 0.07, y - ts * 0.05 + bob, ts * 0.032, 0, Math.PI * 2); _G.arc(x + ts * 0.09, y - ts * 0.05 + bob, ts * 0.032, 0, Math.PI * 2); });
+  LV_cut('#ffff40', 2, function () { _G.arc(x - ts * 0.08, y - ts * 0.05 + bob, ts * 0.058, 0, Math.PI * 2); _G.arc(x + ts * 0.08, y - ts * 0.05 + bob, ts * 0.058, 0, Math.PI * 2); });
+  LV_cut('#100800', 0, function () { _G.arc(x - ts * 0.07, y - ts * 0.05 + bob, ts * 0.032, 0, Math.PI * 2); _G.arc(x + ts * 0.09, y - ts * 0.05 + bob, ts * 0.032, 0, Math.PI * 2); });
 }
 
 function LV_drawBoss(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.42, bob = Math.sin(t * 1.4) * ts * 0.04, s = ts * 0.88;
-  LV_cut(_hex(PAPER.inkTeal), 6, function () { _G.arc(x, y + bob, s * 0.28, 0, Math.PI * 2); });
-  LV_cut(_hex(PAPER.tealD), 3, function () { _G.rect(x - s * 0.22, y + bob - s * 0.04, s * 0.44, s * 0.36); });
+  LV_cut('#1a0808', 6, function () { _G.arc(x, y + bob, s * 0.28, 0, Math.PI * 2); });
+  LV_cut('#2e0e0e', 3, function () { _G.rect(x - s * 0.22, y + bob - s * 0.04, s * 0.44, s * 0.36); });
   var eyePulse = Math.sin(t * 2.1) * 0.3 + 0.7;
-  _G.save(); _G.globalAlpha = eyePulse; _G.fillStyle = _hex(PAPER.coral);
+  _G.save(); _G.globalAlpha = eyePulse; _G.fillStyle = '#ff2020';
   _G.beginPath(); _G.arc(x - s * 0.09, y + bob - s * 0.04, s * 0.04, 0, Math.PI * 2); _G.fill();
   _G.beginPath(); _G.arc(x + s * 0.09, y + bob - s * 0.04, s * 0.04, 0, Math.PI * 2); _G.fill();
   _G.restore();
@@ -1472,99 +1223,65 @@ function LV_drawExit(sx, sy, ts, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var dw = ts * 0.6, dh = ts * 0.85;
   var dx = x - dw / 2, dy = y - dh / 2 - ts * 0.05;
-  var hasKey = _gs && _gs.hasKey;
-
-  if (hasKey) {
-    // GLOWING / LIT UP exit — golden key obtained
-    // Golden glow behind door
-    _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
-    var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
-    gr.addColorStop(0, 'rgba(236,185,100,0.8)'); gr.addColorStop(1, 'rgba(236,185,100,0)');
-    _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
-    // Door frame — gold rectangle with arched top
-    LV_cut(_hex(PAPER.orange), 6, function () {
-      _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
-      _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
-      _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
-      _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
-      _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
-      _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
-    });
-    // Light from doorway
-    var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
-    _G.save(); _G.globalAlpha = pulse;
-    var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
-    lg.addColorStop(0, 'rgba(253,251,242,0.9)'); lg.addColorStop(0.5, 'rgba(236,185,100,0.6)'); lg.addColorStop(1, 'rgba(236,185,100,0.2)');
-    _G.fillStyle = lg;
-    _G.beginPath();
-    _G.moveTo(dx + ts * 0.12, dy + dh);
-    _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
-    _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
-    _G.lineTo(dx + dw - ts * 0.12, dy + dh);
-    _G.fill(); _G.restore();
-    // Keyhole or handle
-    LV_cut(_hex(PAPER.sageD), 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
-    // Sparkle particles orbiting
-    for (var p = 0; p < 4; p++) {
-      var pa = (p / 4) * Math.PI * 2 + t * 1.5;
-      var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
-      _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = _hex(PAPER.gold); _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
-    }
-  } else {
-    // DIM / DARK exit — key not yet obtained
-    // Dark door frame (no glow)
-    LV_cut(_hex(PAPER.forestD), 6, function () {
-      _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
-      _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
-      _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
-      _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
-      _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
-      _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
-    });
-    // Dark interior — no light
-    _G.save(); _G.globalAlpha = 0.4;
-    _G.fillStyle = _hex(PAPER.inkTeal);
-    _G.beginPath();
-    _G.moveTo(dx + ts * 0.12, dy + dh);
-    _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
-    _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
-    _G.lineTo(dx + dw - ts * 0.12, dy + dh);
-    _G.fill(); _G.restore();
-    // Dim keyhole
-    LV_cut(_hex(PAPER.forestL), 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+  // Golden glow behind door
+  _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
+  var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
+  gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
+  _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
+  // Door frame — gold rectangle with arched top
+  LV_cut('#c08018', 6, function () {
+    _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
+    _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
+    _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
+    _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
+    _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
+    _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
+  });
+  // Light from doorway
+  var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
+  _G.save(); _G.globalAlpha = pulse;
+  var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
+  lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
+  _G.fillStyle = lg;
+  _G.beginPath();
+  _G.moveTo(dx + ts * 0.12, dy + dh);
+  _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
+  _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
+  _G.lineTo(dx + dw - ts * 0.12, dy + dh);
+  _G.fill(); _G.restore();
+  // Keyhole or handle
+  LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+  // Sparkle particles orbiting
+  for (var p = 0; p < 4; p++) {
+    var pa = (p / 4) * Math.PI * 2 + t * 1.5;
+    var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
+    _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
   }
 }
 
 // ─── PARTY DRAWING (1:1 from reference) ─────────────────────────
 
 function LV_drawPartyMember(px, py, ts, idx, moving, t) {
-  // Walk cycle: bouncy bob + alternating squash/stretch while moving;
-  // gentle breathing bob while standing still.
-  var walkPhase = Math.sin(t * 12 + idx * 1.2);
-  var bob = moving ? walkPhase * 3 : Math.sin(t * 2 + idx * 1.2) * 1.5;
-  var tilt = moving ? walkPhase * 0.035 : 0;
-  var sqX = moving ? 1 + walkPhase * 0.02 : 1;
-  var sqY = moving ? 1 - walkPhase * 0.02 : 1;
-  // Facing flip: mirror the hero horizontally when walking left
-  var flip = (_party && _party.facing === 'left') ? -1 : 1;
+  var bob = moving ? Math.sin(t * 8 + idx * 1.2) * ts * 0.055 : 0;
+  var tilt = moving ? Math.sin(t * 8 + idx * 1.2) * 0.035 : 0;
+  var stepStretch = moving ? 1 + Math.abs(Math.sin(t * 8)) * 0.02 : 1;
   if (_heroCanvases && _heroCanvases[idx]) {
     var hcv = _heroCanvases[idx]; var hsc = ts * 1.1 / hcv.width; var hw = hcv.width * hsc, hh = hcv.height * hsc;
     _G.save();
     _G.translate(px, py - hh * 0.82 + bob + hh / 2);
-    _G.rotate(tilt * flip);
-    _G.scale(sqX * flip, sqY);
+    _G.rotate(tilt);
+    _G.scale(1, stepStretch);
     _G.drawImage(hcv, -hw / 2, -hh / 2, hw, hh);
     _G.restore();
     return;
   }
   // Fallback generic sprite
-  var col = _hex(PAPER.teal);
+  var col = '#2e4e88';
   _G.save(); _G.translate(px, py + bob);
-  _G.scale(sqX * flip, sqY);
-  LV_cut('rgba(31,61,63,0.18)', 0, function () { LV_ellipse(0, ts * 0.26, ts * 0.17, ts * 0.065, 0); });
+  LV_cut('rgba(14,6,2,0.25)', 0, function () { LV_ellipse(0, ts * 0.26, ts * 0.17, ts * 0.065, 0); });
   LV_cut(col, 7, function () { _G.moveTo(-ts * 0.2, ts * 0.22); _G.lineTo(ts * 0.2, ts * 0.22); _G.lineTo(ts * 0.22, ts * 0.08); _G.lineTo(ts * 0.18, -ts * 0.04); _G.lineTo(-ts * 0.18, -ts * 0.04); _G.lineTo(-ts * 0.22, ts * 0.08); });
   LV_cut(col, 5, function () { _G.arc(0, -ts * 0.16, ts * 0.14, 0, Math.PI * 2); });
-  LV_cut(_hex(PAPER.inkTeal), 2, function () { _G.arc(-ts * 0.055, -ts * 0.2, ts * 0.036, 0, Math.PI * 2); _G.arc(ts * 0.055, -ts * 0.2, ts * 0.036, 0, Math.PI * 2); });
+  LV_cut('#1a0800', 2, function () { _G.arc(-ts * 0.055, -ts * 0.2, ts * 0.036, 0, Math.PI * 2); _G.arc(ts * 0.055, -ts * 0.2, ts * 0.036, 0, Math.PI * 2); });
   _G.restore();
 }
 
@@ -1585,21 +1302,21 @@ function LV_drawMinimap() {
   for (var my = 0; my < _ROWS; my++) for (var mx = 0; mx < _COLS; mx++) {
     if (!_fog[my][mx]) { mg.fillStyle = _fogColorMinimap; mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5); continue; }
     var t2 = _map[my][mx];
-    mg.fillStyle = t2 === LV_TW ? _hex(PAPER.forest) : t2 === LV_TP ? _hex(PAPER.creamD) : t2 === LV_TQ ? _hex(PAPER.teal) : _hex(PAPER.sand);
+    mg.fillStyle = t2 === LV_TW ? '#2a5c1e' : t2 === LV_TP ? '#a89870' : t2 === LV_TQ ? '#2a5060' : '#3c2010';
     mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5);
   }
   for (var oi2 = 0; oi2 < _objs.length; oi2++) {
     var o2 = _objs[oi2]; if (_gs.dead[o2.id]) continue;
     if (!_fog[o2.ty] || !_fog[o2.ty][o2.tx]) continue;
     if (o2.type === 'exit' && !o2.visible) continue;
-    var dc = o2.type === 'monster' ? (o2.hidden ? _hex(PAPER.sageD) : _hex(PAPER.coral)) : o2.type === 'boss' ? _hex(PAPER.coral) : o2.type.indexOf('chest') >= 0 ? _hex(PAPER.orange) : o2.type === 'exit' ? _hex(PAPER.leaf) : o2.type === 'valve' ? _hex(PAPER.sage) : o2.type === 'beacon' ? _hex(PAPER.gold) : o2.type === 'vent' ? _hex(PAPER.sand) : o2.type === 'fragment' ? _hex(PAPER.lavender) : o2.type === 'crystal' ? _hex(PAPER.sky) : o2.type === 'geoshard' ? _hex(PAPER.lavender) : o2.type === 'token' ? _hex(PAPER.gold) : o2.type === 'page' ? _hex(PAPER.sand) : _hex(PAPER.orange);
+    var dc = o2.type === 'monster' ? (o2.hidden ? '#806040' : '#ff4040') : o2.type === 'boss' ? '#ff2020' : o2.type.indexOf('chest') >= 0 ? '#e8a030' : o2.type === 'exit' ? '#40ff40' : o2.type === 'valve' ? '#b07838' : o2.type === 'beacon' ? '#f0c040' : o2.type === 'vent' ? '#a08060' : o2.type === 'fragment' ? '#a060e0' : o2.type === 'crystal' ? '#80c8e8' : o2.type === 'geoshard' ? '#c080f0' : o2.type === 'token' ? '#e8c040' : o2.type === 'page' ? '#c8a060' : '#c07818';
     if (!dc) continue;
     mg.fillStyle = dc; mg.beginPath(); mg.arc((o2.tx + 0.5) * cs, (o2.ty + 0.5) * cs, cs * 0.8, 0, Math.PI * 2); mg.fill();
   }
   var ppx = (_party.x / LV_TILE) * cs, ppy = (_party.y / LV_TILE) * cs;
-  mg.fillStyle = _hex(PAPER.coral); mg.beginPath(); mg.arc(ppx, ppy, cs * 1.2, 0, Math.PI * 2); mg.fill();
-  mg.fillStyle = _hex(PAPER.white); mg.beginPath(); mg.arc(ppx, ppy, cs * 0.5, 0, Math.PI * 2); mg.fill();
-  mg.strokeStyle = 'rgba(31,61,63,0.2)'; mg.lineWidth = 1; mg.strokeRect(0, 0, mc.width, mc.height);
+  mg.fillStyle = '#ff6060'; mg.beginPath(); mg.arc(ppx, ppy, cs * 1.2, 0, Math.PI * 2); mg.fill();
+  mg.fillStyle = '#ffffff'; mg.beginPath(); mg.arc(ppx, ppy, cs * 0.5, 0, Math.PI * 2); mg.fill();
+  mg.strokeStyle = 'rgba(192,120,24,0.4)'; mg.lineWidth = 1; mg.strokeRect(0, 0, mc.width, mc.height);
   // Blit minimap onto main canvas (top-right corner)
   var mmSize = Math.min(_W, _H) * 0.22;
   var mmX = _W - mmSize - 10, mmY = 10;
@@ -1627,9 +1344,7 @@ function LV_draw(t) {
   for (var oi = 0; oi < _objs.length; oi++) {
     var o = _objs[oi];
     var isActivated = _gs.activated && _gs.activated[o.id];
-    // Opened chests stay visible (drawn in their open pose) instead of vanishing
-    var isOpenedChest = o.type === 'chest' && o.open;
-    if (((_gs.dead[o.id] && !isActivated) || !o.alive) && !isOpenedChest) continue;
+    if ((_gs.dead[o.id] && !isActivated) || !o.alive) continue;
     if (o.type === 'exit' && !o.visible) continue;
     if (!_fog[o.ty] || !_fog[o.ty][o.tx]) continue;
     var osx = camX + o.tx * ts, osy = camY + o.ty * ts;
@@ -1641,17 +1356,17 @@ function LV_draw(t) {
       var glowPulse = 0.4 + Math.sin(t * 3) * 0.2;
       _G.save();
       _G.globalAlpha = glowPulse;
-      _G.fillStyle = _hex(PAPER.gold);
+      _G.fillStyle = '#f0c040';
       _G.beginPath(); _G.arc(acx, acy, glowR + ts * 0.08, 0, Math.PI * 2); _G.fill();
       _G.restore();
       _G.save();
-      _G.strokeStyle = _hex(PAPER.gold);
+      _G.strokeStyle = '#f0d060';
       _G.lineWidth = ts * 0.06;
       _G.globalAlpha = 0.7 + Math.sin(t * 2.5) * 0.2;
       _G.beginPath(); _G.arc(acx, acy, glowR, 0, Math.PI * 2); _G.stroke();
       _G.restore();
-      LV_cut(_hex(PAPER.orange), 3, function () { _G.arc(acx, acy, ts * 0.14, 0, Math.PI * 2); });
-      LV_cut(_hex(PAPER.gold), 1, function () { _G.arc(acx, acy, ts * 0.09, 0, Math.PI * 2); });
+      LV_cut('#c09020', 3, function () { _G.arc(acx, acy, ts * 0.14, 0, Math.PI * 2); });
+      LV_cut('#f0d040', 1, function () { _G.arc(acx, acy, ts * 0.09, 0, Math.PI * 2); });
       continue;
     }
     if (o.type === 'mathdoor') { LV_drawDoor(osx, osy, ts, o, t); continue; }
@@ -1683,17 +1398,6 @@ function LV_draw(t) {
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
   }
-  // Footstep dust puffs — light fading circles drawn under the hero
-  for (var dui = _dustParticles.length - 1; dui >= 0; dui--) {
-    var du = _dustParticles[dui]; du.t++;
-    if (du.t >= du.maxT) { _dustParticles.splice(dui, 1); continue; }
-    var dua = 1 - du.t / du.maxT;
-    _G.save(); _G.globalAlpha = dua * 0.35; _G.fillStyle = _hex(PAPER.creamD);
-    _G.beginPath();
-    _G.arc(camX + du.x * _SCALE + du.vx * du.t, camY + du.y * _SCALE + du.vy * du.t,
-      ts * 0.045 * (0.6 + (1 - dua) * 0.8), 0, Math.PI * 2);
-    _G.fill(); _G.restore();
-  }
   // Party — draw leader only
   var moving = (_party.vx !== 0 || _party.vy !== 0);
   LV_drawPartyMember(camX + _party.x * _SCALE, camY + _party.y * _SCALE, ts, 0, moving, t);
@@ -1712,10 +1416,10 @@ function LV_draw(t) {
   }
   // Vignette
   var vig = _G.createRadialGradient(_W / 2, _H / 2, Math.min(_W, _H) * 0.2, _W / 2, _H / 2, Math.min(_W, _H) * 0.72);
-  vig.addColorStop(0, 'rgba(31,61,63,0)'); vig.addColorStop(1, 'rgba(31,61,63,0.4)');
+  vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,0.6)');
   _G.fillStyle = vig; _G.fillRect(0, 0, _W, _H);
   // Flash
-  if (_gs.flash > 0) { _G.fillStyle = 'rgba(208,106,77,' + (_gs.flash / 10 * 0.45) + ')'; _G.fillRect(0, 0, _W, _H); _gs.flash--; }
+  if (_gs.flash > 0) { _G.fillStyle = 'rgba(156,32,32,' + (_gs.flash / 10 * 0.45) + ')'; _G.fillRect(0, 0, _W, _H); _gs.flash--; }
   // Death sparkles
   for (var dpi = _deathParticles.length - 1; dpi >= 0; dpi--) {
     var dp = _deathParticles[dpi]; dp.t++;
@@ -1750,20 +1454,6 @@ function LV_update(keys) {
     if (LV_walkable(_party.x, ny)) _party.y = ny;
     if (Math.abs(dx) > Math.abs(dy)) _party.facing = dx > 0 ? 'right' : 'left';
     else _party.facing = dy > 0 ? 'down' : 'up';
-    // Footstep dust — spawn a tiny puff at the hero's feet every ~300ms
-    if (now - _lastDustMs >= 300) {
-      _lastDustMs = now;
-      var nPuffs = 2 + (Math.random() < 0.5 ? 1 : 0);
-      for (var di = 0; di < nPuffs; di++) {
-        _dustParticles.push({
-          x: _party.x + (Math.random() - 0.5) * LV_TILE * 0.2,
-          y: _party.y + LV_TILE * 0.16,
-          vx: (Math.random() - 0.5) * 0.8 - dx * 0.5,
-          vy: -Math.random() * 0.5 - 0.2,
-          t: 0, maxT: 18 + Math.floor(Math.random() * 10)
-        });
-      }
-    }
   }
   _party.vx = dx; _party.vy = dy;
   LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 3);
@@ -1793,8 +1483,6 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   _objs = objects;
   _heroCanvases = heroCanvases || [];
   _deathParticles = [];
-  _dustParticles = [];
-  _lastDustMs = 0;
 
   // Create offscreen canvas (must be HTMLCanvasElement for Phaser compatibility)
   _canvas = document.createElement('canvas');
@@ -1821,7 +1509,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
     x: (startX + 0.5) * LV_TILE,
     y: (startY + 0.5) * LV_TILE,
     vx: 0, vy: 0,
-    speed: 4.2,
+    speed: 2.8,
     facing: 'down',
     animT: 0
   };
@@ -1936,7 +1624,7 @@ export function setGameState(gs) {
  * Trigger a red flash effect (e.g. on encounter).
  * @param {number} amount - Flash intensity (frames)
  */
-function triggerFlash(amount) {
+export function triggerFlash(amount) {
   _gs.flash = amount || 8;
 }
 
@@ -1951,11 +1639,8 @@ export function markDead(id) {
   for (var oi = 0; oi < _objs.length; oi++) {
     var o = _objs[oi];
     if (o.id === id) {
-      // Chests stay visible after being opened: flag the open state and
-      // timestamp it so LV_drawChest can play a brief lid-open animation.
-      if (o.type === 'chest') { o.open = true; o.openedAt = Date.now(); }
       var wx = (o.tx + 0.5) * LV_TILE, wy = (o.ty + 0.5) * LV_TILE;
-      var colors = [_hex(PAPER.coral), _hex(PAPER.orange), _hex(PAPER.gold), _hex(PAPER.rose)];
+      var colors = ['#ff6060', '#ffaa44', '#ffe040', '#ff80a0'];
       for (var pi = 0; pi < 8; pi++) {
         _deathParticles.push({
           x: wx, y: wy,
@@ -2006,7 +1691,7 @@ export function LV_setTransformed(val) {
  * @param {number} ty - Tile Y
  * @param {number} newType - New tile type (LV_TW, LV_TF, etc.)
  */
-function LV_setTile(tx, ty, newType) {
+export function LV_setTile(tx, ty, newType) {
   if (ty >= 0 && ty < _ROWS && tx >= 0 && tx < _COLS) {
     _map[ty][tx] = newType;
   }
