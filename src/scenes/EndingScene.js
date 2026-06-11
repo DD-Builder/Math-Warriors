@@ -5,6 +5,7 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperButton, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawShadowBox } from '../systems/papercutArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
@@ -39,6 +40,10 @@ export class EndingScene extends Phaser.Scene {
     drawPapercutBackground(this, 9, GAME_WIDTH, GAME_HEIGHT, 9999);
 
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.25);
+
+    // ── SHADOW-BOX FRAME (v2 papercut aesthetic — 5 layers for grandeur) ──
+    const frameGfx = this.add.graphics().setDepth(1);
+    drawShadowBox(frameGfx, GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH - 80, GAME_HEIGHT - 80, { layers: 5 });
 
     // Sparkle particles
     for (let i = 0; i < 30; i++) {

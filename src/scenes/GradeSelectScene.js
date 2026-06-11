@@ -5,6 +5,7 @@ import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperCard, PaperButton, PaperPanel, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { scatterPapercutDecor } from '../ui/titleArt.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawShadowBox } from '../systems/papercutArt.js';
 
 export class GradeSelectScene extends Phaser.Scene {
   constructor() {
@@ -23,6 +24,10 @@ export class GradeSelectScene extends Phaser.Scene {
 
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 777);
     scatterPapercutDecor(this, GAME_WIDTH, GAME_HEIGHT, { seed: 12, theme: 'garden' });
+
+    // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
+    const frameGfx = this.add.graphics().setDepth(1);
+    drawShadowBox(frameGfx, area.cx, area.cy, area.w - 40, area.h - 40, { layers: 4 });
 
     // Cream paper panel centered in safe area
     PaperPanel(this, area.cx, area.cy, area.w, area.h, {

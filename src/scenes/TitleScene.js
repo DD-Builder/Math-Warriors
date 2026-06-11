@@ -10,6 +10,7 @@ import {
   drawShadowedPoly, drawShadowedBlob, drawPapercutTree,
   drawPapercutFlower, drawButterfly, drawLeafSprig,
   fillPtsCtx, softShadowCtx, clearShadowCtx,
+  drawShadowBox,
 } from '../systems/papercutArt.js';
 
 export class TitleScene extends Phaser.Scene {
@@ -142,6 +143,10 @@ export class TitleScene extends Phaser.Scene {
     if (this.textures.exists(key)) this.textures.remove(key);
     this.textures.addCanvas(key, cv);
     this.add.image(W / 2, H / 2, key).setDepth(0);
+
+    // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
+    const frameGfx = this.add.graphics().setDepth(1);
+    drawShadowBox(frameGfx, W / 2, H / 2, W - 80, H - 80, { layers: 5 });
 
     this.events.once('shutdown', () => {
       this.tweens.killAll();

@@ -7,6 +7,7 @@ import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { PaperPanel, PaperButton, safeArea } from '../ui/paperUI.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawShadowBox } from '../systems/papercutArt.js';
 import { audio } from '../systems/audio.js';
 
 export class GalleryScene extends Phaser.Scene {
@@ -18,6 +19,10 @@ export class GalleryScene extends Phaser.Scene {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     fadeInScene(this);
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
+
+    // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
+    const frameGfx = this.add.graphics().setDepth(1);
+    drawShadowBox(frameGfx, area.cx, area.cy, area.w - 40, area.h - 40, { layers: 3 });
 
     const slot = getActiveSlot(this);
     const save = loadSave(slot);

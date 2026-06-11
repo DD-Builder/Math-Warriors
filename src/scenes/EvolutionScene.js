@@ -6,6 +6,7 @@ import { audio } from '../systems/audio.js';
 import { transitionTo } from '../ui/sceneHelpers.js';
 import { getHeroById, getPersonality } from '../data/heroes.js';
 import { getEvolutionModifiers } from '../data/heroEvolutionArt.js';
+import { drawShadowBox } from '../systems/papercutArt.js';
 
 /**
  * EvolutionScene — the dramatic ceremony when a hero evolves.
@@ -46,6 +47,10 @@ export class EvolutionScene extends Phaser.Scene {
     const bgGfx = this.add.graphics();
     bgGfx.fillStyle(PAPER.inkTeal, 1);
     bgGfx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
+    const frameGfx = this.add.graphics().setDepth(1);
+    drawShadowBox(frameGfx, cx, cy, GAME_WIDTH - 80, GAME_HEIGHT - 80, { layers: 5 });
 
     // Subtle radial glow at center
     const glowRadius = 400;

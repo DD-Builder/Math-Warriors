@@ -9,6 +9,7 @@ import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
+import { drawShadowBox } from '../systems/papercutArt.js';
 import { getEvolutionStage, getEvolvedName, getEvolvedTitle, getEvolutionStatBoosts, canEvolveStage2, canEvolveStage3, evolveStage2, evolveStage3, resolveMasteryId } from '../systems/evolution.js';
 import { getHeroBondSummary, getBondStatBonuses, getBondDialogues } from '../systems/bonds.js';
 import { getSkillMastery } from '../systems/mastery.js';
@@ -42,6 +43,10 @@ export class PartySelectScene extends Phaser.Scene {
     audio.playMusic('music/title');
 
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 333);
+
+    // ── SHADOW-BOX FRAME around hero grid area (v2 papercut aesthetic) ──
+    const frameGfx = this.add.graphics().setDepth(1);
+    drawShadowBox(frameGfx, area.cx, area.cy - 40, area.w - 60, area.h - 180, { layers: 4 });
 
     // Cream backdrop
     PaperPanel(this, area.cx, area.cy, area.w - 20, area.h - 20, {
