@@ -415,6 +415,7 @@ export const TEXT = {
     stroke: PAPER_CSS.inkTeal,
     strokeThickness: 6,
     letterSpacing: LSP + 1,
+    resolution: 2,
     ...overrides,
   }),
   heading: (overrides = {}) => ({
@@ -424,6 +425,7 @@ export const TEXT = {
     stroke: PAPER_CSS.inkTeal,
     strokeThickness: 3,
     letterSpacing: LSP,
+    resolution: 2,
     ...overrides,
   }),
   body: (overrides = {}) => ({
@@ -431,6 +433,7 @@ export const TEXT = {
     fontSize: '22px',
     color: PAPER_CSS.cream,
     letterSpacing: LSP,
+    resolution: 2,
     ...overrides,
   }),
   small: (overrides = {}) => ({
@@ -438,6 +441,7 @@ export const TEXT = {
     fontSize: '16px',
     color: COLORS_CSS.paper,
     letterSpacing: 1,
+    resolution: 2,
     ...overrides,
   }),
   label: (overrides = {}) => ({
@@ -445,6 +449,7 @@ export const TEXT = {
     fontSize: '18px',
     color: COLORS_CSS.goldL,
     letterSpacing: LSP,
+    resolution: 2,
     ...overrides,
   }),
   stat: (overrides = {}) => ({

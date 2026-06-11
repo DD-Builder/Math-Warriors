@@ -15,17 +15,17 @@
 
 export const BATTLE_PERSPECTIVE = {
   horizonY: 200,
-  groundTopY: 380,
-  groundBottomY: 740,
+  groundTopY: 420,
+  groundBottomY: 600,
   vanishX: 720,
-  minScale: 0.7,
-  maxScale: 1.0,
-  heroBaseX: 160,
+  minScale: 0.82,
+  maxScale: 0.92,
+  heroBaseX: 150,
   heroSpacing: 100,
-  heroStaggerX: 140,
-  monsterBaseX: 1000,
+  heroStaggerX: 170,
+  monsterBaseX: 1020,
   monsterSpacing: 90,
-  monsterStaggerX: 120,
+  monsterStaggerX: 130,
 };
 
 export const MAZE_PERSPECTIVE = {
@@ -97,13 +97,14 @@ export function setDepthByY(objects, depthBase = 10) {
  */
 export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
   const positions = [];
-  const yRange = config.groundBottomY - config.groundTopY;
+  // All heroes at nearly the same Y — a side-by-side line, not a
+  // diagonal stack. Slight Y offset (20px) gives depth without
+  // making them overlap or float above each other.
+  const baseY = config.groundBottomY - 30;
   for (let i = 0; i < heroCount; i++) {
-    const t = heroCount > 1 ? i / (heroCount - 1) : 0.5;
-    // Hero 0 = front (bottom-right), hero 2 = back (upper-left)
-    const y = config.groundBottomY - 40 - t * yRange * 0.55;
+    const y = baseY - i * 20;
     const x = config.heroBaseX + i * config.heroStaggerX;
-    const scale = scaleForY(y, config);
+    const scale = config.minScale + (1 - i / Math.max(heroCount - 1, 1)) * (config.maxScale - config.minScale) * 0.5;
     positions.push({ x, y, scale, depth: Math.floor(y) });
   }
   return positions;

@@ -558,8 +558,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildHeroSprites() {
-    // Use perspective system for 3/4-view diagonal formation
     const positions = heroFormation(3);
+
+    // Papercut ground path under the hero line — roots them to the world
+    const pathGfx = this.add.graphics().setDepth(10);
+    const pathY = positions[0].y + 15;
+    const pathLeft = positions[positions.length - 1].x - 60;
+    const pathRight = positions[0].x + 80;
+    pathGfx.fillStyle(PAPER.sand, 0.6);
+    pathGfx.fillRoundedRect(pathLeft, pathY - 6, pathRight - pathLeft, 18, 9);
+    pathGfx.fillStyle(PAPER.creamD, 0.4);
+    pathGfx.fillRoundedRect(pathLeft + 4, pathY - 3, pathRight - pathLeft - 8, 12, 6);
 
     // Ground shadow graphics layer (beneath heroes)
     const shadowGfx = this.add.graphics();
@@ -571,13 +580,9 @@ export class BattleScene extends Phaser.Scene {
       const y = pos.y;
       const scale = pos.scale * 0.85; // overall hero scale factor
 
-      // Draw ground shadow beneath this hero
-      drawGroundShadow(shadowGfx, x, y, scale);
+      // Ground shadow (wider, stronger — sells "standing on ground")
+      drawGroundShadow(shadowGfx, x, y + 10, scale, { rx: 50, alpha: 0.28 });
 
-      // Use createAnimatedHero for body-part animation with state machine.
-      // Pass evolution stage so evolved heroes show their aura in battle,
-      // and equipped gear (save shape: { weapon/armor/accessory: itemId })
-      // so equipment overlays render on the matching body parts.
       const evoStage = getEvolutionStage(this.save, hero.id);
       const body = createAnimatedHero(this, x, y, hero, {
         scale,
@@ -587,28 +592,32 @@ export class BattleScene extends Phaser.Scene {
       });
       body.setDepth(pos.depth);
 
-      const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
+      // Name + HP BELOW the hero's feet so they never overlap the sprite
+      const labelY = y + 80;
+      const name = this.add.text(x, labelY, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '20px',
+        fontSize: '22px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
         strokeThickness: 3,
+        resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
-      const hpBarBg = this.add.rectangle(x, y + 80, 150, 14, COLORS.ink)
+      const hpBarY = labelY + 18;
+      const hpBarBg = this.add.rectangle(x, hpBarY, 150, 14, COLORS.ink)
         .setStrokeStyle(2, COLORS.paperD).setDepth(13);
-      const hpBarFill = this.add.rectangle(x - 73, y + 80, 146, 10, 0x40c040)
+      const hpBarFill = this.add.rectangle(x - 73, hpBarY, 146, 10, 0x40c040)
         .setOrigin(0, 0.5).setDepth(13);
-      // 1px white stroke around HP bar for clarity
-      const hpStroke = this.add.rectangle(x, y + 80, 150, 14)
+      const hpStroke = this.add.rectangle(x, hpBarY, 150, 14)
         .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
-      const hpText = this.add.text(x, y + 96, `${hero.hp}/${hero.maxHp}`, {
+      const hpText = this.add.text(x, hpBarY + 14, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '14px',
+        fontSize: '16px',
         color: COLORS_CSS.paper,
+        resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
-      const indicator = this.add.triangle(x, y - 160, 0, 0, 20, 0, 10, 20, COLORS.goldL)
+      const indicator = this.add.triangle(x, y - 100, 0, 0, 20, 0, 10, 20, COLORS.goldL)
         .setVisible(false).setDepth(15);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, hpStroke, indicator, x, y };
@@ -668,22 +677,26 @@ export class BattleScene extends Phaser.Scene {
         .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
       const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '15px',
+        fontSize: '16px',
         color: '#fff8e0',
         stroke: '#1f4244',
         strokeThickness: 3,
+        resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
       const spriteData = { body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y };
       this.enemySprites.push(spriteData);
 
-      // Enemy idle pulse — very subtle breathing
-      const ms = body.scaleX || monsterScale;
+      // Enemy breathing — visible life, not a barely-perceptible pulse.
+      // Must be RELATIVE to the current scale (formation-scaled).
+      const bsx = body.scaleX || monsterScale;
+      const bsy = body.scaleY || monsterScale;
       this.tweens.add({
         targets: body,
-        scaleX: ms * 1.01,
-        scaleY: ms * 0.99,
-        duration: 1800 + ei * 200,
+        scaleX: bsx * 1.035,
+        scaleY: bsy * 1.04,
+        y: y - 3,
+        duration: 1400 + ei * 300,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.inOut',
