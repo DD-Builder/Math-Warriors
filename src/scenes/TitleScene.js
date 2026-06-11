@@ -172,7 +172,7 @@ export class TitleScene extends Phaser.Scene {
 
     if (lastPlayedSlot) {
       dp(PaperButton(this, area.cx, H * 0.55, 'CONTINUE', {
-        w: 420, h: 80, color: PAPER.forest, fontSize: 34,
+        w: 420, h: 80, color: PAPER.orange, fontSize: 34,
         onClick: () => {
           audio.play('ui/confirm');
           transitionTo(this, SCENES.SAVE_SELECT, undefined, 300);
@@ -214,10 +214,12 @@ function hex2css(hex) {
 
 function drawPaperLetters(C, W, H) {
   // PAPER palette letter colors
+  // Light/bright papers only — the letters sit over dark forest hills,
+  // so dark greens vanish into the background.
   const colors = [
-    PAPER_CSS.coral, PAPER_CSS.teal, PAPER_CSS.orange, PAPER_CSS.forest,
-    PAPER_CSS.rose, PAPER_CSS.lavender, PAPER_CSS.peach, PAPER_CSS.tealL,
-    PAPER_CSS.coral, PAPER_CSS.teal, PAPER_CSS.orange, PAPER_CSS.forest,
+    PAPER_CSS.coral, PAPER_CSS.tealL, PAPER_CSS.orange, PAPER_CSS.gold,
+    PAPER_CSS.rose, PAPER_CSS.lavender, PAPER_CSS.peach, PAPER_CSS.sky,
+    PAPER_CSS.coral, PAPER_CSS.tealL, PAPER_CSS.orange, PAPER_CSS.gold,
   ];
 
   let seed = 42;

@@ -1314,7 +1314,7 @@ function LV_drawMinimap() {
     var dc = null;
     if (o2.type === 'boss' && o2.alive) dc = '#d06a4d';
     else if (o2.type === 'exit' && o2.visible) dc = '#ecb964';
-    else if (o2.type === 'goldchest') dc = '#e39a4a';
+    else if (o2.type === 'chestG') dc = '#e39a4a';
     if (!dc) continue;
     mg.fillStyle = dc; mg.beginPath(); mg.arc((o2.tx + 0.5) * cs, (o2.ty + 0.5) * cs, cs * 1.1, 0, Math.PI * 2); mg.fill();
   }
