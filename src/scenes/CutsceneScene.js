@@ -201,7 +201,6 @@ export class CutsceneScene extends Phaser.Scene {
     this.charIdx = 0;
     this.layoutBubble();
     this.bodyText.setText('');
-    this.typing = true;
 
     // Entrance animation: slide from x-30 and fade in
     [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText].forEach(o => {
@@ -226,15 +225,29 @@ export class CutsceneScene extends Phaser.Scene {
       }
     });
 
-    if (this.timer) this.timer.remove();
-    this.timer = this.time.addEvent({
-      delay: 20, loop: true,
-      callback: () => {
-        this.charIdx++;
-        this.bodyText.setText(this.fullText.substring(0, this.charIdx));
-        if (this.charIdx >= this.fullText.length) this.finishTyping();
-      },
-    });
+    // Start typing only after camera pan completes so text isn't off-screen.
+    // If the panel offset changed (a pan was triggered), wait for the event;
+    // otherwise start immediately.
+    const startTyping = () => {
+      this.typing = true;
+      if (this.timer) this.timer.remove();
+      this.timer = this.time.addEvent({
+        delay: 20, loop: true,
+        callback: () => {
+          this.charIdx++;
+          this.bodyText.setText(this.fullText.substring(0, this.charIdx));
+          if (this.charIdx >= this.fullText.length) this.finishTyping();
+        },
+      });
+    };
+
+    const prevOffset = this._prevPanelOffsetX;
+    this._prevPanelOffsetX = sectionX;
+    if (prevOffset !== undefined && prevOffset !== sectionX) {
+      this.cameras.main.once('camerapancomplete', startTyping);
+    } else {
+      startTyping();
+    }
   }
 
   drawFairySprite(cx, cy, speaker, radius) {

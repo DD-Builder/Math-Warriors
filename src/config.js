@@ -18,20 +18,20 @@ export const PAPER = {
   sand:     0xd9cfb2,  // deep cream / parchment
 
   // Sage greens (the reference's outer background)
-  sage:     0xb7c4a4,
-  sageD:    0x9bad87,
-  leaf:     0x7d9f6d,
+  sage:     0xb0c498,
+  sageD:    0x8faa72,
+  leaf:     0x6b9b56,
 
-  // Forest greens
-  forestL:  0x57835f,
-  forest:   0x3c6b4f,
-  forestD:  0x2a5240,
+  // Forest greens — richer, more vivid
+  forestL:  0x3e8a52,
+  forest:   0x28704a,
+  forestD:  0x1b5438,
 
-  // Teals
-  tealL:    0x7fb3ae,
-  teal:     0x44888a,
-  tealD:    0x2a6063,
-  inkTeal:  0x1f4244,  // deepest teal — replaces black ink
+  // Teals — more saturated, vivid
+  tealL:    0x5dc4b4,
+  teal:     0x2bb3a3,
+  tealD:    0x1a7d78,
+  inkTeal:  0x143f42,  // deepest teal — replaces black ink
 
   // Corals & warms
   peach:    0xf2bf9a,
@@ -46,12 +46,12 @@ export const PAPER = {
   sky:      0xa4c8d8,
   rose:     0xe8a09a,
 
-  // Layer shadow (use at alpha ~0.2, offset down ~6px)
+  // Layer shadow (use at alpha ~0.3, offset down ~8px)
   shadow:   0x1f3d3f,
 };
 
 // Soft drop-shadow parameters shared by every papercut layer
-export const PAPER_SHADOW = { color: PAPER.shadow, alpha: 0.22, dx: 0, dy: 6, blur: 10 };
+export const PAPER_SHADOW = { color: PAPER.shadow, alpha: 0.30, dx: 0, dy: 8, blur: 10 };
 
 // Legacy color keys, remapped into the papercut palette so every
 // existing call site lands in-palette automatically.

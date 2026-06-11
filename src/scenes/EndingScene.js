@@ -28,6 +28,8 @@ export class EndingScene extends Phaser.Scene {
   }
 
   create() {
+    this.events.once('shutdown', () => this.tweens.killAll());
+
     fadeInScene(this, 600);
     audio.playMusic('music/title');
 

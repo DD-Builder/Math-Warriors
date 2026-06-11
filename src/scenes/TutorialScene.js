@@ -5,7 +5,7 @@ import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperButton, PaperPanel, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { spawnHero, KNIGHTS } from '../data/heroes.js';
 
@@ -57,7 +57,7 @@ export class TutorialScene extends Phaser.Scene {
     // Draw hero sprite — left side
     const heroX = GAME_WIDTH * 0.25;
     const heroY = groundY - 100;
-    this.heroBody = drawHeroSprite(this, heroX, heroY, this.hero, { scale: 0.85 });
+    this.heroBody = createAnimatedHero(this, heroX, heroY, this.hero, { scale: 0.85 });
     this.add.text(heroX, heroY - 120, this.hero.name.toUpperCase(), {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '20px',

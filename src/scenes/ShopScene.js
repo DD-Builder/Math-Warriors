@@ -65,6 +65,9 @@ export class ShopScene extends Phaser.Scene {
       onClick: () => this.switchTab('skins'),
     });
 
+    // Container for tab-specific content; destroyed on tab switch
+    this._tabContainer = this.add.container(0, 0);
+
     if (this.activeTab === 'skins') {
       this.buildSkinCards(area);
     } else if (this.activeTab === 'gear') {
@@ -343,6 +346,11 @@ export class ShopScene extends Phaser.Scene {
 
   switchTab(tab) {
     if (this.activeTab === tab) return;
+    // Destroy old tab content before rebuilding
+    if (this._tabContainer) {
+      this._tabContainer.destroy(true);
+      this._tabContainer = null;
+    }
     writeSave(this.save, this.slot);
     this.scene.restart({ tab });
   }

@@ -423,7 +423,7 @@ R.L([[-10,10],[-6,8],[0,9],[6,8],[10,10],[8,13],[0,12],[-8,13]],MAG4,31,{ns:true
 R.gshadow(0,46,38,7);G.restore();
 },
 };
-export var FLOOR5_ART = {
+export var FLOOR9_MONSTERS = {
 frostbite: function(R,t){
 var G=R.G,bob=Math.sin(t*.062)*5;
 G.save();G.translate(0,bob);

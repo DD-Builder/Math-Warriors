@@ -346,6 +346,8 @@ function genGeometry(grade) {
   if (g <= 2) {
     // Shape identification only
     const pick = shapeQuestions[randInt(0, shapeQuestions.length - 1)];
+    const shapeNames = ['triangle', 'square', 'pentagon', 'hexagon', 'octagon'];
+    const shapeName = shapeNames[shapeQuestions.indexOf(pick)] || 'triangle';
     const distractors = generateDistractors(pick.answer);
     const choices = shuffle([pick.answer, ...distractors]);
     const correctIndex = choices.indexOf(pick.answer);
@@ -354,6 +356,7 @@ function genGeometry(grade) {
       choices, correctIndex,
       format: 'geometry',
       text: pick.text,
+      shape: shapeName,
     };
   }
 
@@ -372,6 +375,7 @@ function genGeometry(grade) {
       choices, correctIndex,
       format: 'geometry',
       text: `Area of rectangle: ${w} × ${h} = ?`,
+      shape: 'rectangle', w, h,
     };
   } else if (problemType === 1) {
     // Perimeter of square
@@ -385,6 +389,7 @@ function genGeometry(grade) {
       choices, correctIndex,
       format: 'geometry',
       text: `Perimeter of square with side ${side} = ?`,
+      shape: 'square', side,
     };
   } else {
     // Perimeter of rectangle
@@ -399,6 +404,7 @@ function genGeometry(grade) {
       choices, correctIndex,
       format: 'geometry',
       text: `Perimeter of rectangle: ${w} and ${h} = ?`,
+      shape: 'rectangle', w, h,
     };
   }
 }

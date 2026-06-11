@@ -189,6 +189,97 @@ export function drawLayeredFrame(gfx, cx, cy, w, h, layers, opts = {}) {
 }
 
 /**
+ * Draw a deeply nested shadow-box diorama frame.
+ * This is THE framing device for the entire game.
+ *
+ * Each layer is an organicRectPoints blob. Between each pair of layers,
+ * a darkened inner-shadow border is drawn INSIDE the cutout — simulated
+ * by drawing a slightly smaller shadow-colored version of the OUTER
+ * layer's shape before painting the next smaller layer on top.
+ *
+ * @param {Phaser.Graphics} gfx
+ * @param {number} cx — center x
+ * @param {number} cy — center y
+ * @param {number} w — outer width
+ * @param {number} h — outer height
+ * @param {object} opts
+ *   layers: number of nested frames (default 5)
+ *   colors: array of colors outer→inner
+ *           (default: sage → cream → tealL → teal → forest → forestD)
+ *   inset: px per layer (default: 32)
+ *   seed: deterministic shape seed (default: 7)
+ *   shadowAlpha: inter-layer shadow strength (default: 0.30)
+ *   roundness: superellipse roundness (default: 3)
+ * @returns {{ innerRect: {x,y,w,h} }} — the content area inside all frames
+ */
+export function drawShadowBox(gfx, cx, cy, w, h, opts = {}) {
+  const layerCount = opts.layers ?? 5;
+  const defaultColors = [
+    PAPER.sage, PAPER.cream, PAPER.tealL, PAPER.teal, PAPER.forest, PAPER.forestD,
+  ];
+  const colors = opts.colors ?? defaultColors.slice(0, Math.max(layerCount, 1));
+  const inset = opts.inset ?? 32;
+  const baseSeed = opts.seed ?? 7;
+  const shadowAlpha = opts.shadowAlpha ?? 0.30;
+  const roundness = opts.roundness ?? 3;
+
+  let cw = w, ch = h;
+  const numLayers = Math.min(colors.length, layerCount);
+
+  for (let i = 0; i < numLayers; i++) {
+    const layerSeed = baseSeed + i * 31;
+
+    // Generate this layer's organic rect
+    const pts = organicRectPoints(cx, cy, cw, ch, {
+      seed: layerSeed,
+      wobble: 10,
+      points: 72,
+      roundness,
+    });
+
+    // Outer drop shadow (first layer only)
+    if (i === 0) {
+      drawShadowedPoly(gfx, pts, colors[i], {
+        shadowDy: 8,
+        shadowAlpha: 0.18,
+      });
+    } else {
+      // Draw the layer fill without its own drop shadow
+      gfx.fillStyle(colors[i], 1);
+      gfx.fillPoints(pts, true);
+    }
+
+    // Inner shadow: draw a slightly inset version of this SAME layer shape
+    // in the shadow color to simulate shadow falling INTO the cutout.
+    // This appears as a darkened border inside the current layer before the
+    // next layer covers most of it.
+    if (i < numLayers - 1) {
+      const shadowInset = inset * 0.55;
+      const shadowPts = organicRectPoints(cx, cy, cw - shadowInset * 2, ch - shadowInset * 2, {
+        seed: layerSeed + 1000,
+        wobble: 8,
+        points: 72,
+        roundness,
+      });
+      gfx.fillStyle(PAPER.shadow, shadowAlpha);
+      gfx.fillPoints(shadowPts, true);
+    }
+
+    cw -= inset * 2;
+    ch -= inset * 2;
+  }
+
+  return {
+    innerRect: {
+      x: cx - cw / 2,
+      y: cy - ch / 2,
+      w: cw,
+      h: ch,
+    },
+  };
+}
+
+/**
  * Layered rolling hills, back to front. Each layer's wave top casts a
  * shadow on the layer behind it.
  *
@@ -282,25 +373,56 @@ export function drawPapercutTree(gfx, x, baseY, height, opts = {}) {
     return;
   }
 
-  // 'round': cluster of overlapping canopy blobs
+  // 'round': multi-tone layered canopy blobs (2-3 stacked tones per cluster)
+  // Deepest tone first (forestD), then mid (canopy/forest), then highlights.
   const cy0 = topY + height * 0.24;
   const r = height * 0.27;
-  const cluster = [
-    [-0.72, 0.32, 0.7], [0.72, 0.28, 0.74], [0, 0, 1],
-    [0.3, -0.52, 0.58], [-0.34, -0.46, 0.55],
+  const sa = opts.shadowAlpha ?? 0.2;
+
+  // Derive canopy tones: darkest base, mid, and light highlight
+  const canopyDark = opts.canopyDark ?? PAPER.forestD;
+  const canopyMid = canopy;
+  const canopyLight = canopyHi ?? PAPER.forestL;
+
+  // Layer 1 (back): dark base canopy — slightly larger, offset down
+  const darkCluster = [
+    [-0.6, 0.44, 0.78], [0.65, 0.4, 0.82], [0, 0.12, 1.08],
   ];
-  cluster.forEach((c, i) => {
+  darkCluster.forEach((c, i) => {
     drawShadowedPoly(
       gfx,
-      blobPoints(x + c[0] * r, cy0 + c[1] * r, r * c[2], r * c[2] * 0.92, { seed: seed + i * 17, wobble: 0.1 }),
-      canopy,
-      { shadowDy: 5, shadowAlpha: opts.shadowAlpha ?? 0.2 }
+      blobPoints(x + c[0] * r, cy0 + c[1] * r, r * c[2], r * c[2] * 0.92, { seed: seed + i * 13, wobble: 0.1 }),
+      canopyDark,
+      { shadowDy: 6, shadowAlpha: sa }
     );
   });
-  if (canopyHi) {
-    drawShadowedBlob(gfx, x - r * 0.25, cy0 - r * 0.3, r * 0.42, r * 0.36, canopyHi,
-      { seed: seed + 91, wobble: 0.12, shadowAlpha: 0 });
-  }
+
+  // Layer 2 (mid): main canopy color — the core cluster
+  const midCluster = [
+    [-0.72, 0.28, 0.7], [0.72, 0.24, 0.74], [0, -0.04, 1],
+    [0.3, -0.52, 0.58], [-0.34, -0.46, 0.55],
+  ];
+  midCluster.forEach((c, i) => {
+    drawShadowedPoly(
+      gfx,
+      blobPoints(x + c[0] * r, cy0 + c[1] * r, r * c[2], r * c[2] * 0.92, { seed: seed + i * 17 + 100, wobble: 0.1 }),
+      canopyMid,
+      { shadowDy: 5, shadowAlpha: sa }
+    );
+  });
+
+  // Layer 3 (front): light highlights — small patches on top
+  const hiCluster = [
+    [-0.25, -0.3, 0.42], [0.3, -0.1, 0.38], [-0.1, 0.15, 0.34],
+  ];
+  hiCluster.forEach((c, i) => {
+    drawShadowedPoly(
+      gfx,
+      blobPoints(x + c[0] * r, cy0 + c[1] * r, r * c[2], r * c[2] * 0.85, { seed: seed + i * 19 + 200, wobble: 0.12 }),
+      canopyLight,
+      { shadowDy: 3, shadowAlpha: sa * 0.6 }
+    );
+  });
 }
 
 /**

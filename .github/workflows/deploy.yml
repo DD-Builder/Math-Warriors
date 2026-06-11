@@ -40,6 +40,9 @@ jobs:
         env:
           GITHUB_ACTIONS: 'true'
 
+      - name: Run e2e tests
+        run: npx playwright test e2e/diagnostic.spec.js
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
