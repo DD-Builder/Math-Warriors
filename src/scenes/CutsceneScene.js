@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { PaperButton, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
@@ -147,6 +147,11 @@ export class CutsceneScene extends Phaser.Scene {
     this.sparkleContainer.removeAll(true);
     this.bubbleGfx.clear();
 
+    // Cinematic camera pan between panels
+    const panOffsets = [0, 50, -50, 30, -30];
+    const panX = GAME_WIDTH / 2 + (panOffsets[panelIdx % panOffsets.length] || 0);
+    this.cameras.main.pan(panX, GAME_HEIGHT / 2, 800, 'Sine.easeInOut');
+
     const isBoss = line.sprite && (getEnemyById(line.sprite) != null);
     const isWide = line.wide || false;
 
@@ -167,6 +172,14 @@ export class CutsceneScene extends Phaser.Scene {
 
     const speakerColor = this.getSpeakerColor(line.speaker);
     this.speakerDot.setFillStyle(speakerColor);
+
+    // Zoom slightly on speaker
+    this.cameras.main.zoomTo(1.05, 300, 'Sine.easeInOut');
+    this.time.delayedCall(1500, () => {
+      if (this.scene.isActive()) {
+        this.cameras.main.zoomTo(1.0, 300, 'Sine.easeInOut');
+      }
+    });
 
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';
@@ -291,8 +304,22 @@ export class CutsceneScene extends Phaser.Scene {
       const def = getHeroById(slot.id);
       if (!def) continue;
       const pos = positions[i];
-      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.2 });
-      this.artContainer.add(img);
+      // Create hero off-screen to the left, walk in
+      const startX = pos.x - 200;
+      const heroSprite = createAnimatedHero(this, startX, pos.y, def, { scale: 1.2 });
+      heroSprite.startWalk();
+      this.artContainer.add(heroSprite);
+      // Tween to final position
+      this.tweens.add({
+        targets: heroSprite,
+        x: pos.x,
+        duration: 600 + i * 200,
+        ease: 'Sine.out',
+        delay: i * 150,
+        onComplete: () => {
+          heroSprite.stopWalk();
+        },
+      });
     }
   }
 
@@ -301,8 +328,32 @@ export class CutsceneScene extends Phaser.Scene {
     const cy = GAME_HEIGHT * 0.48;
     const enemy = getEnemyById(line.sprite);
     if (enemy) {
+      // Brief screen darken for boss reveal
+      const darken = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6);
+      this.artContainer.add(darken);
+      this.tweens.add({ targets: darken, alpha: 0, duration: 800, delay: 400, onComplete: () => darken.destroy() });
+
+      // Boss sprite with scale-pop effect (0 -> 1.2 -> 1.0)
       const img = drawMonsterSprite(this, cx, cy, enemy, { scale: 1.8 });
+      img.setScale(0);
       this.artContainer.add(img);
+      this.tweens.add({
+        targets: img,
+        scaleX: 1.8 * 1.2,
+        scaleY: 1.8 * 1.2,
+        duration: 400,
+        delay: 200,
+        ease: 'Back.out',
+        onComplete: () => {
+          this.tweens.add({
+            targets: img,
+            scaleX: 1.8,
+            scaleY: 1.8,
+            duration: 300,
+            ease: 'Sine.inOut',
+          });
+        },
+      });
     }
   }
 

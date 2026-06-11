@@ -9,7 +9,8 @@ import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
+import { tileDepth } from '../systems/perspective.js';
 import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed } from '../ui/levelEngine.js';
 import { generateRatedQuestion } from '../systems/math.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
@@ -371,6 +372,17 @@ export class MazeScene extends Phaser.Scene {
     this.textures.addCanvas('level-canvas', cv);
     this.levelImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'level-canvas');
     this.levelImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+
+    // Animated hero sprite overlay (replaces static hero image)
+    const heroLeader = this.party[0];
+    if (heroLeader) {
+      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.09, floorId: this.floorId || 1 });
+      this.heroSprite.setDepth(10);
+      this.heroSprite.setIdle();
+      this._heroWasMoving = false;
+      this._lastPartyX = null;
+      this._lastPartyY = null;
+    }
 
     this.buildHUD();
     this.buildMiniMap();
@@ -1082,6 +1094,34 @@ export class MazeScene extends Phaser.Scene {
     if (this.playerX !== prevX || this.playerY !== prevY) {
       this.updateMiniMap();
       this.checkObjectAt(this.playerX, this.playerY);
+    }
+
+    // Update animated hero sprite walk/idle state and facing
+    if (this.heroSprite) {
+      const gs = getGameState();
+      const px = gs.partyX;
+      const py = gs.partyY;
+      const isMoving = this._lastPartyX !== null && (px !== this._lastPartyX || py !== this._lastPartyY);
+      if (isMoving && !this._heroWasMoving) {
+        this.heroSprite.startWalk();
+        this._heroWasMoving = true;
+      } else if (!isMoving && this._heroWasMoving) {
+        this.heroSprite.stopWalk();
+        this._heroWasMoving = false;
+      }
+      this._lastPartyX = px;
+      this._lastPartyY = py;
+
+      // Flip sprite for left/right facing
+      const facing = gs.partyFacing;
+      if (facing === 'left') {
+        this.heroSprite.scaleX = -Math.abs(this.heroSprite.scaleX || 1);
+      } else if (facing === 'right') {
+        this.heroSprite.scaleX = Math.abs(this.heroSprite.scaleX || 1);
+      }
+
+      // Depth based on tile row
+      this.heroSprite.setDepth(tileDepth(this.playerY, this.playerX, 5));
     }
   }
 

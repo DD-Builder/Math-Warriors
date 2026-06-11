@@ -37,6 +37,8 @@ import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
+import { createFractionDisplay } from '../ui/fractionDisplay.js';
+import { createGeometryDiagram } from '../ui/geometryDiagram.js';
 import { heroFormation, monsterFormation, drawGroundPlane, drawGroundShadow, BATTLE_PERSPECTIVE } from '../systems/perspective.js';
 import { makeRng } from '../systems/rng.js';
 import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
@@ -1150,11 +1152,7 @@ export class BattleScene extends Phaser.Scene {
     this._comboData = { hero1, hero2, name, multiplier };
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
-
-    for (let i = 0; i < 4; i++) {
-      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
-      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
-    }
+    this._renderAnswerChoices();
 
     // Animate equation + answer buttons in
     const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
@@ -1367,11 +1365,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'question';
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
-
-    for (let i = 0; i < 4; i++) {
-      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
-      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
-    }
+    this._renderAnswerChoices();
 
     // Animate equation panel + answer buttons sliding/fading in
     const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
@@ -1763,6 +1757,47 @@ export class BattleScene extends Phaser.Scene {
    */
   renderStackedEquation(q) {
     if (!q || !this.eqLines) return;
+
+    // Clean up any previous fraction/geometry displays
+    if (this._fractionDisplays) {
+      this._fractionDisplays.forEach(d => d.destroy());
+      this._fractionDisplays = [];
+    }
+    if (this._geoDiagram) {
+      this._geoDiagram.destroy();
+      this._geoDiagram = null;
+    }
+
+    // Fraction questions: show the text question directly
+    if (q.format === 'fraction') {
+      this.eqLines.a.setText('');
+      this.eqLines.opB.setText(q.text || '');
+      this.eqLines.bar.setText('');
+      this.eqLines.ans.setText('');
+      if (this.eqLines.stars && q.stars) {
+        this.eqLines.stars.setText('\u2605'.repeat(q.stars) + '\u2606'.repeat(5 - q.stars));
+      }
+      return;
+    }
+
+    // Geometry questions: show text + diagram
+    if (q.format === 'geometry') {
+      this.eqLines.a.setText('');
+      this.eqLines.opB.setText(q.text || '');
+      this.eqLines.bar.setText('');
+      this.eqLines.ans.setText('');
+      try {
+        const eqY = this.eqLines.opB.y || 0;
+        const eqX = this.eqLines.opB.x || GAME_WIDTH / 2;
+        this._geoDiagram = createGeometryDiagram(this, eqX + 200, eqY, q, { size: 90 });
+        this._geoDiagram.setDepth(16);
+      } catch (e) { /* geometry diagram is optional */ }
+      if (this.eqLines.stars && q.stars) {
+        this.eqLines.stars.setText('\u2605'.repeat(q.stars) + '\u2606'.repeat(5 - q.stars));
+      }
+      return;
+    }
+
     const opSym = q.op === '*' ? '\u00d7' : q.op === '/' ? '\u00f7' : q.op;
 
     if (q.format === 'missing') {
@@ -1780,6 +1815,30 @@ export class BattleScene extends Phaser.Scene {
     // Star rating on equation panel
     if (this.eqLines.stars && q.stars) {
       this.eqLines.stars.setText('\u2605'.repeat(q.stars) + '\u2606'.repeat(5 - q.stars));
+    }
+  }
+
+  _renderAnswerChoices() {
+    if (!this.currentQuestion || !this.answerButtons) return;
+    const q = this.currentQuestion;
+    for (let i = 0; i < 4; i++) {
+      const choiceVal = q.choices[i];
+      if (q.format === 'fraction' && typeof choiceVal === 'string' && choiceVal.includes('/')) {
+        this.answerButtons[i].label.setText('');
+        try {
+          if (!this._fractionDisplays) this._fractionDisplays = [];
+          const { w, y: btnY, startX, gap } = this.answerBtnLayout;
+          const bx = startX + i * (w + gap);
+          const fd = createFractionDisplay(this, bx, btnY, choiceVal, { fontSize: 22 });
+          fd.setDepth(30);
+          this._fractionDisplays.push(fd);
+        } catch (e) {
+          this.answerButtons[i].label.setText(String(choiceVal));
+        }
+      } else {
+        this.answerButtons[i].label.setText(String(choiceVal));
+      }
+      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
     }
   }
 

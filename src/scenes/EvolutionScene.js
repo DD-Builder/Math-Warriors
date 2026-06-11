@@ -5,6 +5,7 @@ import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { audio } from '../systems/audio.js';
 import { transitionTo } from '../ui/sceneHelpers.js';
 import { getHeroById, getPersonality } from '../data/heroes.js';
+import { getEvolutionModifiers } from '../data/heroEvolutionArt.js';
 
 /**
  * EvolutionScene — the dramatic ceremony when a hero evolves.
@@ -205,10 +206,39 @@ export class EvolutionScene extends Phaser.Scene {
     const newScale = isStage3 ? 2 : 1.5;
 
     this.time.delayedCall(revealDelay, () => {
-      // Hide old hero, show new one bigger
-      heroSprite.setAlpha(0);
+      // Morph transition: old sprite → white tint → silhouette hold → new form
+      // Step 1: Tint old sprite white (200ms)
       nameText.setAlpha(0);
       stageLabel.setAlpha(0);
+
+      // Create a white overlay rectangle matching the hero sprite area for the silhouette
+      const spriteBounds = heroSprite.getBounds();
+      const silhouette = this.add.rectangle(
+        cx, heroSpriteY,
+        spriteBounds.width + 10, spriteBounds.height + 10,
+        PAPER.white, 0
+      );
+
+      this.tweens.add({
+        targets: silhouette,
+        alpha: 0.9,
+        duration: 200,
+        ease: 'Sine.in',
+        onComplete: () => {
+          // Step 2: Hold silhouette (300ms), then hide old and reveal new
+          heroSprite.setAlpha(0);
+          this.time.delayedCall(300, () => {
+            // Fade out the silhouette
+            this.tweens.add({
+              targets: silhouette,
+              alpha: 0,
+              duration: 300,
+              ease: 'Sine.out',
+              onComplete: () => silhouette.destroy(),
+            });
+          });
+        },
+      });
 
       // Brighten the background
       const brightBg = this.add.graphics();
@@ -263,17 +293,87 @@ export class EvolutionScene extends Phaser.Scene {
         }
       }
 
-      // New hero sprite at larger scale
-      const newHeroSprite = drawHeroSprite(this, cx, heroSpriteY, hero, { scale: newScale });
-      newHeroSprite.setAlpha(0).setScale(newScale * 0.5);
+      // ── Apply evolution modifiers to the new form ──
+      const evoMods = getEvolutionModifiers(d.heroId, d.stage, d.pathId || null);
+      const finalScale = evoMods ? newScale * evoMods.scaleBoost : newScale;
+
+      // Colored glow circle behind the hero (from evolution modifiers)
+      if (evoMods) {
+        const glowCircle = this.add.circle(cx, heroSpriteY, evoMods.auraRadius, evoMods.glowColor, 0);
+        this.tweens.add({
+          targets: glowCircle,
+          alpha: evoMods.glowAlpha,
+          duration: 600,
+          delay: 500, // appear after silhouette fades
+          ease: 'Sine.out',
+        });
+        // Gentle pulsing aura
+        this.tweens.add({
+          targets: glowCircle,
+          scaleX: 1.15,
+          scaleY: 1.15,
+          alpha: evoMods.glowAlpha * 0.6,
+          duration: 1200,
+          delay: 1100,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.inOut',
+        });
+      }
+
+      // New hero sprite — delayed to appear after the silhouette hold (500ms)
+      const newHeroSprite = drawHeroSprite(this, cx, heroSpriteY, hero, { scale: finalScale });
+      newHeroSprite.setAlpha(0).setScale(finalScale * 0.5);
+
+      // Apply tint from evolution modifiers
+      if (evoMods && evoMods.tintColor != null) {
+        newHeroSprite.setTint(evoMods.tintColor);
+      }
+
       this.tweens.add({
         targets: newHeroSprite,
         alpha: 1,
-        scaleX: newScale,
-        scaleY: newScale,
+        scaleX: finalScale,
+        scaleY: finalScale,
         duration: 500,
+        delay: 500, // wait for silhouette hold to finish
         ease: 'Back.out',
       });
+
+      // Stage 3 orbiting particles (4 small circles tweened in a circle path)
+      if (evoMods && evoMods.particleCount > 0 && evoMods.particleColor != null) {
+        const orbitRadius = evoMods.auraRadius + 15;
+        const orbitDuration = 3000;
+        for (let oi = 0; oi < evoMods.particleCount; oi++) {
+          const startAngle = (oi / evoMods.particleCount) * Math.PI * 2;
+          const orbitDot = this.add.circle(
+            cx + Math.cos(startAngle) * orbitRadius,
+            heroSpriteY + Math.sin(startAngle) * orbitRadius,
+            4, evoMods.particleColor, 0
+          );
+          // Fade in after the new sprite appears
+          this.tweens.add({
+            targets: orbitDot,
+            alpha: 0.8,
+            duration: 400,
+            delay: 800,
+            ease: 'Sine.out',
+          });
+          // Continuous orbit
+          this.tweens.add({
+            targets: orbitDot,
+            duration: orbitDuration,
+            delay: 800,
+            repeat: -1,
+            ease: 'Linear',
+            onUpdate: (tween) => {
+              const angle = startAngle + tween.progress * Math.PI * 2;
+              orbitDot.x = cx + Math.cos(angle) * orbitRadius;
+              orbitDot.y = heroSpriteY + Math.sin(angle) * orbitRadius;
+            },
+          });
+        }
+      }
 
       // Light rays emanating from the hero after flash reveal
       const rayCount = 8;

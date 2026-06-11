@@ -8,7 +8,7 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea, paintPaperRect } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { getEvolutionStage, getEvolvedName, getEvolvedTitle, getEvolutionStatBoosts, canEvolveStage2, canEvolveStage3, evolveStage2, evolveStage3, resolveMasteryId } from '../systems/evolution.js';
 import { getHeroBondSummary, getBondStatBonuses, getBondDialogues } from '../systems/bonds.js';
 import { getSkillMastery } from '../systems/mastery.js';
@@ -203,18 +203,8 @@ export class PartySelectScene extends Phaser.Scene {
     // Portrait takes top 60% of card, centered
     const portraitY = y - h * 0.15;
     const stage = getEvolutionStage(this.save, hero.id);
-    const portrait = drawHeroSprite(this, x, portraitY, hero, { scale: 0.85, evolutionStage: stage });
-
-    // Gentle idle bob tween on the portrait
-    this.tweens.add({
-      targets: portrait,
-      y: portrait.y - 2,
-      duration: 1500 + Math.random() * 500,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.inOut',
-      delay: Math.random() * 1000,
-    });
+    const portrait = createAnimatedHero(this, x, portraitY, hero, { scale: 0.35, evolutionStage: stage });
+    if (portrait.setSelectionSway) portrait.setSelectionSway();
 
     // Hero name in bold below the portrait (16px)
     const evolvedName = getEvolvedName(this.save, hero.id);
@@ -398,7 +388,8 @@ export class PartySelectScene extends Phaser.Scene {
         const hero = this.classes[sel.class][sel.index];
         slot.portrait.setFillStyle(PAPER.creamD, 0.3);
         const slotEvoStage = getEvolutionStage(this.save, hero.id);
-        slot.heroSprite = drawHeroSprite(this, slot.sx, slot.sy - 12, hero, { scale: 0.5, evolutionStage: slotEvoStage });
+        slot.heroSprite = createAnimatedHero(this, slot.sx, slot.sy - 12, hero, { scale: 0.22, evolutionStage: slotEvoStage });
+        if (slot.heroSprite.setSelectionSway) slot.heroSprite.setSelectionSway();
         const evoName = getEvolvedName(this.save, hero.id);
         slot.nameTxt.setText(evoName.toUpperCase());
         slot.nameTxt.setColor(PAPER_CSS.inkTeal);

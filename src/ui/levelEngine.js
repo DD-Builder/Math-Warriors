@@ -1339,6 +1339,19 @@ function LV_draw(t) {
     if (!_fog[ty2][tx2]) { _G.fillStyle = _fogColor; _G.fillRect(scx, scy, ts + 1, ts + 1); continue; }
     var tt2 = _map[ty2][tx2];
     _drawTile(tt2, scx, scy, ts, tx2, ty2, t);
+    // 3/4 perspective: draw south-facing wall side below wall tiles
+    if (tt2 === LV_TW) {
+      var wallH = MAZE_PERSPECTIVE.heightFactor * ts;
+      var southTop = scy + ts;
+      // Only draw if the tile below is NOT a wall (otherwise the face is hidden)
+      var belowIsWall = (ty2 + 1 < _ROWS) && (_map[ty2 + 1][tx2] === LV_TW);
+      if (!belowIsWall) {
+        _G.save();
+        _G.fillStyle = 'rgba(10,5,2,0.45)';
+        _G.fillRect(scx, southTop, ts + 1, wallH);
+        _G.restore();
+      }
+    }
   }
   // Objects
   for (var oi = 0; oi < _objs.length; oi++) {
@@ -1720,4 +1733,47 @@ export function markDoorOpen(id) {
 export function addObject(obj) {
   if (!obj || !obj.type) return;
   _objs.push(obj);
+}
+
+/**
+ * Return overlay rectangles for wall tops that should render above the hero.
+ * MazeScene draws these on a separate Phaser layer so the hero walks behind tall walls.
+ * @param {number[][]} grid - tile grid [row][col]
+ * @param {number} floorId - floor theme id
+ * @returns {Array<{x:number,y:number,w:number,h:number,color:string}>}
+ */
+export function getWallOverlays(grid, floorId) {
+  var WALL_COLOR_BY_FLOOR = {
+    1: '#1a3c10', // hedge dark
+    2: '#2a4818', // tidepool
+    3: '#c0d8f0', // cloud
+    4: '#1a0808', // ember
+    5: '#304858', // ice
+    6: '#381060', // crystal
+    7: '#4a3818', // market
+    8: '#1a1008', // library
+    9: '#100818', // mending
+  };
+  var wallColor = WALL_COLOR_BY_FLOOR[floorId] || '#1a3c10';
+  var ts = LV_TILE; // 56
+  var hFactor = MAZE_PERSPECTIVE.heightFactor; // 0.4
+  var overlays = [];
+  for (var row = 0; row < grid.length; row++) {
+    for (var col = 0; col < grid[row].length; col++) {
+      if (grid[row][col] !== LV_TW) continue;
+      // Only include walls whose south face is visible (tile below is not a wall)
+      var belowIsWall = (row + 1 < grid.length) && (grid[row + 1][col] === LV_TW);
+      if (belowIsWall) continue;
+      overlays.push({
+        tx: col,
+        ty: row,
+        x: col * ts,
+        y: row * ts,
+        w: ts,
+        h: ts * hFactor,
+        color: wallColor
+      });
+    }
+  }
+  return overlays;
 }

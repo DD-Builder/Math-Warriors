@@ -3,7 +3,7 @@ import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js'
 import { ALL_HEROES } from '../data/heroes.js';
 import { loadSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
 import { getEvolutionStage, getEvolvedName } from '../systems/evolution.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { PaperPanel, PaperButton, safeArea } from '../ui/paperUI.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
@@ -64,9 +64,10 @@ export class GalleryScene extends Phaser.Scene {
       if (unlocked) {
         // Full color portrait
         const evoStage = getEvolutionStage(save, hero.id);
-        const sprite = drawHeroSprite(this, cx, cy - 20, hero, {
-          scale: 0.35, evolutionStage: evoStage,
+        const sprite = createAnimatedHero(this, cx, cy - 20, hero, {
+          scale: 0.15, evolutionStage: evoStage,
         });
+        if (sprite.setSelectionSway) sprite.setSelectionSway();
         sprite.setDepth(1001);
 
         // Evolved name
