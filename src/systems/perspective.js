@@ -15,17 +15,17 @@
 
 export const BATTLE_PERSPECTIVE = {
   horizonY: 200,
-  groundTopY: 350,
-  groundBottomY: 780,
+  groundTopY: 380,
+  groundBottomY: 740,
   vanishX: 720,
-  minScale: 0.65,
+  minScale: 0.7,
   maxScale: 1.0,
-  heroBaseX: 280,
+  heroBaseX: 160,
   heroSpacing: 100,
-  heroStaggerX: 45,
-  monsterBaseX: 1050,
+  heroStaggerX: 140,
+  monsterBaseX: 1000,
   monsterSpacing: 90,
-  monsterStaggerX: 40,
+  monsterStaggerX: 120,
 };
 
 export const MAZE_PERSPECTIVE = {
@@ -97,9 +97,11 @@ export function setDepthByY(objects, depthBase = 10) {
  */
 export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
   const positions = [];
+  const yRange = config.groundBottomY - config.groundTopY;
   for (let i = 0; i < heroCount; i++) {
     const t = heroCount > 1 ? i / (heroCount - 1) : 0.5;
-    const y = config.groundBottomY - 60 - t * (config.groundBottomY - config.groundTopY - 180);
+    // Hero 0 = front (bottom-right), hero 2 = back (upper-left)
+    const y = config.groundBottomY - 40 - t * yRange * 0.55;
     const x = config.heroBaseX + i * config.heroStaggerX;
     const scale = scaleForY(y, config);
     positions.push({ x, y, scale, depth: Math.floor(y) });
@@ -113,27 +115,27 @@ export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
  */
 export function monsterFormation(enemyCount, config = BATTLE_PERSPECTIVE) {
   const positions = [];
+  const yRange = config.groundBottomY - config.groundTopY;
   if (enemyCount === 1) {
-    const y = config.groundTopY + (config.groundBottomY - config.groundTopY) * 0.35;
+    const y = config.groundTopY + yRange * 0.4;
     positions.push({
       x: config.monsterBaseX,
       y,
-      scale: scaleForY(y, config) * 0.9,
+      scale: scaleForY(y, config) * 0.85,
       depth: Math.floor(y),
     });
   } else if (enemyCount === 2) {
     for (let i = 0; i < 2; i++) {
-      const t = i / 1;
-      const y = config.groundTopY + 100 + t * 200;
-      const x = config.monsterBaseX + (i === 0 ? -50 : 50);
-      positions.push({ x, y, scale: scaleForY(y, config) * 0.75, depth: Math.floor(y) });
+      const y = config.groundTopY + yRange * (0.25 + i * 0.35);
+      const x = config.monsterBaseX + (i === 0 ? -60 : 60);
+      positions.push({ x, y, scale: scaleForY(y, config) * 0.7, depth: Math.floor(y) });
     }
   } else {
     for (let i = 0; i < enemyCount; i++) {
       const t = i / (enemyCount - 1);
-      const y = config.groundTopY + 80 + t * 260;
+      const y = config.groundTopY + yRange * (0.18 + t * 0.5);
       const x = config.monsterBaseX + (i - 1) * config.monsterStaggerX;
-      positions.push({ x, y, scale: scaleForY(y, config) * 0.65, depth: Math.floor(y) });
+      positions.push({ x, y, scale: scaleForY(y, config) * 0.6, depth: Math.floor(y) });
     }
   }
   return positions;

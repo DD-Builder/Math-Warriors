@@ -632,11 +632,13 @@ export class BattleScene extends Phaser.Scene {
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
       body.setDepth(pos.depth);
 
-      // Name/HP bars directly above the sprite head
-      const spriteHalfH = (640 * monsterScale) * 0.50;
-      const nameY = y - spriteHalfH - 10;
-      const hpY = y - spriteHalfH + 6;
-      const hpTextY = y - spriteHalfH + 20;
+      // Name/HP bars anchored above the sprite's actual rendered bounds
+      // (640 is the base monster canvas size — scaled by the formation scale
+      // and the 0.5 origin means top is y - displayHalfH).
+      const displayH = body.displayHeight ?? (640 * monsterScale);
+      const nameY = y - displayH * 0.48 - 14;
+      const hpY = nameY + 20;
+      const hpTextY = hpY + 16;
 
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
