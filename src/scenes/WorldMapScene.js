@@ -74,6 +74,24 @@ export class WorldMapScene extends Phaser.Scene {
     this.updatePageDots();
     this.updateArrows();
 
+    // Keyboard arrow navigation between floors
+    this.input.keyboard.on('keydown-RIGHT', () => {
+      if (this.currentScreen < this.maxScreen) {
+        this.currentScreen++;
+        this.cameras.main.pan(this.currentScreen * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, 600, 'Sine.easeInOut');
+        this.updatePageDots();
+        this.updateArrows();
+      }
+    });
+    this.input.keyboard.on('keydown-LEFT', () => {
+      if (this.currentScreen > 0) {
+        this.currentScreen--;
+        this.cameras.main.pan(this.currentScreen * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, 600, 'Sine.easeInOut');
+        this.updatePageDots();
+        this.updateArrows();
+      }
+    });
+
     this.events.once('shutdown', () => {
       this.tweens.killAll();
       this.time.removeAllEvents();
@@ -199,7 +217,7 @@ export class WorldMapScene extends Phaser.Scene {
     // Number badge
     const numX = x - radius * 0.65;
     const numY = y - radius * 0.65;
-    drawShadowedBlob(this.add.graphics().setDepth(11), numX, numY, 22, 22,
+    drawShadowedBlob(this.add.graphics().setDepth(15), numX, numY, 22, 22,
       locked ? PAPER.creamD : PAPER.orange, {
         seed: info.id * 13, wobble: 0.08, shadowDy: 3, shadowAlpha: 0.18,
       });
@@ -207,7 +225,7 @@ export class WorldMapScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '22px',
       color: PAPER_CSS.cream,
-    }).setOrigin(0.5).setDepth(11);
+    }).setOrigin(0.5).setDepth(15);
 
     // Mini diorama
     if (locked) {
@@ -282,7 +300,7 @@ export class WorldMapScene extends Phaser.Scene {
       });
     }
 
-    const labelY = y + radius + 28;
+    const labelY = y + radius + 14;
     const labelW = 260;
     const labelH = 56;
     PaperPanel(this, x, labelY, labelW, labelH, {
