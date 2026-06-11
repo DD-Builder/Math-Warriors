@@ -16,6 +16,8 @@ import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
 import { PAPER, PAPER_CSS } from '../config.js';
 import { HeroAnimationSM } from '../systems/animationStateMachine.js';
+import { getEquipmentOverlay, applyEquipmentOverlays, getTierIndex } from './equipmentOverlays.js';
+import { getEquipmentById } from '../systems/equipment.js';
 
 // Lookup table: hero.id → art data (draw function, cardBg, topExt, botExt)
 const ART_LOOKUP = {};
@@ -31,6 +33,59 @@ const PART_HAS_CONTENT = {};
 // Default canvas dimensions for hero portraits
 const HERO_W = 296;
 const HERO_H = 384;
+
+// Equipment slot → body part the overlay is drawn on, and key codes
+const PART_TO_SLOT = { weapon: 'weapon', torso: 'armor', head: 'accessory' };
+const SLOT_CODE = { weapon: 'w', armor: 'a', accessory: 'c' };
+
+function getHeroClass(hero) {
+  return hero.cls || (hero.id?.includes('knight') ? 'knight' : hero.id?.includes('wizard') ? 'wizard' : 'bunny');
+}
+
+/**
+ * Normalize opts.equipment into resolved equipment items per slot.
+ * Accepts the save-file shape (item-id strings per slot, e.g.
+ * save.equipment.hero0 = { weapon: 'iron_sword', ... }) or already
+ * resolved { id, tier } objects. Returns null when nothing is equipped.
+ */
+function resolveEquipment(equipment) {
+  if (!equipment) return null;
+  const resolved = {};
+  let any = false;
+  for (const slot of ['weapon', 'armor', 'accessory']) {
+    const val = equipment[slot];
+    if (!val) continue;
+    const item = typeof val === 'string' ? getEquipmentById(val) : val;
+    if (!item || !item.tier) continue;
+    resolved[slot] = item;
+    any = true;
+  }
+  return any ? resolved : null;
+}
+
+/**
+ * Texture-key suffix encoding equipment identity, e.g. '-e123' for
+ * tier-1 weapon, tier-2 armor, tier-3 accessory ('' when unequipped).
+ * Without this, the first-equipped render would be cached and reused
+ * for unequipped heroes (and vice versa).
+ */
+function equipmentKeySuffix(equipment) {
+  if (!equipment) return '';
+  const t = slot => (equipment[slot] ? getTierIndex(equipment[slot].tier) : 0);
+  return `-e${t('weapon')}${t('armor')}${t('accessory')}`;
+}
+
+/**
+ * Hero art-space geometry for a canvas of (w, h): the anchor point and
+ * scale the hero draw function was invoked with. Must mirror
+ * legacyRenderer's createHeroCanvas / createHeroPartCanvas math so
+ * overlays land on the hero, not at arbitrary canvas coordinates.
+ */
+function heroArtGeometry(w, h, art, defTop, defBot) {
+  const te = art.topExt || defTop, be = art.botExt || defBot;
+  const sc = (h - 14) / (te + be) * 0.89;
+  return { cx: w * 0.5, cy: 7 + te * sc, sc };
+}
 
 function getHeroCanvas(hero) {
   const id = hero.id;
@@ -56,12 +111,28 @@ export function drawHeroSprite(scene, x, y, hero, opts = {}) {
   const scale = opts.scale ?? 1;
   const evolutionStage = opts.evolutionStage ?? 1;
   const id = hero.id;
-  const textureKey = 'hero-' + id;
+  const equipment = resolveEquipment(opts.equipment);
+  // Equipment identity is part of the key so equipped/unequipped renders
+  // never share a cached texture.
+  const textureKey = 'hero-' + id + equipmentKeySuffix(equipment);
 
   // Register texture if not already cached
   if (!scene.textures.exists(textureKey)) {
-    const cv = getHeroCanvas(hero);
+    let cv = getHeroCanvas(hero);
     if (cv) {
+      if (equipment) {
+        // Draw overlays on a CLONE — CANVAS_CACHE canvases are shared
+        // across call sites, so mutating them would leak equipment
+        // visuals onto every later unequipped render of this hero.
+        const clone = document.createElement('canvas');
+        clone.width = cv.width;
+        clone.height = cv.height;
+        clone.getContext('2d').drawImage(cv, 0, 0);
+        const art = ART_LOOKUP[id];
+        applyEquipmentOverlays(clone, equipment, getHeroClass(hero),
+          heroArtGeometry(cv.width, cv.height, art, 80, 78));
+        cv = clone;
+      }
       scene.textures.addCanvas(textureKey, cv);
     } else {
       // Fallback: colored rectangle if no art exists
@@ -178,18 +249,34 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const parts = {};
 
   const floorId = opts.floorId || 1;
+  const heroClass = getHeroClass(hero);
+  const equipment = resolveEquipment(opts.equipment);
 
   for (let i = 0; i < partOrder.length; i++) {
     const partName = partOrder[i];
     const seeds = BODY_PARTS[partName];
-    const key = `hero-${hero.id}-${partName}-f${floorId}`;
 
     // Pixel-content check is expensive (full-canvas getImageData) —
     // cache the answer per hero+part so repeat battles don't re-read.
+    // Overlays only ever decorate parts that already have content, so
+    // this cache stays valid regardless of equipment.
     const contentKey = `${hero.id}-${partName}`;
     if (PART_HAS_CONTENT[contentKey] === false) continue;
 
+    // Equipment overlay for this part (weapon → weapon, armor → torso,
+    // accessory → head). The texture key carries the slot+tier identity
+    // so equipped/unequipped renders never share a cached texture; parts
+    // without an overlay keep their pre-equipment keys.
+    const slot = PART_TO_SLOT[partName];
+    const equipped = equipment && slot ? equipment[slot] : null;
+    const overlay = equipped ? getEquipmentOverlay(equipped.id, equipped.tier, slot) : null;
+    const equipSuffix = overlay ? `-e${SLOT_CODE[slot]}${getTierIndex(equipped.tier)}` : '';
+    const key = `hero-${hero.id}-${partName}-f${floorId}${equipSuffix}`;
+
     if (!scene.textures.exists(key)) {
+      // createHeroPartCanvas returns a FRESH canvas per call (it is not
+      // shared like CANVAS_CACHE), so filtering and overlay-drawing on
+      // it directly is safe.
       const cv = createHeroPartCanvas(w, h, art.draw, art.topExt, art.botExt, seeds);
       if (PART_HAS_CONTENT[contentKey] === undefined) {
         // Check if canvas has any visible content — skip empty body parts
@@ -204,6 +291,10 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
         if (!hasContent) continue;
       }
       applySpriteFilter(cv, floorId);
+      if (overlay) {
+        const geom = heroArtGeometry(w, h, art, 60, 60);
+        overlay.draw(cv.getContext('2d'), geom.cx, geom.cy, geom.sc, heroClass);
+      }
       scene.textures.addCanvas(key, cv);
     }
 
@@ -221,10 +312,8 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   // Animation state
   container.parts = parts;
 
-  // Determine hero class for class-specific animations
-  const heroClass = hero.cls || (hero.id?.includes('knight') ? 'knight' : hero.id?.includes('wizard') ? 'wizard' : 'bunny');
-
   // State machine (Phase 0A) — the canonical animation controller
+  // (heroClass computed above is reused for class-specific animations)
   const sm = new HeroAnimationSM(parts, scene, heroClass, hero.id);
   container.stateMachine = sm;
 

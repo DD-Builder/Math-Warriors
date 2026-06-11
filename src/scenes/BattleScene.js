@@ -564,9 +564,16 @@ export class BattleScene extends Phaser.Scene {
       drawGroundShadow(shadowGfx, x, y, scale);
 
       // Use createAnimatedHero for body-part animation with state machine.
-      // Pass evolution stage so evolved heroes show their aura in battle.
+      // Pass evolution stage so evolved heroes show their aura in battle,
+      // and equipped gear (save shape: { weapon/armor/accessory: itemId })
+      // so equipment overlays render on the matching body parts.
       const evoStage = getEvolutionStage(this.save, hero.id);
-      const body = createAnimatedHero(this, x, y, hero, { scale, floorId: this.floor, evolutionStage: evoStage });
+      const body = createAnimatedHero(this, x, y, hero, {
+        scale,
+        floorId: this.floor,
+        evolutionStage: evoStage,
+        equipment: this.save.equipment?.[`hero${i}`],
+      });
       body.setDepth(pos.depth);
 
       const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {

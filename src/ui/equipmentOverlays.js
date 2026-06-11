@@ -12,8 +12,6 @@
  * All drawing uses raw Canvas 2D (no Phaser dependency).
  */
 
-import { COLORS } from '../config.js';
-
 // ---- Tier color palettes ----
 
 const TIER_COLORS = {
@@ -54,7 +52,11 @@ const TIER_COLORS = {
   },
 };
 
-function getTierIndex(tier) {
+/**
+ * Normalize a tier (number 1-5 or name 'wooden'...'legendary') to its index.
+ * Exported so texture-key generation can share the same normalization.
+ */
+export function getTierIndex(tier) {
   if (typeof tier === 'number') return tier;
   const map = { wooden: 1, iron: 2, steel: 3, mithril: 4, legendary: 5 };
   return map[tier] || 1;
@@ -219,10 +221,16 @@ function drawWeaponHandleGlow(ctx, cx, cy, sc, colors) {
  * @param {number|string} tier - Tier number (1-5) or name ('wooden'...'legendary')
  * @param {string} slot - 'weapon', 'armor', or 'accessory'
  * @returns {{ draw: (ctx, cx, cy, sc, heroClass) => void } | null}
+ *
+ * Returns null when there is nothing to draw for the slot/tier combo
+ * (e.g. accessories only get a visible circlet at tier 5), so callers
+ * can skip texture-key variants that would render identically.
  */
 export function getEquipmentOverlay(equipmentId, tier, slot) {
   const ti = getTierIndex(tier);
   if (ti < 1 || ti > 5) return null;
+  if (slot !== 'weapon' && slot !== 'armor' && slot !== 'accessory') return null;
+  if (slot === 'accessory' && ti < 5) return null;
   const colors = TIER_COLORS[ti];
 
   return {
@@ -292,13 +300,16 @@ export function getEquipmentOverlay(equipmentId, tier, slot) {
  *           armor?: { id: string, tier: number|string },
  *           accessory?: { id: string, tier: number|string } }} equipment
  * @param {string} heroClass - 'knight', 'wizard', or 'bunny'
+ * @param {{ cx?: number, cy?: number, sc?: number }} [geom] - Hero art-space
+ *   geometry: anchor point and scale the hero was drawn with (see
+ *   legacyRenderer createHeroCanvas). Defaults to canvas center at scale 1.
  */
-export function applyEquipmentOverlays(canvas, equipment, heroClass) {
+export function applyEquipmentOverlays(canvas, equipment, heroClass, geom = {}) {
   if (!equipment) return;
   const ctx = canvas.getContext('2d');
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
-  const sc = 1;
+  const cx = geom.cx ?? canvas.width / 2;
+  const cy = geom.cy ?? canvas.height / 2;
+  const sc = geom.sc ?? 1;
 
   for (const slot of ['weapon', 'armor', 'accessory']) {
     const item = equipment[slot];
