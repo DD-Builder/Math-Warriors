@@ -1844,6 +1844,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   clearEquationDisplay() {
+    // Fraction visuals + geometry diagrams are real game objects, not
+    // text — destroy them on EVERY equation clear so they can't linger
+    // over the enemy turn, the victory screen, or the next question.
+    if (this._fractionDisplays) {
+      this._fractionDisplays.forEach(d => { if (d && d.destroy) d.destroy(); });
+      this._fractionDisplays = [];
+    }
+    if (this._geoDiagram) {
+      this._geoDiagram.destroy();
+      this._geoDiagram = null;
+    }
     if (!this.eqLines) return;
     this.eqLines.a.setText('');
     this.eqLines.opB.setText('');
@@ -2026,14 +2037,23 @@ export class BattleScene extends Phaser.Scene {
         this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
       };
 
-      // Play the themed monster attack animation
+      // Play the themed monster attack animation. The 45 registry
+      // animations are SUPPOSED to call onComplete, but this game has a
+      // freeze-bug history — never trust an animation to unblock the
+      // turn loop. A once-guard prevents double-advance and a watchdog
+      // force-advances if the animation drops its callback.
+      const guardedDone = this._onceWithWatchdog(monsterAttackDone, 2500);
       if (attackerSprite && targetHeroSprite) {
-        playMonsterAttack(this, attackerSprite, targetHeroSprite, attacker.id, 0, {
-          onHit: () => {},
-          onComplete: monsterAttackDone,
-        });
+        try {
+          playMonsterAttack(this, attackerSprite, targetHeroSprite, attacker.id, 0, {
+            onHit: () => {},
+            onComplete: guardedDone,
+          });
+        } catch (e) {
+          guardedDone();
+        }
       } else {
-        this.time.delayedCall(350, monsterAttackDone);
+        this.time.delayedCall(350, guardedDone);
       }
     };
 
@@ -2041,14 +2061,31 @@ export class BattleScene extends Phaser.Scene {
 
     // Clear guard flags at END of enemy phase (guard lasts full round)
     this.time.delayedCall(aliveEnemies.length * 650 + 100, () => {
-      // Return guarding heroes to idle animation state
+      // Return guarding heroes to idle animation state (living only —
+      // setIdle on a KO'd hero would cancel the KO slump)
       for (let gi = 0; gi < this.guardActive.length; gi++) {
-        if (this.guardActive[gi] && this.heroSprites[gi]?.body?.setIdle) {
+        if (this.guardActive[gi] && this.party[gi]?.hp > 0 && this.heroSprites[gi]?.body?.setIdle) {
           this.heroSprites[gi].body.setIdle();
         }
       }
       this.guardActive.fill(false);
     });
+  }
+
+  /**
+   * Wrap an animation-completion callback so it (a) can only fire once
+   * and (b) is force-fired after `timeoutMs` if the animation never
+   * calls it. The single defense against turn-loop freezes.
+   */
+  _onceWithWatchdog(fn, timeoutMs = 2500) {
+    let fired = false;
+    const fire = () => {
+      if (fired || this._shuttingDown) return;
+      fired = true;
+      fn();
+    };
+    this.time.delayedCall(timeoutMs, fire);
+    return fire;
   }
 
   // ================================================================
@@ -3140,6 +3177,9 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'end';
     this.locked = true;
 
+    this.clearEquationDisplay();
+    if (this._revealWrongMark) { this._revealWrongMark.destroy(); this._revealWrongMark = null; }
+    if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
     this.clearBossTimer();
     this.time.removeAllEvents();
     if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
@@ -3432,6 +3472,9 @@ export class BattleScene extends Phaser.Scene {
     if (this.tryRevive()) return;
     this.phase = 'end';
     this.locked = true;
+    this.clearEquationDisplay();
+    if (this._revealWrongMark) { this._revealWrongMark.destroy(); this._revealWrongMark = null; }
+    if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
     this.clearBossTimer();
     this.time.removeAllEvents();
     if (this.parallaxState) destroyParallaxBackground(this.parallaxState);

@@ -51,8 +51,16 @@ export function drawMonsterSprite(scene, x, y, enemy, opts = {}) {
   if (!scene.textures.exists(textureKey)) {
     const cv = getMonsterCanvas(id);
     if (cv) {
-      applySpriteFilter(cv, floorId);
-      scene.textures.addCanvas(textureKey, cv);
+      // Filter a CLONE — the cached canvas is shared across floors and
+      // applySpriteFilter mutates pixels in place. Filtering the cache
+      // directly would compound filters when the same monster appears
+      // with a different floorId (e.g. boss rush).
+      const clone = document.createElement('canvas');
+      clone.width = cv.width;
+      clone.height = cv.height;
+      clone.getContext('2d').drawImage(cv, 0, 0);
+      applySpriteFilter(clone, floorId);
+      scene.textures.addCanvas(textureKey, clone);
     } else {
       // Fallback to old Phaser Graphics draw
       return drawFallback(scene, x, y, enemy, scale);

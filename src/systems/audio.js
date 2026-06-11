@@ -58,6 +58,10 @@ const SOUNDS = {
   'music/floor-3':    { file: null, volume: 0.6, category: 'music', loop: true },
   'music/floor-4':    { file: null, volume: 0.6, category: 'music', loop: true },
   'music/floor-5':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-6':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-7':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-8':    { file: null, volume: 0.6, category: 'music', loop: true },
+  'music/floor-9':    { file: null, volume: 0.6, category: 'music', loop: true },
   'music/battle':     { file: null, volume: 0.7, category: 'music', loop: true },
   'music/boss':       { file: null, volume: 0.8, category: 'music', loop: true },
 };

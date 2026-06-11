@@ -594,6 +594,8 @@ export class EvolutionScene extends Phaser.Scene {
         const btn = PaperButton(this, cx, area.bottom - 50, 'AMAZING!', {
           w: 260, h: 64, color: PAPER.coralD, fontSize: 24, textColor: PAPER_CSS.cream,
           onClick: () => {
+            if (this._leaving) return; // double-tap = double scene transition
+            this._leaving = true;
             audio.play('ui/confirm');
             const psState = d.partySelectState || {};
             transitionTo(this, SCENES.PARTY_SELECT, {

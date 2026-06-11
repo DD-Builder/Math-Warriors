@@ -486,6 +486,8 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   finish() {
+    if (this._leaving) return; // rapid taps on the last line = double transition
+    this._leaving = true;
     transitionTo(this, this.nextScene, this.nextData, 400);
   }
 }
