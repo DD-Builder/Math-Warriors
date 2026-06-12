@@ -40,6 +40,10 @@ jobs:
         env:
           GITHUB_ACTIONS: 'true'
 
+      - name: Run e2e tests
+        run: npx playwright install chromium && npx playwright test e2e/diagnostic.spec.js
+        continue-on-error: true
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

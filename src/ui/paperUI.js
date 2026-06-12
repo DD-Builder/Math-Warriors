@@ -21,7 +21,7 @@
  *   const btn = PaperButton(scene, x, y, 'START', { onClick: () => {} });
  */
 
-import { COLORS, COLORS_CSS, MARGIN, BOTTOM_SAFE, TOP_SAFE } from '../config.js';
+import { COLORS, COLORS_CSS, PAPER, PAPER_CSS, MARGIN, BOTTOM_SAFE, TOP_SAFE } from '../config.js';
 import { makeRng } from '../systems/rng.js';
 
 // ------------------------------------------------------------------
@@ -130,7 +130,7 @@ export function paintPaperRect(bg, shadow, x, y, w, h, color, opts = {}) {
   const shadowOff = opts.shadowOff ?? 6;
   const shadowAlpha = opts.shadowAlpha ?? 0.3;
   const alpha = opts.alpha ?? 1;
-  const strokeColor = opts.strokeColor ?? 0x000000;
+  const strokeColor = opts.strokeColor ?? PAPER.shadow;
   const strokeAlpha = opts.strokeAlpha ?? 0.15;
   const strokeWidth = opts.strokeWidth ?? 2;
   const organic = opts.organic ?? false;
@@ -144,7 +144,7 @@ export function paintPaperRect(bg, shadow, x, y, w, h, color, opts = {}) {
     // every time so the shape stays identical between redraws.
     const pts = paperPolygonPoints(w, h, seed);
 
-    shadow.fillStyle(0x000000, shadowAlpha);
+    shadow.fillStyle(PAPER.shadow, shadowAlpha);
     shadow.fillPoints(pts.map((p) => ({ x: p.x + x + shadowOff, y: p.y + y + shadowOff })), true);
 
     bg.fillStyle(color, alpha);
@@ -156,7 +156,7 @@ export function paintPaperRect(bg, shadow, x, y, w, h, color, opts = {}) {
     return;
   }
 
-  shadow.fillStyle(0x000000, shadowAlpha);
+  shadow.fillStyle(PAPER.shadow, shadowAlpha);
   shadow.fillRoundedRect(x - w / 2 + shadowOff, y - h / 2 + shadowOff, w, h, radius);
 
   bg.fillStyle(color, alpha);
@@ -201,7 +201,7 @@ export function PaperButton(scene, x, y, text, opts = {}) {
   const w = opts.w ?? 280;
   const h = opts.h ?? 70;
   const color = opts.color ?? COLORS.scarlet;
-  const textColor = opts.textColor ?? '#ffffff';
+  const textColor = opts.textColor ?? PAPER_CSS.cream;
   const fontSize = opts.fontSize ?? 24;
 
   const { bg, shadow } = paperRect(scene, x, y, w, h, color, {
@@ -216,7 +216,7 @@ export function PaperButton(scene, x, y, text, opts = {}) {
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: `${fontSize}px`,
     color: textColor,
-    stroke: '#000000',
+    stroke: PAPER_CSS.inkTeal,
     strokeThickness: 2,
     letterSpacing: 2,
   }).setOrigin(0.5);
@@ -278,14 +278,14 @@ export function PaperButton(scene, x, y, text, opts = {}) {
  * Used for menus, dialogs, HUD backgrounds.
  */
 export function PaperPanel(scene, x, y, w, h, opts = {}) {
-  const color = opts.color ?? 0xfaf4e8; // warm cream paper
+  const color = opts.color ?? PAPER.cream;
   const radius = opts.radius ?? 20;
 
   return paperRect(scene, x, y, w, h, color, {
     radius,
     shadowOff: opts.shadowOff ?? 8,
     shadowAlpha: opts.shadowAlpha ?? 0.25,
-    strokeColor: 0x8a7a60,
+    strokeColor: PAPER.sand,
     strokeAlpha: 0.3,
     strokeWidth: 3,
     alpha: opts.alpha ?? 0.95,
@@ -309,7 +309,7 @@ export function PaperCard(scene, x, y, w, h, color, opts = {}) {
     radius,
     shadowOff: selected ? 3 : 5,
     shadowAlpha: selected ? 0.4 : 0.25,
-    strokeColor: selected ? COLORS.goldL : 0x000000,
+    strokeColor: selected ? COLORS.goldL : PAPER.shadow,
     strokeAlpha: selected ? 0.9 : 0.15,
     strokeWidth: selected ? 4 : 2,
     organic: opts.organic ?? true,
@@ -329,14 +329,14 @@ export function PaperCard(scene, x, y, w, h, color, opts = {}) {
  * A progress bar styled as a layered paper strip.
  */
 export function PaperBar(scene, x, y, w, h, pct, fillColor, opts = {}) {
-  const bgColor = opts.bgColor ?? 0x3a3020;
+  const bgColor = opts.bgColor ?? PAPER.inkTeal;
   const radius = Math.min(h / 2, 8);
 
   // Background strip
   const barBg = scene.add.graphics();
   barBg.fillStyle(bgColor, 0.8);
   barBg.fillRoundedRect(x, y - h / 2, w, h, radius);
-  barBg.lineStyle(1.5, 0x000000, 0.2);
+  barBg.lineStyle(1.5, PAPER.shadow, 0.2);
   barBg.strokeRoundedRect(x, y - h / 2, w, h, radius);
 
   // Fill strip
@@ -411,26 +411,29 @@ export const TEXT = {
   title: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '64px',
-    color: '#ffffff',
-    stroke: '#000000',
+    color: PAPER_CSS.cream,
+    stroke: PAPER_CSS.inkTeal,
     strokeThickness: 6,
     letterSpacing: LSP + 1,
+    resolution: 2,
     ...overrides,
   }),
   heading: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '36px',
     color: COLORS_CSS.goldL,
-    stroke: '#000000',
+    stroke: PAPER_CSS.inkTeal,
     strokeThickness: 3,
     letterSpacing: LSP,
+    resolution: 2,
     ...overrides,
   }),
   body: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '22px',
-    color: '#ffffff',
+    color: PAPER_CSS.cream,
     letterSpacing: LSP,
+    resolution: 2,
     ...overrides,
   }),
   small: (overrides = {}) => ({
@@ -438,6 +441,7 @@ export const TEXT = {
     fontSize: '16px',
     color: COLORS_CSS.paper,
     letterSpacing: 1,
+    resolution: 2,
     ...overrides,
   }),
   label: (overrides = {}) => ({
@@ -445,6 +449,7 @@ export const TEXT = {
     fontSize: '18px',
     color: COLORS_CSS.goldL,
     letterSpacing: LSP,
+    resolution: 2,
     ...overrides,
   }),
   stat: (overrides = {}) => ({

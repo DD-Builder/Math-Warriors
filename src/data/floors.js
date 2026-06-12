@@ -26,7 +26,28 @@
  *   fairy, valve, beacon, vent, crystal, geoshard, token, page, fragment
  *
  * Tile codes: 0=wall, 1=floor, 2=path, 3=water, 4=secret
+ *
+ * Room-based maze generation:
+ *   Each floor now includes a `mazeConfig` object that drives procedural
+ *   room-based maze generation via mazeArchitect.js. The old hand-crafted
+ *   tile grids remain as fallback / reference layouts.
+ *
+ *   mazeConfig fields:
+ *     width, height       — grid dimensions (15-20 range)
+ *     roomTemplates       — array of { w, h } room size options
+ *     challengeType       — the floor's signature mechanic item type
+ *     challengeCount      — number of challenge items (2-3)
+ *     enemyCount          — number of corridor encounters (3-5)
+ *     corridorWidth       — corridor width in tiles (2-3)
+ *     bossEnemyId         — the boss enemy identifier
+ *
+ * Dynamic challenge objects (world-altering):
+ *   Challenge objects include targetTiles, fromTile, toTile fields
+ *   so MazeScene can use LV_setTile to transform the maze when
+ *   the player activates them.
  */
+
+import { generateMaze } from '../systems/mazeArchitect.js';
 
 export const TILE = {
   WALL:  0,
@@ -259,6 +280,15 @@ export const FLOORS = [
     startX: 1,
     startY: 23,
     challenge: { type: 'fairy', count: 3, label: 'FAIRY', verb: 'freed', allDoneMsg: 'All fairies free!', phase2: { type: 'rune', count: 2, label: 'RUNE STONE', verb: 'activated', allDoneMsg: 'Rune stones glow! The boss awakens!' } },
+    mazeConfig: {
+      width: 19, height: 25,
+      roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 6 }, { w: 7, h: 7 }, { w: 8, h: 5 }],
+      challengeType: 'fairy',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 2,
+      bossEnemyId: 'briarking',
+    },
     palette: {
       wall:  0x1e4018,
       floor: 0x3a7028,
@@ -299,6 +329,15 @@ export const FLOORS = [
     width: 22, height: 29, tiles: FLOOR_2_TILES, startX: 1, startY: 27,
     palette: { wall: 0x0e2040, floor: 0x1a3858, path: 0x3060a0, water: 0x1a4880, decor: 0x184068 },
     challenge: { type: 'valve', count: 3, label: 'DRAIN VALVE', verb: 'activated', allDoneMsg: 'All valves open!', phase2: { type: 'coralkey', count: 2, label: 'CORAL KEY', verb: 'found', allDoneMsg: 'Coral keys glow! The boss stirs!' } },
+    mazeConfig: {
+      width: 18, height: 20,
+      roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 5 }, { w: 7, h: 6 }, { w: 5, h: 7 }],
+      challengeType: 'valve',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 2,
+      bossEnemyId: 'pressure',
+    },
     objects: [
       // Valves: one per zone (marsh, beach, water)
       { type: 'valve',     x: 4,  y: 4 },
@@ -336,6 +375,15 @@ export const FLOORS = [
     width: 25, height: 33, tiles: FLOOR_3_TILES, startX: 1, startY: 31,
     palette: { wall: 0x1a2838, floor: 0x5a6878, path: 0x7898b8, water: 0xb0c8e0, decor: 0x4a5868 },
     challenge: { type: 'beacon', count: 3, label: 'SKY BEACON', verb: 'lit', allDoneMsg: 'All beacons lit!', phase2: { type: 'windchime', count: 2, label: 'WIND CHIME', verb: 'rung', allDoneMsg: 'Wind chimes ring! The storm parts!' } },
+    mazeConfig: {
+      width: 19, height: 20,
+      roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 6 }, { w: 7, h: 5 }, { w: 5, h: 8 }],
+      challengeType: 'beacon',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 2,
+      bossEnemyId: 'skywhale',
+    },
     objects: [
       // Beacons: one per zone (calm d<16, storm 16<=d<36, sunset d>=36)
       { type: 'beacon',    x: 5,  y: 5 },
@@ -374,6 +422,15 @@ export const FLOORS = [
     width: 29, height: 38, tiles: FLOOR_4_TILES, startX: 1, startY: 36,
     palette: { wall: 0x1a0808, floor: 0x4a2810, path: 0x8a2010, water: 0xa03008, decor: 0x3a1808 },
     challenge: { type: 'vent', count: 3, label: 'LAVA VENT', verb: 'sealed', allDoneMsg: 'All vents sealed!', phase2: { type: 'lavabridge', count: 2, label: 'LAVA BRIDGE', verb: 'built', allDoneMsg: 'Bridges hold! The boss awaits!' } },
+    mazeConfig: {
+      width: 20, height: 20,
+      roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 5 }, { w: 5, h: 6 }, { w: 7, h: 7 }],
+      challengeType: 'vent',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 2,
+      bossEnemyId: 'pyroclast',
+    },
     objects: [
       { type: 'vent',      x: 3,  y: 3 },
       { type: 'vent',      x: 25, y: 11 },
@@ -408,6 +465,15 @@ export const FLOORS = [
     width: 25, height: 33, tiles: FLOOR_3_TILES, startX: 1, startY: 31,
     challenge: { type: 'crystal', count: 3, label: 'FROZEN CRYSTAL', verb: 'found', allDoneMsg: 'All crystals found!', phase2: { type: 'thawcrystal', count: 2, label: 'THAW CRYSTAL', verb: 'melted', allDoneMsg: 'The ice throne cracks!' } },
     palette: { wall: 0x4080b0, floor: 0x90b8d8, path: 0xb0d0e8, water: 0x60a0c8, decor: 0x7098b8 },
+    mazeConfig: {
+      width: 19, height: 20,
+      roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 7 }, { w: 8, h: 6 }, { w: 7, h: 5 }],
+      challengeType: 'crystal',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 3,
+      bossEnemyId: 'absolutezero',
+    },
     objects: [
       { type: 'crystal',   x: 5,  y: 5 },
       { type: 'crystal',   x: 20, y: 16 },
@@ -438,6 +504,15 @@ export const FLOORS = [
     width: 25, height: 33, tiles: FLOOR_6_TILES, startX: 1, startY: 31,
     challenge: { type: 'geoshard', count: 3, label: 'GEO SHARD', verb: 'collected', allDoneMsg: 'All shards collected!', phase2: { type: 'prismshard', count: 2, label: 'PRISM SHARD', verb: 'aligned', allDoneMsg: 'Prisms align! The Prism awakens!' } },
     palette: { wall: 0x5030a0, floor: 0x7850c0, path: 0xa080e0, water: 0x6040b0, decor: 0x6840b0 },
+    mazeConfig: {
+      width: 19, height: 20,
+      roomTemplates: [{ w: 5, h: 5 }, { w: 7, h: 7 }, { w: 6, h: 6 }, { w: 9, h: 5 }],
+      challengeType: 'geoshard',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 2,
+      bossEnemyId: 'theprism',
+    },
     objects: [
       { type: 'geoshard',  x: 5,  y: 5 },
       { type: 'geoshard',  x: 20, y: 16 },
@@ -469,6 +544,15 @@ export const FLOORS = [
     width: 25, height: 33, tiles: FLOOR_7_TILES, startX: 1, startY: 31,
     challenge: { type: 'token', count: 3, label: 'GOLD TOKEN', verb: 'recovered', allDoneMsg: 'All tokens recovered!', phase2: { type: 'vaultseal', count: 2, label: 'VAULT SEAL', verb: 'cracked', allDoneMsg: 'Vault seals crack! The Counterfeiter revealed!' } },
     palette: { wall: 0x6a5020, floor: 0xa08040, path: 0xc8a858, water: 0x806830, decor: 0x887038 },
+    mazeConfig: {
+      width: 19, height: 20,
+      roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 5 }, { w: 8, h: 6 }, { w: 5, h: 8 }],
+      challengeType: 'token',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 3,
+      bossEnemyId: 'counterfeiter',
+    },
     objects: [
       { type: 'token',     x: 5,  y: 5 },
       { type: 'token',     x: 20, y: 16 },
@@ -501,6 +585,15 @@ export const FLOORS = [
     width: 25, height: 33, tiles: FLOOR_8_TILES, startX: 1, startY: 31,
     challenge: { type: 'page', count: 3, label: 'LOST PAGE', verb: 'restored', allDoneMsg: 'All pages restored!', phase2: { type: 'chapterseal', count: 2, label: 'CHAPTER SEAL', verb: 'bound', allDoneMsg: 'Chapters sealed! The Paradox emerges!' } },
     palette: { wall: 0x2a1808, floor: 0x4a3018, path: 0x6a4828, water: 0x3a2010, decor: 0x3a2010 },
+    mazeConfig: {
+      width: 19, height: 20,
+      roomTemplates: [{ w: 5, h: 7 }, { w: 5, h: 8 }, { w: 5, h: 9 }, { w: 6, h: 5 }],
+      challengeType: 'page',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 2,
+      bossEnemyId: 'theparadox',
+    },
     objects: [
       { type: 'page',      x: 5,  y: 5 },
       { type: 'page',      x: 20, y: 16 },
@@ -532,6 +625,15 @@ export const FLOORS = [
     width: 33, height: 43, tiles: FLOOR_9_TILES, startX: 1, startY: 41,
     challenge: { type: 'fragment', count: 3, label: 'EQUATION FRAGMENT', verb: 'placed', allDoneMsg: 'All fragments aligned!', phase2: { type: 'eqanchor', count: 2, label: 'EQUATION ANCHOR', verb: 'set', allDoneMsg: 'Anchors set! Face The Theorem!' } },
     palette: { wall: 0x140828, floor: 0x301850, path: 0x5830a0, water: 0x4018a0, decor: 0x281040 },
+    mazeConfig: {
+      width: 20, height: 20,
+      roomTemplates: [{ w: 6, h: 6 }, { w: 7, h: 7 }, { w: 8, h: 6 }, { w: 5, h: 5 }],
+      challengeType: 'fragment',
+      challengeCount: 3,
+      enemyCount: 5,
+      corridorWidth: 2,
+      bossEnemyId: 'theorem',
+    },
     objects: [
       { type: 'fragment',  x: 5,  y: 5 },
       { type: 'fragment',  x: 27, y: 11 },
@@ -637,4 +739,47 @@ export function getBattleSceneVariant(floorId, tileType, isBoss) {
   }
   const match = scenes.find(s => !s.boss && s.tileTypes.includes(tileType));
   return match ?? scenes[0];
+}
+
+// ------------------------------------------------------------------
+// PROCEDURAL MAZE GENERATION
+// ------------------------------------------------------------------
+
+/**
+ * Generate a room-based maze for a given floor using its mazeConfig.
+ *
+ * Returns a result object compatible with the floor definition structure:
+ *   { tiles, objects, startX, startY, width, height }
+ *
+ * If the floor has no mazeConfig, returns null (caller should fall back
+ * to the hand-crafted tiles/objects).
+ *
+ * @param {number} floorId - Floor id (1-9)
+ * @param {number} [seed] - RNG seed (defaults to Date.now())
+ * @returns {object|null}
+ */
+export function generateFloorMaze(floorId, seed) {
+  const floor = getFloor(floorId);
+  if (!floor || !floor.mazeConfig) return null;
+
+  const mc = floor.mazeConfig;
+  const s = seed ?? Date.now();
+
+  const result = generateMaze(floorId, mc.width, mc.height, s, mc);
+
+  // Inject the correct boss enemyId from the floor definition
+  const bossDef = floor.objects.find(o => o.type === 'boss');
+  if (bossDef) {
+    const bossObj = result.objects.find(o => o.type === 'boss');
+    if (bossObj) bossObj.enemyId = bossDef.enemyId;
+  }
+
+  return {
+    tiles: result.tiles,
+    objects: result.objects,
+    startX: result.startX,
+    startY: result.startY,
+    width: mc.width,
+    height: mc.height,
+  };
 }

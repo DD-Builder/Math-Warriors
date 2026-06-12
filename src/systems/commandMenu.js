@@ -7,6 +7,8 @@
  * Pure module — no Phaser dependencies.
  */
 
+import { PAPER } from '../config.js';
+
 export const COMMANDS = {
   FIGHT: 'fight',
   MAGIC: 'magic',
@@ -21,7 +23,7 @@ const COMMAND_CONFIG = {
     damageMult: 1.0,
     wrongPenalty: 'counter',  // enemy counter-attacks on wrong
     requiresMath: true,
-    color: 0x3888d8,
+    color: PAPER.teal,
     description: 'Standard attack',
   },
   [COMMANDS.MAGIC]: {
@@ -31,7 +33,7 @@ const COMMAND_CONFIG = {
     damageMult: 1.8,
     wrongPenalty: 'fizzle',   // 0 damage, NO counter-attack
     requiresMath: true,
-    color: 0x7848b8,
+    color: PAPER.lavenderD,
     description: 'Hard math, big damage!',
   },
   [COMMANDS.GUARD]: {
@@ -41,7 +43,7 @@ const COMMAND_CONFIG = {
     damageMult: 0,
     wrongPenalty: null,
     requiresMath: false,
-    color: 0x48a848,
+    color: PAPER.forest,
     description: 'Skip math, take less damage',
     damageReduction: 0.5,     // incoming damage multiplier while guarding
   },

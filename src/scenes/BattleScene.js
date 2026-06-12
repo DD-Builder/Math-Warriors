@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
+import { SCENES, COLORS, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { generateQuestion, generateRatedQuestion, recordAnswer } from '../systems/math.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
@@ -37,6 +37,10 @@ import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
+import { createFractionDisplay } from '../ui/fractionDisplay.js';
+import { createGeometryDiagram } from '../ui/geometryDiagram.js';
+import { playMonsterAttack } from '../systems/monsterAttackAnimations.js';
+import { heroFormation, monsterFormation, drawGroundPlane, drawGroundShadow, BATTLE_PERSPECTIVE } from '../systems/perspective.js';
 import { makeRng } from '../systems/rng.js';
 import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
@@ -44,7 +48,7 @@ import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { getHint } from '../systems/hints.js';
 import { recordBattle, getBondStatBonuses, getAvailableCombos } from '../systems/bonds.js';
-import { getEvolutionStatBoosts } from '../systems/evolution.js';
+import { getEvolutionStatBoosts, getEvolutionStage } from '../systems/evolution.js';
 import {
   createSignatureState,
   onHeroDamageDealt,
@@ -251,6 +255,46 @@ export class BattleScene extends Phaser.Scene {
     });
 
     this.buildBackground();
+
+    // Draw a subtle ground plane before heroes/monsters for depth illusion
+    const groundGfx = this.add.graphics();
+    groundGfx.setDepth(10);
+    // Ground fills the bottom third with layered terrain — not empty
+    // single-color space. Three bands: far path (where monsters stand),
+    // mid ground, and near ground (where heroes stand + below).
+    const gTop = BATTLE_PERSPECTIVE.groundTopY;
+    const gBot = GAME_HEIGHT;
+    const gMid = BATTLE_PERSPECTIVE.groundBottomY;
+
+    // Far ground band (darker, behind monsters)
+    groundGfx.fillStyle(PAPER.sageD, 0.6);
+    groundGfx.fillRect(0, gTop - 10, GAME_WIDTH, gMid - gTop + 40);
+
+    // Mid ground path strip (lighter, transition zone)
+    groundGfx.fillStyle(PAPER.sand, 0.5);
+    groundGfx.fillRect(0, gMid - 30, GAME_WIDTH, 80);
+
+    // Near ground (below heroes to screen bottom)
+    groundGfx.fillStyle(PAPER.sage, 0.45);
+    groundGfx.fillRect(0, gMid + 30, GAME_WIDTH, gBot - gMid);
+
+    // Grass tufts scattered across the near ground
+    for (let gi = 0; gi < 30; gi++) {
+      const gx = Math.random() * GAME_WIDTH;
+      const gy = gMid + 20 + Math.random() * (gBot - gMid - 40);
+      groundGfx.fillStyle(PAPER.leaf, 0.3 + Math.random() * 0.2);
+      groundGfx.fillCircle(gx, gy, 3 + Math.random() * 5);
+    }
+
+    // Subtle path leading from heroes toward monsters
+    groundGfx.fillStyle(PAPER.creamD, 0.3);
+    groundGfx.fillPoints([
+      { x: 300, y: gMid + 10 }, { x: 500, y: gMid - 20 },
+      { x: 800, y: gTop + 60 }, { x: 900, y: gTop + 40 },
+      { x: 850, y: gTop + 80 }, { x: 550, y: gMid },
+      { x: 350, y: gMid + 30 },
+    ], true);
+
     this.buildHeroSprites();
     this.buildEnemySprite();
     this.buildUI();
@@ -288,6 +332,17 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.time.delayedCall(400, () => this.nextTurn());
+
+    // --- Idle camera breathing: subtle slow drift for depth ---
+    this.tweens.add({
+      targets: this.cameras.main,
+      scrollX: 4,
+      scrollY: -3,
+      duration: 4000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    });
   }
 
   // ================================================================
@@ -295,7 +350,7 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   buildBackground() {
-    this.cameras.main.setBackgroundColor(0x000000);
+    this.cameras.main.setBackgroundColor(PAPER.shadow);
     // Background fills FULL screen height — no black void
     const bgHeight = GAME_HEIGHT;
 
@@ -333,7 +388,7 @@ export class BattleScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '16px',
       color: COLORS_CSS.paper,
-      stroke: '#000000',
+      stroke: PAPER_CSS.shadow,
       strokeThickness: 4,
     }).setDepth(20);
   }
@@ -355,7 +410,7 @@ export class BattleScene extends Phaser.Scene {
       g.fillCircle(x - cr * 0.55, y - h * 0.44, cr * 0.8);
       g.fillCircle(x + cr * 0.55, y - h * 0.44, cr * 0.8);
       g.fillCircle(x, y - h * 0.72, cr * 0.65);
-      g.fillStyle(0x000000, 0.06);
+      g.fillStyle(PAPER.shadow, 0.06);
       g.fillEllipse(x, y + 3, h * 0.5, 6);
     };
 
@@ -537,111 +592,107 @@ export class BattleScene extends Phaser.Scene {
   }
 
   buildHeroSprites() {
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 290;
-    const groundY = uiTop;
+    const positions = heroFormation(3);
 
-    const enemyCount = this.enemies.length;
-    const heroScale = enemyCount >= 3 ? 0.65 : enemyCount >= 2 ? 0.75 : 0.85;
-    const spacing = Math.min(220, (GAME_WIDTH * 0.5) / 3);
-    const leftAnchor = GAME_WIDTH * 0.12 + spacing / 2;
+    // Papercut ground path under the hero line — roots them to the world
+    const pathGfx = this.add.graphics().setDepth(10);
+    const pathY = positions[0].y + 15;
+    const pathLeft = positions[positions.length - 1].x - 60;
+    const pathRight = positions[0].x + 80;
+    pathGfx.fillStyle(PAPER.sand, 0.6);
+    pathGfx.fillRoundedRect(pathLeft, pathY - 6, pathRight - pathLeft, 18, 9);
+    pathGfx.fillStyle(PAPER.creamD, 0.4);
+    pathGfx.fillRoundedRect(pathLeft + 4, pathY - 3, pathRight - pathLeft - 8, 12, 6);
+
+    // Ground shadow graphics layer (beneath heroes)
+    const shadowGfx = this.add.graphics();
+    shadowGfx.setDepth(11);
 
     this.heroSprites = this.party.map((hero, i) => {
-      const xStagger = (1 - i) * 15;  // hero 0: +15, hero 1: 0, hero 2: -15
-      const x = leftAnchor + i * spacing + xStagger;
-      const stagger = 30;
-      const baseY = groundY - 90;
-      const y = baseY + (1 - i) * stagger;  // hero 0 lowest (closest), hero 2 highest (farthest)
+      const pos = positions[i];
+      const x = pos.x;
+      const y = pos.y;
+      const scale = pos.scale * 0.85; // overall hero scale factor
 
-      const depthScale = 1 - (2 - i) * 0.05;  // hero 0: 1.0, hero 1: 0.95, hero 2: 0.90
-      const body = drawHeroSprite(this, x, y, hero, { scale: heroScale * depthScale });
-      body.setDepth(12);
+      // Ground shadow (wider, stronger — sells "standing on ground")
+      drawGroundShadow(shadowGfx, x, y + 10, scale, { rx: 50, alpha: 0.28 });
 
-      const name = this.add.text(x, y - 120, hero.name.toUpperCase(), {
+      const evoStage = getEvolutionStage(this.save, hero.id);
+      const body = createAnimatedHero(this, x, y, hero, {
+        scale,
+        floorId: this.floor,
+        evolutionStage: evoStage,
+        equipment: this.save.equipment?.[`hero${i}`],
+      });
+      body.setDepth(pos.depth);
+
+      // Name + HP BELOW the hero's feet so they never overlap the sprite
+      const labelY = y + 80;
+      const name = this.add.text(x, labelY, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '20px',
+        fontSize: '22px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
         strokeThickness: 3,
+        resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
-      const hpBarBg = this.add.rectangle(x, y + 80, 150, 14, COLORS.ink)
+      const hpBarY = labelY + 18;
+      const hpBarBg = this.add.rectangle(x, hpBarY, 150, 14, COLORS.ink)
         .setStrokeStyle(2, COLORS.paperD).setDepth(13);
-      const hpBarFill = this.add.rectangle(x - 73, y + 80, 146, 10, 0x40c040)
+      const hpBarFill = this.add.rectangle(x - 73, hpBarY, 146, 10, 0x40c040)
         .setOrigin(0, 0.5).setDepth(13);
-      // 1px white stroke around HP bar for clarity
-      const hpStroke = this.add.rectangle(x, y + 80, 150, 14)
+      const hpStroke = this.add.rectangle(x, hpBarY, 150, 14)
         .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
-      const hpText = this.add.text(x, y + 96, `${hero.hp}/${hero.maxHp}`, {
+      const hpText = this.add.text(x, hpBarY + 14, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '14px',
+        fontSize: '16px',
         color: COLORS_CSS.paper,
+        resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
-      const indicator = this.add.triangle(x, y - 160, 0, 0, 20, 0, 10, 20, COLORS.goldL)
+      const indicator = this.add.triangle(x, y - 100, 0, 0, 20, 0, 10, 20, COLORS.goldL)
         .setVisible(false).setDepth(15);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, hpStroke, indicator, x, y };
     });
 
-    // Idle bob — gentle sine wave on each hero
-    this.heroSprites.forEach((hs, i) => {
-      this.tweens.add({
-        targets: hs.body,
-        y: '-=6',
-        duration: 1200 + i * 200,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.inOut',
-      });
-    });
+    // No idle bob tween needed — the state machine's idle state handles breathing
   }
 
   buildEnemySprite() {
-    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    const uiTop = area.bottom - 290;
-    const groundY = uiTop;
-    const centerX = GAME_WIDTH * 0.76;
     const count = this.enemies.length;
 
-    // Dynamic scaling: fewer monsters = bigger, more = smaller with proper spacing
-    // Target display heights: single ~490px (0.77), 2 ~326px (0.51), 3 ~277px (0.43)
-    const monsterScaleByCount = count >= 3 ? 0.43 : count >= 2 ? 0.51 : 0.77;
+    // Use perspective system for 3/4-view monster formation
+    const positions = monsterFormation(count);
 
-    // Calculate offsets: diagonal for 2, triangle for 3
-    const displayH = 640 * monsterScaleByCount;
-    const positions = []; // [{dx, dy}]
-    if (count === 1) {
-      positions.push({ dx: 0, dy: 0 });
-    } else if (count === 2) {
-      // Diagonal: top-left and bottom-right within monster area
-      positions.push({ dx: -80, dy: -displayH * 0.35 });
-      positions.push({ dx: 80, dy: displayH * 0.35 });
-    } else {
-      // Triangle: top-center, bottom-left, bottom-right
-      positions.push({ dx: 0, dy: -displayH * 0.4 });
-      positions.push({ dx: -130, dy: displayH * 0.3 });
-      positions.push({ dx: 130, dy: displayH * 0.3 });
-    }
+    // Ground shadow graphics layer for monsters
+    const monsterShadowGfx = this.add.graphics();
+    monsterShadowGfx.setDepth(11);
 
     this.enemySprites = [];
+    const w = 200;
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
-      const monsterScale = enemy.isBoss ? 1.02 : monsterScaleByCount;
-      const x = centerX + positions[ei].dx;
-      const monsterDisplayH = 640 * monsterScale;
-      const y = groundY - monsterDisplayH * 0.50 + positions[ei].dy;
-      const w = 200, h = 220;
+      const pos = positions[ei];
+      const x = pos.x;
+      const y = pos.y;
+      const monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.02) : pos.scale;
+
+      // Draw ground shadow beneath this monster
+      drawGroundShadow(monsterShadowGfx, x, y, monsterScale, { rx: 40 });
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
-      body.setDepth(12);
+      body.setDepth(pos.depth);
 
-      // Name/HP bars directly above the sprite head
-      const spriteHalfH = (640 * monsterScale) * 0.50;
-      const nameY = y - spriteHalfH - 10;
-      const hpY = y - spriteHalfH + 6;
-      const hpTextY = y - spriteHalfH + 20;
+      // Name/HP bars anchored above the sprite's actual rendered bounds
+      // (640 is the base monster canvas size — scaled by the formation scale
+      // and the 0.5 origin means top is y - displayHalfH).
+      const displayH = body.displayHeight ?? (640 * monsterScale);
+      const nameY = y - displayH * 0.48 - 14;
+      const hpY = nameY + 20;
+      const hpTextY = hpY + 16;
 
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -660,22 +711,26 @@ export class BattleScene extends Phaser.Scene {
         .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
       const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '15px',
+        fontSize: '16px',
         color: '#fff8e0',
-        stroke: '#1a0e04',
+        stroke: '#1f4244',
         strokeThickness: 3,
+        resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
       const spriteData = { body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y };
       this.enemySprites.push(spriteData);
 
-      // Enemy idle pulse — very subtle breathing
-      const ms = body.scaleX || monsterScale;
+      // Enemy breathing — visible life, not a barely-perceptible pulse.
+      // Must be RELATIVE to the current scale (formation-scaled).
+      const bsx = body.scaleX || monsterScale;
+      const bsy = body.scaleY || monsterScale;
       this.tweens.add({
         targets: body,
-        scaleX: ms * 1.01,
-        scaleY: ms * 0.99,
-        duration: 1800 + ei * 200,
+        scaleX: bsx * 1.035,
+        scaleY: bsy * 1.04,
+        y: y - 3,
+        duration: 1400 + ei * 300,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.inOut',
@@ -921,7 +976,7 @@ export class BattleScene extends Phaser.Scene {
     this.toast = this.add.text(area.cx, area.top + 90, '', {
       ...TEXT.heading(),
       fontSize: '26px',
-      backgroundColor: '#1a0e04',
+      backgroundColor: '#1f4244',
       padding: { x: 20, y: 10 },
     }).setOrigin(0.5).setAlpha(0).setDepth(50);
 
@@ -1167,11 +1222,7 @@ export class BattleScene extends Phaser.Scene {
     this._comboData = { hero1, hero2, name, multiplier };
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
-
-    for (let i = 0; i < 4; i++) {
-      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
-      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
-    }
+    this._renderAnswerChoices();
 
     // Animate equation + answer buttons in
     const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
@@ -1347,9 +1398,10 @@ export class BattleScene extends Phaser.Scene {
       this.turnLabel.setText(`${hero.name} guards! -50% damage`);
       this.showToast(`${hero.name} GUARDS!`, '#48a848');
       audio.play('battle/correct');
-      // Brief shield visual on the hero sprite
+      // Trigger guard animation state on the hero sprite
       const hs = this.heroSprites[this.currentTurn.heroIndex];
       if (hs && hs.body) {
+        if (hs.body.setGuard) hs.body.setGuard();
         const shield = this.add.circle(hs.x, hs.y, 60, 0x48a848, 0.3);
         this.tweens.add({
           targets: shield, scale: 1.3, alpha: 0,
@@ -1375,7 +1427,7 @@ export class BattleScene extends Phaser.Scene {
                     '☆'.repeat(5 - this.currentQuestion.stars);
     const isBunnyHeal = cmd === COMMANDS.MAGIC && (hero.class || 'knight') === 'bunny';
     const cmdName = isBunnyHeal ? 'HEAL' : cmd === COMMANDS.MAGIC ? 'MAGIC' : 'FIGHT';
-    this.turnLabel.setText(`${hero.name}: ${cmdName}! ${starStr}`);
+    this.turnLabel.setText(`${hero.name}: ${cmdName}!`);
 
     // --- Battle cry: attack ---
     this.showBattleCry(hero, 'attack');
@@ -1383,11 +1435,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'question';
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
-
-    for (let i = 0; i < 4; i++) {
-      this.answerButtons[i].label.setText(String(this.currentQuestion.choices[i]));
-      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
-    }
+    this._renderAnswerChoices();
 
     // Animate equation panel + answer buttons sliding/fading in
     const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
@@ -1429,7 +1477,7 @@ export class BattleScene extends Phaser.Scene {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
           fontSize: '52px',
           color: '#e04040',
-          stroke: '#000000',
+          stroke: PAPER_CSS.shadow,
           strokeThickness: 4,
         }).setOrigin(0.5).setDepth(30);
         this._revealWrongMark = xMark;
@@ -1451,7 +1499,7 @@ export class BattleScene extends Phaser.Scene {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
           fontSize: '16px',
           color: '#4080e0',
-          stroke: '#000000',
+          stroke: PAPER_CSS.shadow,
           strokeThickness: 2,
         }).setOrigin(0, 0.5).setDepth(30);
         this._timerBonusLabel = bonusLabel;
@@ -1586,6 +1634,9 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Clear guard from previous round
+    if (this.guardActive[this.currentTurn.heroIndex] && this.heroSprites[this.currentTurn.heroIndex]?.body?.setIdle) {
+      this.heroSprites[this.currentTurn.heroIndex].body.setIdle();
+    }
     this.guardActive[this.currentTurn.heroIndex] = false;
 
     // Show command menu filtered by hero class, hide answer buttons
@@ -1683,7 +1734,7 @@ export class BattleScene extends Phaser.Scene {
       shadowOff: 5,
       shadowAlpha: 0.35 * alpha,
       alpha,
-      strokeColor: 0x000000,
+      strokeColor: PAPER.shadow,
       strokeAlpha: 0.15 * alpha,
       strokeWidth: 2,
       organic: true,
@@ -1776,6 +1827,47 @@ export class BattleScene extends Phaser.Scene {
    */
   renderStackedEquation(q) {
     if (!q || !this.eqLines) return;
+
+    // Clean up any previous fraction/geometry displays
+    if (this._fractionDisplays) {
+      this._fractionDisplays.forEach(d => d.destroy());
+      this._fractionDisplays = [];
+    }
+    if (this._geoDiagram) {
+      this._geoDiagram.destroy();
+      this._geoDiagram = null;
+    }
+
+    // Fraction questions: show the text question directly
+    if (q.format === 'fraction') {
+      this.eqLines.a.setText('');
+      this.eqLines.opB.setText(q.text || '');
+      this.eqLines.bar.setText('');
+      this.eqLines.ans.setText('');
+      if (this.eqLines.stars && q.stars) {
+        this.eqLines.stars.setText('\u2605'.repeat(q.stars) + '\u2606'.repeat(5 - q.stars));
+      }
+      return;
+    }
+
+    // Geometry questions: show text + diagram
+    if (q.format === 'geometry') {
+      this.eqLines.a.setText('');
+      this.eqLines.opB.setText(q.text || '');
+      this.eqLines.bar.setText('');
+      this.eqLines.ans.setText('');
+      try {
+        const eqY = this.eqLines.opB.y || 0;
+        const eqX = this.eqLines.opB.x || GAME_WIDTH / 2;
+        this._geoDiagram = createGeometryDiagram(this, eqX + 200, eqY, q, { size: 90 });
+        this._geoDiagram.setDepth(16);
+      } catch (e) { /* geometry diagram is optional */ }
+      if (this.eqLines.stars && q.stars) {
+        this.eqLines.stars.setText('\u2605'.repeat(q.stars) + '\u2606'.repeat(5 - q.stars));
+      }
+      return;
+    }
+
     const opSym = q.op === '*' ? '\u00d7' : q.op === '/' ? '\u00f7' : q.op;
 
     if (q.format === 'missing') {
@@ -1796,7 +1888,42 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  _renderAnswerChoices() {
+    if (!this.currentQuestion || !this.answerButtons) return;
+    const q = this.currentQuestion;
+    for (let i = 0; i < 4; i++) {
+      const choiceVal = q.choices[i];
+      if (q.format === 'fraction' && typeof choiceVal === 'string' && choiceVal.includes('/')) {
+        this.answerButtons[i].label.setText('');
+        try {
+          if (!this._fractionDisplays) this._fractionDisplays = [];
+          const { w, y: btnY, startX, gap } = this.answerBtnLayout;
+          const bx = startX + i * (w + gap);
+          const fd = createFractionDisplay(this, bx, btnY, choiceVal, { fontSize: 22 });
+          fd.setDepth(30);
+          this._fractionDisplays.push(fd);
+        } catch (e) {
+          this.answerButtons[i].label.setText(String(choiceVal));
+        }
+      } else {
+        this.answerButtons[i].label.setText(String(choiceVal));
+      }
+      this.recolorAnswerButton(i, this.answerButtons[i].baseColor, 1);
+    }
+  }
+
   clearEquationDisplay() {
+    // Fraction visuals + geometry diagrams are real game objects, not
+    // text — destroy them on EVERY equation clear so they can't linger
+    // over the enemy turn, the victory screen, or the next question.
+    if (this._fractionDisplays) {
+      this._fractionDisplays.forEach(d => { if (d && d.destroy) d.destroy(); });
+      this._fractionDisplays = [];
+    }
+    if (this._geoDiagram) {
+      this._geoDiagram.destroy();
+      this._geoDiagram = null;
+    }
     if (!this.eqLines) return;
     this.eqLines.a.setText('');
     this.eqLines.opB.setText('');
@@ -1888,18 +2015,10 @@ export class BattleScene extends Phaser.Scene {
       const target = currentLiving[attackIndex % currentLiving.length];
       attackIndex++;
 
-      // Enemy windup animation
-      if (attackerSprite) {
-        this.tweens.add({
-          targets: attackerSprite.body,
-          x: attackerSprite.x - 40,
-          duration: 150,
-          yoyo: true,
-          ease: 'Sine.inOut',
-        });
-      }
-
-      this.time.delayedCall(350, () => {
+      // Monster attack animation (uses per-monster themed VFX)
+      const targetHeroSpriteIdx = this.party.indexOf(target);
+      const targetHeroSprite = targetHeroSpriteIdx >= 0 ? this.heroSprites[targetHeroSpriteIdx] : null;
+      const monsterAttackDone = () => {
         const cls = target.class || 'knight';
         const targetHeroIdx = this.party.indexOf(target);
 
@@ -1979,16 +2098,63 @@ export class BattleScene extends Phaser.Scene {
         this.shakeCamera(0.01, 250);
         audio.play('battle/hit-hero');
 
+        // Trigger hero hit animation
+        if (targetHeroSprite?.body?.playHit) {
+          targetHeroSprite.body.playHit();
+        }
+
         this.time.delayedCall(300, () => doEnemyAttack(enemyIdx + 1));
-      });
+      };
+
+      // Play the themed monster attack animation. The 45 registry
+      // animations are SUPPOSED to call onComplete, but this game has a
+      // freeze-bug history — never trust an animation to unblock the
+      // turn loop. A once-guard prevents double-advance and a watchdog
+      // force-advances if the animation drops its callback.
+      const guardedDone = this._onceWithWatchdog(monsterAttackDone, 2500);
+      if (attackerSprite && targetHeroSprite) {
+        try {
+          playMonsterAttack(this, attackerSprite, targetHeroSprite, attacker.id, 0, {
+            onHit: () => {},
+            onComplete: guardedDone,
+          });
+        } catch (e) {
+          guardedDone();
+        }
+      } else {
+        this.time.delayedCall(350, guardedDone);
+      }
     };
 
     doEnemyAttack(0);
 
     // Clear guard flags at END of enemy phase (guard lasts full round)
     this.time.delayedCall(aliveEnemies.length * 650 + 100, () => {
+      // Return guarding heroes to idle animation state (living only —
+      // setIdle on a KO'd hero would cancel the KO slump)
+      for (let gi = 0; gi < this.guardActive.length; gi++) {
+        if (this.guardActive[gi] && this.party[gi]?.hp > 0 && this.heroSprites[gi]?.body?.setIdle) {
+          this.heroSprites[gi].body.setIdle();
+        }
+      }
       this.guardActive.fill(false);
     });
+  }
+
+  /**
+   * Wrap an animation-completion callback so it (a) can only fire once
+   * and (b) is force-fired after `timeoutMs` if the animation never
+   * calls it. The single defense against turn-loop freezes.
+   */
+  _onceWithWatchdog(fn, timeoutMs = 2500) {
+    let fired = false;
+    const fire = () => {
+      if (fired || this._shuttingDown) return;
+      fired = true;
+      fn();
+    };
+    this.time.delayedCall(timeoutMs, fire);
+    return fire;
   }
 
   // ================================================================
@@ -2100,7 +2266,7 @@ export class BattleScene extends Phaser.Scene {
               const floatText = this.add.text(hs.x, hs.y - 40, `+${healed}`, {
                 fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
                 fontSize: '28px', color: '#60ff60',
-                stroke: '#1a0e04', strokeThickness: 4,
+                stroke: '#1f4244', strokeThickness: 4,
               }).setOrigin(0.5).setDepth(30);
               this.tweens.add({ targets: floatText, y: hs.y - 100, alpha: 0, duration: 900, ease: 'Cubic.out', onComplete: () => floatText.destroy() });
               for (let i = 0; i < 10; i++) {
@@ -2299,12 +2465,17 @@ export class BattleScene extends Phaser.Scene {
         if (heroSprite.body && heroSprite.body.playAttack) {
           heroSprite.body.playAttack('magic');
         }
+        // Camera punch-in for attack impact
+        if (!this.reducedMotion) {
+          this.cameras.main.zoomTo(1.06, 200, 'Cubic.out');
+          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.out'));
+        }
         playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, {
           onHit: () => {
             this.hitFlash();
             this.flashEnemy(result, targetIdx);
             this.updateEnemyHp(targetIdx);
-            this.shakeCamera(0.018, 400);
+            this.shakeCamera(0.022, 500);
             audio.play('battle/hit-enemy');
           },
         });
@@ -2316,6 +2487,11 @@ export class BattleScene extends Phaser.Scene {
         if (heroSprite.body && heroSprite.body.playAttack) {
           const attackType = cls === 'wizard' ? 'magic' : cls === 'bunny' ? 'punch' : 'slash';
           heroSprite.body.playAttack(attackType);
+        }
+        // Camera punch-in for attack impact
+        if (!this.reducedMotion) {
+          this.cameras.main.zoomTo(1.06, 200, 'Cubic.out');
+          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.out'));
         }
         playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
           onHit: () => {
@@ -2680,13 +2856,18 @@ export class BattleScene extends Phaser.Scene {
     const idx = this.party.indexOf(hero);
     if (idx < 0) return;
     const s = this.heroSprites[idx];
-    this.tweens.add({
-      targets: s.body,
-      alpha: 0.3,
-      duration: 60,
-      yoyo: true,
-      repeat: 1,
-    });
+    // Trigger hit animation state if available (body-part flinch + tint)
+    if (s.body.playHit) {
+      s.body.playHit(350);
+    } else {
+      this.tweens.add({
+        targets: s.body,
+        alpha: 0.3,
+        duration: 60,
+        yoyo: true,
+        repeat: 1,
+      });
+    }
     // Red floating damage number for enemy damage dealt to hero
     this.floatDamageNumber(s.x, s.y - 80, result.modifiedDamage, '#ff6060', '-');
     this.burstParticles(s.x, s.y - 30, 0xc03030);
@@ -2721,7 +2902,7 @@ export class BattleScene extends Phaser.Scene {
       fontSize: '28px',
       fontStyle: 'bold',
       color,
-      stroke: '#000000',
+      stroke: PAPER_CSS.shadow,
       strokeThickness: 4,
     }).setOrigin(0.5).setScale(0.5);
 
@@ -2755,7 +2936,12 @@ export class BattleScene extends Phaser.Scene {
     s.hpText.setText(`${hero.hp}/${hero.maxHp}`);
 
     if (hero.hp <= 0) {
-      s.body.setAlpha(0.2);
+      // Trigger KO animation state if available (slump/fall)
+      if (s.body.playKO) {
+        s.body.playKO();
+      } else {
+        s.body.setAlpha(0.2);
+      }
       s.name.setAlpha(0.3);
     }
   }
@@ -2852,7 +3038,7 @@ export class BattleScene extends Phaser.Scene {
       fontSize: '16px',
       fontStyle: 'italic',
       color: colorHex,
-      stroke: '#000000',
+      stroke: PAPER_CSS.shadow,
       strokeThickness: 3,
       align: 'center',
       wordWrap: { width: 200 },
@@ -2920,7 +3106,7 @@ export class BattleScene extends Phaser.Scene {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     this.locked = true;
 
-    const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5)
+    const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5)
       .setDepth(150).setInteractive();
     const panel = PaperPanel(this, area.cx, area.cy - 20, 620, 200, {
       color: 0xf5ead0, alpha: 0.97, radius: 20,
@@ -3070,6 +3256,9 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'end';
     this.locked = true;
 
+    this.clearEquationDisplay();
+    if (this._revealWrongMark) { this._revealWrongMark.destroy(); this._revealWrongMark = null; }
+    if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
     this.clearBossTimer();
     this.time.removeAllEvents();
     if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
@@ -3077,6 +3266,12 @@ export class BattleScene extends Phaser.Scene {
     hidePanelFx(this.panelFx);
 
     for (const hs of this.heroSprites) heroVictoryBounce(this, hs);
+    // Trigger victory animation state on all living heroes
+    for (let vi = 0; vi < this.heroSprites.length; vi++) {
+      if (this.party[vi] && this.party[vi].hp > 0 && this.heroSprites[vi].body.playVictory) {
+        this.heroSprites[vi].body.playVictory();
+      }
+    }
     const vArea = safeArea(GAME_WIDTH, GAME_HEIGHT);
     confettiBurst(this, vArea.cx, vArea.cy - 100, 40);
     screenEdgeGlow(this, 0xf0c040, 600);
@@ -3335,7 +3530,7 @@ export class BattleScene extends Phaser.Scene {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
             fontSize: '18px',
             color: COLORS_CSS.goldL,
-            stroke: '#000000',
+            stroke: PAPER_CSS.shadow,
             strokeThickness: 2,
           }).setOrigin(0, 0.5);
           this.endOverlay.add([badge, star, achText]);
@@ -3356,6 +3551,9 @@ export class BattleScene extends Phaser.Scene {
     if (this.tryRevive()) return;
     this.phase = 'end';
     this.locked = true;
+    this.clearEquationDisplay();
+    if (this._revealWrongMark) { this._revealWrongMark.destroy(); this._revealWrongMark = null; }
+    if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
     this.clearBossTimer();
     this.time.removeAllEvents();
     if (this.parallaxState) destroyParallaxBackground(this.parallaxState);

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, COLORS_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
+import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
@@ -9,8 +9,9 @@ import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed } from '../ui/levelEngine.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
+import { tileDepth } from '../systems/perspective.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, setSkipCanvasHero } from '../ui/levelEngine.js';
 import { generateRatedQuestion } from '../systems/math.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
@@ -372,9 +373,34 @@ export class MazeScene extends Phaser.Scene {
     this.levelImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'level-canvas');
     this.levelImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
+    // Animated hero sprite overlay (replaces static hero image)
+    const heroLeader = this.party[0];
+    if (heroLeader) {
+      setSkipCanvasHero(true);
+      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.28, floorId: this.floorId || 1 });
+      this.heroSprite.setDepth(10);
+      this.heroSprite.setIdle();
+      this._heroWasMoving = false;
+      this._lastPartyX = null;
+      this._lastPartyY = null;
+    }
+
     this.buildHUD();
-    this.buildMiniMap();
     this.startMazeParticles();
+
+    // --- Follow-camera with zoom ---
+    // The level engine already centers the party on the canvas, so the
+    // heroSprite sits at (GAME_WIDTH/2, GAME_HEIGHT/2). Camera zoom
+    // makes the hero and tiles appear larger (2×). setBounds prevents
+    // the zoomed viewport from showing void beyond the level image.
+    // startFollow keeps the camera locked to the heroSprite (which is
+    // effectively static since the engine internally scrolls).
+    const cam = this.cameras.main;
+    cam.setZoom(2.0);
+    cam.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    if (this.heroSprite) {
+      cam.startFollow(this.heroSprite, true, 0.08, 0.08);
+    }
 
     this.dialogue = new DialogueOverlay(this);
 
@@ -384,6 +410,8 @@ export class MazeScene extends Phaser.Scene {
     this._touchDir = null;
 
     this.input.on('pointerdown', (pointer) => {
+      // Convert screen coordinates to camera-relative coordinates
+      // so tap-to-move works correctly with the zoomed camera
       const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2;
       const dx = pointer.x - cx, dy = pointer.y - cy;
       if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
@@ -522,7 +550,7 @@ export class MazeScene extends Phaser.Scene {
         g.fillRoundedRect(-cw/2, -ch/2, cw, ch, 4);
         g.fillStyle(0x8a5818, 1);
         g.fillRoundedRect(-cw/2+3, -ch/2+3, cw-6, ch*0.55, 3);
-        g.fillStyle(0xc07818, 1);
+        g.fillStyle(PAPER.orange, 1);
         g.fillRoundedRect(-cw*0.15, -2, cw*0.3, ch*0.3, 2);
         g.fillStyle(0xe8a030, 1);
         g.fillCircle(0, ch*0.05, 3);
@@ -568,7 +596,7 @@ export class MazeScene extends Phaser.Scene {
       case 'golden': {
         // Golden treasure chest — hidden until all 3 fairies freed
         const gw = ts * 0.65, gh = ts * 0.5;
-        g.fillStyle(0x000000, 0.3);
+        g.fillStyle(PAPER.shadow, 0.3);
         g.fillRoundedRect(-gw/2+3, -gh/2+4, gw, gh, 5);
         g.fillStyle(0xb07818, 1);
         g.fillRoundedRect(-gw/2, -gh/2, gw, gh, 5);
@@ -592,7 +620,7 @@ export class MazeScene extends Phaser.Scene {
         break;
       case 'boss': {
         const br = ts * 0.42;
-        g.fillStyle(0x000000, 0.3);
+        g.fillStyle(PAPER.shadow, 0.3);
         g.fillCircle(3, 4, br);
         g.fillStyle(0x6a0808, 1);
         g.fillCircle(0, 0, br);
@@ -608,15 +636,15 @@ export class MazeScene extends Phaser.Scene {
       }
       case 'exit': {
         const er = ts * 0.4;
-        g.fillStyle(0x000000, 0.2);
+        g.fillStyle(PAPER.shadow, 0.2);
         g.fillCircle(2, 3, er);
-        g.fillStyle(0xc07818, 1);
+        g.fillStyle(PAPER.orange, 1);
         g.fillCircle(0, 0, er);
         g.fillStyle(0xe8a030, 1);
         g.fillCircle(0, 0, er * 0.7);
         g.fillStyle(0xf0e040, 0.8);
         g.fillCircle(0, 0, er * 0.35);
-        g.lineStyle(3, 0xc07818, 0.9);
+        g.lineStyle(3, PAPER.orange, 0.9);
         g.strokeCircle(0, 0, er);
         bg = g; icon = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0);
         // Exit is always visible but dim/dark until golden key obtained
@@ -647,7 +675,7 @@ export class MazeScene extends Phaser.Scene {
     const hudCenterY = area.bottom - hudH / 2;
 
     PaperPanel(this, area.cx, hudCenterY, GAME_WIDTH - 40, hudH, {
-      color: 0x1a0e04, alpha: 0.75, radius: 20,
+      color: PAPER.inkTeal, alpha: 0.75, radius: 20,
     });
 
     // Floor name — top-left of HUD
@@ -683,7 +711,7 @@ export class MazeScene extends Phaser.Scene {
     this.hudChallenge = this.add.text(cx2 + (cardW + 20) / 2, cardY, `${this.challengeProgress}/${ch.count}`, cardStyle).setOrigin(0.5);
 
     // Card labels (tiny, below)
-    const labelStyle = { ...TEXT.stat(), fontSize: '10px', color: '#c0b090' };
+    const labelStyle = { ...TEXT.stat(), fontSize: '16px', color: '#c0b090' };
     this.add.text(cardStartX + cardW / 2, cardY + cardH / 2 + 8, 'GOLD', labelStyle).setOrigin(0.5);
     this.add.text(px + cardW / 2, cardY + cardH / 2 + 8, 'POTIONS', labelStyle).setOrigin(0.5);
     this.add.text(cx2 + (cardW + 20) / 2, cardY + cardH / 2 + 8, ch.label.toUpperCase(), labelStyle).setOrigin(0.5);
@@ -697,13 +725,13 @@ export class MazeScene extends Phaser.Scene {
       const spriteScale = 0.35;
       drawHeroSprite(this, x, partyY - 18, hero, { scale: spriteScale });
       this.add.text(x, partyY + 26, hero.name, {
-        ...TEXT.stat(), fontSize: '10px', color: '#3a2410',
+        ...TEXT.stat(), fontSize: '16px', color: '#3a2410',
       }).setOrigin(0.5);
       const pct = hero.hp / hero.maxHp;
       const hpBg = this.add.graphics();
       hpBg.fillStyle(0x3a2410, 0.4);
       hpBg.fillRoundedRect(x - 30, partyY + 36, 60, 4, 2);
-      hpBg.fillStyle(0x4aa848, 1);
+      hpBg.fillStyle(PAPER.forest, 1);
       hpBg.fillRoundedRect(x - 30, partyY + 36, 60 * pct, 4, 2);
     }
 
@@ -715,7 +743,7 @@ export class MazeScene extends Phaser.Scene {
     });
 
     PaperButton(this, area.right - 100, hudCenterY, 'WORLD MAP', {
-      w: 180, h: 54, color: 0x4aa848, fontSize: 14,
+      w: 180, h: 54, color: PAPER.forest, fontSize: 14,
       onClick: () => {
         audio.play('ui/back');
         this.saveMazeState();
@@ -767,7 +795,7 @@ export class MazeScene extends Phaser.Scene {
     const OVERLAY_DEPTH = 200;
 
     // Dark semi-transparent full-screen background overlay
-    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.85)
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.85)
       .setScrollFactor(0).setInteractive().setDepth(OVERLAY_DEPTH);
     const title = this.add.text(GAME_WIDTH / 2, 80, 'SWAP HEROES', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
@@ -789,7 +817,7 @@ export class MazeScene extends Phaser.Scene {
     const cardGap = 24;
     const availableW = GAME_WIDTH - 60;
     const cardW = Math.min(140, Math.floor((availableW - (cols - 1) * cardGap) / cols));
-    const cardH = 180;
+    const cardH = 220;
     const gridW = cols * cardW + (cols - 1) * cardGap;
     const startX = GAME_WIDTH / 2 - gridW / 2 + cardW / 2;
     const rows = Math.ceil(unlocked.length / cols);
@@ -808,7 +836,7 @@ export class MazeScene extends Phaser.Scene {
       const inParty = partyIds.includes(hero.id);
 
       const cardBg = this.add.graphics().setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
-      cardBg.fillStyle(inParty ? 0xd07818 : 0x2a1808, 0.9);
+      cardBg.fillStyle(inParty ? PAPER.orange : PAPER.inkTeal, 0.9);
       cardBg.fillRoundedRect(x - cardW / 2, y - cardH / 2, cardW, cardH, 12);
       if (inParty) {
         cardBg.lineStyle(3, 0xf0d040, 1);
@@ -825,7 +853,7 @@ export class MazeScene extends Phaser.Scene {
       // Hero name below portrait
       const nameT = this.add.text(x, y + cardH * 0.22, hero.name, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '14px', color: inParty ? '#fff8e0' : '#f0e4cc',
+        fontSize: '16px', color: inParty ? '#fff8e0' : '#f0e4cc',
         stroke: '#1a0e04', strokeThickness: 2,
       }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(nameT);
@@ -833,7 +861,7 @@ export class MazeScene extends Phaser.Scene {
       // "IN PARTY" label or stats below name
       const badge = this.add.text(x, y + cardH * 0.35, inParty ? 'IN PARTY' : `HP ${hero.maxHp}  ATK ${hero.atk}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '11px', color: inParty ? '#f0d040' : '#a09070',
+        fontSize: '16px', color: inParty ? '#f0d040' : '#a09070',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 2);
       objects.push(badge);
 
@@ -868,7 +896,7 @@ export class MazeScene extends Phaser.Scene {
   showSlotPicker(newHero, overlayObjects) {
     const SLOT_DEPTH = 210;
     const slotObjs = [];
-    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6)
+    const bg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.6)
       .setScrollFactor(0).setInteractive().setDepth(SLOT_DEPTH);
     slotObjs.push(bg);
 
@@ -885,7 +913,7 @@ export class MazeScene extends Phaser.Scene {
       const sy = GAME_HEIGHT / 2;
 
       const cardBg = this.add.graphics().setScrollFactor(0).setDepth(SLOT_DEPTH + 1);
-      cardBg.fillStyle(0x2a1808, 0.9);
+      cardBg.fillStyle(PAPER.inkTeal, 0.9);
       cardBg.fillRoundedRect(sx - 80, sy - 80, 160, 180, 12);
       slotObjs.push(cardBg);
 
@@ -992,7 +1020,7 @@ export class MazeScene extends Phaser.Scene {
     if (this._mathDoorActive) return;
     this._mathDoorActive = true;
     let answered = false;
-    const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
+    const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
     const opSymbol = question.op === '*' ? '×' : question.op;
     const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, `${question.a} ${opSymbol} ${question.b} = ?`, {
       fontFamily: '"Fredoka One", sans-serif',
@@ -1008,7 +1036,7 @@ export class MazeScene extends Phaser.Scene {
       const x = startX + i * (btnW + gap);
       const isCorrect = i === question.correctIndex;
       const ansText = String(question.choices[i]);
-      const bg = this.add.rectangle(x, btnY, btnW, btnH, 0x3888d8, 0.9).setDepth(81).setScrollFactor(0).setInteractive({ useHandCursor: true });
+      const bg = this.add.rectangle(x, btnY, btnW, btnH, PAPER.teal, 0.9).setDepth(81).setScrollFactor(0).setInteractive({ useHandCursor: true });
       const label = this.add.text(x, btnY, ansText, {
         fontFamily: '"Fredoka One", sans-serif',
         fontSize: '32px', color: '#ffffff',
@@ -1080,8 +1108,61 @@ export class MazeScene extends Phaser.Scene {
     this.playerX = tile.tx;
     this.playerY = tile.ty;
     if (this.playerX !== prevX || this.playerY !== prevY) {
-      this.updateMiniMap();
       this.checkObjectAt(this.playerX, this.playerY);
+    }
+
+    // Update animated hero sprite walk/idle state and facing
+    if (this.heroSprite) {
+      const gs = getGameState();
+      const px = gs.partyX;
+      const py = gs.partyY;
+      const isMoving = this._lastPartyX !== null && (px !== this._lastPartyX || py !== this._lastPartyY);
+
+      // Detect tile change for smooth tween
+      const newTileX = this.playerX;
+      const newTileY = this.playerY;
+      if (this._lastHeroTileX !== undefined &&
+          (newTileX !== this._lastHeroTileX || newTileY !== this._lastHeroTileY)) {
+        // Tile changed: tween the hero sprite to center over 150ms for smooth feel
+        if (this._heroMoveTween) this._heroMoveTween.stop();
+        // Slight offset from center based on movement direction, then settle back
+        const dx = newTileX - this._lastHeroTileX;
+        const dy = newTileY - this._lastHeroTileY;
+        const offsetX = -dx * 4;
+        const offsetY = -dy * 4;
+        this.heroSprite.x = GAME_WIDTH / 2 + offsetX;
+        this.heroSprite.y = GAME_HEIGHT / 2 + offsetY;
+        this._heroMoveTween = this.tweens.add({
+          targets: this.heroSprite,
+          x: GAME_WIDTH / 2,
+          y: GAME_HEIGHT / 2,
+          duration: 150,
+          ease: 'Sine.out',
+        });
+      }
+      this._lastHeroTileX = newTileX;
+      this._lastHeroTileY = newTileY;
+
+      if (isMoving && !this._heroWasMoving) {
+        this.heroSprite.startWalk();
+        this._heroWasMoving = true;
+      } else if (!isMoving && this._heroWasMoving) {
+        this.heroSprite.stopWalk();
+        this._heroWasMoving = false;
+      }
+      this._lastPartyX = px;
+      this._lastPartyY = py;
+
+      // Flip sprite for left/right facing
+      const facing = gs.partyFacing;
+      if (facing === 'left') {
+        this.heroSprite.scaleX = -Math.abs(this.heroSprite.scaleX || 1);
+      } else if (facing === 'right') {
+        this.heroSprite.scaleX = Math.abs(this.heroSprite.scaleX || 1);
+      }
+
+      // Depth based on tile row
+      this.heroSprite.setDepth(tileDepth(this.playerY, this.playerX, 5));
     }
   }
 
@@ -1546,90 +1627,6 @@ export class MazeScene extends Phaser.Scene {
   // MINI-MAP
   // ================================================================
 
-  buildMiniMap() {
-    const mapSize = 100;
-    const mapX = GAME_WIDTH - mapSize - 10;
-    const mapY = 10;
-
-    // Dark background panel
-    this.miniMapBg = this.add.graphics().setScrollFactor(0).setDepth(200);
-    this.miniMapBg.fillStyle(0x1a0e04, 0.75);
-    this.miniMapBg.fillRoundedRect(mapX, mapY, mapSize, mapSize, 8);
-
-    // Graphics object for the map content
-    this.miniMapGfx = this.add.graphics().setScrollFactor(0).setDepth(201);
-
-    this._miniMapX = mapX;
-    this._miniMapY = mapY;
-    this._miniMapSize = mapSize;
-
-    this.updateMiniMap();
-  }
-
-  updateMiniMap() {
-    if (!this.miniMapGfx) return;
-    this.miniMapGfx.clear();
-
-    const mapX = this._miniMapX;
-    const mapY = this._miniMapY;
-    const mapSize = this._miniMapSize;
-    const fw = this.floor.width;
-    const fh = this.floor.height;
-    const gs = getGameState();
-    const fog = gs?.fog || this.fog;
-
-    // Scale tiles to fit the mini-map
-    const dotSize = Math.max(1, Math.min(3, Math.floor(mapSize / Math.max(fw, fh))));
-    const scaleX = mapSize / fw;
-    const scaleY = mapSize / fh;
-
-    for (let ty = 0; ty < fh; ty++) {
-      for (let tx = 0; tx < fw; tx++) {
-        // Only draw revealed tiles
-        if (fog && fog[ty] && !fog[ty][tx]) continue;
-
-        const px = mapX + tx * scaleX;
-        const py = mapY + ty * scaleY;
-        const tile = this.floor.tiles[ty]?.[tx];
-
-        if (tile === TILE.WALL) {
-          this.miniMapGfx.fillStyle(0x3a2810, 0.8);
-        } else {
-          this.miniMapGfx.fillStyle(0xc0b890, 0.7);
-        }
-        this.miniMapGfx.fillRect(px, py, Math.max(dotSize, scaleX), Math.max(dotSize, scaleY));
-      }
-    }
-
-    // Draw challenge items (red dots) if revealed and not consumed
-    for (const obj of this.objects) {
-      if (obj.consumed) continue;
-      if (obj.type === 'encounter') continue;
-      if (obj.type === 'exit' && !this.hasKey) continue;
-
-      // Only draw if tile is revealed
-      if (fog && fog[obj.y] && !fog[obj.y][obj.x]) continue;
-
-      const px = mapX + obj.x * scaleX + scaleX / 2;
-      const py = mapY + obj.y * scaleY + scaleY / 2;
-
-      if (obj.type === 'boss') {
-        this.miniMapGfx.fillStyle(0xe04040, 1);
-      } else if (obj.type === 'exit') {
-        this.miniMapGfx.fillStyle(0xf0c040, 1);
-      } else {
-        this.miniMapGfx.fillStyle(0xe04040, 0.9);
-      }
-      this.miniMapGfx.fillCircle(px, py, Math.max(1.5, dotSize * 0.5));
-    }
-
-    // Player position — bright yellow dot
-    const playerPx = mapX + this.playerX * scaleX + scaleX / 2;
-    const playerPy = mapY + this.playerY * scaleY + scaleY / 2;
-    this.miniMapGfx.fillStyle(0xf0f040, 1);
-    this.miniMapGfx.fillCircle(playerPx, playerPy, Math.max(2, dotSize * 0.7));
-  }
-
   // ================================================================
   // ENVIRONMENTAL PARTICLES
   // ================================================================
@@ -1654,7 +1651,7 @@ export class MazeScene extends Phaser.Scene {
         const startX = Math.random() * GAME_WIDTH;
         const startY = -10;
         const p = this.add.circle(startX, startY, size, color, 0.4 + Math.random() * 0.3);
-        p.setDepth(50);
+        p.setDepth(50).setScrollFactor(0);
 
         const drift = (Math.random() - 0.5) * 100;
         const duration = 3000 + Math.random() * 2000;
@@ -1687,7 +1684,7 @@ export class MazeScene extends Phaser.Scene {
       color,
       stroke: '#000000',
       strokeThickness: 4,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setScrollFactor(0);
     this.tweens.add({
       targets: t,
       y: sy - 60,

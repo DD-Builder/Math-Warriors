@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { ALL_HEROES } from '../data/heroes.js';
 import { loadSave, getActiveSlot, isHeroUnlocked } from '../systems/save.js';
 import { getEvolutionStage, getEvolvedName } from '../systems/evolution.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { PaperPanel, PaperButton, safeArea } from '../ui/paperUI.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawShadowBox } from '../systems/papercutArt.js';
 import { audio } from '../systems/audio.js';
 
 export class GalleryScene extends Phaser.Scene {
@@ -19,14 +20,19 @@ export class GalleryScene extends Phaser.Scene {
     fadeInScene(this);
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 999);
 
+    // ── SHADOW-BOX FRAME (v2 papercut aesthetic) ──
+    // const frameGfx = this.add.graphics().setDepth(1);
+    // Shadow-box disabled: opaque layers cover scene content
+    // TODO: implement ring-draw (fill border only, transparent center)
+
     const slot = getActiveSlot(this);
     const save = loadSave(slot);
 
     // Title
     this.add.text(area.cx, area.top + 50, 'HERO GALLERY', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '44px', color: '#f0d060',
-      stroke: '#3a1a00', strokeThickness: 6,
+      fontSize: '44px', color: PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 6,
     }).setOrigin(0.5);
 
     // 5x3 grid of heroes
@@ -58,37 +64,38 @@ export class GalleryScene extends Phaser.Scene {
       if (unlocked) unlockedCount++;
 
       PaperPanel(this, cx, cy, cardW, cardH, {
-        color: unlocked ? 0xf5ead0 : 0x3a2a18, alpha: 0.92, radius: 14,
+        color: unlocked ? PAPER.cream : PAPER.tealD, alpha: 0.92, radius: 14,
       });
 
       if (unlocked) {
         // Full color portrait
         const evoStage = getEvolutionStage(save, hero.id);
-        const sprite = drawHeroSprite(this, cx, cy - 20, hero, {
+        const sprite = createAnimatedHero(this, cx, cy - 20, hero, {
           scale: 0.35, evolutionStage: evoStage,
         });
+        if (sprite.setSelectionSway) sprite.setSelectionSway();
         sprite.setDepth(1001);
 
         // Evolved name
         const evolvedName = getEvolvedName(save, hero.id) || hero.name;
         this.add.text(cx, cy + 60, evolvedName, {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-          fontSize: '16px', color: '#3a2410',
+          fontSize: '16px', color: PAPER_CSS.inkTeal,
         }).setOrigin(0.5);
 
         // Class label
         this.add.text(cx, cy + 80, (hero.class || '').toUpperCase(), {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-          fontSize: '13px', color: '#8a7a60',
+          fontSize: '16px', color: PAPER_CSS.inkTeal,
         }).setOrigin(0.5);
       } else {
         // Dark silhouette
-        const silhouette = this.add.circle(cx, cy - 20, 35, 0x1a1008, 0.8);
+        const silhouette = this.add.circle(cx, cy - 20, 35, PAPER.inkTeal, 0.8);
         silhouette.setDepth(1001);
 
         this.add.text(cx, cy + 60, '???', {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-          fontSize: '20px', color: '#4a3a28',
+          fontSize: '20px', color: PAPER_CSS.inkTeal,
         }).setOrigin(0.5);
       }
     }
@@ -100,7 +107,7 @@ export class GalleryScene extends Phaser.Scene {
     // Stats summary below the grid, above the BACK button
     const statsY = Math.min(startY + gridH + 30, backBtnY - backBtnH / 2 - 40);
     PaperPanel(this, area.cx, statsY, 700, 50, {
-      color: 0x1a0e04, alpha: 0.75, radius: 14,
+      color: PAPER.inkTeal, alpha: 0.75, radius: 14,
     });
 
     this.add.text(area.cx, statsY, [
@@ -109,8 +116,8 @@ export class GalleryScene extends Phaser.Scene {
       `Accuracy: ${accuracy}%`,
     ].join('    '), {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px', color: '#f0e4cc',
-      stroke: '#1a0e04', strokeThickness: 2,
+      fontSize: '16px', color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
     }).setOrigin(0.5);
 
     PaperButton(this, area.cx, backBtnY, 'BACK', {

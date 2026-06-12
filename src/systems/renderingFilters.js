@@ -1,13 +1,15 @@
 /**
- * Per-floor rendering filters
+ * Per-floor rendering filters — papercut edition.
  *
- * Each floor gets a distinct visual style:
+ * Every floor keeps the soft layered-paper aesthetic; filters are
+ * limited to subtle palette-tinted color grading (no pixelation,
+ * no darkening, no hard contrast):
  * Floor 1 (Garden): Papercut — baseline, no filter needed
- * Floor 2 (Tidepool): Claymation — matte, fingerprint texture, slight wobble
- * Floor 3 (Cloud): Watercolor — soft edges, paper grain, pencil outlines
- * Floor 4 (Ember): Pixel art — pixelated, limited palette, hard edges
- * Floor 5 (Mending): Cinematic papercut — dark, high contrast, cool tint
- * Floors 6-9: Variations of papercut with unique color grading
+ * Floor 2 (Tidepool): Matte paper — gentle desaturation + faint grain
+ * Floor 3 (Cloud): Watercolor paper — pastel softening + warm cream tint
+ * Floor 4 (Ember): Sun-warmed paper — subtle peach/orange tint
+ * Floor 5/9 (Mending): Dusk paper — subtle teal tint
+ * Floors 6-8: Baseline papercut
  */
 
 // ================================================================
@@ -34,9 +36,9 @@ export function applySpriteFilter(canvas, floorId) {
 // ================================================================
 
 /**
- * Claymation filter — makes sprites look like clay/stop-motion.
- * Reduces saturation 15%, adds subtle noise (+-3 per channel),
- * and slightly increases contrast.
+ * Claymation filter (softened) — matte paper look.
+ * Gentle 8% desaturation and a faint paper-grain noise.
+ * No contrast boost — paper layers stay soft.
  *
  * @param {HTMLCanvasElement} canvas
  * @returns {HTMLCanvasElement}
@@ -53,22 +55,16 @@ function claymationFilter(canvas) {
     // Skip fully transparent pixels
     if (data[i + 3] === 0) continue;
 
-    // Reduce saturation by 15% (matte look)
+    // Gentle 8% desaturation (matte paper)
     const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-    r = r + (gray - r) * 0.15;
-    g = g + (gray - g) * 0.15;
-    b = b + (gray - b) * 0.15;
+    r = r + (gray - r) * 0.08;
+    g = g + (gray - g) * 0.08;
+    b = b + (gray - b) * 0.08;
 
-    // Add subtle noise: +-3 per channel
-    r += (Math.random() - 0.5) * 6;
-    g += (Math.random() - 0.5) * 6;
-    b += (Math.random() - 0.5) * 6;
-
-    // Slightly increase contrast (move away from 128 midpoint)
-    const contrastFactor = 1.08;
-    r = (r - 128) * contrastFactor + 128;
-    g = (g - 128) * contrastFactor + 128;
-    b = (b - 128) * contrastFactor + 128;
+    // Faint paper grain: +-1.5 per channel
+    r += (Math.random() - 0.5) * 3;
+    g += (Math.random() - 0.5) * 3;
+    b += (Math.random() - 0.5) * 3;
 
     // Clamp and store
     data[i]     = Math.max(0, Math.min(255, Math.round(r)));
@@ -81,9 +77,9 @@ function claymationFilter(canvas) {
 }
 
 /**
- * Watercolor filter — makes sprites look like watercolor painting.
- * Reduces saturation 25% (pastel), reduces alpha 10% (translucent),
- * adds warm tint (+8 R, +4 G), and paper grain noise (+-5 per channel).
+ * Watercolor filter (softened) — pastel paper look.
+ * Gentle 12% desaturation, a subtle warm cream tint, and a faint
+ * paper-grain noise. Alpha is left intact so paper layers stay crisp.
  *
  * @param {HTMLCanvasElement} canvas
  * @returns {HTMLCanvasElement}
@@ -97,33 +93,29 @@ function watercolorFilter(canvas) {
     let r = data[i];
     let g = data[i + 1];
     let b = data[i + 2];
-    let a = data[i + 3];
     // Skip fully transparent pixels
-    if (a === 0) continue;
+    if (data[i + 3] === 0) continue;
 
-    // Reduce saturation by 25% (pastel look)
+    // Gentle 12% desaturation (pastel look)
     const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-    r = r + (gray - r) * 0.25;
-    g = g + (gray - g) * 0.25;
-    b = b + (gray - b) * 0.25;
+    r = r + (gray - r) * 0.12;
+    g = g + (gray - g) * 0.12;
+    b = b + (gray - b) * 0.12;
 
-    // Reduce alpha by 10% (translucent watercolor)
-    a = a * 0.9;
+    // Subtle warm cream tint (toward PAPER.cream #f5eedd)
+    r += (245 - r) * 0.04;
+    g += (238 - g) * 0.04;
+    b += (221 - b) * 0.04;
 
-    // Add warm tint (+8 to R, +4 to G)
-    r += 8;
-    g += 4;
-
-    // Paper grain noise: +-5 per channel
-    r += (Math.random() - 0.5) * 10;
-    g += (Math.random() - 0.5) * 10;
-    b += (Math.random() - 0.5) * 10;
+    // Faint paper grain: +-2 per channel
+    r += (Math.random() - 0.5) * 4;
+    g += (Math.random() - 0.5) * 4;
+    b += (Math.random() - 0.5) * 4;
 
     // Clamp and store
     data[i]     = Math.max(0, Math.min(255, Math.round(r)));
     data[i + 1] = Math.max(0, Math.min(255, Math.round(g)));
     data[i + 2] = Math.max(0, Math.min(255, Math.round(b)));
-    data[i + 3] = Math.max(0, Math.min(255, Math.round(a)));
   }
 
   ctx.putImageData(imageData, 0, 0);
@@ -131,50 +123,33 @@ function watercolorFilter(canvas) {
 }
 
 /**
- * Pixel art filter — makes sprites look pixelated with a limited palette.
- * Downsamples to a smaller canvas and scales back up with nearest-neighbor,
- * then quantizes colors to a 16-color palette (each channel snapped to
- * nearest 17-step value: 0, 17, 34, ..., 255).
+ * Ember filter (replaces pixel-art) — sun-warmed paper look.
+ * Pixelation and palette quantization fought the soft papercut
+ * aesthetic, so floor 4 now gets a subtle warm shift toward
+ * PAPER.orange (#e39a4a) instead. Shapes and shadows stay soft.
  *
  * @param {HTMLCanvasElement} canvas
- * @param {number} [pixelSize=4] - Size of each "pixel block"
  * @returns {HTMLCanvasElement}
  */
-function pixelArtFilter(canvas, pixelSize = 4) {
+function pixelArtFilter(canvas) {
   const ctx = canvas.getContext('2d');
-  const w = canvas.width;
-  const h = canvas.height;
-
-  // Step 1: Create small temporary canvas (downsampled)
-  const smallW = Math.max(1, Math.ceil(w / pixelSize));
-  const smallH = Math.max(1, Math.ceil(h / pixelSize));
-  const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = smallW;
-  tempCanvas.height = smallH;
-  const tempCtx = tempCanvas.getContext('2d');
-
-  // Step 2: Draw original onto small canvas (downsampling)
-  tempCtx.drawImage(canvas, 0, 0, smallW, smallH);
-
-  // Step 3: Clear original canvas
-  ctx.clearRect(0, 0, w, h);
-
-  // Step 4: Disable smoothing for nearest-neighbor upscaling
-  ctx.imageSmoothingEnabled = false;
-
-  // Step 5: Draw small canvas back at full size (nearest-neighbor upscaling)
-  ctx.drawImage(tempCanvas, 0, 0, w, h);
-
-  // Step 6: Quantize colors to 16-color palette per channel
-  // Each channel snapped to nearest multiple of 17 (0, 17, 34, ..., 255)
-  const imageData = ctx.getImageData(0, 0, w, h);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) continue;
-    data[i]     = Math.round(data[i] / 17) * 17;
-    data[i + 1] = Math.round(data[i + 1] / 17) * 17;
-    data[i + 2] = Math.round(data[i + 2] / 17) * 17;
+    let r = data[i];
+    let g = data[i + 1];
+    let b = data[i + 2];
+
+    // Subtle 7% blend toward PAPER.orange (227,154,74)
+    r += (227 - r) * 0.07;
+    g += (154 - g) * 0.07;
+    b += (74 - b) * 0.07;
+
+    data[i]     = Math.max(0, Math.min(255, Math.round(r)));
+    data[i + 1] = Math.max(0, Math.min(255, Math.round(g)));
+    data[i + 2] = Math.max(0, Math.min(255, Math.round(b)));
   }
 
   ctx.putImageData(imageData, 0, 0);
@@ -182,9 +157,10 @@ function pixelArtFilter(canvas, pixelSize = 4) {
 }
 
 /**
- * Cinematic filter — makes sprites look dramatic/cinematic.
- * Increases contrast 20%, adds cool tint (+5 B, -3 R),
- * and darkens overall by 10%.
+ * Cinematic filter (softened) — dusk paper look.
+ * The old contrast boost + darkening fought the soft paper look,
+ * so floors 5/9 now get a subtle cool shift toward PAPER.teal
+ * (#44888a) with no darkening and no contrast change.
  *
  * @param {HTMLCanvasElement} canvas
  * @returns {HTMLCanvasElement}
@@ -201,20 +177,10 @@ function cinematicFilter(canvas) {
     // Skip fully transparent pixels
     if (data[i + 3] === 0) continue;
 
-    // Increase contrast by 20% (multiply distance from 128)
-    const contrastFactor = 1.2;
-    r = (r - 128) * contrastFactor + 128;
-    g = (g - 128) * contrastFactor + 128;
-    b = (b - 128) * contrastFactor + 128;
-
-    // Add cool tint (+5 to B, -3 from R)
-    r -= 3;
-    b += 5;
-
-    // Darken overall by 10% (multiply all channels by 0.9)
-    r *= 0.9;
-    g *= 0.9;
-    b *= 0.9;
+    // Subtle 7% blend toward PAPER.teal (68,136,138)
+    r += (68 - r) * 0.07;
+    g += (136 - g) * 0.07;
+    b += (138 - b) * 0.07;
 
     // Clamp and store
     data[i]     = Math.max(0, Math.min(255, Math.round(r)));

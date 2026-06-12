@@ -3,8 +3,10 @@
  * streaks, victories, and level-ups.
  */
 
+import { PAPER, PAPER_CSS } from '../config.js';
+
 export function confettiBurst(scene, x, y, count = 20) {
-  const colors = [0xf0c040, 0xe04040, 0x4080e0, 0x40c040, 0xf080c0, 0xf09020];
+  const colors = [PAPER.gold, PAPER.coral, PAPER.teal, PAPER.leaf, PAPER.rose, PAPER.orange];
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
     const dist = 60 + Math.random() * 120;
@@ -27,7 +29,7 @@ export function confettiBurst(scene, x, y, count = 20) {
   }
 }
 
-export function screenEdgeGlow(scene, color = 0x40c040, duration = 400) {
+export function screenEdgeGlow(scene, color = PAPER.leaf, duration = 400) {
   const gfx = scene.add.graphics().setDepth(999);
   gfx.fillStyle(color, 0.25);
   gfx.fillRect(0, 0, 40, scene.cameras.main.height);
@@ -44,19 +46,19 @@ export function streakBanner(scene, streak, cx, cy) {
   let text, color;
   if (streak >= 8) {
     text = 'LEGENDARY!';
-    color = '#ff4040';
+    color = PAPER_CSS.coralD;
   } else if (streak >= 5) {
     text = 'UNSTOPPABLE!';
-    color = '#f0a020';
+    color = PAPER_CSS.orange;
   } else {
     text = 'ON FIRE!';
-    color = '#f0c040';
+    color = PAPER_CSS.gold;
   }
 
   const banner = scene.add.text(cx, cy - 60, text, {
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
     fontSize: '56px', color,
-    stroke: '#1a0e04', strokeThickness: 6,
+    stroke: PAPER_CSS.inkTeal, strokeThickness: 6,
   }).setOrigin(0.5).setScale(0.3).setAlpha(0).setDepth(998);
 
   scene.tweens.add({
@@ -103,8 +105,8 @@ export function heroVictoryBounce(scene, heroSprite) {
 
 export function goldCoinScatter(scene, x, y, count = 8) {
   for (let i = 0; i < count; i++) {
-    const coin = scene.add.circle(x, y, 6, 0xf0c040);
-    coin.setStrokeStyle(1.5, 0xc09020);
+    const coin = scene.add.circle(x, y, 6, PAPER.gold);
+    coin.setStrokeStyle(1.5, PAPER.orange);
     const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.8;
     const dist = 40 + Math.random() * 80;
     scene.tweens.add({
@@ -132,8 +134,8 @@ export function starRating(scene, cx, cy, stars, maxStars = 3) {
     const star = scene.add.text(startX + i * gap, cy, '★', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '48px',
-      color: filled ? '#f0c040' : '#4a3a28',
-      stroke: filled ? '#c09020' : '#2a1a08',
+      color: filled ? PAPER_CSS.gold : PAPER_CSS.inkTeal,
+      stroke: filled ? PAPER_CSS.orange : PAPER_CSS.inkTeal,
       strokeThickness: 3,
     }).setOrigin(0.5).setScale(0).setAlpha(0);
 

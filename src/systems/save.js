@@ -499,7 +499,10 @@ export function listSlots() {
 }
 
 export function getActiveSlot(scene) {
-  return scene?.registry?.get('activeSlot') || 1;
+  const slot = scene?.registry?.get('activeSlot') || 1;
+  // Clamp — a corrupted registry value must never read/write a
+  // nonexistent slot key (silent wrong-save load).
+  return Math.max(1, Math.min(MAX_SLOTS, Math.floor(Number(slot) || 1)));
 }
 
 export { CURRENT_VERSION, STORAGE_KEY, LEGACY_KEY, SLOT_PREFIX, MAX_SLOTS };

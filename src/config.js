@@ -6,33 +6,86 @@
 export const GAME_WIDTH = 1440;
 export const GAME_HEIGHT = 1080;
 
+// ── PAPERCUT DIORAMA PALETTE ──────────────────────────────────────
+// The entire game is rendered as layered cut paper: muted teal, coral,
+// sage and cream, soft teal-tinted shadows between layers, and NO dark
+// outlines anywhere. Every color on screen must come from this palette.
+export const PAPER = {
+  // Papers (light → dark)
+  white:    0xfdfbf2,  // white butterflies, petals, highlights
+  cream:    0xf5eedd,  // primary paper / sky
+  creamD:   0xe8dec6,  // shaded cream
+  sand:     0xd9cfb2,  // deep cream / parchment
+
+  // Sage greens (the reference's outer background)
+  sage:     0xb0c498,
+  sageD:    0x8faa72,
+  leaf:     0x6b9b56,
+
+  // Forest greens — richer, more vivid
+  forestL:  0x3e8a52,
+  forest:   0x28704a,
+  forestD:  0x1b5438,
+
+  // Teals — more saturated, vivid
+  tealL:    0x5dc4b4,
+  teal:     0x2bb3a3,
+  tealD:    0x1a7d78,
+  inkTeal:  0x143f42,  // deepest teal — replaces black ink
+
+  // Corals & warms
+  peach:    0xf2bf9a,
+  coral:    0xe78f6c,
+  coralD:   0xd06a4d,
+  orange:   0xe39a4a,
+  gold:     0xecb964,
+
+  // Floral accents
+  lavender: 0x9c8fc0,
+  lavenderD:0x7c6fa8,
+  sky:      0xa4c8d8,
+  rose:     0xe8a09a,
+
+  // Layer shadow (use at alpha ~0.3, offset down ~8px)
+  shadow:   0x1f3d3f,
+};
+
+// Soft drop-shadow parameters shared by every papercut layer
+export const PAPER_SHADOW = { color: PAPER.shadow, alpha: 0.30, dx: 0, dy: 8, blur: 10 };
+
+// Legacy color keys, remapped into the papercut palette so every
+// existing call site lands in-palette automatically.
 export const COLORS = {
-  // Paper / ink (carried over from the prototype's intended palette)
-  bg:       0x0a0604,
-  paper:    0xf0e4cc,
-  paperD:   0xddd0b0,
-  ink:      0x1a0e04,
-  inkL:     0x4a3420,
+  // Paper / ink
+  bg:       PAPER.inkTeal,
+  paper:    PAPER.cream,
+  paperD:   PAPER.creamD,
+  ink:      PAPER.inkTeal,
+  inkL:     0x4a6b68,
 
   // Hero class colors
-  cobalt:   0x2e4e88,  // Knight
-  cobaltL:  0x5a7ab8,
-  plum:     0x5a1878,  // Wizard
-  plumL:    0x9050c8,
-  rose:     0xc02860,  // Bunny
-  roseL:    0xe060a0,
+  cobalt:   PAPER.teal,      // Knight — teal
+  cobaltL:  PAPER.tealL,
+  plum:     PAPER.lavenderD, // Wizard — lavender
+  plumL:    0xa89bd0,
+  rose:     0xdd7f74,        // Bunny — coral-rose
+  roseL:    0xf0a89c,
 
   // UI accents
-  gold:     0xc07818,
-  goldL:    0xe8a030,
-  scarlet:  0x9c2020,
-  scarletL: 0xc83030,
+  gold:     PAPER.orange,
+  goldL:    PAPER.gold,
+  scarlet:  0xc05a48,
+  scarletL: 0xdd8166,
 
   // Utility accents
-  green:    0x2a5c1e,
-  greenL:   0x4a9830,
+  green:    PAPER.forest,
+  greenL:   0x6f9e7e,
 
 };
+
+export const PAPER_CSS = Object.fromEntries(
+  Object.entries(PAPER).map(([k, v]) => [k, '#' + v.toString(16).padStart(6, '0')])
+);
 
 export const COLORS_CSS = Object.fromEntries(
   Object.entries(COLORS).map(([k, v]) => [k, '#' + v.toString(16).padStart(6, '0')])

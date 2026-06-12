@@ -24,14 +24,14 @@ export function mkRng(seed) {
   };
 }
 
-// ─── MASTER PALETTE ─────────────────────────────────────────────
+// ─── MASTER PALETTE (papercut — PAPER_CSS values) ───────────────
 export var P = {
-  cobalt: '#2e4e88', cobaltL: '#5272a8',
-  plum: '#5a1878', plumL: '#8830b8',
-  rose: '#c02860', roseL: '#e84888',
-  gold: '#c07818', goldL: '#e8a030',
-  green: '#2a5c1e', greenL: '#4a9830',
-  cream: '#f0e4cc', ink: '#1a0e04',
+  cobalt: '#44888a', cobaltL: '#7fb3ae',   // teal / tealL
+  plum: '#7c6fa8', plumL: '#9c8fc0',       // lavenderD / lavender
+  rose: '#d06a4d', roseL: '#e78f6c',       // coralD / coral
+  gold: '#e39a4a', goldL: '#ecb964',       // orange / gold
+  green: '#3c6b4f', greenL: '#7d9f6d',     // forest / leaf
+  cream: '#f5eedd', ink: '#1f4244',        // cream / inkTeal
 };
 
 // ─── HERO RENDERER (makeRenderer) ───────────────────────────────
@@ -67,7 +67,7 @@ export function makeRenderer(canvas) {
     ctx.save();
     if (!opts.ns) {
       var sa = opts.sa !== undefined ? opts.sa : 0.45;
-      ctx.shadowColor = 'rgba(14,6,2,' + sa + ')';
+      ctx.shadowColor = 'rgba(31,61,63,' + sa + ')';
       ctx.shadowBlur = (opts.sx || 2) * 2.2;
       ctx.shadowOffsetX = (opts.sx || 2) * 0.25;
       ctx.shadowOffsetY = (opts.sy || 2) * 1.1;
@@ -91,7 +91,7 @@ export function makeRenderer(canvas) {
     }
     ctx.save();
     var sa = opts.sa !== undefined ? opts.sa : 0.4;
-    ctx.shadowColor = 'rgba(14,6,2,' + sa + ')';
+    ctx.shadowColor = 'rgba(31,61,63,' + sa + ')';
     ctx.shadowBlur = (opts.sx || 2) * 2;
     ctx.shadowOffsetX = (opts.sx || 2) * 0.2;
     ctx.shadowOffsetY = (opts.sy || 2) * 0.9;
@@ -175,15 +175,13 @@ Rndr.prototype = {
     if (!o.ns) {
       G.save(); G.translate(sx, sy); this._path(pts, seed);
       var gr = G.createLinearGradient(b.x - sp * .3, b.y - sp * .3, b.x + b.w + sp * .6, b.y + b.h + sp * .6);
-      gr.addColorStop(0, 'rgba(10,4,1,0)');
-      gr.addColorStop(.18, 'rgba(10,4,1,' + sa + ')');
-      gr.addColorStop(.72, 'rgba(10,4,1,' + sa + ')');
-      gr.addColorStop(1, 'rgba(10,4,1,0)');
+      gr.addColorStop(0, 'rgba(31,61,63,0)');
+      gr.addColorStop(.18, 'rgba(31,61,63,' + sa + ')');
+      gr.addColorStop(.72, 'rgba(31,61,63,' + sa + ')');
+      gr.addColorStop(1, 'rgba(31,61,63,0)');
       G.fillStyle = gr; G.fill(); G.restore();
     }
     this._path(pts, seed); G.fillStyle = col; G.fill();
-    G.save(); this._path(pts, seed);
-    G.strokeStyle = 'rgba(6,2,0,.22)'; G.lineWidth = .9; G.stroke(); G.restore();
   },
 
   Ld: function (cx, cy, r, col, seed, o) {
@@ -214,7 +212,7 @@ Rndr.prototype = {
   gshadow: function (cx, cy, rx, ry) {
     var G = this.G;
     G.save(); G.filter = 'blur(14px)'; G.globalAlpha = .3;
-    G.fillStyle = 'rgba(8,3,1,.9)'; G.beginPath();
+    G.fillStyle = 'rgba(31,61,63,.9)'; G.beginPath();
     G.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); G.fill(); G.restore();
   },
 
@@ -240,8 +238,8 @@ export function createHeroCanvas(w, h, bgColor, drawFn, topExt, botExt) {
     R.clear(bgColor);
     var ctx = cv.getContext('2d');
     var vg = ctx.createRadialGradient(w * .5, h * .4, h * .04, w * .5, h * .4, h * .88);
-    vg.addColorStop(0, 'rgba(255,255,255,0.09)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.26)');
+    vg.addColorStop(0, 'rgba(253,251,242,0.16)');   // warm paper-white center
+    vg.addColorStop(1, 'rgba(217,207,178,0.28)');   // soft sand-cream edge
     ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
   } else {
     R.clear();

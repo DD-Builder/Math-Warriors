@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { loadSave, writeSave, clearSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
@@ -35,7 +35,7 @@ export class SettingsScene extends Phaser.Scene {
     const panelW = area.w - 40;
     const panelH = area.h - 40;
     PaperPanel(this, area.cx, area.cy, panelW, panelH, {
-      color: 0xfff8e8,
+      color: PAPER.cream,
       alpha: 0.95,
       radius: 28,
     });
@@ -44,8 +44,8 @@ export class SettingsScene extends Phaser.Scene {
     this.add.text(area.cx, area.top + 60, 'SETTINGS', {
       ...TEXT.title(),
       fontSize: '52px',
-      color: '#d07818',
-      stroke: '#fff8e0',
+      color: PAPER_CSS.orange,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 6,
     }).setOrigin(0.5);
 
@@ -93,16 +93,16 @@ export class SettingsScene extends Phaser.Scene {
     this.add.text(area.cx - 320, gradeY, 'DIFFICULTY', {
       ...TEXT.heading(),
       fontSize: '32px',
-      color: '#3a2410',
-      stroke: '#fff8e0',
+      color: PAPER_CSS.inkTeal,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 3,
       letterSpacing: 2,
     }).setOrigin(0, 0.5);
     this.gradeLabel = this.add.text(area.cx - 30, gradeY, gradeNames[this.save.grade ?? 3], {
       ...TEXT.heading(),
       fontSize: '30px',
-      color: '#d07818',
-      stroke: '#3a2410', strokeThickness: 2,
+      color: PAPER_CSS.orange,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
     }).setOrigin(0.5, 0.5);
     PaperButton(this, area.cx + 100, gradeY, '-', {
       w: 64, h: 64, color: 0x4a6ca8, fontSize: 28,
@@ -122,8 +122,8 @@ export class SettingsScene extends Phaser.Scene {
     this.add.text(area.cx - 320, statsY - 22, 'STATS', {
       ...TEXT.heading(),
       fontSize: '32px',
-      color: '#3a2410',
-      stroke: '#fff8e0',
+      color: PAPER_CSS.inkTeal,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 3,
       letterSpacing: 2,
     }).setOrigin(0, 0.5);
@@ -131,7 +131,7 @@ export class SettingsScene extends Phaser.Scene {
       `${s.totalBattles} battles   ${s.totalCorrect} correct   ${this.save.gold} gold   ${accuracy}%`, {
       ...TEXT.body(),
       fontSize: '16px',
-      color: '#6a4c28',
+      color: PAPER_CSS.inkTeal,
     }).setOrigin(0.5, 0.5);
 
     this.resetBtn = PaperButton(this, area.cx, statsY + 22, 'RESET ALL PROGRESS', {
@@ -150,8 +150,8 @@ export class SettingsScene extends Phaser.Scene {
     this.add.text(cx - 320, y, label, {
       ...TEXT.heading(),
       fontSize: '32px',
-      color: '#3a2410',
-      stroke: '#fff8e0',
+      color: PAPER_CSS.inkTeal,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 3,
       letterSpacing: 2,
     }).setOrigin(0, 0.5);
@@ -168,8 +168,8 @@ export class SettingsScene extends Phaser.Scene {
       const btnX = cx - 40 + i * 115;
       const isActive = Math.abs(current - lvl.value) < 0.05;
       PaperButton(this, btnX, y, lvl.label, {
-        w: 100, h: 54, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,
-        textColor: isActive ? '#fff8e0' : '#3a2410',
+        w: 100, h: 54, color: isActive ? PAPER.orange : PAPER.sand, fontSize: 15,
+        textColor: isActive ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
         onClick: () => {
           onChange(lvl.value);
           this.scene.restart();
@@ -182,8 +182,8 @@ export class SettingsScene extends Phaser.Scene {
     this.add.text(cx - 320, y, label, {
       ...TEXT.heading(),
       fontSize: '32px',
-      color: '#3a2410',
-      stroke: '#fff8e0',
+      color: PAPER_CSS.inkTeal,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 3,
       letterSpacing: 2,
     }).setOrigin(0, 0.5);
@@ -197,8 +197,8 @@ export class SettingsScene extends Phaser.Scene {
       const btnX = cx - 40 + i * 115;
       const isActive = current === opt.value;
       PaperButton(this, btnX, y, opt.label, {
-        w: 100, h: 54, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 15,
-        textColor: isActive ? '#fff8e0' : '#3a2410',
+        w: 100, h: 54, color: isActive ? PAPER.orange : PAPER.sand, fontSize: 15,
+        textColor: isActive ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
         onClick: () => {
           onChange(opt.value);
         },
@@ -210,8 +210,8 @@ export class SettingsScene extends Phaser.Scene {
     this.add.text(cx - 320, y, 'SESSION TIMER', {
       ...TEXT.heading(),
       fontSize: '28px',
-      color: '#3a2410',
-      stroke: '#fff8e0',
+      color: PAPER_CSS.inkTeal,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 3,
       letterSpacing: 2,
     }).setOrigin(0, 0.5);
@@ -228,8 +228,8 @@ export class SettingsScene extends Phaser.Scene {
       const btnX = cx - 40 + i * 115;
       const isActive = current === opt.value;
       PaperButton(this, btnX, y, opt.label, {
-        w: 100, h: 54, color: isActive ? 0xd07818 : 0xc8b898, fontSize: 13,
-        textColor: isActive ? '#fff8e0' : '#3a2410',
+        w: 100, h: 54, color: isActive ? PAPER.orange : PAPER.sand, fontSize: 13,
+        textColor: isActive ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
         onClick: () => {
           this.save.settings.sessionTimer = opt.value;
           writeSave(this.save, this.slot);
@@ -267,8 +267,8 @@ export class SettingsScene extends Phaser.Scene {
     const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 180, message, {
       ...TEXT.body(),
       fontSize: '20px',
-      color: '#c02820',
-      backgroundColor: '#fff8e0',
+      color: '#d06a4d',
+      backgroundColor: PAPER_CSS.cream,
       padding: { x: 16, y: 8 },
     }).setOrigin(0.5);
     this.tweens.add({

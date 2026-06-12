@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { PaperButton, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
@@ -92,29 +92,35 @@ export class CutsceneScene extends Phaser.Scene {
     fadeInScene(this);
     audio.playMusic('music/map');
 
-    drawPapercutBackground(this, this.floorId, GAME_WIDTH, GAME_HEIGHT, 555 + this.floorId);
+    // Set world to 2x viewport width for cinematic camera panning
+    const worldW = GAME_WIDTH * 2;
+    this.cameras.main.setBounds(0, 0, worldW, GAME_HEIGHT);
+    this.cameras.main.setScroll(0, 0);
+
+    // Draw background across the full world width (covers both panel sections)
+    drawPapercutBackground(this, this.floorId, worldW, GAME_HEIGHT, 555 + this.floorId);
 
     this.darkOverlay = this.add.rectangle(
-      GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.25
+      worldW / 2, GAME_HEIGHT / 2, worldW, GAME_HEIGHT, PAPER.shadow, 0.25
     );
 
     this.artContainer = this.add.container(0, 0);
     this.bubbleGfx = this.add.graphics();
     this.sparkleContainer = this.add.container(0, 0);
 
-    this.speakerDot = this.add.circle(0, 0, 10, 0x88aaff);
+    this.speakerDot = this.add.circle(0, 0, 10, PAPER.sky);
     this.nameText = this.add.text(0, 0, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '30px',
-      color: '#c06a10',
-      stroke: '#3a1a00',
+      color: PAPER_CSS.orange,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,
     });
     this.bodyText = this.add.text(0, 0, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '26px',
-      color: '#3a2410',
-      stroke: '#f5ead0',
+      color: PAPER_CSS.inkTeal,
+      stroke: PAPER_CSS.cream,
       strokeThickness: 1,
       wordWrap: { width: 480 },
       lineSpacing: 8,
@@ -122,8 +128,13 @@ export class CutsceneScene extends Phaser.Scene {
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     this.advanceBtn = PaperButton(this, area.right - 130, area.bottom - 50, 'NEXT ▶', {
-      w: 200, h: 60, color: 0xc07818, fontSize: 22,
+      w: 200, h: 60, color: PAPER.orange, fontSize: 22,
       onClick: () => this.onTap(),
+    });
+    // Fix advance button to camera so it stays visible during pans,
+    // and always renders above panel content (depth 50+).
+    [this.advanceBtn.bg, this.advanceBtn.shadow, this.advanceBtn.label, this.advanceBtn.zone].forEach((el, i) => {
+      if (el) { el.setScrollFactor(0); el.setDepth(49 + i); }
     });
 
     this.input.on('pointerdown', () => this.onTap());
@@ -147,6 +158,15 @@ export class CutsceneScene extends Phaser.Scene {
     this.sparkleContainer.removeAll(true);
     this.bubbleGfx.clear();
 
+    // Each panel occupies a viewport-width section of the 2x world.
+    // Alternate panels between the two sections for cinematic panning.
+    const sectionX = (panelIdx % 2) * GAME_WIDTH;
+    const panTargetX = sectionX + GAME_WIDTH / 2;
+    this._panelOffsetX = sectionX;
+
+    // Cinematic camera pan to this panel's section
+    this.cameras.main.pan(panTargetX, GAME_HEIGHT / 2, 800, 'Sine.easeInOut');
+
     const isBoss = line.sprite && (getEnemyById(line.sprite) != null);
     const isWide = line.wide || false;
 
@@ -156,11 +176,11 @@ export class CutsceneScene extends Phaser.Scene {
       this.drawBubbleBackground('right', isWide);
     } else if (panel.type === 'party') {
       this.drawPartyHeroes();
-      this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.30, line.speaker, 50);
+      this.drawFairySprite(sectionX + GAME_WIDTH * 0.50, GAME_HEIGHT * 0.30, line.speaker, 50);
       this.positionBubble('party');
       this.drawBubbleBackground('party', false);
     } else {
-      this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
+      this.drawFairySprite(sectionX + GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
       this.positionBubble('left');
       this.drawBubbleBackground('left', isWide);
     }
@@ -168,12 +188,13 @@ export class CutsceneScene extends Phaser.Scene {
     const speakerColor = this.getSpeakerColor(line.speaker);
     this.speakerDot.setFillStyle(speakerColor);
 
+    // (per-line zoom pulse removed — it read as jitter, not cinema)
+
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';
     this.charIdx = 0;
     this.layoutBubble();
     this.bodyText.setText('');
-    this.typing = true;
 
     // Entrance animation: slide from x-30 and fade in
     [this.bubbleGfx, this.speakerDot, this.nameText, this.bodyText].forEach(o => {
@@ -198,15 +219,29 @@ export class CutsceneScene extends Phaser.Scene {
       }
     });
 
-    if (this.timer) this.timer.remove();
-    this.timer = this.time.addEvent({
-      delay: 20, loop: true,
-      callback: () => {
-        this.charIdx++;
-        this.bodyText.setText(this.fullText.substring(0, this.charIdx));
-        if (this.charIdx >= this.fullText.length) this.finishTyping();
-      },
-    });
+    // Start typing only after camera pan completes so text isn't off-screen.
+    // If the panel offset changed (a pan was triggered), wait for the event;
+    // otherwise start immediately.
+    const startTyping = () => {
+      this.typing = true;
+      if (this.timer) this.timer.remove();
+      this.timer = this.time.addEvent({
+        delay: 20, loop: true,
+        callback: () => {
+          this.charIdx++;
+          this.bodyText.setText(this.fullText.substring(0, this.charIdx));
+          if (this.charIdx >= this.fullText.length) this.finishTyping();
+        },
+      });
+    };
+
+    const prevOffset = this._prevPanelOffsetX;
+    this._prevPanelOffsetX = sectionX;
+    if (prevOffset !== undefined && prevOffset !== sectionX) {
+      this.cameras.main.once('camerapancomplete', startTyping);
+    } else {
+      startTyping();
+    }
   }
 
   drawFairySprite(cx, cy, speaker, radius) {
@@ -224,27 +259,27 @@ export class CutsceneScene extends Phaser.Scene {
     gfx.fillStyle(color, 0.25);
     gfx.fillEllipse(cx - r * 0.5, cy - r * 0.1, wingW, wingH);
     gfx.fillEllipse(cx + r * 0.5, cy - r * 0.1, wingW, wingH);
-    gfx.fillStyle(0xffffff, 0.12);
+    gfx.fillStyle(PAPER.white, 0.12);
     gfx.fillEllipse(cx - r * 0.5, cy - r * 0.15, wingW * 0.7, wingH * 0.7);
     gfx.fillEllipse(cx + r * 0.5, cy - r * 0.15, wingW * 0.7, wingH * 0.7);
 
-    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillStyle(PAPER.shadow, 0.2);
     gfx.fillCircle(cx + 4, cy + 6, r);
     gfx.fillStyle(color, 0.9);
     gfx.fillCircle(cx, cy, r);
-    gfx.fillStyle(0xffffff, 0.4);
+    gfx.fillStyle(PAPER.white, 0.4);
     gfx.fillCircle(cx - r * 0.2, cy - r * 0.25, r * 0.45);
-    gfx.fillStyle(0xffffff, 0.25);
+    gfx.fillStyle(PAPER.white, 0.25);
     gfx.fillCircle(cx + r * 0.3, cy - r * 0.35, r * 0.25);
 
-    gfx.fillStyle(0x1a0e04, 1);
+    gfx.fillStyle(PAPER.inkTeal, 1);
     gfx.fillCircle(cx - r * 0.18, cy - r * 0.05, r * 0.08);
     gfx.fillCircle(cx + r * 0.18, cy - r * 0.05, r * 0.08);
-    gfx.fillStyle(0xffffff, 1);
+    gfx.fillStyle(PAPER.white, 1);
     gfx.fillCircle(cx - r * 0.16, cy - r * 0.07, r * 0.03);
     gfx.fillCircle(cx + r * 0.20, cy - r * 0.07, r * 0.03);
 
-    gfx.fillStyle(0xe06080, 0.6);
+    gfx.fillStyle(PAPER.rose, 0.6);
     gfx.fillEllipse(cx, cy + r * 0.12, r * 0.25, r * 0.08);
 
     this.artContainer.add(gfx);
@@ -255,7 +290,7 @@ export class CutsceneScene extends Phaser.Scene {
       const sx = cx + Math.cos(a) * dist;
       const sy = cy + Math.sin(a) * dist;
       const size = 3 + Math.random() * 4;
-      const sparkle = this.add.circle(sx, sy, size, 0xffffff, 0.6 + Math.random() * 0.3);
+      const sparkle = this.add.circle(sx, sy, size, PAPER.white, 0.6 + Math.random() * 0.3);
       this.sparkleContainer.add(sparkle);
       this.tweens.add({
         targets: sparkle,
@@ -271,8 +306,8 @@ export class CutsceneScene extends Phaser.Scene {
     const label = this.add.text(cx, cy + r + 20, speaker || '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '20px',
-      color: '#f0e4cc',
-      stroke: '#1a0e04',
+      color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,
     }).setOrigin(0.5);
     this.artContainer.add(label);
@@ -280,10 +315,11 @@ export class CutsceneScene extends Phaser.Scene {
 
   drawPartyHeroes() {
     const party = this.save.party || [];
+    const off = this._panelOffsetX || 0;
     const positions = [
-      { x: GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.74 },
-      { x: GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.70 },
-      { x: GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.74 },
+      { x: off + GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.74 },
+      { x: off + GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.70 },
+      { x: off + GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.74 },
     ];
     for (let i = 0; i < Math.min(3, party.length); i++) {
       const slot = party[i];
@@ -291,31 +327,72 @@ export class CutsceneScene extends Phaser.Scene {
       const def = getHeroById(slot.id);
       if (!def) continue;
       const pos = positions[i];
-      const img = drawHeroSprite(this, pos.x, pos.y, def, { scale: 1.2 });
-      this.artContainer.add(img);
+      // Create hero off-screen to the left, walk in
+      const startX = pos.x - 200;
+      const heroSprite = createAnimatedHero(this, startX, pos.y, def, { scale: 1.2 });
+      heroSprite.startWalk();
+      this.artContainer.add(heroSprite);
+      // Tween to final position
+      this.tweens.add({
+        targets: heroSprite,
+        x: pos.x,
+        duration: 600 + i * 200,
+        ease: 'Sine.out',
+        delay: i * 150,
+        onComplete: () => {
+          heroSprite.stopWalk();
+        },
+      });
     }
   }
 
   drawBossArt(line) {
-    const cx = GAME_WIDTH * 0.78;
+    const off = this._panelOffsetX || 0;
+    const cx = off + GAME_WIDTH * 0.78;
     const cy = GAME_HEIGHT * 0.48;
     const enemy = getEnemyById(line.sprite);
     if (enemy) {
+      // Brief screen darken for boss reveal — covers the panel section
+      const darkenX = off + GAME_WIDTH / 2;
+      const darken = this.add.rectangle(darkenX, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6);
+      this.artContainer.add(darken);
+      this.tweens.add({ targets: darken, alpha: 0, duration: 800, delay: 400, onComplete: () => darken.destroy() });
+
+      // Boss sprite with scale-pop effect (0 -> 1.2 -> 1.0)
       const img = drawMonsterSprite(this, cx, cy, enemy, { scale: 1.8 });
+      img.setScale(0);
       this.artContainer.add(img);
+      this.tweens.add({
+        targets: img,
+        scaleX: 1.8 * 1.2,
+        scaleY: 1.8 * 1.2,
+        duration: 400,
+        delay: 200,
+        ease: 'Back.out',
+        onComplete: () => {
+          this.tweens.add({
+            targets: img,
+            scaleX: 1.8,
+            scaleY: 1.8,
+            duration: 300,
+            ease: 'Sine.inOut',
+          });
+        },
+      });
     }
   }
 
   positionBubble(layout) {
+    const off = this._panelOffsetX || 0;
     let bx;
     if (layout === 'left') {
-      bx = GAME_WIDTH * 0.39;
+      bx = off + GAME_WIDTH * 0.39;
     } else if (layout === 'right') {
-      bx = GAME_WIDTH * 0.02;
+      bx = off + GAME_WIDTH * 0.02;
     } else if (layout === 'party') {
-      bx = GAME_WIDTH * 0.19;
+      bx = off + GAME_WIDTH * 0.19;
     } else {
-      bx = GAME_WIDTH * 0.19;
+      bx = off + GAME_WIDTH * 0.19;
     }
     this._bubbleLayout = layout;
     this._bubbleBx = bx;
@@ -331,7 +408,7 @@ export class CutsceneScene extends Phaser.Scene {
     const pad = { x: 20, top: 44, bottom: 20, name: 36 };
     const by = layout === 'party' ? GAME_HEIGHT * 0.08 : GAME_HEIGHT * 0.25;
 
-    if (isWide) bx = GAME_WIDTH * 0.12;
+    if (isWide) bx = (this._panelOffsetX || 0) + GAME_WIDTH * 0.12;
 
     this.bodyText.setWordWrapWidth(wrapW);
     this.bodyText.setText(this.fullText);
@@ -351,11 +428,11 @@ export class CutsceneScene extends Phaser.Scene {
     this.bodyText.setText('');
 
     this.bubbleGfx.clear();
-    this.bubbleGfx.fillStyle(0x000000, 0.15);
+    this.bubbleGfx.fillStyle(PAPER.shadow, 0.15);
     this.bubbleGfx.fillRoundedRect(bx + 4, by + 6, bw, bh, 20);
-    this.bubbleGfx.fillStyle(0xf5ead0, 0.92);
+    this.bubbleGfx.fillStyle(PAPER.cream, 0.92);
     this.bubbleGfx.fillRoundedRect(bx, by, bw, bh, 20);
-    this.bubbleGfx.lineStyle(3, 0xd4a840, 0.8);
+    this.bubbleGfx.lineStyle(3, PAPER.gold, 0.8);
     this.bubbleGfx.strokeRoundedRect(bx, by, bw, bh, 20);
   }
 
@@ -364,24 +441,24 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   getSpeakerColor(speaker) {
-    if (!speaker) return 0x88aaff;
+    if (!speaker) return PAPER.sky;
     const s = speaker.toLowerCase();
-    if (s.includes('elder')) return 0x88aaff;
-    if (s.includes('water')) return 0x38a8c8;
-    if (s.includes('sky')) return 0x88c8f8;
-    if (s.includes('fire')) return 0xf06828;
-    if (s.includes('ice')) return 0x80c8e8;
-    if (s.includes('crystal')) return 0xc080f0;
-    if (s.includes('market')) return 0xe8c040;
-    if (s.includes('book')) return 0xc8a060;
-    if (s.includes('all fair')) return 0xd0a0ff;
-    if (s.includes('narrator')) return 0xf0d040;
+    if (s.includes('elder')) return PAPER.sky;
+    if (s.includes('water')) return PAPER.teal;
+    if (s.includes('sky')) return PAPER.sky;
+    if (s.includes('fire')) return PAPER.coralD;
+    if (s.includes('ice')) return PAPER.tealL;
+    if (s.includes('crystal')) return PAPER.lavender;
+    if (s.includes('market')) return PAPER.gold;
+    if (s.includes('book')) return PAPER.peach;
+    if (s.includes('all fair')) return PAPER.lavender;
+    if (s.includes('narrator')) return PAPER.gold;
     if (s.includes('king') || s.includes('pressure') || s.includes('whale') ||
         s.includes('prism') || s.includes('paradox') || s.includes('theorem') ||
         s.includes('zero') || s.includes('counterfeit') || s.includes('pyroclast')) {
-      return 0xe04040;
+      return PAPER.coralD;
     }
-    return 0x88aaff;
+    return PAPER.sky;
   }
 
   onTap() {
@@ -416,6 +493,8 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   finish() {
+    if (this._leaving) return; // rapid taps on the last line = double transition
+    this._leaving = true;
     transitionTo(this, this.nextScene, this.nextData, 400);
   }
 }

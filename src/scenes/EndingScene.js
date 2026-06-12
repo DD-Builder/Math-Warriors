@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperButton, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { drawShadowBox } from '../systems/papercutArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
@@ -28,6 +29,8 @@ export class EndingScene extends Phaser.Scene {
   }
 
   create() {
+    this.events.once('shutdown', () => this.tweens.killAll());
+
     fadeInScene(this, 600);
     audio.playMusic('music/title');
 
@@ -36,13 +39,18 @@ export class EndingScene extends Phaser.Scene {
 
     drawPapercutBackground(this, 9, GAME_WIDTH, GAME_HEIGHT, 9999);
 
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.3);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.25);
+
+    // ── SHADOW-BOX FRAME (v2 papercut aesthetic — 5 layers for grandeur) ──
+    // const frameGfx = this.add.graphics().setDepth(1);
+    // Shadow-box disabled: opaque layers cover scene content
+    // TODO: implement ring-draw (fill border only, transparent center)
 
     // Sparkle particles
     for (let i = 0; i < 30; i++) {
       const sx = Math.random() * GAME_WIDTH;
       const sy = Math.random() * GAME_HEIGHT;
-      const star = this.add.circle(sx, sy, 2 + Math.random() * 3, 0xf0d040, 0.6);
+      const star = this.add.circle(sx, sy, 2 + Math.random() * 3, PAPER.gold, 0.6);
       this.tweens.add({
         targets: star,
         alpha: 0,
@@ -74,8 +82,8 @@ export class EndingScene extends Phaser.Scene {
     const realmText = this.add.text(area.cx, area.cy, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '36px',
-      color: '#f0e4cc',
-      stroke: '#1a0e04',
+      color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 5,
       align: 'center',
     }).setOrigin(0.5).setAlpha(0);
@@ -137,8 +145,8 @@ export class EndingScene extends Phaser.Scene {
     const titleText = this.add.text(area.cx, heroY + 90, 'THE END', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '60px',
-      color: '#f0d040',
-      stroke: '#1a0e04',
+      color: PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 5,
     }).setOrigin(0.5).setAlpha(0);
     elements.push(titleText);
@@ -154,15 +162,15 @@ export class EndingScene extends Phaser.Scene {
     const statsText = this.add.text(area.cx, heroY + 140, statsLines[0], {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '20px',
-      color: '#f0e4cc',
+      color: PAPER_CSS.cream,
       align: 'center',
     }).setOrigin(0.5).setAlpha(0);
     elements.push(statsText);
 
     // "TITLE SCREEN" button
     const titleBtn = PaperButton(this, area.cx, heroY + 210, 'TITLE SCREEN', {
-      w: 300, h: 70, color: 0xd07818, fontSize: 26,
-      textColor: '#fff8e0',
+      w: 300, h: 70, color: PAPER.orange, fontSize: 26,
+      textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/confirm');
         transitionTo(this, SCENES.TITLE, undefined, 400);

@@ -14,6 +14,8 @@
  *   'slide'  — screen slides left
  */
 
+import { PAPER, PAPER_CSS } from '../config.js';
+
 const DEFAULT_FADE = 250;
 
 // --- Loading Tips (Item 42) ---
@@ -50,7 +52,7 @@ export function transitionTo(scene, key, data, duration = DEFAULT_FADE, type = '
     _transitionSlide(scene, key, data, duration);
   } else {
     // Default: fade
-    scene.cameras.main.fadeOut(duration, 0, 0, 0);
+    scene.cameras.main.fadeOut(duration, 31, 66, 68);
     scene.cameras.main.once('camerafadeoutcomplete', () => {
       scene.scene.start(key, data);
     });
@@ -80,7 +82,7 @@ function _transitionWipe(scene, key, data, duration) {
 
   const drawWipe = () => {
     gfx.clear();
-    gfx.fillStyle(0x000000, 1);
+    gfx.fillStyle(PAPER.inkTeal, 1);
     // The diagonal edge runs at 45 degrees. As t increases, the
     // filled area grows from the top-left corner.
     // Leading edge x-intercept moves from -diagonal to +diagonal*2.
@@ -107,7 +109,7 @@ function _transitionWipe(scene, key, data, duration) {
     onUpdate: drawWipe,
     onComplete: () => {
       gfx.clear();
-      gfx.fillStyle(0x000000, 1);
+      gfx.fillStyle(PAPER.inkTeal, 1);
       gfx.fillRect(-50, -50, W + 100, H + 100);
       scene.scene.start(key, data);
     },
@@ -133,7 +135,7 @@ function _transitionCircle(scene, key, data, duration) {
 
   const drawIris = () => {
     gfx.clear();
-    gfx.fillStyle(0x000000, 1);
+    gfx.fillStyle(PAPER.inkTeal, 1);
 
     const r = Math.max(0, proxy.radius);
     const steps = 64;
@@ -168,7 +170,7 @@ function _transitionCircle(scene, key, data, duration) {
     onComplete: () => {
       // Full black
       gfx.clear();
-      gfx.fillStyle(0x000000, 1);
+      gfx.fillStyle(PAPER.inkTeal, 1);
       gfx.fillRect(0, 0, W, H);
       scene.scene.start(key, data);
     },
@@ -182,7 +184,7 @@ function _transitionCircle(scene, key, data, duration) {
 function _transitionSlide(scene, key, data, duration) {
   const W = scene.cameras.main.width;
 
-  const overlay = scene.add.rectangle(W / 2, scene.cameras.main.height / 2, W, scene.cameras.main.height, 0x000000, 0).setDepth(9998).setScrollFactor(0);
+  const overlay = scene.add.rectangle(W / 2, scene.cameras.main.height / 2, W, scene.cameras.main.height, PAPER.inkTeal, 0).setDepth(9998).setScrollFactor(0);
 
   scene.tweens.add({
     targets: overlay,
@@ -211,8 +213,8 @@ function _transitionSlide(scene, key, data, duration) {
  * `bgColor` for scenes that want a different base (e.g. MazeScene
  * uses the realm's sky color so the area outside the maze matches).
  */
-export function fadeInScene(scene, duration = DEFAULT_FADE, bgColor = 0x000000) {
-  scene.cameras.main.fadeIn(duration, 0, 0, 0);
+export function fadeInScene(scene, duration = DEFAULT_FADE, bgColor = PAPER.inkTeal) {
+  scene.cameras.main.fadeIn(duration, 31, 66, 68);
   scene.cameras.main.setBackgroundColor(bgColor);
 }
 
@@ -228,8 +230,8 @@ function _showLoadingTip(scene) {
     const tipText = scene.add.text(W / 2, H - 40, tip, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '14px',
-      color: '#f5ead0',
-      stroke: '#000000',
+      color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(10000).setScrollFactor(0).setAlpha(0);
     scene.tweens.add({

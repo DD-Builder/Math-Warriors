@@ -4,10 +4,1481 @@
  * Extracted from BattleScene and enhanced. Two tiers:
  *   FIGHT: enhanced current animations with hit-pause and better particles (200-400ms)
  *   MAGIC: NEW spectacular per-class animations (900ms)
+ *   SUPER: per-hero ultimate attacks (800-1200ms)
+ *
+ * The ATTACK_REGISTRY maps each hero ID to personalized fight/magic/super
+ * animations. The dispatch functions (playFightAnimation, playMagicAnimation)
+ * check the registry first and fall through to class-based defaults.
  *
  * Hit-pause: brief 80ms white tint freeze on the target at moment of impact.
  * This makes hits feel like they LAND — a proven technique from fighting games.
  */
+
+import {
+  playSparkBurst,
+  playImpactRing,
+  playSlashArc,
+  playScreenFlash,
+  playBeamTrail,
+  playElementalBurst,
+  playGroundCrack,
+  playProjectile,
+  playShockwave,
+  playHitStop,
+} from './vfx.js';
+
+// ================================================================
+// ATTACK REGISTRY — per-hero personalized attacks
+// ================================================================
+
+export const ATTACK_REGISTRY = {
+  // ────────────────────────────────────────────────
+  // KNIGHTS
+  // ────────────────────────────────────────────────
+
+  'knight-shadow': {
+    // Shadow-step dash — teleport flash, dark slash arcs
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // Teleport flash at hero origin
+      playScreenFlash(scene, { color: 0x1a0a30, alpha: 0.3, duration: 100 });
+      // Blink to enemy
+      scene.time.delayedCall(80, () => {
+        if (hero.body) hero.body.setAlpha(0);
+        // Dark afterimage at origin
+        playSparkBurst(scene, hero.x, hero.y, { count: 8, colors: [0x2a1050, 0x4020a0], minDist: 10, maxDist: 30, duration: 200 });
+        scene.time.delayedCall(100, () => {
+          if (hero.body) { hero.body.setAlpha(1); hero.body.x = ex - 60; }
+          playSlashArc(scene, ex, ey, { color: 0x3a1080, lineWidth: 6, alpha: 0.9, duration: 250 });
+          scene.time.delayedCall(30, () => {
+            playSlashArc(scene, ex, ey, { color: 0x6030c0, lineWidth: 4, alpha: 0.7, arcSpread: 70, duration: 250 });
+          });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0x6030c0, endRadius: 50 });
+          playSparkBurst(scene, ex, ey, { count: 18, colors: [0x6030c0, 0x3a1080, 0x201060] });
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 200, delay: 80, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        });
+      });
+    },
+    // Dark slash arcs with void pull
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-200ms: Dark energy converge on hero
+      playSparkBurst(scene, hero.x, hero.y - 30, { count: 12, colors: [0x2a1050, 0x4020a0], minDist: 40, maxDist: 70, duration: 200, gravity: -20 });
+      scene.time.delayedCall(200, () => {
+        // Shadow step flash
+        playScreenFlash(scene, { color: 0x1a0a30, alpha: 0.4, duration: 120 });
+        if (hero.body) hero.body.setAlpha(0);
+        scene.time.delayedCall(80, () => {
+          if (hero.body) { hero.body.setAlpha(1); hero.body.x = ex - 50; }
+          // Triple dark slash staggered
+          for (let i = 0; i < 3; i++) {
+            scene.time.delayedCall(i * 80, () => {
+              playSlashArc(scene, ex + (i - 1) * 15, ey, { color: 0x6030c0, lineWidth: 5 + i, alpha: 0.9 - i * 0.1, duration: 280 });
+              playSparkBurst(scene, ex, ey, { count: 10, colors: [0x6030c0, 0x3a1080] });
+            });
+          }
+          scene.time.delayedCall(240, () => {
+            hitPause(scene, { body: hero.body }, 80);
+            playImpactRing(scene, ex, ey, { color: 0x4020a0, endRadius: 100 });
+            playShockwave(scene, ex, ey, { color: 0x6030c0, endRadius: 140 });
+            scene.cameras.main.shake(150, 0.012);
+            enemyHitReaction(scene, target, result.modifiedDamage);
+            cb.onHit?.();
+            scene.tweens.add({
+              targets: hero.body, x: hero.x, duration: 200, delay: 100, ease: 'Sine.in',
+              onComplete: () => cb.onComplete?.(),
+            });
+          });
+        });
+      });
+    },
+    // Shadow clone burst
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-300ms: 3 shadow clones appear
+      playScreenFlash(scene, { color: 0x0a0020, alpha: 0.35, duration: 200 });
+      const clonePositions = [
+        { x: ex - 80, y: ey - 40 }, { x: ex + 60, y: ey - 30 }, { x: ex - 20, y: ey + 40 },
+      ];
+      clonePositions.forEach((pos, i) => {
+        scene.time.delayedCall(i * 80, () => {
+          playSparkBurst(scene, pos.x, pos.y, { count: 6, colors: [0x2a1050, 0x6030c0], duration: 300 });
+        });
+      });
+      scene.time.delayedCall(300, () => {
+        // 300-700ms: All clones slash simultaneously
+        for (let i = 0; i < 5; i++) {
+          scene.time.delayedCall(i * 60, () => {
+            playSlashArc(scene, ex + (Math.random() - 0.5) * 30, ey + (Math.random() - 0.5) * 20, {
+              color: i < 3 ? 0x6030c0 : 0x9050f0, lineWidth: 5 + i, alpha: 0.9, duration: 250,
+            });
+            playSparkBurst(scene, ex, ey, { count: 8, colors: [0x6030c0, 0x9050f0, 0x2a1050] });
+          });
+        }
+        scene.time.delayedCall(350, () => {
+          // Final dark detonation
+          playScreenFlash(scene, { color: 0x4020a0, alpha: 0.4, duration: 200 });
+          playShockwave(scene, ex, ey, { color: 0x6030c0, endRadius: 160, strokeWidth: 5 });
+          playImpactRing(scene, ex, ey, { color: 0x9050f0, endRadius: 120 });
+          playElementalBurst(scene, ex, ey, { count: 40, colors: [0x6030c0, 0x9050f0, 0x2a1050, 0x4020a0] });
+          scene.cameras.main.shake(200, 0.02);
+          hitPause(scene, { body: hero.body }, 80);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(300, () => cb.onComplete?.());
+        });
+      });
+    },
+  },
+
+  'knight-crusader': {
+    // Cross-pattern slash with holy sparks
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      scene.tweens.add({
+        targets: hero.body, x: ex - 70, duration: 300, ease: 'Back.out',
+        onComplete: () => {
+          // Cross slash: two arcs forming an X
+          playSlashArc(scene, ex, ey, { color: 0xf0e060, lineWidth: 5, alpha: 0.95, duration: 280 });
+          scene.time.delayedCall(40, () => {
+            playSlashArc(scene, ex, ey, { color: 0xfff8a0, lineWidth: 4, alpha: 0.8, arcSpread: 75, duration: 280 });
+          });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0xf0e060, endRadius: 55 });
+          playSparkBurst(scene, ex, ey, { count: 28, colors: [0xfff8a0, 0xf0e060, 0xffd040] });
+          scene.cameras.main.shake(120, 0.008);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 250, delay: 80, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Holy light beam from above
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-300ms: Pillar of light charges from above
+      playBeamTrail(scene, ex, ey - 300, ex, ey, { color: 0xfff8a0, trailColor: 0xf0e060, particleCount: 50, width: 30, duration: 300 });
+      playSparkBurst(scene, hero.x, hero.y - 30, { count: 8, colors: [0xf0e060, 0xfff8a0], duration: 300 });
+      scene.time.delayedCall(300, () => {
+        // 300-600ms: Light pillar strikes
+        playScreenFlash(scene, { color: 0xfff8a0, alpha: 0.4, duration: 200 });
+        playImpactRing(scene, ex, ey, { color: 0xf0e060, endRadius: 100 });
+        playShockwave(scene, ex, ey, { color: 0xfff8a0, endRadius: 130 });
+        playElementalBurst(scene, ex, ey, { count: 40, colors: [0xf0e060, 0xfff8a0, 0xffd040] });
+        scene.cameras.main.shake(180, 0.015);
+        hitPause(scene, { body: hero.body }, 80);
+        enemyHitReaction(scene, target, result.modifiedDamage);
+        cb.onHit?.();
+        scene.time.delayedCall(300, () => cb.onComplete?.());
+      });
+    },
+    // Golden shockwave
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-300ms: Hero charges with golden glow
+      if (hero.body) hero.body.setTint(0xffd040);
+      playSparkBurst(scene, hero.x, hero.y - 20, { count: 12, colors: [0xffd040, 0xfff8a0], minDist: 50, maxDist: 80, duration: 250, gravity: -15 });
+      scene.time.delayedCall(300, () => {
+        if (hero.body) hero.body.clearTint();
+        scene.tweens.add({
+          targets: hero.body, x: ex - 60, duration: 200, ease: 'Back.out',
+          onComplete: () => {
+            // Cross slash pattern
+            for (let i = 0; i < 4; i++) {
+              scene.time.delayedCall(i * 50, () => {
+                playSlashArc(scene, ex + (i - 2) * 10, ey, { color: 0xffd040, lineWidth: 6 + i, alpha: 0.9, duration: 300 });
+              });
+            }
+            scene.time.delayedCall(200, () => {
+              // Golden shockwave detonation
+              playScreenFlash(scene, { color: 0xffd040, alpha: 0.45, duration: 250 });
+              playShockwave(scene, ex, ey, { color: 0xffd040, endRadius: 180, strokeWidth: 6 });
+              playImpactRing(scene, ex, ey, { color: 0xfff8a0, endRadius: 140 });
+              playElementalBurst(scene, ex, ey, { count: 50, colors: [0xffd040, 0xfff8a0, 0xf0c020, 0xffffff] });
+              playGroundCrack(scene, ex, ey + 20, { color: 0xffd040, length: 80, lineCount: 6 });
+              scene.cameras.main.shake(250, 0.025);
+              hitPause(scene, { body: hero.body }, 80);
+              enemyHitReaction(scene, target, result.modifiedDamage);
+              cb.onHit?.();
+              scene.tweens.add({
+                targets: hero.body, x: hero.x, duration: 250, delay: 150, ease: 'Sine.in',
+                onComplete: () => cb.onComplete?.(),
+              });
+            });
+          },
+        });
+      });
+    },
+  },
+
+  'knight-paladin': {
+    // Staff thrust with light trail
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      scene.tweens.add({
+        targets: hero.body, x: ex - 60, duration: 300, ease: 'Back.out',
+        onComplete: () => {
+          playBeamTrail(scene, hero.x, hero.y, ex, ey, { color: 0xf0f0ff, trailColor: 0xa0c0f0, particleCount: 20, duration: 200 });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0xc0d8f0, endRadius: 50 });
+          playSparkBurst(scene, ex, ey, { count: 22, colors: [0xf0f0ff, 0xc0d8f0, 0xa0c0f0] });
+          scene.cameras.main.shake(100, 0.006);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 250, delay: 80, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Shield bash shockwave
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-200ms: Shield glow charge
+      playSparkBurst(scene, hero.x + 20, hero.y - 10, { count: 10, colors: [0xc0d8f0, 0xf0f0ff], minDist: 30, maxDist: 60, duration: 200, gravity: -10 });
+      scene.time.delayedCall(200, () => {
+        // 200-500ms: Charge forward with shield bash
+        scene.tweens.add({
+          targets: hero.body, x: ex - 50, duration: 200, ease: 'Back.out',
+          onComplete: () => {
+            hitPause(scene, { body: hero.body }, 80);
+            playScreenFlash(scene, { color: 0xc0d8f0, alpha: 0.3, duration: 150 });
+            playShockwave(scene, ex, ey, { color: 0xc0d8f0, endRadius: 130, strokeWidth: 5 });
+            playImpactRing(scene, ex, ey, { color: 0xf0f0ff, endRadius: 90 });
+            playElementalBurst(scene, ex, ey, { count: 35, colors: [0xf0f0ff, 0xc0d8f0, 0xa0c0f0] });
+            scene.cameras.main.shake(180, 0.014);
+            enemyHitReaction(scene, target, result.modifiedDamage);
+            cb.onHit?.();
+            scene.tweens.add({
+              targets: hero.body, x: hero.x, duration: 200, delay: 150, ease: 'Sine.in',
+              onComplete: () => cb.onComplete?.(),
+            });
+          },
+        });
+      });
+    },
+    // Divine judgment pillar
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-400ms: Raise shield, divine energy gathering
+      if (hero.body) hero.body.setTint(0xf0f0ff);
+      playSparkBurst(scene, hero.x, hero.y - 20, { count: 16, colors: [0xf0f0ff, 0xa0c0f0], minDist: 50, maxDist: 90, duration: 350, gravity: -20 });
+      scene.time.delayedCall(400, () => {
+        if (hero.body) hero.body.clearTint();
+        // 400-700ms: Divine pillar descends on enemy
+        playBeamTrail(scene, ex, ey - 350, ex, ey, { color: 0xf0f0ff, trailColor: 0xc0d8f0, particleCount: 60, width: 40, duration: 300 });
+        scene.time.delayedCall(300, () => {
+          // 700-1000ms: Massive holy detonation
+          playScreenFlash(scene, { color: 0xffffff, alpha: 0.5, duration: 250 });
+          playShockwave(scene, ex, ey, { color: 0xf0f0ff, endRadius: 180, strokeWidth: 6 });
+          playImpactRing(scene, ex, ey, { color: 0xc0d8f0, endRadius: 150 });
+          scene.time.delayedCall(60, () => playImpactRing(scene, ex, ey, { color: 0xa0c0f0, endRadius: 200 }));
+          playElementalBurst(scene, ex, ey, { count: 55, colors: [0xf0f0ff, 0xc0d8f0, 0xa0c0f0, 0xffffff] });
+          playGroundCrack(scene, ex, ey + 20, { color: 0xc0d8f0, length: 70, lineCount: 5 });
+          scene.cameras.main.shake(250, 0.025);
+          hitPause(scene, { body: hero.body }, 80);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(300, () => cb.onComplete?.());
+        });
+      });
+    },
+  },
+
+  'knight-berserker': {
+    // Wild axe swings — multiple slash arcs
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      scene.tweens.add({
+        targets: hero.body, x: ex - 70, duration: 280, ease: 'Back.out',
+        onComplete: () => {
+          // 3 rapid wild slashes
+          for (let i = 0; i < 3; i++) {
+            scene.time.delayedCall(i * 50, () => {
+              const ox = (Math.random() - 0.5) * 20;
+              const oy = (Math.random() - 0.5) * 20;
+              playSlashArc(scene, ex + ox, ey + oy, { color: 0xff4020, lineWidth: 5 + i, alpha: 0.9, duration: 250 });
+            });
+          }
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0xff4020, endRadius: 55 });
+          playSparkBurst(scene, ex, ey, { count: 30, colors: [0xff4020, 0xff6030, 0xffa040] });
+          scene.cameras.main.shake(140, 0.01);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 250, delay: 80, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Rage flame burst
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-200ms: Rage buildup (red tint, shake)
+      if (hero.body) hero.body.setTint(0xff2020);
+      playSparkBurst(scene, hero.x, hero.y, { count: 14, colors: [0xff4020, 0xff6030], minDist: 20, maxDist: 50, duration: 200 });
+      scene.time.delayedCall(200, () => {
+        if (hero.body) hero.body.clearTint();
+        // 200-450ms: Berserk charge
+        scene.tweens.add({
+          targets: hero.body, x: ex - 50, duration: 200, ease: 'Quad.out',
+          onComplete: () => {
+            // 450-700ms: Flaming slashes
+            for (let i = 0; i < 5; i++) {
+              scene.time.delayedCall(i * 40, () => {
+                playSlashArc(scene, ex + (Math.random() - 0.5) * 25, ey + (Math.random() - 0.5) * 20, {
+                  color: i % 2 === 0 ? 0xff4020 : 0xff8040, lineWidth: 4 + i, alpha: 0.85, duration: 260,
+                });
+              });
+            }
+            scene.time.delayedCall(200, () => {
+              hitPause(scene, { body: hero.body }, 80);
+              playScreenFlash(scene, { color: 0xff2020, alpha: 0.3, duration: 180 });
+              playImpactRing(scene, ex, ey, { color: 0xff4020, endRadius: 100 });
+              playElementalBurst(scene, ex, ey, { count: 40, colors: [0xff4020, 0xff6030, 0xffa040, 0xffcc30] });
+              scene.cameras.main.shake(200, 0.018);
+              enemyHitReaction(scene, target, result.modifiedDamage);
+              cb.onHit?.();
+              scene.tweens.add({
+                targets: hero.body, x: hero.x, duration: 200, delay: 150, ease: 'Sine.in',
+                onComplete: () => cb.onComplete?.(),
+              });
+            });
+          },
+        });
+      });
+    },
+    // Ground-shatter smash
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-350ms: Rage charge (body grows, red glow)
+      if (hero.body) {
+        if (hero.body.setTint) hero.body.setTint(0xff2020);
+        const osx = hero.body.scaleX, osy = hero.body.scaleY;
+        scene.tweens.add({ targets: hero.body, scaleX: osx * 1.15, scaleY: osy * 1.15, duration: 350, ease: 'Cubic.in' });
+      }
+      playSparkBurst(scene, hero.x, hero.y, { count: 16, colors: [0xff2020, 0xff4020], minDist: 40, maxDist: 80, duration: 300, gravity: -20 });
+      scene.time.delayedCall(350, () => {
+        if (hero.body) hero.body.clearTint();
+        // 350-600ms: Leap and slam
+        scene.tweens.add({
+          targets: hero.body, x: ex - 40, y: hero.y - 80, duration: 150, ease: 'Quad.out',
+          onComplete: () => {
+            scene.tweens.add({
+              targets: hero.body, y: hero.y, duration: 100, ease: 'Quad.in',
+              onComplete: () => {
+                // 600-1000ms: Ground shatter impact
+                playScreenFlash(scene, { color: 0xff4020, alpha: 0.45, duration: 250 });
+                playGroundCrack(scene, ex, ey + 20, { color: 0xff4020, length: 100, lineCount: 8, lineWidth: 4 });
+                playShockwave(scene, ex, ey, { color: 0xff4020, endRadius: 200, strokeWidth: 6 });
+                playImpactRing(scene, ex, ey, { color: 0xffa040, endRadius: 150 });
+                playElementalBurst(scene, ex, ey, { count: 55, colors: [0xff4020, 0xff6030, 0xffa040, 0xffcc30] });
+                scene.cameras.main.shake(300, 0.03);
+                hitPause(scene, { body: hero.body }, 80);
+                enemyHitReaction(scene, target, result.modifiedDamage);
+                cb.onHit?.();
+                if (hero.body) {
+                  const osx2 = hero.body.scaleX / 1.15, osy2 = hero.body.scaleY / 1.15;
+                  scene.tweens.add({ targets: hero.body, scaleX: osx2, scaleY: osy2, duration: 100 });
+                }
+                scene.tweens.add({
+                  targets: hero.body, x: hero.x, duration: 250, delay: 150, ease: 'Sine.in',
+                  onComplete: () => cb.onComplete?.(),
+                });
+              },
+            });
+          },
+        });
+      });
+    },
+  },
+
+  'knight-greathelm': {
+    // Precision great-sword strike
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // Slow deliberate advance
+      scene.tweens.add({
+        targets: hero.body, x: ex - 80, duration: 380, ease: 'Sine.out',
+        onComplete: () => {
+          // Single massive slash arc
+          playSlashArc(scene, ex, ey, { color: 0xd0d8e0, lineWidth: 8, alpha: 0.95, arcSpread: 100, duration: 300 });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0xd0d8e0, endRadius: 60, strokeWidth: 4 });
+          playSparkBurst(scene, ex, ey, { count: 25, colors: [0xd0d8e0, 0xf0f0f0, 0xa0a8b0] });
+          scene.cameras.main.shake(120, 0.008);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 280, delay: 80, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Blade beam projectile
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-250ms: Sword wind-up
+      playSlashArc(scene, hero.x + 30, hero.y - 20, { color: 0xd0d8e0, lineWidth: 6, alpha: 0.8, duration: 250 });
+      scene.time.delayedCall(250, () => {
+        // 250-550ms: Blade beam projectile
+        playProjectile(scene, hero.x + 50, hero.y - 20, ex, ey, { size: 12, color: 0xd0d8e0, speed: 700 }).then(() => {
+          playScreenFlash(scene, { color: 0xd0d8e0, alpha: 0.3, duration: 180 });
+          playImpactRing(scene, ex, ey, { color: 0xd0d8e0, endRadius: 90 });
+          playShockwave(scene, ex, ey, { color: 0xf0f0f0, endRadius: 120 });
+          playElementalBurst(scene, ex, ey, { count: 35, colors: [0xd0d8e0, 0xf0f0f0, 0xa0a8b0] });
+          scene.cameras.main.shake(180, 0.015);
+          hitPause(scene, { body: hero.body }, 80);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(200, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Earthquake shockwave
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-350ms: Raise great-sword skyward
+      if (hero.body) hero.body.setTint(0xd0d8e0);
+      playSparkBurst(scene, hero.x, hero.y - 40, { count: 14, colors: [0xd0d8e0, 0xf0f0f0], minDist: 40, maxDist: 70, duration: 300, gravity: -25 });
+      scene.time.delayedCall(350, () => {
+        if (hero.body) hero.body.clearTint();
+        // 350-600ms: Leap and strike
+        scene.tweens.add({
+          targets: hero.body, x: ex - 50, y: hero.y - 60, duration: 150, ease: 'Quad.out',
+          onComplete: () => {
+            scene.tweens.add({
+              targets: hero.body, y: hero.y, duration: 100, ease: 'Quad.in',
+              onComplete: () => {
+                // 600-1000ms: Earthquake
+                playScreenFlash(scene, { color: 0xffffff, alpha: 0.45, duration: 250 });
+                playSlashArc(scene, ex, ey, { color: 0xd0d8e0, lineWidth: 10, alpha: 0.95, arcSpread: 120, duration: 350 });
+                playGroundCrack(scene, ex, ey + 20, { color: 0x8a7a60, length: 110, lineCount: 8, lineWidth: 4 });
+                playShockwave(scene, ex, ey, { color: 0xd0d8e0, endRadius: 200, strokeWidth: 6 });
+                scene.time.delayedCall(80, () => playShockwave(scene, ex, ey, { color: 0xa0a8b0, endRadius: 250, strokeWidth: 4 }));
+                playElementalBurst(scene, ex, ey, { count: 50, colors: [0xd0d8e0, 0xa0a8b0, 0x8a7a60, 0xf0f0f0] });
+                scene.cameras.main.shake(350, 0.03);
+                hitPause(scene, { body: hero.body }, 80);
+                enemyHitReaction(scene, target, result.modifiedDamage);
+                cb.onHit?.();
+                scene.tweens.add({
+                  targets: hero.body, x: hero.x, duration: 280, delay: 150, ease: 'Sine.in',
+                  onComplete: () => cb.onComplete?.(),
+                });
+              },
+            });
+          },
+        });
+      });
+    },
+  },
+
+  // ────────────────────────────────────────────────
+  // WIZARDS
+  // ────────────────────────────────────────────────
+
+  'wizard-stargazer': {
+    // Star projectile
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // Charge orb
+      playSparkBurst(scene, hero.x + 30, hero.y - 30, { count: 8, colors: [0xffe880, 0xfff8c0], duration: 200 });
+      scene.time.delayedCall(100, () => {
+        playProjectile(scene, hero.x + 40, hero.y - 30, ex, ey, { size: 10, color: 0xffe880, speed: 650 }).then(() => {
+          hitPause(scene, { body: hero.body }, 60);
+          playImpactRing(scene, ex, ey, { color: 0xffe880, endRadius: 55 });
+          playSparkBurst(scene, ex, ey, { count: 24, colors: [0xffe880, 0xfff8c0, 0xf0d040] });
+          scene.cameras.main.shake(100, 0.006);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(150, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Constellation beam
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-200ms: Star points appear in constellation pattern
+      const starPositions = [
+        { x: hero.x + 50, y: hero.y - 80 }, { x: hero.x + 100, y: hero.y - 40 },
+        { x: hero.x + 80, y: hero.y + 20 }, { x: (hero.x + ex) / 2, y: hero.y - 60 },
+      ];
+      starPositions.forEach((pos, i) => {
+        scene.time.delayedCall(i * 50, () => {
+          playSparkBurst(scene, pos.x, pos.y, { count: 5, colors: [0xffe880, 0xfff8c0], minDist: 5, maxDist: 15, duration: 400 });
+        });
+      });
+      scene.time.delayedCall(250, () => {
+        // 250-550ms: Constellation beam fires
+        playBeamTrail(scene, hero.x + 50, hero.y - 50, ex, ey, { color: 0xffe880, trailColor: 0xf0d040, particleCount: 55, width: 25, duration: 350 });
+        scene.time.delayedCall(300, () => {
+          playScreenFlash(scene, { color: 0xffe880, alpha: 0.35, duration: 200 });
+          playImpactRing(scene, ex, ey, { color: 0xffe880, endRadius: 100 });
+          playShockwave(scene, ex, ey, { color: 0xfff8c0, endRadius: 130 });
+          playElementalBurst(scene, ex, ey, { count: 40, colors: [0xffe880, 0xfff8c0, 0xf0d040] });
+          scene.cameras.main.shake(180, 0.015);
+          hitPause(scene, { body: hero.body }, 60);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(250, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Cosmic collapse — galaxy implodes
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-400ms: Cosmic energy swirls around enemy
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        const dist = 100 + Math.random() * 50;
+        scene.time.delayedCall(i * 15, () => {
+          playSparkBurst(scene, ex + Math.cos(angle) * dist, ey + Math.sin(angle) * dist, {
+            count: 3, colors: [0xffe880, 0x8060c0, 0xfff8c0], minDist: 5, maxDist: 15, duration: 350,
+          });
+        });
+      }
+      scene.time.delayedCall(400, () => {
+        // 400-700ms: Galaxy implodes — particles pull inward
+        playSparkBurst(scene, ex, ey, { count: 30, colors: [0x4020a0, 0x8060c0], minDist: 80, maxDist: 150, duration: 300, gravity: -40 });
+        playScreenFlash(scene, { color: 0x200840, alpha: 0.4, duration: 300 });
+        scene.time.delayedCall(300, () => {
+          // 700-1100ms: Supernova explosion
+          playScreenFlash(scene, { color: 0xffffff, alpha: 0.55, duration: 250 });
+          playShockwave(scene, ex, ey, { color: 0xffe880, endRadius: 200, strokeWidth: 6 });
+          scene.time.delayedCall(60, () => playShockwave(scene, ex, ey, { color: 0x8060c0, endRadius: 250, strokeWidth: 4 }));
+          playImpactRing(scene, ex, ey, { color: 0xfff8c0, endRadius: 160 });
+          playElementalBurst(scene, ex, ey, { count: 60, colors: [0xffe880, 0xfff8c0, 0x8060c0, 0x4020a0, 0xffffff] });
+          scene.cameras.main.shake(300, 0.03);
+          hitPause(scene, { body: hero.body }, 80);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(350, () => cb.onComplete?.());
+        });
+      });
+    },
+  },
+
+  'wizard-toadstool': {
+    // Poison spore cloud
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      playSparkBurst(scene, hero.x + 30, hero.y - 20, { count: 6, colors: [0x60c040, 0x80d060], duration: 200 });
+      scene.time.delayedCall(100, () => {
+        playProjectile(scene, hero.x + 40, hero.y - 20, ex, ey, { size: 8, color: 0x60c040, speed: 550 }).then(() => {
+          hitPause(scene, { body: hero.body }, 60);
+          // Spore cloud: lots of green/purple sparks
+          playSparkBurst(scene, ex, ey, { count: 28, colors: [0x60c040, 0x80d060, 0xa040c0], minDist: 15, maxDist: 45, duration: 500 });
+          playImpactRing(scene, ex, ey, { color: 0x60c040, endRadius: 50 });
+          scene.cameras.main.shake(80, 0.005);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(200, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Mushroom bomb projectile
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-200ms: Brew charges
+      playSparkBurst(scene, hero.x + 20, hero.y - 30, { count: 10, colors: [0x60c040, 0xa040c0], duration: 200 });
+      scene.time.delayedCall(200, () => {
+        // 200-500ms: Arcing mushroom bomb
+        playProjectile(scene, hero.x + 40, hero.y - 30, ex, ey - 20, { size: 14, color: 0xa040c0, speed: 500 }).then(() => {
+          // 500-800ms: Toxic explosion
+          playScreenFlash(scene, { color: 0x60c040, alpha: 0.3, duration: 200 });
+          playImpactRing(scene, ex, ey, { color: 0x60c040, endRadius: 90 });
+          playShockwave(scene, ex, ey, { color: 0xa040c0, endRadius: 120 });
+          playElementalBurst(scene, ex, ey, { count: 45, colors: [0x60c040, 0x80d060, 0xa040c0, 0xc060e0] });
+          scene.cameras.main.shake(160, 0.012);
+          hitPause(scene, { body: hero.body }, 60);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(200, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Toxic fog burst
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-350ms: Spores converge from all directions
+      for (let i = 0; i < 16; i++) {
+        const angle = (i / 16) * Math.PI * 2;
+        const dist = 80 + Math.random() * 40;
+        scene.time.delayedCall(i * 20, () => {
+          playSparkBurst(scene, ex + Math.cos(angle) * dist, ey + Math.sin(angle) * dist, {
+            count: 3, colors: [0x60c040, 0xa040c0], minDist: 5, maxDist: 15, duration: 300,
+          });
+        });
+      }
+      scene.time.delayedCall(350, () => {
+        // 350-600ms: 3 mushroom bombs explode in sequence
+        for (let i = 0; i < 3; i++) {
+          scene.time.delayedCall(i * 80, () => {
+            const ox = (i - 1) * 30;
+            playImpactRing(scene, ex + ox, ey, { color: 0x60c040, endRadius: 70 + i * 20 });
+            playSparkBurst(scene, ex + ox, ey, { count: 15, colors: [0x60c040, 0x80d060, 0xa040c0] });
+          });
+        }
+        scene.time.delayedCall(280, () => {
+          // 630-1000ms: Massive toxic fog detonation
+          playScreenFlash(scene, { color: 0x60c040, alpha: 0.45, duration: 250 });
+          playShockwave(scene, ex, ey, { color: 0x60c040, endRadius: 180, strokeWidth: 6 });
+          playImpactRing(scene, ex, ey, { color: 0xa040c0, endRadius: 150 });
+          playElementalBurst(scene, ex, ey, { count: 55, colors: [0x60c040, 0x80d060, 0xa040c0, 0xc060e0, 0x40a020] });
+          scene.cameras.main.shake(250, 0.025);
+          hitPause(scene, { body: hero.body }, 80);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(350, () => cb.onComplete?.());
+        });
+      });
+    },
+  },
+
+  'wizard-spellblade': {
+    // Magic-infused slash
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      scene.tweens.add({
+        targets: hero.body, x: ex - 70, duration: 300, ease: 'Back.out',
+        onComplete: () => {
+          playSlashArc(scene, ex, ey, { color: 0x60a0f0, lineWidth: 6, alpha: 0.9, duration: 280 });
+          playSparkBurst(scene, ex, ey, { count: 20, colors: [0x60a0f0, 0xa0d0ff, 0x4080d0] });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0x60a0f0, endRadius: 50 });
+          scene.cameras.main.shake(100, 0.006);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 250, delay: 80, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Spell beam
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-200ms: Arcane charge at blade
+      playSparkBurst(scene, hero.x + 40, hero.y - 20, { count: 10, colors: [0x60a0f0, 0xa0d0ff], duration: 200 });
+      scene.time.delayedCall(200, () => {
+        // 200-500ms: Spell beam fires
+        playBeamTrail(scene, hero.x + 50, hero.y - 20, ex, ey, { color: 0x60a0f0, trailColor: 0x4080d0, particleCount: 50, width: 22, duration: 300 });
+        scene.time.delayedCall(300, () => {
+          playScreenFlash(scene, { color: 0x60a0f0, alpha: 0.35, duration: 200 });
+          playImpactRing(scene, ex, ey, { color: 0x60a0f0, endRadius: 90 });
+          playSlashArc(scene, ex, ey, { color: 0xa0d0ff, lineWidth: 5, alpha: 0.8, duration: 280 });
+          playElementalBurst(scene, ex, ey, { count: 38, colors: [0x60a0f0, 0xa0d0ff, 0x4080d0] });
+          scene.cameras.main.shake(160, 0.012);
+          hitPause(scene, { body: hero.body }, 60);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(250, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Arcane detonation
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-300ms: Charge blade with arcane energy
+      if (hero.body) hero.body.setTint(0x60a0f0);
+      playSparkBurst(scene, hero.x, hero.y - 20, { count: 14, colors: [0x60a0f0, 0xa0d0ff], minDist: 40, maxDist: 80, duration: 300, gravity: -20 });
+      scene.time.delayedCall(300, () => {
+        if (hero.body) hero.body.clearTint();
+        // 300-550ms: Dash and slash
+        scene.tweens.add({
+          targets: hero.body, x: ex - 50, duration: 200, ease: 'Back.out',
+          onComplete: () => {
+            // 550-850ms: Triple slash + beam detonation
+            for (let i = 0; i < 3; i++) {
+              scene.time.delayedCall(i * 60, () => {
+                playSlashArc(scene, ex + (i - 1) * 12, ey, { color: 0x60a0f0, lineWidth: 6 + i * 2, alpha: 0.9, duration: 280 });
+              });
+            }
+            scene.time.delayedCall(200, () => {
+              playScreenFlash(scene, { color: 0x60a0f0, alpha: 0.5, duration: 250 });
+              playShockwave(scene, ex, ey, { color: 0x60a0f0, endRadius: 170, strokeWidth: 5 });
+              playImpactRing(scene, ex, ey, { color: 0xa0d0ff, endRadius: 130 });
+              playElementalBurst(scene, ex, ey, { count: 50, colors: [0x60a0f0, 0xa0d0ff, 0x4080d0, 0xffffff] });
+              scene.cameras.main.shake(250, 0.025);
+              hitPause(scene, { body: hero.body }, 80);
+              enemyHitReaction(scene, target, result.modifiedDamage);
+              cb.onHit?.();
+              scene.tweens.add({
+                targets: hero.body, x: hero.x, duration: 250, delay: 150, ease: 'Sine.in',
+                onComplete: () => cb.onComplete?.(),
+              });
+            });
+          },
+        });
+      });
+    },
+  },
+
+  'wizard-bookworm': {
+    // Book-page projectile volley
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // Fire 3 page projectiles in quick succession
+      let completed = 0;
+      const totalProjectiles = 3;
+      for (let i = 0; i < totalProjectiles; i++) {
+        scene.time.delayedCall(i * 70, () => {
+          const oy = (i - 1) * 20;
+          playProjectile(scene, hero.x + 40, hero.y - 20 + oy, ex, ey, { size: 6, color: 0xf0e8c0, speed: 700 }).then(() => {
+            playSparkBurst(scene, ex, ey, { count: 6, colors: [0xf0e8c0, 0xc0a860] });
+            completed++;
+            if (completed === totalProjectiles) {
+              hitPause(scene, { body: hero.body }, 60);
+              playImpactRing(scene, ex, ey, { color: 0xf0e8c0, endRadius: 50 });
+              playSparkBurst(scene, ex, ey, { count: 18, colors: [0xf0e8c0, 0xc0a860, 0xe0d0a0] });
+              scene.cameras.main.shake(100, 0.006);
+              enemyHitReaction(scene, target, result.modifiedDamage);
+              cb.onHit?.();
+              scene.time.delayedCall(150, () => cb.onComplete?.());
+            }
+          });
+        });
+      }
+    },
+    // Knowledge beam
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-250ms: Book pages swirl around hero
+      playSparkBurst(scene, hero.x, hero.y - 20, { count: 14, colors: [0xf0e8c0, 0xc0a860], minDist: 30, maxDist: 60, duration: 250 });
+      scene.time.delayedCall(250, () => {
+        // 250-550ms: Knowledge beam
+        playBeamTrail(scene, hero.x + 40, hero.y - 25, ex, ey, { color: 0xf0e8c0, trailColor: 0xc0a860, particleCount: 50, width: 25, duration: 300 });
+        scene.time.delayedCall(300, () => {
+          playScreenFlash(scene, { color: 0xf0e8c0, alpha: 0.35, duration: 200 });
+          playImpactRing(scene, ex, ey, { color: 0xf0e8c0, endRadius: 95 });
+          playShockwave(scene, ex, ey, { color: 0xc0a860, endRadius: 120 });
+          playElementalBurst(scene, ex, ey, { count: 40, colors: [0xf0e8c0, 0xc0a860, 0xe0d0a0] });
+          scene.cameras.main.shake(160, 0.012);
+          hitPause(scene, { body: hero.body }, 60);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(250, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Library storm — books swirl
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-400ms: Books swirl in a vortex around hero
+      for (let i = 0; i < 18; i++) {
+        const angle = (i / 18) * Math.PI * 2;
+        scene.time.delayedCall(i * 20, () => {
+          const r = 60 + Math.random() * 30;
+          playSparkBurst(scene, hero.x + Math.cos(angle) * r, hero.y - 20 + Math.sin(angle) * r, {
+            count: 3, colors: [0xf0e8c0, 0xc0a860], minDist: 5, maxDist: 15, duration: 350,
+          });
+        });
+      }
+      scene.time.delayedCall(400, () => {
+        // 400-700ms: Book volley barrage
+        for (let i = 0; i < 5; i++) {
+          scene.time.delayedCall(i * 50, () => {
+            const oy = (Math.random() - 0.5) * 40;
+            playProjectile(scene, hero.x + 40, hero.y - 20 + oy, ex + (Math.random() - 0.5) * 20, ey + (Math.random() - 0.5) * 20, { size: 8, color: 0xf0e8c0, speed: 800 });
+          });
+        }
+        scene.time.delayedCall(350, () => {
+          // 750-1100ms: Knowledge explosion
+          playScreenFlash(scene, { color: 0xf0e8c0, alpha: 0.45, duration: 250 });
+          playShockwave(scene, ex, ey, { color: 0xf0e8c0, endRadius: 180, strokeWidth: 5 });
+          playImpactRing(scene, ex, ey, { color: 0xc0a860, endRadius: 140 });
+          playElementalBurst(scene, ex, ey, { count: 55, colors: [0xf0e8c0, 0xc0a860, 0xe0d0a0, 0xffffff] });
+          scene.cameras.main.shake(250, 0.025);
+          hitPause(scene, { body: hero.body }, 80);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(300, () => cb.onComplete?.());
+        });
+      });
+    },
+  },
+
+  'wizard-grandmage': {
+    // Arcane bolt
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // Charge orb
+      playSparkBurst(scene, hero.x + 30, hero.y - 30, { count: 8, colors: [0xc080f0, 0x8040c0], duration: 200 });
+      scene.time.delayedCall(100, () => {
+        playProjectile(scene, hero.x + 40, hero.y - 30, ex, ey, { size: 10, color: 0xc080f0, speed: 700 }).then(() => {
+          hitPause(scene, { body: hero.body }, 60);
+          playImpactRing(scene, ex, ey, { color: 0xc080f0, endRadius: 55 });
+          playSparkBurst(scene, ex, ey, { count: 26, colors: [0xc080f0, 0x8040c0, 0x6020a0] });
+          scene.cameras.main.shake(100, 0.006);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(150, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Triple elemental beam
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      const beamColors = [
+        { color: 0xff6020, trail: 0xff4010 }, // fire
+        { color: 0x40c0f0, trail: 0x2090c0 }, // ice
+        { color: 0xf0e020, trail: 0xd0c010 }, // lightning
+      ];
+      // 0-300ms: 3 beams fire staggered
+      beamColors.forEach((bc, i) => {
+        scene.time.delayedCall(i * 80, () => {
+          const oy = (i - 1) * 25;
+          playBeamTrail(scene, hero.x + 50, hero.y - 30 + oy, ex, ey, {
+            color: bc.color, trailColor: bc.trail, particleCount: 30, width: 18, duration: 250,
+          });
+        });
+      });
+      scene.time.delayedCall(450, () => {
+        // 450-800ms: Combined elemental detonation
+        playScreenFlash(scene, { color: 0xffffff, alpha: 0.4, duration: 200 });
+        playImpactRing(scene, ex, ey, { color: 0xff6020, endRadius: 80 });
+        scene.time.delayedCall(40, () => playImpactRing(scene, ex, ey, { color: 0x40c0f0, endRadius: 110 }));
+        scene.time.delayedCall(80, () => playImpactRing(scene, ex, ey, { color: 0xf0e020, endRadius: 140 }));
+        playElementalBurst(scene, ex, ey, { count: 45, colors: [0xff6020, 0x40c0f0, 0xf0e020, 0xffffff] });
+        scene.cameras.main.shake(200, 0.018);
+        hitPause(scene, { body: hero.body }, 60);
+        enemyHitReaction(scene, target, result.modifiedDamage);
+        cb.onHit?.();
+        scene.time.delayedCall(250, () => cb.onComplete?.());
+      });
+    },
+    // Supernova explosion
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-400ms: Gather all elements
+      if (hero.body) hero.body.setTint(0xc080f0);
+      const elemColors = [0xff6020, 0x40c0f0, 0xf0e020, 0xc080f0];
+      elemColors.forEach((c, i) => {
+        scene.time.delayedCall(i * 80, () => {
+          playSparkBurst(scene, hero.x, hero.y - 30, { count: 8, colors: [c, 0xffffff], minDist: 50, maxDist: 90, duration: 300, gravity: -20 });
+        });
+      });
+      scene.time.delayedCall(400, () => {
+        if (hero.body) hero.body.clearTint();
+        // 400-700ms: Triple beam barrage
+        elemColors.forEach((c, i) => {
+          scene.time.delayedCall(i * 60, () => {
+            playBeamTrail(scene, hero.x + 50, hero.y - 30 + (i - 1.5) * 20, ex, ey, {
+              color: c, trailColor: c, particleCount: 25, width: 18, duration: 250,
+            });
+          });
+        });
+        scene.time.delayedCall(350, () => {
+          // 750-1100ms: Supernova
+          playScreenFlash(scene, { color: 0xffffff, alpha: 0.55, duration: 300 });
+          playShockwave(scene, ex, ey, { color: 0xc080f0, endRadius: 200, strokeWidth: 6 });
+          scene.time.delayedCall(60, () => playShockwave(scene, ex, ey, { color: 0xff6020, endRadius: 250, strokeWidth: 4 }));
+          playImpactRing(scene, ex, ey, { color: 0xffffff, endRadius: 160 });
+          playElementalBurst(scene, ex, ey, { count: 65, colors: [0xff6020, 0x40c0f0, 0xf0e020, 0xc080f0, 0xffffff] });
+          playGroundCrack(scene, ex, ey + 20, { color: 0xc080f0, length: 80, lineCount: 6 });
+          scene.cameras.main.shake(350, 0.035);
+          hitPause(scene, { body: hero.body }, 80);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(350, () => cb.onComplete?.());
+        });
+      });
+    },
+  },
+
+  // ────────────────────────────────────────────────
+  // BUNNIES
+  // ────────────────────────────────────────────────
+
+  'bunny-pepper': {
+    // Rapid 3-jab
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      scene.tweens.add({
+        targets: hero.body, x: ex - 50, duration: 80, ease: 'Quad.out',
+        onComplete: () => {
+          let jab = 0;
+          const doJab = () => {
+            if (jab >= 3) {
+              scene.tweens.add({
+                targets: hero.body, x: hero.x, duration: 200, ease: 'Sine.in',
+                onComplete: () => cb.onComplete?.(),
+              });
+              return;
+            }
+            const ox = (jab - 1) * 15;
+            playSparkBurst(scene, ex + ox, ey, { count: 8, colors: [0xe86898, 0xf090b0], duration: 200 });
+            if (jab === 2) {
+              hitPause(scene, { body: hero.body }, 80);
+              playImpactRing(scene, ex, ey, { color: 0xe86898, endRadius: 45 });
+              scene.cameras.main.shake(80, 0.005);
+              enemyHitReaction(scene, target, result.modifiedDamage);
+              cb.onHit?.();
+            }
+            jab++;
+            scene.time.delayedCall(60, doJab);
+          };
+          doJab();
+        },
+      });
+    },
+    // Spinning kick with afterimages
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      const origY = hero.y;
+      // 0-100ms: Dash in
+      scene.tweens.add({
+        targets: hero.body, x: ex - 40, duration: 100, ease: 'Quad.out',
+        onComplete: () => {
+          // 100-500ms: 5-hit spinning combo with afterimages
+          let hit = 0;
+          const positions = [
+            { x: ex - 25, y: ey - 25 }, { x: ex + 25, y: ey - 10 },
+            { x: ex - 15, y: ey + 20 }, { x: ex + 15, y: ey - 15 },
+            { x: ex, y: ey },
+          ];
+          const doSpin = () => {
+            if (hit >= 5) {
+              // Backflip away
+              scene.tweens.add({
+                targets: hero.body, x: hero.x + 50, y: origY - 60, duration: 80, ease: 'Quad.out',
+                onComplete: () => {
+                  scene.tweens.add({
+                    targets: hero.body, x: hero.x, y: origY, duration: 100, ease: 'Quad.in',
+                    onComplete: () => {
+                      // Final convergence burst
+                      scene.time.delayedCall(80, () => {
+                        playScreenFlash(scene, { color: 0xe86898, alpha: 0.3, duration: 150 });
+                        playShockwave(scene, ex, ey, { color: 0xe86898, endRadius: 130 });
+                        playElementalBurst(scene, ex, ey, { count: 40, colors: [0xe86898, 0xf090b0, 0xff80c0] });
+                        scene.cameras.main.shake(120, 0.01);
+                        hitPause(scene, { body: hero.body }, 80);
+                        enemyHitReaction(scene, target, result.modifiedDamage);
+                        cb.onHit?.();
+                        scene.time.delayedCall(200, () => cb.onComplete?.());
+                      });
+                    },
+                  });
+                },
+              });
+              return;
+            }
+            const pos = positions[hit];
+            scene.tweens.add({
+              targets: hero.body, x: pos.x, y: pos.y - 20, duration: 50, ease: 'Linear',
+              onComplete: () => {
+                // Afterimage
+                playSparkBurst(scene, pos.x, pos.y - 20, { count: 4, colors: [0xe86898], minDist: 5, maxDist: 15, duration: 200 });
+                playSparkBurst(scene, ex, ey, { count: 6, colors: [0xe86898, 0xf090b0] });
+                hit++;
+                scene.time.delayedCall(20, doSpin);
+              },
+            });
+          };
+          doSpin();
+        },
+      });
+    },
+    // Feral frenzy — 10-hit combo flash
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      const origY = hero.y;
+      // 0-80ms: Dash in
+      scene.tweens.add({
+        targets: hero.body, x: ex - 40, duration: 80, ease: 'Quad.out',
+        onComplete: () => {
+          // 80-580ms: 10-hit rapid combo
+          let hit = 0;
+          const doFrenzy = () => {
+            if (hit >= 10) {
+              // Backflip
+              scene.tweens.add({
+                targets: hero.body, x: hero.x + 60, y: origY - 80, duration: 80, ease: 'Quad.out',
+                onComplete: () => {
+                  scene.tweens.add({
+                    targets: hero.body, x: hero.x, y: origY, duration: 100, ease: 'Quad.in',
+                    onComplete: () => {
+                      scene.time.delayedCall(80, () => {
+                        playScreenFlash(scene, { color: 0xff80c0, alpha: 0.45, duration: 200 });
+                        playShockwave(scene, ex, ey, { color: 0xe86898, endRadius: 170, strokeWidth: 5 });
+                        playImpactRing(scene, ex, ey, { color: 0xff80c0, endRadius: 140 });
+                        playElementalBurst(scene, ex, ey, { count: 55, colors: [0xe86898, 0xf090b0, 0xff80c0] });
+                        scene.cameras.main.shake(200, 0.025);
+                        hitPause(scene, { body: hero.body }, 80);
+                        enemyHitReaction(scene, target, result.modifiedDamage);
+                        cb.onHit?.();
+                        scene.time.delayedCall(300, () => cb.onComplete?.());
+                      });
+                    },
+                  });
+                },
+              });
+              return;
+            }
+            const ox = (Math.random() - 0.5) * 50;
+            const oy = (Math.random() - 0.5) * 40;
+            scene.tweens.add({
+              targets: hero.body, x: ex + ox, y: origY + oy - 20, duration: 30, ease: 'Linear',
+              onComplete: () => {
+                playSparkBurst(scene, ex, ey, { count: 5, colors: [0xe86898, 0xf090b0] });
+                if (hit % 3 === 2) playImpactRing(scene, ex, ey, { color: 0xe86898, endRadius: 30 + hit * 3 });
+                hit++;
+                scene.time.delayedCall(15, doFrenzy);
+              },
+            });
+          };
+          doFrenzy();
+        },
+      });
+    },
+  },
+
+  'bunny-nova': {
+    // Sparkle punch
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      scene.tweens.add({
+        targets: hero.body, x: ex - 50, duration: 100, ease: 'Quad.out',
+        onComplete: () => {
+          playSparkBurst(scene, ex, ey, { count: 22, colors: [0xffe880, 0xfff8c0, 0xf0d040] });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0xffe880, endRadius: 45 });
+          playScreenFlash(scene, { color: 0xfff8c0, alpha: 0.2, duration: 100 });
+          scene.cameras.main.shake(80, 0.005);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 200, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Star burst combo
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      const origY = hero.y;
+      // 0-100ms: Dash in
+      scene.tweens.add({
+        targets: hero.body, x: ex - 40, duration: 100, ease: 'Quad.out',
+        onComplete: () => {
+          // 100-400ms: 4-hit sparkle combo
+          let hit = 0;
+          const positions = [
+            { x: ex - 20, y: ey - 25 }, { x: ex + 20, y: ey - 10 },
+            { x: ex - 10, y: ey + 15 }, { x: ex, y: ey },
+          ];
+          const doHit = () => {
+            if (hit >= 4) {
+              // 400-700ms: Star burst finale
+              scene.time.delayedCall(80, () => {
+                playScreenFlash(scene, { color: 0xffe880, alpha: 0.35, duration: 200 });
+                playShockwave(scene, ex, ey, { color: 0xffe880, endRadius: 120 });
+                playImpactRing(scene, ex, ey, { color: 0xfff8c0, endRadius: 90 });
+                playElementalBurst(scene, ex, ey, { count: 40, colors: [0xffe880, 0xfff8c0, 0xf0d040] });
+                scene.cameras.main.shake(150, 0.012);
+                hitPause(scene, { body: hero.body }, 80);
+                enemyHitReaction(scene, target, result.modifiedDamage);
+                cb.onHit?.();
+                scene.tweens.add({
+                  targets: hero.body, x: hero.x, y: origY, duration: 200, delay: 100, ease: 'Sine.in',
+                  onComplete: () => cb.onComplete?.(),
+                });
+              });
+              return;
+            }
+            const pos = positions[hit];
+            scene.tweens.add({
+              targets: hero.body, x: pos.x, y: pos.y - 20, duration: 50, ease: 'Linear',
+              onComplete: () => {
+                playSparkBurst(scene, ex, ey, { count: 8, colors: [0xffe880, 0xfff8c0] });
+                playImpactRing(scene, ex, ey, { color: 0xffe880, endRadius: 25 + hit * 8 });
+                hit++;
+                scene.time.delayedCall(30, doHit);
+              },
+            });
+          };
+          doHit();
+        },
+      });
+    },
+    // Nova explosion — screen-wide flash
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      const origY = hero.y;
+      // 0-100ms: Dash in
+      scene.tweens.add({
+        targets: hero.body, x: ex - 35, duration: 100, ease: 'Quad.out',
+        onComplete: () => {
+          // 100-500ms: 6-hit sparkle rapid combo
+          let hit = 0;
+          const doCombo = () => {
+            if (hit >= 6) {
+              // 500-700ms: Backflip
+              scene.tweens.add({
+                targets: hero.body, x: hero.x + 50, y: origY - 70, duration: 80, ease: 'Quad.out',
+                onComplete: () => {
+                  scene.tweens.add({
+                    targets: hero.body, x: hero.x, y: origY, duration: 100, ease: 'Quad.in',
+                    onComplete: () => {
+                      // 700-1100ms: Nova explosion
+                      scene.time.delayedCall(100, () => {
+                        playScreenFlash(scene, { color: 0xffffff, alpha: 0.6, duration: 300 });
+                        scene.time.delayedCall(80, () => playScreenFlash(scene, { color: 0xffe880, alpha: 0.4, duration: 200 }));
+                        playShockwave(scene, ex, ey, { color: 0xffe880, endRadius: 200, strokeWidth: 6 });
+                        scene.time.delayedCall(60, () => playShockwave(scene, ex, ey, { color: 0xfff8c0, endRadius: 260, strokeWidth: 4 }));
+                        playImpactRing(scene, ex, ey, { color: 0xffffff, endRadius: 170 });
+                        playElementalBurst(scene, ex, ey, { count: 60, colors: [0xffe880, 0xfff8c0, 0xf0d040, 0xffffff] });
+                        scene.cameras.main.shake(300, 0.03);
+                        hitPause(scene, { body: hero.body }, 80);
+                        enemyHitReaction(scene, target, result.modifiedDamage);
+                        cb.onHit?.();
+                        scene.time.delayedCall(350, () => cb.onComplete?.());
+                      });
+                    },
+                  });
+                },
+              });
+              return;
+            }
+            const ox = (Math.random() - 0.5) * 40;
+            const oy = (Math.random() - 0.5) * 30;
+            scene.tweens.add({
+              targets: hero.body, x: ex + ox, y: origY + oy - 20, duration: 40, ease: 'Linear',
+              onComplete: () => {
+                playSparkBurst(scene, ex, ey, { count: 6, colors: [0xffe880, 0xfff8c0] });
+                if (hit % 2 === 1) playImpactRing(scene, ex, ey, { color: 0xffe880, endRadius: 30 + hit * 5 });
+                hit++;
+                scene.time.delayedCall(25, doCombo);
+              },
+            });
+          };
+          doCombo();
+        },
+      });
+    },
+  },
+
+  'bunny-boulder': {
+    // Heavy slam
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // Slow heavy approach
+      scene.tweens.add({
+        targets: hero.body, x: ex - 60, duration: 350, ease: 'Sine.out',
+        onComplete: () => {
+          playSlashArc(scene, ex, ey, { color: 0x8a7a60, lineWidth: 7, alpha: 0.9, duration: 300 });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0x8a7a60, endRadius: 55, strokeWidth: 4 });
+          playSparkBurst(scene, ex, ey, { count: 20, colors: [0x8a7a60, 0xa09070, 0xc0b090] });
+          playGroundCrack(scene, ex, ey + 20, { color: 0x8a7a60, length: 40, lineCount: 3 });
+          scene.cameras.main.shake(120, 0.008);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 300, delay: 80, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Ground pound shockwave
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-200ms: Jump up
+      scene.tweens.add({
+        targets: hero.body, x: ex - 30, y: hero.y - 80, duration: 200, ease: 'Quad.out',
+        onComplete: () => {
+          // 200-350ms: Slam down
+          scene.tweens.add({
+            targets: hero.body, y: hero.y, duration: 150, ease: 'Quad.in',
+            onComplete: () => {
+              // 350-700ms: Ground pound impact
+              playScreenFlash(scene, { color: 0x8a7a60, alpha: 0.3, duration: 200 });
+              playShockwave(scene, ex, ey, { color: 0x8a7a60, endRadius: 140, strokeWidth: 5 });
+              playImpactRing(scene, ex, ey, { color: 0xa09070, endRadius: 100 });
+              playGroundCrack(scene, ex, ey + 20, { color: 0x8a7a60, length: 70, lineCount: 6 });
+              playElementalBurst(scene, ex, ey, { count: 35, colors: [0x8a7a60, 0xa09070, 0xc0b090] });
+              scene.cameras.main.shake(200, 0.018);
+              hitPause(scene, { body: hero.body }, 80);
+              enemyHitReaction(scene, target, result.modifiedDamage);
+              cb.onHit?.();
+              scene.tweens.add({
+                targets: hero.body, x: hero.x, duration: 250, delay: 150, ease: 'Sine.in',
+                onComplete: () => cb.onComplete?.(),
+              });
+            },
+          });
+        },
+      });
+    },
+    // Seismic strike — ground cracks + screen shake
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-350ms: Charge with earth energy
+      if (hero.body) hero.body.setTint(0x8a7a60);
+      playSparkBurst(scene, hero.x, hero.y, { count: 14, colors: [0x8a7a60, 0xa09070], minDist: 40, maxDist: 80, duration: 300, gravity: -15 });
+      scene.time.delayedCall(350, () => {
+        if (hero.body) hero.body.clearTint();
+        // 350-550ms: Massive leap
+        scene.tweens.add({
+          targets: hero.body, x: ex - 20, y: hero.y - 120, duration: 150, ease: 'Quad.out',
+          onComplete: () => {
+            // 550-700ms: Seismic slam
+            scene.tweens.add({
+              targets: hero.body, y: hero.y, duration: 100, ease: 'Quad.in',
+              onComplete: () => {
+                // 700-1100ms: Earthquake detonation
+                playScreenFlash(scene, { color: 0xffffff, alpha: 0.45, duration: 250 });
+                playGroundCrack(scene, ex, ey + 20, { color: 0x8a7a60, length: 120, lineCount: 10, lineWidth: 4 });
+                playShockwave(scene, ex, ey, { color: 0x8a7a60, endRadius: 200, strokeWidth: 6 });
+                scene.time.delayedCall(80, () => playShockwave(scene, ex, ey, { color: 0xa09070, endRadius: 260, strokeWidth: 4 }));
+                playImpactRing(scene, ex, ey, { color: 0xc0b090, endRadius: 160 });
+                playElementalBurst(scene, ex, ey, { count: 55, colors: [0x8a7a60, 0xa09070, 0xc0b090, 0x6a5a40] });
+                scene.cameras.main.shake(400, 0.035);
+                hitPause(scene, { body: hero.body }, 80);
+                enemyHitReaction(scene, target, result.modifiedDamage);
+                cb.onHit?.();
+                scene.tweens.add({
+                  targets: hero.body, x: hero.x, duration: 300, delay: 150, ease: 'Sine.in',
+                  onComplete: () => cb.onComplete?.(),
+                });
+              },
+            });
+          },
+        });
+      });
+    },
+  },
+
+  'bunny-blaze': {
+    // Fire punch with trail
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      scene.tweens.add({
+        targets: hero.body, x: ex - 50, duration: 100, ease: 'Quad.out',
+        onComplete: () => {
+          playBeamTrail(scene, hero.x, hero.y, ex, ey, { color: 0xff6020, trailColor: 0xff4010, particleCount: 15, width: 15, duration: 200 });
+          playSparkBurst(scene, ex, ey, { count: 22, colors: [0xff6020, 0xff8040, 0xffa060] });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0xff6020, endRadius: 50 });
+          scene.cameras.main.shake(80, 0.005);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 200, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Flame kick combo
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      const origY = hero.y;
+      // 0-100ms: Dash in
+      scene.tweens.add({
+        targets: hero.body, x: ex - 40, duration: 100, ease: 'Quad.out',
+        onComplete: () => {
+          // 100-450ms: 4-hit flame combo
+          let hit = 0;
+          const positions = [
+            { x: ex - 20, y: ey - 20 }, { x: ex + 15, y: ey },
+            { x: ex - 10, y: ey + 15 }, { x: ex, y: ey - 10 },
+          ];
+          const doFlameHit = () => {
+            if (hit >= 4) {
+              // 450-750ms: Fire burst finale
+              scene.time.delayedCall(80, () => {
+                playScreenFlash(scene, { color: 0xff4010, alpha: 0.35, duration: 200 });
+                playShockwave(scene, ex, ey, { color: 0xff6020, endRadius: 120 });
+                playImpactRing(scene, ex, ey, { color: 0xff8040, endRadius: 90 });
+                playElementalBurst(scene, ex, ey, { count: 40, colors: [0xff6020, 0xff8040, 0xffa060, 0xffcc30] });
+                scene.cameras.main.shake(150, 0.012);
+                hitPause(scene, { body: hero.body }, 80);
+                enemyHitReaction(scene, target, result.modifiedDamage);
+                cb.onHit?.();
+                scene.tweens.add({
+                  targets: hero.body, x: hero.x, y: origY, duration: 200, delay: 100, ease: 'Sine.in',
+                  onComplete: () => cb.onComplete?.(),
+                });
+              });
+              return;
+            }
+            const pos = positions[hit];
+            scene.tweens.add({
+              targets: hero.body, x: pos.x, y: pos.y - 20, duration: 50, ease: 'Linear',
+              onComplete: () => {
+                playSparkBurst(scene, ex, ey, { count: 8, colors: [0xff6020, 0xff8040] });
+                playBeamTrail(scene, pos.x, pos.y - 20, ex, ey, { color: 0xff6020, trailColor: 0xff4010, particleCount: 8, width: 10, duration: 150 });
+                hit++;
+                scene.time.delayedCall(30, doFlameHit);
+              },
+            });
+          };
+          doFlameHit();
+        },
+      });
+    },
+    // Inferno burst — fire particles
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      const origY = hero.y;
+      // 0-300ms: Flame aura charge
+      if (hero.body) hero.body.setTint(0xff4010);
+      playSparkBurst(scene, hero.x, hero.y, { count: 16, colors: [0xff6020, 0xff4010], minDist: 30, maxDist: 70, duration: 300 });
+      scene.time.delayedCall(300, () => {
+        if (hero.body) hero.body.clearTint();
+        // 300-400ms: Dash
+        scene.tweens.add({
+          targets: hero.body, x: ex - 35, duration: 80, ease: 'Quad.out',
+          onComplete: () => {
+            // 400-700ms: 8-hit flame frenzy
+            let hit = 0;
+            const doInferno = () => {
+              if (hit >= 8) {
+                scene.tweens.add({
+                  targets: hero.body, x: hero.x + 50, y: origY - 70, duration: 80, ease: 'Quad.out',
+                  onComplete: () => {
+                    scene.tweens.add({
+                      targets: hero.body, x: hero.x, y: origY, duration: 100, ease: 'Quad.in',
+                      onComplete: () => {
+                        // 800-1100ms: Inferno explosion
+                        scene.time.delayedCall(80, () => {
+                          playScreenFlash(scene, { color: 0xff4010, alpha: 0.5, duration: 250 });
+                          playShockwave(scene, ex, ey, { color: 0xff6020, endRadius: 180, strokeWidth: 6 });
+                          playImpactRing(scene, ex, ey, { color: 0xffa060, endRadius: 150 });
+                          playElementalBurst(scene, ex, ey, { count: 55, colors: [0xff6020, 0xff8040, 0xffa060, 0xffcc30, 0xff4010] });
+                          scene.cameras.main.shake(250, 0.025);
+                          hitPause(scene, { body: hero.body }, 80);
+                          enemyHitReaction(scene, target, result.modifiedDamage);
+                          cb.onHit?.();
+                          scene.time.delayedCall(300, () => cb.onComplete?.());
+                        });
+                      },
+                    });
+                  },
+                });
+                return;
+              }
+              const ox = (Math.random() - 0.5) * 40;
+              const oy = (Math.random() - 0.5) * 30;
+              scene.tweens.add({
+                targets: hero.body, x: ex + ox, y: origY + oy - 20, duration: 30, ease: 'Linear',
+                onComplete: () => {
+                  playSparkBurst(scene, ex, ey, { count: 6, colors: [0xff6020, 0xff8040] });
+                  playBeamTrail(scene, hero.body.x, hero.body.y, ex, ey, { color: 0xff6020, trailColor: 0xff4010, particleCount: 6, width: 8, duration: 120 });
+                  hit++;
+                  scene.time.delayedCall(15, doInferno);
+                },
+              });
+            };
+            doInferno();
+          },
+        });
+      });
+    },
+  },
+
+  'bunny-duchess': {
+    // Royal palm strike
+    fight(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      scene.tweens.add({
+        targets: hero.body, x: ex - 55, duration: 280, ease: 'Back.out',
+        onComplete: () => {
+          playSparkBurst(scene, ex, ey, { count: 22, colors: [0xf0d040, 0xfff8c0, 0xe0c030] });
+          hitPause(scene, { body: hero.body }, 80);
+          playImpactRing(scene, ex, ey, { color: 0xf0d040, endRadius: 50 });
+          playScreenFlash(scene, { color: 0xf0d040, alpha: 0.15, duration: 100 });
+          scene.cameras.main.shake(100, 0.006);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.tweens.add({
+            targets: hero.body, x: hero.x, duration: 250, delay: 80, ease: 'Sine.in',
+            onComplete: () => cb.onComplete?.(),
+          });
+        },
+      });
+    },
+    // Crown throw projectile
+    magic(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-150ms: Wind-up
+      playSparkBurst(scene, hero.x + 20, hero.y - 40, { count: 8, colors: [0xf0d040, 0xfff8c0], duration: 150 });
+      scene.time.delayedCall(150, () => {
+        // 150-450ms: Crown projectile
+        playProjectile(scene, hero.x + 40, hero.y - 30, ex, ey, { size: 10, color: 0xf0d040, speed: 600 }).then(() => {
+          // 450-750ms: Royal impact
+          playScreenFlash(scene, { color: 0xf0d040, alpha: 0.3, duration: 200 });
+          playImpactRing(scene, ex, ey, { color: 0xf0d040, endRadius: 90 });
+          playShockwave(scene, ex, ey, { color: 0xfff8c0, endRadius: 120 });
+          playElementalBurst(scene, ex, ey, { count: 38, colors: [0xf0d040, 0xfff8c0, 0xe0c030] });
+          scene.cameras.main.shake(150, 0.012);
+          hitPause(scene, { body: hero.body }, 60);
+          enemyHitReaction(scene, target, result.modifiedDamage);
+          cb.onHit?.();
+          scene.time.delayedCall(200, () => cb.onComplete?.());
+        });
+      });
+    },
+    // Royal decree shockwave
+    super(scene, hero, target, result, cb) {
+      const ex = target.x, ey = target.y;
+      // 0-350ms: Royal energy gathers — crown glows
+      if (hero.body) hero.body.setTint(0xf0d040);
+      playSparkBurst(scene, hero.x, hero.y - 40, { count: 16, colors: [0xf0d040, 0xfff8c0], minDist: 40, maxDist: 80, duration: 300, gravity: -25 });
+      scene.time.delayedCall(350, () => {
+        if (hero.body) hero.body.clearTint();
+        // 350-550ms: Royal charge
+        scene.tweens.add({
+          targets: hero.body, x: ex - 45, duration: 150, ease: 'Back.out',
+          onComplete: () => {
+            // 550-700ms: Royal palm + crown combo
+            playSlashArc(scene, ex, ey, { color: 0xf0d040, lineWidth: 7, alpha: 0.9, duration: 300 });
+            scene.time.delayedCall(50, () => {
+              playSlashArc(scene, ex, ey, { color: 0xfff8c0, lineWidth: 5, alpha: 0.8, arcSpread: 90, duration: 300 });
+            });
+            scene.time.delayedCall(150, () => {
+              // 700-1100ms: Royal decree detonation
+              playScreenFlash(scene, { color: 0xf0d040, alpha: 0.5, duration: 250 });
+              playShockwave(scene, ex, ey, { color: 0xf0d040, endRadius: 190, strokeWidth: 6 });
+              scene.time.delayedCall(60, () => playShockwave(scene, ex, ey, { color: 0xfff8c0, endRadius: 240, strokeWidth: 4 }));
+              playImpactRing(scene, ex, ey, { color: 0xe0c030, endRadius: 150 });
+              playElementalBurst(scene, ex, ey, { count: 55, colors: [0xf0d040, 0xfff8c0, 0xe0c030, 0xffffff] });
+              scene.cameras.main.shake(280, 0.028);
+              hitPause(scene, { body: hero.body }, 80);
+              enemyHitReaction(scene, target, result.modifiedDamage);
+              cb.onHit?.();
+              scene.tweens.add({
+                targets: hero.body, x: hero.x, duration: 250, delay: 150, ease: 'Sine.in',
+                onComplete: () => cb.onComplete?.(),
+              });
+            });
+          },
+        });
+      });
+    },
+  },
+};
+
+// ================================================================
+// DISPATCH FUNCTIONS — check ATTACK_REGISTRY, fall through to class defaults
+// ================================================================
 
 /**
  * Play a FIGHT-tier attack animation (enhanced standard attack).
@@ -22,6 +1493,12 @@
  * @param {object} callbacks - { onHit, onComplete }
  */
 export function playFightAnimation(scene, heroSprite, targetSprite, cls, op, result, callbacks = {}) {
+  // Check per-hero registry first
+  const heroId = heroSprite.hero?.id || heroSprite.heroId;
+  if (heroId && ATTACK_REGISTRY[heroId]?.fight) {
+    return ATTACK_REGISTRY[heroId].fight(scene, heroSprite, targetSprite, result, callbacks);
+  }
+
   const enemyX = targetSprite.x;
   const enemyY = targetSprite.y;
 
@@ -46,6 +1523,12 @@ export function playFightAnimation(scene, heroSprite, targetSprite, cls, op, res
  * @param {object} callbacks - { onHit, onComplete }
  */
 export function playMagicAnimation(scene, heroSprite, targetSprite, cls, op, result, callbacks = {}) {
+  // Check per-hero registry first
+  const heroId = heroSprite.hero?.id || heroSprite.heroId;
+  if (heroId && ATTACK_REGISTRY[heroId]?.magic) {
+    return ATTACK_REGISTRY[heroId].magic(scene, heroSprite, targetSprite, result, callbacks);
+  }
+
   const enemyX = targetSprite.x;
   const enemyY = targetSprite.y;
 
@@ -129,7 +1612,7 @@ export function playKnightSuper(scene, heroSprite, targetSprite, enemyX, enemyY,
 
   // 0-300ms: Gold glow charge + scale up
   if (heroSprite.body) {
-    heroSprite.body.setTint(0xffd040);
+    if (heroSprite.body.setTint) heroSprite.body.setTint(0xffd040);
     scene.tweens.add({
       targets: heroSprite.body,
       scaleX: origSX * 1.1,
@@ -452,7 +1935,9 @@ export function playWizardSuper(scene, heroSprite, targetSprite, enemyX, enemyY,
 function hitPause(scene, targetSprite, duration = 80) {
   if (!targetSprite || !targetSprite.body) return;
   const body = targetSprite.body;
-  body.setTint(0xffffff);
+  // Method guard is load-bearing: an uncaught throw here happens inside
+  // Phaser's RAF callback and permanently kills the game loop.
+  if (body.setTint) body.setTint(0xffffff);
   scene.time.delayedCall(duration, () => {
     if (body && body.clearTint) body.clearTint();
   });
@@ -686,7 +2171,7 @@ function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result
   const origSY = heroSprite.body.scaleY;
 
   // 0-200ms: Hero charges (gold tint, energy converges)
-  heroSprite.body.setTint(0xffee80);
+  if (heroSprite.body.setTint) heroSprite.body.setTint(0xffee80);
   scene.tweens.add({ targets: heroSprite.body, scaleX: origSX * 1.15, scaleY: origSY * 1.15, duration: 200, ease: 'Cubic.in' });
 
   // Converging energy particles
@@ -709,7 +2194,7 @@ function playKnightMagic(scene, heroSprite, targetSprite, enemyX, enemyY, result
 
   // 200-400ms: Lunge with screen dim
   scene.time.delayedCall(200, () => {
-    const dim = scene.add.rectangle(720, 540, 1500, 1100, 0x000000, 0.1);
+    const dim = scene.add.rectangle(720, 540, 1500, 1100, 0x1f3d3f, 0.1);
     dim.setDepth(19);
 
     scene.tweens.add({

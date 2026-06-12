@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
@@ -41,7 +41,7 @@ export class BossRushScene extends Phaser.Scene {
     const save = loadSave(slot);
 
     drawPapercutBackground(this, 5, GAME_WIDTH, GAME_HEIGHT, 9999);
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.4);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.4);
 
     // Check if we are returning from a completed rush
     const rushState = this.registry.get('bossRushState');
@@ -81,28 +81,28 @@ export class BossRushScene extends Phaser.Scene {
     this.add.text(area.cx, area.top + 100, 'BOSS RUSH', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '64px',
-      color: '#f0d040',
-      stroke: '#3a1808',
+      color: PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 8,
     }).setOrigin(0.5);
 
     this.add.text(area.cx, area.top + 170, 'Fight all 9 bosses back-to-back!', {
       ...TEXT.heading(),
       fontSize: '24px',
-      color: '#f0e4cc',
-      stroke: '#1a0e04',
+      color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,
     }).setOrigin(0.5);
 
     // Boss list panel
     PaperPanel(this, area.cx, area.cy + 20, 620, 380, {
-      color: 0x1a0e04, alpha: 0.85, radius: 20,
+      color: PAPER.inkTeal, alpha: 0.85, radius: 20,
     });
 
     this.add.text(area.cx, area.cy - 150, 'THE GAUNTLET', {
       ...TEXT.heading(),
       fontSize: '22px',
-      color: '#f0d040',
+      color: PAPER_CSS.gold,
     }).setOrigin(0.5);
 
     // List bosses in two columns
@@ -117,7 +117,7 @@ export class BossRushScene extends Phaser.Scene {
       this.add.text(x, y, `${i + 1}. ${boss.name}`, {
         ...TEXT.body(),
         fontSize: '18px',
-        color: '#f0e4cc',
+        color: PAPER_CSS.cream,
       }).setOrigin(0.5);
     });
 
@@ -127,7 +127,7 @@ export class BossRushScene extends Phaser.Scene {
       const bMin = Math.floor(bestTime / 60000);
       const bSec = Math.floor((bestTime % 60000) / 1000);
       this.add.text(area.cx, area.cy + 160, `Best Time: ${bMin}m ${bSec}s`, {
-        ...TEXT.body(), fontSize: '18px', color: '#f0d040',
+        ...TEXT.body(), fontSize: '18px', color: PAPER_CSS.gold,
       }).setOrigin(0.5);
     }
 
@@ -141,14 +141,14 @@ export class BossRushScene extends Phaser.Scene {
       this.add.text(area.cx, area.cy + 200, `Party: ${partyNames}`, {
         ...TEXT.body(),
         fontSize: '18px',
-        color: '#c0b090',
+        color: PAPER_CSS.sand,
       }).setOrigin(0.5);
     }
 
     // START button
     PaperButton(this, area.cx, area.bottom - 80, 'START RUSH', {
-      w: 320, h: 74, color: 0xc83030, fontSize: 28,
-      textColor: '#fff8e0',
+      w: 320, h: 74, color: PAPER.coralD, fontSize: 28,
+      textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/confirm');
         this.startRush(save);
@@ -157,8 +157,8 @@ export class BossRushScene extends Phaser.Scene {
 
     // Back button
     PaperButton(this, area.cx, area.bottom - 160, 'BACK', {
-      w: 200, h: 54, color: 0x4a3420, fontSize: 20,
-      textColor: '#f0e4cc',
+      w: 200, h: 54, color: PAPER.inkTeal, fontSize: 20,
+      textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/click');
         transitionTo(this, SCENES.ENDING, undefined, 400);
@@ -233,22 +233,22 @@ export class BossRushScene extends Phaser.Scene {
     // Timer at top
     this.add.text(area.cx, area.top + 40, timeStr, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '32px', color: '#f0e4cc',
-      stroke: '#1a0e04', strokeThickness: 4,
+      fontSize: '32px', color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 4,
     }).setOrigin(0.5);
 
     // Boss counter
     this.add.text(area.cx, area.top + 80, `Boss ${bossIdx + 1}/9`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '22px', color: '#c0b090',
-      stroke: '#1a0e04', strokeThickness: 3,
+      fontSize: '22px', color: PAPER_CSS.sand,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 3,
     }).setOrigin(0.5);
 
     // "NEXT: [boss name]" overlay
     const nextText = this.add.text(area.cx, area.cy, `NEXT: ${boss.name}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '48px', color: '#f0d040',
-      stroke: '#3a1808', strokeThickness: 6,
+      fontSize: '48px', color: PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal, strokeThickness: 6,
     }).setOrigin(0.5).setAlpha(0).setScale(0.7);
 
     this.tweens.add({
@@ -282,14 +282,14 @@ export class BossRushScene extends Phaser.Scene {
     this.add.text(area.cx, area.top + 100, 'BOSS RUSH COMPLETE!', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '52px',
-      color: '#f0d040',
-      stroke: '#3a1808',
+      color: PAPER_CSS.gold,
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 8,
     }).setOrigin(0.5);
 
     // Results panel
     PaperPanel(this, area.cx, area.cy, 600, 320, {
-      color: 0x1a0e04, alpha: 0.85, radius: 20,
+      color: PAPER.inkTeal, alpha: 0.85, radius: 20,
     });
 
     // Star display
@@ -297,7 +297,7 @@ export class BossRushScene extends Phaser.Scene {
     this.add.text(area.cx, area.cy - 120, starStr, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '48px',
-      color: '#f0d040',
+      color: PAPER_CSS.gold,
     }).setOrigin(0.5);
 
     // Stats
@@ -311,7 +311,7 @@ export class BossRushScene extends Phaser.Scene {
       this.add.text(area.cx, area.cy - 50 + i * 40, line, {
         ...TEXT.body(),
         fontSize: '22px',
-        color: '#f0e4cc',
+        color: PAPER_CSS.cream,
       }).setOrigin(0.5);
     });
 
@@ -324,13 +324,13 @@ export class BossRushScene extends Phaser.Scene {
     this.add.text(area.cx, area.cy + 120, `+${bonusGold} GOLD bonus!`, {
       ...TEXT.heading(),
       fontSize: '24px',
-      color: '#f0d040',
+      color: PAPER_CSS.gold,
     }).setOrigin(0.5);
 
     // Done button
     PaperButton(this, area.cx, area.bottom - 80, 'DONE', {
-      w: 280, h: 70, color: 0xd07818, fontSize: 26,
-      textColor: '#fff8e0',
+      w: 280, h: 70, color: PAPER.orange, fontSize: 26,
+      textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/confirm');
         transitionTo(this, SCENES.ENDING, undefined, 400);
@@ -348,13 +348,13 @@ export class BossRushScene extends Phaser.Scene {
     this.add.text(area.cx, area.top + 100, 'BOSS RUSH OVER', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '52px',
-      color: '#c83030',
-      stroke: '#3a1808',
+      color: '#d06a4d',
+      stroke: PAPER_CSS.inkTeal,
       strokeThickness: 8,
     }).setOrigin(0.5);
 
     PaperPanel(this, area.cx, area.cy, 600, 280, {
-      color: 0x1a0e04, alpha: 0.85, radius: 20,
+      color: PAPER.inkTeal, alpha: 0.85, radius: 20,
     });
 
     const lines = [
@@ -367,13 +367,13 @@ export class BossRushScene extends Phaser.Scene {
       this.add.text(area.cx, area.cy - 60 + i * 44, line, {
         ...TEXT.body(),
         fontSize: '22px',
-        color: '#f0e4cc',
+        color: PAPER_CSS.cream,
       }).setOrigin(0.5);
     });
 
     PaperButton(this, area.cx, area.bottom - 80, 'BACK', {
-      w: 280, h: 70, color: 0xd07818, fontSize: 26,
-      textColor: '#fff8e0',
+      w: 280, h: 70, color: PAPER.orange, fontSize: 26,
+      textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/confirm');
         transitionTo(this, SCENES.ENDING, undefined, 400);

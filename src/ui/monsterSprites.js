@@ -7,25 +7,25 @@
  */
 
 import { createMonsterCanvas } from './legacyRenderer.js';
-import { FLOOR1_MONSTERS, FLOOR2_MONSTERS, FLOOR3_MONSTERS, FLOOR4_MONSTERS, FLOOR5_MONSTERS, BOSSES } from '../data/monsterArt.js';
+import { FLOOR1_MONSTERS, FLOOR2_MONSTERS, FLOOR3_MONSTERS, FLOOR4_MONSTERS, FLOOR5_MONSTERS, FLOOR9_MONSTERS, FLOOR6_MONSTERS, FLOOR7_MONSTERS, FLOOR8_MONSTERS, BOSSES } from '../data/monsterArt.js';
 import { makeRng } from '../systems/rng.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
 
 // Floor-themed base colors for enemy sprites (used when no art is available)
 const FLOOR_ENEMY_COLORS = {
-  1: 0x48a040,  // green
-  2: 0x2878c0,  // blue
-  3: 0x88c8f0,  // light blue
-  4: 0xc04020,  // red
-  5: 0x60b8e0,  // ice
-  6: 0x8050c0,  // purple
-  7: 0xc0a040,  // gold
-  8: 0x806040,  // brown
-  9: 0x9040b0,  // violet
+  1: 0x7d9f6d,  // PAPER leaf — garden greens
+  2: 0x44888a,  // PAPER teal — tide
+  3: 0xa4c8d8,  // PAPER sky — tide/storm
+  4: 0xe78f6c,  // PAPER coral — ember
+  5: 0x7fb3ae,  // PAPER tealL — frost
+  6: 0x9c8fc0,  // PAPER lavender — arcane
+  7: 0xecb964,  // PAPER gold — arcane
+  8: 0xd9cfb2,  // PAPER sand — earthen
+  9: 0x7c6fa8,  // PAPER lavenderD — arcane
 };
 
 const ART_LOOKUP = {};
-[FLOOR1_MONSTERS, FLOOR2_MONSTERS, FLOOR3_MONSTERS, FLOOR4_MONSTERS, FLOOR5_MONSTERS, BOSSES].forEach(group => {
+[FLOOR1_MONSTERS, FLOOR2_MONSTERS, FLOOR3_MONSTERS, FLOOR4_MONSTERS, FLOOR5_MONSTERS, FLOOR9_MONSTERS, FLOOR6_MONSTERS, FLOOR7_MONSTERS, FLOOR8_MONSTERS, BOSSES].forEach(group => {
   Object.keys(group).forEach(id => { ART_LOOKUP[id] = group[id]; });
 });
 
@@ -51,8 +51,16 @@ export function drawMonsterSprite(scene, x, y, enemy, opts = {}) {
   if (!scene.textures.exists(textureKey)) {
     const cv = getMonsterCanvas(id);
     if (cv) {
-      applySpriteFilter(cv, floorId);
-      scene.textures.addCanvas(textureKey, cv);
+      // Filter a CLONE — the cached canvas is shared across floors and
+      // applySpriteFilter mutates pixels in place. Filtering the cache
+      // directly would compound filters when the same monster appears
+      // with a different floorId (e.g. boss rush).
+      const clone = document.createElement('canvas');
+      clone.width = cv.width;
+      clone.height = cv.height;
+      clone.getContext('2d').drawImage(cv, 0, 0);
+      applySpriteFilter(clone, floorId);
+      scene.textures.addCanvas(textureKey, clone);
     } else {
       // Fallback to old Phaser Graphics draw
       return drawFallback(scene, x, y, enemy, scale);
@@ -89,7 +97,7 @@ function wCircle(gfx, cx, cy, r, color, a, seed, sh) {
     const wr = r * (1 + (rng() - 0.5) * 0.14);
     pts.push({ x: cx + Math.cos(ang) * wr, y: cy + Math.sin(ang) * wr });
   }
-  if (sh) { gfx.fillStyle(0x000000, 0.28); gfx.fillPoints(pts.map(p => ({ x: p.x + sh, y: p.y + sh })), true); }
+  if (sh) { gfx.fillStyle(0x1f3d3f, 0.28); gfx.fillPoints(pts.map(p => ({ x: p.x + sh, y: p.y + sh })), true); }
   gfx.fillStyle(color, a); gfx.fillPoints(pts, true);
 }
 
@@ -101,18 +109,18 @@ function wRect(gfx, cx, cy, w, h, color, a, seed, sh) {
     { x: cx + w/2 + (rng()-.5)*wb, y: cy + h/2 + (rng()-.5)*wb },
     { x: cx - w/2 + (rng()-.5)*wb, y: cy + h/2 + (rng()-.5)*wb },
   ];
-  if (sh) { gfx.fillStyle(0x000000, 0.25); gfx.fillPoints(pts.map(p => ({ x: p.x + sh, y: p.y + sh })), true); }
+  if (sh) { gfx.fillStyle(0x1f3d3f, 0.25); gfx.fillPoints(pts.map(p => ({ x: p.x + sh, y: p.y + sh })), true); }
   gfx.fillStyle(color, a); gfx.fillPoints(pts, true);
 }
 
 function drawGeneric(gfx, x, y, sc, seed, color) {
   const s = v => v * sc;
-  wCircle(gfx, x, y + s(50), s(36), 0x000000, 0.2, seed, 0);
+  wCircle(gfx, x, y + s(50), s(36), 0x1f3d3f, 0.2, seed, 0);
   wCircle(gfx, x, y, s(50), color, 1, seed + 1, s(4));
   wCircle(gfx, x, y, s(40), color, 0.7, seed + 2, 0);
-  gfx.fillStyle(0x0a0604, 0.9); gfx.fillCircle(x - s(12), y - s(8), s(6));
+  gfx.fillStyle(0x1f4244, 0.9); gfx.fillCircle(x - s(12), y - s(8), s(6));
   gfx.fillCircle(x + s(12), y - s(8), s(6));
-  gfx.fillStyle(0xf0e040, 0.8); gfx.fillCircle(x - s(11), y - s(9), s(3));
+  gfx.fillStyle(0xf5eedd, 0.8); gfx.fillCircle(x - s(11), y - s(9), s(3));
   gfx.fillCircle(x + s(13), y - s(9), s(3));
 }
 

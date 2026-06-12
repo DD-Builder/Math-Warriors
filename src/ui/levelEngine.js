@@ -12,6 +12,7 @@
 
 import { mkRng } from './legacyRenderer.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
+import { MAZE_PERSPECTIVE } from '../systems/perspective.js';
 
 // ─── PALETTE (exact copy from reference) ────────────────────────
 
@@ -150,9 +151,8 @@ var _fog = null;       // fog grid [row][col] — 0 = hidden, 1 = revealed
 var _gs = null;        // game state {fairies, hasKey, dead, flash}
 var _party = null;     // {x, y, vx, vy, speed, trail, trailLen, facing, animT}
 var _heroCanvases = null;
+var _skipCanvasHero = false;
 var _deathParticles = [];
-var _dustParticles = []; // footstep dust puffs {x,y,vx,vy,t,maxT}
-var _lastDustMs = 0;     // timestamp of last footstep puff spawn
 var _minimapCanvas = null;
 var _minimapG = null;
 
@@ -257,17 +257,6 @@ function LV_drawWall(sx, sy, ts, tx, ty) {
       LV_cut(cbc, 2, function () { _G.arc(cbx, cby, ts * 0.07, 0, Math.PI * 2); });
     }
   }
-  // Stone block detail: 2 thin horizontal lines + 1 vertical line
-  _G.save();
-  _G.strokeStyle = 'rgba(0,0,0,0.15)';
-  _G.lineWidth = 1;
-  _G.beginPath();
-  _G.moveTo(sx, sy + ts / 3); _G.lineTo(sx + ts, sy + ts / 3);
-  _G.moveTo(sx, sy + ts * 2 / 3); _G.lineTo(sx + ts, sy + ts * 2 / 3);
-  var vx = sx + (tx * 7 + ty * 13) % ts;
-  _G.moveTo(vx, sy); _G.lineTo(vx, sy + ts);
-  _G.stroke();
-  _G.restore();
 }
 
 function LV_drawFloor(sx, sy, ts, tx, ty) {
@@ -286,15 +275,6 @@ function LV_drawFloor(sx, sy, ts, tx, ty) {
       LV_cut('#50a838', 0, function() { _G.arc(lx, ly, ts * 0.04, 0, Math.PI * 2); });
     }
   }
-  // Subtle grain dots
-  _G.save();
-  _G.fillStyle = 'rgba(0,0,0,0.08)';
-  for (var gi = 0; gi < 4; gi++) {
-    var gx = sx + (tx * 31 + ty * 17 + gi * 7) % ts;
-    var gy = sy + (tx * 13 + ty * 41 + gi * 11) % ts;
-    _G.beginPath(); _G.arc(gx, gy, 1, 0, Math.PI * 2); _G.fill();
-  }
-  _G.restore();
 }
 
 function LV_drawPath(sx, sy, ts, tx, ty) {
@@ -304,32 +284,12 @@ function LV_drawPath(sx, sy, ts, tx, ty) {
     var st = stones[si]; var sr = mkRng(tx * 41 + ty * 83 + si * 11);
     LV_cut(si % 2 === 0 ? LV_PAL.stone : LV_PAL.stoneD, 2, (function (st2, sr2) { return function () { LV_wobRect(st2[0] + sr2() * 2, st2[1] + sr2() * 2, st2[2] - sr2() * 2, st2[3] - sr2() * 2, mkRng(si * 7 + tx + ty), 1.5); }; })(st, sr));
   }
-  // Cobblestone highlights: 3 small lighter circles down the center
-  _G.save();
-  _G.fillStyle = 'rgba(255,255,255,0.1)';
-  for (var ci = 0; ci < 3; ci++) {
-    _G.beginPath();
-    _G.arc(sx + ts * 0.5, sy + ts * (0.2 + ci * 0.3), 2, 0, Math.PI * 2);
-    _G.fill();
-  }
-  _G.restore();
 }
 
 function LV_drawWater(sx, sy, ts, tx, ty, t) {
   LV_cut(LV_PAL.pond0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   LV_cut(LV_PAL.pond1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
   LV_cut(LV_PAL.pondHL, 0, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.18 + Math.sin(t * 2 + ty) * ts * 0.04, ts * 0.35, ts * 0.05); });
-  // Sine-wave ripple line
-  _G.save();
-  _G.strokeStyle = 'rgba(106,176,200,0.15)';
-  _G.lineWidth = 1;
-  _G.beginPath();
-  for (var wp = 0; wp <= ts; wp += 2) {
-    var wy = sy + ts * 0.5 + 2 * Math.sin(wp * 0.3 + tx * 0.5);
-    if (wp === 0) _G.moveTo(sx + wp, wy); else _G.lineTo(sx + wp, wy);
-  }
-  _G.stroke();
-  _G.restore();
 }
 
 // ─── FLOOR 2: TIDEPOOL TILES (zone-aware) ───────────────────────
@@ -697,43 +657,11 @@ function LV_drawWall_ice(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.18 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.6); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.32 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
   if (r() < 0.2) { LV_cut(P.accent, 0, function () { _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.06, 0, Math.PI * 2); }); }
-  // Angular crystalline edge highlights on ice walls
-  _G.save();
-  _G.strokeStyle = 'rgba(255,255,255,0.15)';
-  _G.lineWidth = 1;
-  var ir5 = mkRng(tx * 47 + ty * 59 + 605);
-  // Short diagonal white strokes at tile edges
-  var edgeX = ir5() < 0.5 ? sx + ts * 0.05 : sx + ts * 0.85;
-  var edgeY = sy + ts * (0.1 + ir5() * 0.3);
-  _G.beginPath(); _G.moveTo(edgeX, edgeY); _G.lineTo(edgeX + ts * 0.1, edgeY + ts * 0.15); _G.stroke();
-  if (ir5() < 0.6) {
-    edgeX = ir5() < 0.5 ? sx + ts * 0.9 : sx + ts * 0.1;
-    edgeY = sy + ts * (0.5 + ir5() * 0.3);
-    _G.beginPath(); _G.moveTo(edgeX, edgeY); _G.lineTo(edgeX - ts * 0.08, edgeY + ts * 0.12); _G.stroke();
-  }
-  _G.restore();
 }
 function LV_drawFloor_ice(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[5], r = mkRng(tx * 19 + ty * 53 + 602);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.4) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Ice crack lines on floor tiles (1-2 white lines, 0.15 alpha)
-  _G.save();
-  _G.strokeStyle = 'rgba(255,255,255,0.15)';
-  _G.lineWidth = 1;
-  var cr5 = mkRng(tx * 43 + ty * 71 + 607);
-  var crackCount = 1 + Math.floor(cr5() * 2);
-  for (var cci = 0; cci < crackCount; cci++) {
-    var cx1 = sx + ts * (0.1 + cr5() * 0.3);
-    var cy1 = sy + ts * (0.1 + cr5() * 0.3);
-    var angle5 = cr5() * Math.PI;
-    var clen = ts * (0.3 + cr5() * 0.3);
-    _G.beginPath();
-    _G.moveTo(cx1, cy1);
-    _G.lineTo(cx1 + Math.cos(angle5) * clen, cy1 + Math.sin(angle5) * clen);
-    _G.stroke();
-  }
-  _G.restore();
   // Transformation: thawed grass patches (green on ice)
   if (_transformed && r() < 0.22) {
     var fr5 = mkRng(tx * 67 + ty * 31 + 99);
@@ -761,43 +689,11 @@ function LV_drawWall_crystal(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.5); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
   if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); }
-  // Faceted crystal diagonal lines on walls
-  _G.save();
-  _G.strokeStyle = 'rgba(200,160,255,0.12)';
-  _G.lineWidth = 1;
-  var cr6 = mkRng(tx * 43 + ty * 67 + 706);
-  for (var ci = 0; ci < 2; ci++) {
-    _G.beginPath();
-    _G.moveTo(sx + cr6() * ts * 0.3, sy + cr6() * ts * 0.2);
-    _G.lineTo(sx + ts * (0.5 + cr6() * 0.5), sy + ts * (0.5 + cr6() * 0.5));
-    _G.stroke();
-  }
-  _G.restore();
 }
 function LV_drawFloor_crystal(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[6], r = mkRng(tx * 19 + ty * 53 + 702);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Diamond/hexagonal outlines on crystal floor tiles
-  _G.save();
-  _G.strokeStyle = 'rgba(200,160,255,0.12)';
-  _G.lineWidth = 1;
-  var dr6 = mkRng(tx * 37 + ty * 59 + 703);
-  for (var di = 0; di < 2; di++) {
-    var dcx = sx + ts * (0.2 + dr6() * 0.6);
-    var dcy = sy + ts * (0.2 + dr6() * 0.6);
-    var dsz = ts * 0.08;
-    _G.beginPath();
-    _G.moveTo(dcx, dcy - dsz);
-    _G.lineTo(dcx + dsz * 0.87, dcy - dsz * 0.5);
-    _G.lineTo(dcx + dsz * 0.87, dcy + dsz * 0.5);
-    _G.lineTo(dcx, dcy + dsz);
-    _G.lineTo(dcx - dsz * 0.87, dcy + dsz * 0.5);
-    _G.lineTo(dcx - dsz * 0.87, dcy - dsz * 0.5);
-    _G.closePath();
-    _G.stroke();
-  }
-  _G.restore();
   // Transformation: prismatic sparkle dots
   if (_transformed && r() < 0.2) {
     var fr6 = mkRng(tx * 67 + ty * 31 + 99);
@@ -825,30 +721,11 @@ function LV_drawWall_market(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.18 + r() * 0.1), 3 + Math.floor(r() * 3), r2, 0.6); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.32 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.5); });
   if (r() < 0.15) { LV_cut(P.accent, 0, function () { _G.rect(sx + ts * 0.3, sy + ts * 0.15, ts * 0.4, ts * 0.15); }); }
-  // Gold window-like rectangles on market walls (15% chance)
-  var wr7 = mkRng(tx * 53 + ty * 79 + 805);
-  if (wr7() < 0.15) {
-    _G.save();
-    _G.fillStyle = 'rgba(232,192,72,0.18)';
-    var wx = sx + ts * (0.25 + wr7() * 0.3);
-    var wy = sy + ts * (0.15 + wr7() * 0.2);
-    _G.fillRect(wx, wy, ts * 0.18, ts * 0.12);
-    _G.restore();
-  }
 }
 function LV_drawFloor_market(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[7], r = mkRng(tx * 19 + ty * 53 + 802);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.45) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Cobblestone 3x3 sub-grid pattern on market floor tiles
-  _G.save();
-  _G.strokeStyle = 'rgba(80,60,30,0.15)';
-  _G.lineWidth = 0.8;
-  for (var gi = 1; gi < 3; gi++) {
-    _G.beginPath(); _G.moveTo(sx + ts * gi / 3, sy); _G.lineTo(sx + ts * gi / 3, sy + ts); _G.stroke();
-    _G.beginPath(); _G.moveTo(sx, sy + ts * gi / 3); _G.lineTo(sx + ts, sy + ts * gi / 3); _G.stroke();
-  }
-  _G.restore();
   // Transformation: gold coin glints on the floor
   if (_transformed && r() < 0.2) {
     var fr7 = mkRng(tx * 67 + ty * 31 + 99);
@@ -875,33 +752,11 @@ function LV_drawWall_library(sx, sy, ts, tx, ty) {
   LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.55); });
   LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
   if (r() < 0.18) { LV_cut(P.rune, 0, function () { _G.rect(sx + ts * 0.25, sy + ts * 0.1, ts * 0.5, ts * 0.08); }); }
-  // Horizontal rune-like lines on library walls (2-3 strokes)
-  _G.save();
-  _G.strokeStyle = 'rgba(192,152,72,0.15)';
-  _G.lineWidth = 0.8;
-  var lr8 = mkRng(tx * 47 + ty * 61 + 905);
-  var lineCount = 2 + Math.floor(lr8() * 2);
-  for (var li = 0; li < lineCount; li++) {
-    var ly = sy + ts * (0.25 + li * 0.22 + lr8() * 0.05);
-    _G.beginPath(); _G.moveTo(sx + ts * 0.1, ly); _G.lineTo(sx + ts * 0.9, ly); _G.stroke();
-  }
-  _G.restore();
 }
 function LV_drawFloor_library(sx, sy, ts, tx, ty) {
   var P = FLOOR_PALS[8], r = mkRng(tx * 19 + ty * 53 + 902);
   LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Subtle text-like marks (tiny horizontal dashes) on library floor
-  _G.save();
-  _G.strokeStyle = 'rgba(160,128,48,0.12)';
-  _G.lineWidth = 0.6;
-  var tr8 = mkRng(tx * 41 + ty * 73 + 906);
-  for (var ti = 0; ti < 4; ti++) {
-    var tdx = sx + ts * (0.15 + tr8() * 0.7);
-    var tdy = sy + ts * (0.15 + tr8() * 0.7);
-    _G.beginPath(); _G.moveTo(tdx, tdy); _G.lineTo(tdx + ts * 0.06 + tr8() * ts * 0.04, tdy); _G.stroke();
-  }
-  _G.restore();
   // Transformation: glowing page-light dots
   if (_transformed && r() < 0.18) {
     var fr8 = mkRng(tx * 67 + ty * 31 + 99);
@@ -920,70 +775,7 @@ function LV_drawWater_library(sx, sy, ts, tx, ty, t) {
   LV_cut(P.accent, 0, function () { _G.arc(sx + ts * (0.35 + Math.sin(t * 1.5 + ty) * 0.1), sy + ts * 0.5, ts * 0.05, 0, Math.PI * 2); });
 }
 
-// ─── FLOOR 10: MENDING ROOM (The Mending Room, arcane variant) ──
-
-function LV_drawWall_mending(sx, sy, ts, tx, ty) {
-  var P = FLOOR_PALS[9], r = mkRng(tx * 31 + ty * 97 + 1001);
-  LV_cut(P.wall0, 8, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  LV_cut(P.wall1, 5, function () { var r2 = mkRng(tx * 7 + ty * 13); LV_bumpStrip(sx, sx + ts, sy + ts, sy + ts * (0.15 + r() * 0.1), 3 + Math.floor(r() * 2), r2, 0.5); });
-  LV_cut(P.wall2, 3, function () { var r2 = mkRng(tx * 11 + ty * 19); LV_bumpStrip(sx + ts * 0.05, sx + ts * 0.95, sy + ts, sy + ts * (0.3 + r() * 0.08), 2 + Math.floor(r() * 2), r2, 0.45); });
-  if (r() < 0.2) { var rr = mkRng(tx * 23 + ty * 41); LV_cut(P.rune, 0, function () { _G.arc(sx + ts * (0.3 + rr() * 0.4), sy + ts * (0.15 + rr() * 0.25), ts * 0.07, 0, Math.PI * 2); }); _G.save(); _G.globalAlpha = 0.15; _G.fillStyle = P.accent || '#c060f0'; _G.beginPath(); _G.arc(sx + ts * 0.5, sy + ts * 0.3, ts * 0.2, 0, Math.PI * 2); _G.fill(); _G.restore(); }
-  // Glowing rune circles on mending walls
-  var mr9 = mkRng(tx * 53 + ty * 71 + 1005);
-  if (mr9() < 0.25) {
-    _G.save();
-    _G.strokeStyle = P.rune || '#8040d0';
-    _G.lineWidth = 1;
-    _G.globalAlpha = 0.1;
-    var mcx = sx + ts * (0.3 + mr9() * 0.4);
-    var mcy = sy + ts * (0.2 + mr9() * 0.3);
-    _G.beginPath(); _G.arc(mcx, mcy, ts * 0.1, 0, Math.PI * 2); _G.stroke();
-    _G.restore();
-  }
-}
-function LV_drawFloor_mending(sx, sy, ts, tx, ty) {
-  var P = FLOOR_PALS[9], r = mkRng(tx * 19 + ty * 53 + 1002);
-  LV_cut(P.floor0, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  if (r() < 0.35) { var pr = mkRng(tx * 29 + ty * 67); LV_cut(P.floorL, 1, function () { _G.rect(sx + pr() * ts * 0.4 + ts * 0.1, sy + pr() * ts * 0.4 + ts * 0.1, ts * (0.25 + pr() * 0.2), ts * (0.15 + pr() * 0.15)); }); }
-  // Equation-like symbols (+, x, =) on mending floor tiles
-  _G.save();
-  _G.strokeStyle = 'rgba(192,96,240,0.15)';
-  _G.lineWidth = 1;
-  var er9 = mkRng(tx * 37 + ty * 61 + 1003);
-  var sym = Math.floor(er9() * 3);
-  var ecx = sx + ts * (0.3 + er9() * 0.4);
-  var ecy = sy + ts * (0.3 + er9() * 0.4);
-  var esz = ts * 0.06;
-  _G.beginPath();
-  if (sym === 0) { // +
-    _G.moveTo(ecx - esz, ecy); _G.lineTo(ecx + esz, ecy);
-    _G.moveTo(ecx, ecy - esz); _G.lineTo(ecx, ecy + esz);
-  } else if (sym === 1) { // x
-    _G.moveTo(ecx - esz, ecy - esz); _G.lineTo(ecx + esz, ecy + esz);
-    _G.moveTo(ecx + esz, ecy - esz); _G.lineTo(ecx - esz, ecy + esz);
-  } else { // =
-    _G.moveTo(ecx - esz, ecy - esz * 0.4); _G.lineTo(ecx + esz, ecy - esz * 0.4);
-    _G.moveTo(ecx - esz, ecy + esz * 0.4); _G.lineTo(ecx + esz, ecy + esz * 0.4);
-  }
-  _G.stroke();
-  _G.restore();
-  // Transformation: glowing rune wisps
-  if (_transformed && r() < 0.2) {
-    var fr9 = mkRng(tx * 67 + ty * 31 + 99);
-    LV_cut(P.rune || '#8040d0', 0, function() { _G.arc(sx + ts * (0.2 + fr9() * 0.6), sy + ts * (0.2 + fr9() * 0.6), ts * 0.05 + fr9() * ts * 0.02, 0, Math.PI * 2); });
-  }
-}
-function LV_drawPath_mending(sx, sy, ts, tx, ty) {
-  var P = FLOOR_PALS[9];
-  LV_cut(P.path0, 4, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  for (var si = 0; si < 4; si++) { var sr = mkRng(tx * 41 + ty * 83 + si * 11); var sx2 = sx + (si % 2) * ts * 0.48 + ts * 0.04, sy2 = sy + Math.floor(si / 2) * ts * 0.48 + ts * 0.04; LV_cut(si % 2 === 0 ? P.pathS : P.pathL, 2, (function (x, y, r2) { return function () { LV_wobRect(x + r2() * 2, y + r2() * 2, ts * 0.42, ts * 0.42, mkRng(si * 7 + tx + ty), 1.5); }; })(sx2, sy2, sr)); }
-}
-function LV_drawWater_mending(sx, sy, ts, tx, ty, t) {
-  var P = FLOOR_PALS[9];
-  LV_cut(P.water0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
-  LV_cut(P.water1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
-  LV_cut(P.accent || '#c060f0', 0, function () { _G.arc(sx + ts * (0.4 + Math.sin(t * 2 + ty * 0.5) * 0.1), sy + ts * 0.45, ts * 0.08 + Math.sin(t * 3) * ts * 0.02, 0, Math.PI * 2); });
-}
+// ─── FLOOR 10: MENDING ROOM reuses arcane tile fns (floor 5 key=9) ──
 
 // ─── THEME DISPATCH ─────────────────────────────────────────────
 
@@ -996,7 +788,7 @@ var _tileFns = {
   6: { wall: LV_drawWall_crystal, floor: LV_drawFloor_crystal, path: LV_drawPath_crystal, water: LV_drawWater_crystal },
   7: { wall: LV_drawWall_market, floor: LV_drawFloor_market, path: LV_drawPath_market, water: LV_drawWater_market },
   8: { wall: LV_drawWall_library, floor: LV_drawFloor_library, path: LV_drawPath_library, water: LV_drawWater_library },
-  9: { wall: LV_drawWall_mending, floor: LV_drawFloor_mending, path: LV_drawPath_mending, water: LV_drawWater_mending },
+  9: { wall: LV_drawWall_arcane, floor: LV_drawFloor_arcane, path: LV_drawPath_arcane, water: LV_drawWater_arcane },
 };
 
 function _drawTile(tt, sx, sy, ts, tx, ty, t) {
@@ -1005,28 +797,18 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
   else if (tt === LV_TP) fns.path(sx, sy, ts, tx, ty);
   else if (tt === LV_TQ) fns.water(sx, sy, ts, tx, ty, t);
   else if (tt === LV_TS) {
-    // Secret passage — render as wall but with subtle visual hints
     fns.wall(sx, sy, ts, tx, ty);
-    // Slightly lighter overlay (5-10% lighter than normal wall)
-    _G.save();
-    _G.globalAlpha = 0.08;
-    _G.fillStyle = '#ffffff';
-    _G.fillRect(sx, sy, ts + 1, ts + 1);
-    _G.restore();
-    // Subtle crack line (1px, slightly darker) — hints at breakable wall
     var sr = mkRng(tx * 61 + ty * 89);
-    _G.save();
-    _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.08;
-    _G.strokeStyle = '#1a0e04';
+    _G.globalAlpha = 0.25 + Math.sin(t * 1.5 + tx * 3) * 0.1;
+    _G.strokeStyle = '#f0d060';
     _G.lineWidth = 1;
     _G.beginPath();
     var cx = sx + ts * (0.3 + sr() * 0.4);
-    _G.moveTo(cx, sy + ts * 0.15);
-    _G.lineTo(cx + ts * 0.06, sy + ts * 0.45);
-    _G.lineTo(cx - ts * 0.04, sy + ts * 0.75);
-    _G.lineTo(cx + ts * 0.02, sy + ts * 0.9);
+    _G.moveTo(cx, sy + ts * 0.2);
+    _G.lineTo(cx + ts * 0.05, sy + ts * 0.5);
+    _G.lineTo(cx - ts * 0.03, sy + ts * 0.8);
     _G.stroke();
-    _G.restore();
+    _G.globalAlpha = 1;
   }
   else fns.floor(sx, sy, ts, tx, ty);
 }
@@ -1035,36 +817,12 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
 
 function LV_drawChest(sx, sy, ts, o) {
   var x = sx + ts * 0.5, y = sy + ts * 0.62;
-  // Open transition: for ~400ms after o.openedAt the lid lifts/tilts open
-  // and gold sparkles rise, then it settles to a static open pose (prog=1).
-  var prog = o.open ? (o.openedAt ? Math.min(1, (Date.now() - o.openedAt) / 400) : 1) : 0;
   LV_cut('rgba(14,6,2,0.28)', 0, function () { LV_ellipse(x, y + ts * 0.16, ts * 0.24, ts * 0.065, 0); });
-  var bc = o.open ? '#3a1c08' : '#5a3010';
+  var bc = o.open ? '#3a1c08' : '#5a3010', bl = o.open ? '#4e2c10' : '#7a4820';
   LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.28, y - ts * 0.02); _G.lineTo(x + ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.28, y - ts * 0.02); });
-  // Lid — rotated/offset upward as the chest opens
-  _G.save();
-  if (prog > 0) {
-    var hy = y - ts * 0.14; // hinge pivot near the lid base
-    _G.translate(x, hy - prog * ts * 0.16);
-    _G.rotate(-prog * 0.4);
-    _G.translate(-x, -hy);
-  }
   LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y - ts * 0.08); _G.lineTo(x + ts * 0.26, y - ts * 0.08); _G.lineTo(x + ts * 0.22, y - ts * 0.2); _G.bezierCurveTo(x + ts * 0.18, y - ts * 0.26, x - ts * 0.18, y - ts * 0.26, x - ts * 0.22, y - ts * 0.2); });
-  _G.restore();
   LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.27, y - ts * 0.02, ts * 0.54, ts * 0.038); });
   LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.055, y - ts * 0.055, ts * 0.11, ts * 0.09); });
-  // Gold sparkle dots rising while the lid swings open
-  if (prog > 0 && prog < 1) {
-    _G.save();
-    _G.globalAlpha = (1 - prog) * 0.9;
-    _G.fillStyle = LV_PAL.goldL;
-    for (var gp = 0; gp < 4; gp++) {
-      var gx = x + (gp - 1.5) * ts * 0.1;
-      var gy = y - ts * 0.18 - prog * ts * (0.25 + gp * 0.1);
-      _G.beginPath(); _G.arc(gx, gy, ts * 0.028, 0, Math.PI * 2); _G.fill();
-    }
-    _G.restore();
-  }
 }
 
 function LV_drawFairyCage(sx, sy, ts, o, t) {
@@ -1408,40 +1166,37 @@ function LV_drawGold(sx, sy, ts, o) {
 }
 
 function LV_drawEncounterIndicator(sx, sy, ts, o, t) {
-  // "Lurking monster" — a small dark shadow blob with two glowing eyes
-  // that blink every ~2s. Mysterious, not scary (audience: K-5 kids).
-  var x = sx + ts * 0.5, y = sy + ts * 0.58;
-  var phase = o.tx * 0.7 + o.ty * 1.3;
-  // Slow pulse — the blob gently swells and settles
-  var pulse = 1 + Math.sin(t * 1.5 + phase) * 0.08;
-  var P = FLOOR_PALS[_floorTheme];
-  var eyeCol = (P && (P.accentL || P.accent)) || LV_PAL.goldL;
+  // Themed pulsing indicator — visible hint that an encounter lurks here
+  var ecx = sx + ts * 0.5, ecy = sy + ts * 0.5;
+  var pulse = 0.3 + Math.sin(t * 3 + o.tx * 2 + o.ty * 3) * 0.15;
+  var eSize = ts * (0.12 + Math.sin(t * 2.5 + o.tx) * 0.03);
 
-  _G.save();
-  // Shadow blob (~20px wide ellipse, dark at half alpha)
-  _G.globalAlpha = 0.5;
-  _G.fillStyle = '#0c0a14';
+  // Theme colors based on floor
+  var eColors = {
+    1: '#3a6828',  // Garden: green bush rustle
+    2: '#2888b8',  // Tidepool: blue bubble
+    3: '#606878',  // Cloud: gray swirl
+    4: '#c04010',  // Ember: red crack
+    5: '#4888a8',  // Frost: ice shimmer
+    6: '#6828a8',  // Crystal: purple glow
+    7: '#7a6848',  // Market: warm brown
+    8: '#3a2818',  // Library: dark amber
+    9: '#281848',  // Mending: arcane purple
+  };
+  var eColor = eColors[_floorTheme] || eColors[1];
+
+  _G.globalAlpha = pulse;
+  _G.fillStyle = eColor;
   _G.beginPath();
-  LV_ellipse(x, y + ts * 0.06, ts * 0.18 * pulse, ts * 0.08 * pulse, 0);
+  _G.arc(ecx, ecy, eSize, 0, Math.PI * 2);
   _G.fill();
-  // Soft rounded body rising out of the shadow
-  _G.globalAlpha = 0.35;
+  // Outer ring
+  _G.strokeStyle = eColor;
+  _G.lineWidth = 1;
   _G.beginPath();
-  LV_ellipse(x, y - ts * 0.04, ts * 0.13 * pulse, ts * 0.12 * pulse, 0);
-  _G.fill();
-  // Two small glowing eyes — close briefly every ~2 seconds (a blink)
-  var eyesOpen = ((t + phase) % 2) > 0.18;
-  if (eyesOpen) {
-    _G.globalAlpha = 0.8 + Math.sin(t * 3 + phase) * 0.2;
-    _G.fillStyle = eyeCol;
-    _G.beginPath();
-    _G.arc(x - ts * 0.05, y - ts * 0.06, ts * 0.022, 0, Math.PI * 2);
-    _G.fill();
-    _G.beginPath();
-    _G.arc(x + ts * 0.05, y - ts * 0.06, ts * 0.022, 0, Math.PI * 2);
-    _G.fill();
-  }
-  _G.restore();
+  _G.arc(ecx, ecy, eSize * 1.8, 0, Math.PI * 2);
+  _G.stroke();
+  _G.globalAlpha = 1;
 }
 
 function LV_drawMonster(sx, sy, ts, o, t) {
@@ -1469,87 +1224,54 @@ function LV_drawExit(sx, sy, ts, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var dw = ts * 0.6, dh = ts * 0.85;
   var dx = x - dw / 2, dy = y - dh / 2 - ts * 0.05;
-  var hasKey = _gs && _gs.hasKey;
-
-  if (hasKey) {
-    // GLOWING / LIT UP exit — golden key obtained
-    // Golden glow behind door
-    _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
-    var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
-    gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
-    _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
-    // Door frame — gold rectangle with arched top
-    LV_cut('#c08018', 6, function () {
-      _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
-      _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
-      _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
-      _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
-      _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
-      _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
-    });
-    // Light from doorway
-    var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
-    _G.save(); _G.globalAlpha = pulse;
-    var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
-    lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
-    _G.fillStyle = lg;
-    _G.beginPath();
-    _G.moveTo(dx + ts * 0.12, dy + dh);
-    _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
-    _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
-    _G.lineTo(dx + dw - ts * 0.12, dy + dh);
-    _G.fill(); _G.restore();
-    // Keyhole or handle
-    LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
-    // Sparkle particles orbiting
-    for (var p = 0; p < 4; p++) {
-      var pa = (p / 4) * Math.PI * 2 + t * 1.5;
-      var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
-      _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
-    }
-  } else {
-    // DIM / DARK exit — key not yet obtained
-    // Dark door frame (no glow)
-    LV_cut('#3a2810', 6, function () {
-      _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
-      _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
-      _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
-      _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
-      _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
-      _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
-    });
-    // Dark interior — no light
-    _G.save(); _G.globalAlpha = 0.4;
-    _G.fillStyle = '#1a0e04';
-    _G.beginPath();
-    _G.moveTo(dx + ts * 0.12, dy + dh);
-    _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
-    _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
-    _G.lineTo(dx + dw - ts * 0.12, dy + dh);
-    _G.fill(); _G.restore();
-    // Dim keyhole
-    LV_cut('#4a3010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+  // Golden glow behind door
+  _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2) * 0.15;
+  var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.6);
+  gr.addColorStop(0, 'rgba(255,240,100,0.8)'); gr.addColorStop(1, 'rgba(255,200,40,0)');
+  _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.6, 0, Math.PI * 2); _G.fill(); _G.restore();
+  // Door frame — gold rectangle with arched top
+  LV_cut('#c08018', 6, function () {
+    _G.moveTo(dx, dy + dh); _G.lineTo(dx, dy + dh * 0.3);
+    _G.bezierCurveTo(dx, dy - dh * 0.05, dx + dw, dy - dh * 0.05, dx + dw, dy + dh * 0.3);
+    _G.lineTo(dx + dw, dy + dh); _G.lineTo(dx + dw - ts * 0.08, dy + dh);
+    _G.lineTo(dx + dw - ts * 0.08, dy + dh * 0.35);
+    _G.bezierCurveTo(dx + dw - ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.05, dx + ts * 0.08, dy + dh * 0.35);
+    _G.lineTo(dx + ts * 0.08, dy + dh); _G.lineTo(dx, dy + dh);
+  });
+  // Light from doorway
+  var pulse = 0.6 + Math.sin(t * 2.5) * 0.15;
+  _G.save(); _G.globalAlpha = pulse;
+  var lg = _G.createLinearGradient(x, dy + dh * 0.1, x, dy + dh);
+  lg.addColorStop(0, 'rgba(255,255,240,0.9)'); lg.addColorStop(0.5, 'rgba(255,220,80,0.6)'); lg.addColorStop(1, 'rgba(255,200,40,0.2)');
+  _G.fillStyle = lg;
+  _G.beginPath();
+  _G.moveTo(dx + ts * 0.12, dy + dh);
+  _G.lineTo(dx + ts * 0.12, dy + dh * 0.38);
+  _G.bezierCurveTo(dx + ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.1, dx + dw - ts * 0.12, dy + dh * 0.38);
+  _G.lineTo(dx + dw - ts * 0.12, dy + dh);
+  _G.fill(); _G.restore();
+  // Keyhole or handle
+  LV_cut('#8a6010', 2, function () { _G.arc(x, y + dh * 0.15, ts * 0.04, 0, Math.PI * 2); });
+  // Sparkle particles orbiting
+  for (var p = 0; p < 4; p++) {
+    var pa = (p / 4) * Math.PI * 2 + t * 1.5;
+    var ppx = x + Math.cos(pa) * ts * 0.45, ppy = y + Math.sin(pa) * dh * 0.45;
+    _G.save(); _G.globalAlpha = 0.4 + Math.sin(t * 3 + p) * 0.3; _G.fillStyle = '#ffe060'; _G.beginPath(); _G.arc(ppx, ppy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
   }
 }
 
 // ─── PARTY DRAWING (1:1 from reference) ─────────────────────────
 
 function LV_drawPartyMember(px, py, ts, idx, moving, t) {
-  // Walk cycle: bouncy bob + alternating squash/stretch while moving;
-  // gentle breathing bob while standing still.
-  var walkPhase = Math.sin(t * 12 + idx * 1.2);
-  var bob = moving ? walkPhase * 3 : Math.sin(t * 2 + idx * 1.2) * 1.5;
-  var tilt = moving ? walkPhase * 0.035 : 0;
-  var sqX = moving ? 1 + walkPhase * 0.02 : 1;
-  var sqY = moving ? 1 - walkPhase * 0.02 : 1;
-  // Facing flip: mirror the hero horizontally when walking left
-  var flip = (_party && _party.facing === 'left') ? -1 : 1;
+  var bob = moving ? Math.sin(t * 8 + idx * 1.2) * ts * 0.055 : 0;
+  var tilt = moving ? Math.sin(t * 8 + idx * 1.2) * 0.035 : 0;
+  var stepStretch = moving ? 1 + Math.abs(Math.sin(t * 8)) * 0.02 : 1;
   if (_heroCanvases && _heroCanvases[idx]) {
     var hcv = _heroCanvases[idx]; var hsc = ts * 1.1 / hcv.width; var hw = hcv.width * hsc, hh = hcv.height * hsc;
     _G.save();
     _G.translate(px, py - hh * 0.82 + bob + hh / 2);
-    _G.rotate(tilt * flip);
-    _G.scale(sqX * flip, sqY);
+    _G.rotate(tilt);
+    _G.scale(1, stepStretch);
     _G.drawImage(hcv, -hw / 2, -hh / 2, hw, hh);
     _G.restore();
     return;
@@ -1557,7 +1279,6 @@ function LV_drawPartyMember(px, py, ts, idx, moving, t) {
   // Fallback generic sprite
   var col = '#2e4e88';
   _G.save(); _G.translate(px, py + bob);
-  _G.scale(sqX * flip, sqY);
   LV_cut('rgba(14,6,2,0.25)', 0, function () { LV_ellipse(0, ts * 0.26, ts * 0.17, ts * 0.065, 0); });
   LV_cut(col, 7, function () { _G.moveTo(-ts * 0.2, ts * 0.22); _G.lineTo(ts * 0.2, ts * 0.22); _G.lineTo(ts * 0.22, ts * 0.08); _G.lineTo(ts * 0.18, -ts * 0.04); _G.lineTo(-ts * 0.18, -ts * 0.04); _G.lineTo(-ts * 0.22, ts * 0.08); });
   LV_cut(col, 5, function () { _G.arc(0, -ts * 0.16, ts * 0.14, 0, Math.PI * 2); });
@@ -1582,25 +1303,32 @@ function LV_drawMinimap() {
   for (var my = 0; my < _ROWS; my++) for (var mx = 0; mx < _COLS; mx++) {
     if (!_fog[my][mx]) { mg.fillStyle = _fogColorMinimap; mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5); continue; }
     var t2 = _map[my][mx];
-    mg.fillStyle = t2 === LV_TW ? '#2a5c1e' : t2 === LV_TP ? '#a89870' : t2 === LV_TQ ? '#2a5060' : '#3c2010';
+    mg.fillStyle = t2 === LV_TW ? '#3c6b4f' : t2 === LV_TP ? '#e8dec6' : t2 === LV_TQ ? '#44888a' : '#d9cfb2';
     mg.fillRect(mx * cs, my * cs, cs + 0.5, cs + 0.5);
   }
+  // Only landmark objects on the minimap — boss, exit, gold chest.
+  // Plotting every item made the map an unreadable dot cloud.
   for (var oi2 = 0; oi2 < _objs.length; oi2++) {
     var o2 = _objs[oi2]; if (_gs.dead[o2.id]) continue;
     if (!_fog[o2.ty] || !_fog[o2.ty][o2.tx]) continue;
-    if (o2.type === 'exit' && !o2.visible) continue;
-    var dc = o2.type === 'monster' ? (o2.hidden ? '#806040' : '#ff4040') : o2.type === 'boss' ? '#ff2020' : o2.type.indexOf('chest') >= 0 ? '#e8a030' : o2.type === 'exit' ? '#40ff40' : o2.type === 'valve' ? '#b07838' : o2.type === 'beacon' ? '#f0c040' : o2.type === 'vent' ? '#a08060' : o2.type === 'fragment' ? '#a060e0' : o2.type === 'crystal' ? '#80c8e8' : o2.type === 'geoshard' ? '#c080f0' : o2.type === 'token' ? '#e8c040' : o2.type === 'page' ? '#c8a060' : '#c07818';
+    var dc = null;
+    if (o2.type === 'boss' && o2.alive) dc = '#d06a4d';
+    else if (o2.type === 'exit' && o2.visible) dc = '#ecb964';
+    else if (o2.type === 'chestG') dc = '#e39a4a';
     if (!dc) continue;
-    mg.fillStyle = dc; mg.beginPath(); mg.arc((o2.tx + 0.5) * cs, (o2.ty + 0.5) * cs, cs * 0.8, 0, Math.PI * 2); mg.fill();
+    mg.fillStyle = dc; mg.beginPath(); mg.arc((o2.tx + 0.5) * cs, (o2.ty + 0.5) * cs, cs * 1.1, 0, Math.PI * 2); mg.fill();
   }
   var ppx = (_party.x / LV_TILE) * cs, ppy = (_party.y / LV_TILE) * cs;
-  mg.fillStyle = '#ff6060'; mg.beginPath(); mg.arc(ppx, ppy, cs * 1.2, 0, Math.PI * 2); mg.fill();
-  mg.fillStyle = '#ffffff'; mg.beginPath(); mg.arc(ppx, ppy, cs * 0.5, 0, Math.PI * 2); mg.fill();
-  mg.strokeStyle = 'rgba(192,120,24,0.4)'; mg.lineWidth = 1; mg.strokeRect(0, 0, mc.width, mc.height);
-  // Blit minimap onto main canvas (top-right corner)
-  var mmSize = Math.min(_W, _H) * 0.22;
-  var mmX = _W - mmSize - 10, mmY = 10;
+  mg.fillStyle = '#f5eedd'; mg.beginPath(); mg.arc(ppx, ppy, cs * 1.3, 0, Math.PI * 2); mg.fill();
+  mg.fillStyle = '#44888a'; mg.beginPath(); mg.arc(ppx, ppy, cs * 0.7, 0, Math.PI * 2); mg.fill();
+  mg.strokeStyle = 'rgba(245,238,221,0.5)'; mg.lineWidth = 1.5; mg.strokeRect(0, 0, mc.width, mc.height);
+  // Blit minimap onto main canvas — top-LEFT, small, away from the
+  // settings button which lives top-right.
+  var mmSize = Math.min(_W, _H) * 0.13;
+  var mmX = 12, mmY = 12;
+  _G.save(); _G.globalAlpha = 0.88;
   _G.drawImage(mc, mmX, mmY, mmSize, mmSize);
+  _G.restore();
 }
 
 // ─── MAIN DRAW (1:1 from reference) ────────────────────────────
@@ -1619,14 +1347,53 @@ function LV_draw(t) {
     if (!_fog[ty2][tx2]) { _G.fillStyle = _fogColor; _G.fillRect(scx, scy, ts + 1, ts + 1); continue; }
     var tt2 = _map[ty2][tx2];
     _drawTile(tt2, scx, scy, ts, tx2, ty2, t);
+    // 3/4 perspective: draw south-facing wall side below wall tiles
+    if (tt2 === LV_TW) {
+      var wallH = MAZE_PERSPECTIVE.heightFactor * ts;
+      var southTop = scy + ts;
+      // Only draw if the tile below is NOT a wall (otherwise the face is hidden)
+      var belowIsWall = (ty2 + 1 < _ROWS) && (_map[ty2 + 1][tx2] === LV_TW);
+      if (!belowIsWall) {
+        _G.save();
+        // Floor-themed side face color (darker shade of the wall theme)
+        var _sideCols = {
+          1: 'rgba(12,28,6,0.55)',   // hedge dark
+          2: 'rgba(18,32,10,0.50)',   // tidepool
+          3: 'rgba(80,100,120,0.40)', // cloud
+          4: 'rgba(14,4,2,0.55)',     // ember
+          5: 'rgba(20,36,44,0.50)',   // ice
+          6: 'rgba(28,8,48,0.50)',    // crystal
+          7: 'rgba(36,28,12,0.50)',   // market
+          8: 'rgba(12,8,4,0.55)',     // library
+          9: 'rgba(8,4,12,0.55)',     // mending
+        };
+        _G.fillStyle = _sideCols[_floorTheme] || 'rgba(10,5,2,0.45)';
+        _G.fillRect(scx, southTop, ts + 1, wallH);
+        // Subtle vertical mortar lines on the face for texture
+        _G.globalAlpha = 0.15;
+        _G.strokeStyle = '#000000';
+        _G.lineWidth = 0.5;
+        var mortarStep = ts * 0.25;
+        for (var ml = 1; ml < 4; ml++) {
+          _G.beginPath();
+          _G.moveTo(scx + ml * mortarStep, southTop);
+          _G.lineTo(scx + ml * mortarStep, southTop + wallH);
+          _G.stroke();
+        }
+        // Horizontal mortar line midway
+        _G.beginPath();
+        _G.moveTo(scx, southTop + wallH * 0.5);
+        _G.lineTo(scx + ts + 1, southTop + wallH * 0.5);
+        _G.stroke();
+        _G.restore();
+      }
+    }
   }
   // Objects
   for (var oi = 0; oi < _objs.length; oi++) {
     var o = _objs[oi];
     var isActivated = _gs.activated && _gs.activated[o.id];
-    // Opened chests stay visible (drawn in their open pose) instead of vanishing
-    var isOpenedChest = o.type === 'chest' && o.open;
-    if (((_gs.dead[o.id] && !isActivated) || !o.alive) && !isOpenedChest) continue;
+    if ((_gs.dead[o.id] && !isActivated) || !o.alive) continue;
     if (o.type === 'exit' && !o.visible) continue;
     if (!_fog[o.ty] || !_fog[o.ty][o.tx]) continue;
     var osx = camX + o.tx * ts, osy = camY + o.ty * ts;
@@ -1680,20 +1447,11 @@ function LV_draw(t) {
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
   }
-  // Footstep dust puffs — light fading circles drawn under the hero
-  for (var dui = _dustParticles.length - 1; dui >= 0; dui--) {
-    var du = _dustParticles[dui]; du.t++;
-    if (du.t >= du.maxT) { _dustParticles.splice(dui, 1); continue; }
-    var dua = 1 - du.t / du.maxT;
-    _G.save(); _G.globalAlpha = dua * 0.35; _G.fillStyle = '#e8dcc0';
-    _G.beginPath();
-    _G.arc(camX + du.x * _SCALE + du.vx * du.t, camY + du.y * _SCALE + du.vy * du.t,
-      ts * 0.045 * (0.6 + (1 - dua) * 0.8), 0, Math.PI * 2);
-    _G.fill(); _G.restore();
+  // Party — draw leader only (skip if external animated hero is used)
+  if (!_skipCanvasHero) {
+    var moving = (_party.vx !== 0 || _party.vy !== 0);
+    LV_drawPartyMember(camX + _party.x * _SCALE, camY + _party.y * _SCALE, ts, 0, moving, t);
   }
-  // Party — draw leader only
-  var moving = (_party.vx !== 0 || _party.vy !== 0);
-  LV_drawPartyMember(camX + _party.x * _SCALE, camY + _party.y * _SCALE, ts, 0, moving, t);
   // Fog overlay
   for (var fy2 = sy0; fy2 < sy1; fy2++) for (var fx2 = sx0; fx2 < sx1; fx2++) {
     if (_fog[fy2][fx2]) continue;
@@ -1747,20 +1505,6 @@ function LV_update(keys) {
     if (LV_walkable(_party.x, ny)) _party.y = ny;
     if (Math.abs(dx) > Math.abs(dy)) _party.facing = dx > 0 ? 'right' : 'left';
     else _party.facing = dy > 0 ? 'down' : 'up';
-    // Footstep dust — spawn a tiny puff at the hero's feet every ~300ms
-    if (now - _lastDustMs >= 300) {
-      _lastDustMs = now;
-      var nPuffs = 2 + (Math.random() < 0.5 ? 1 : 0);
-      for (var di = 0; di < nPuffs; di++) {
-        _dustParticles.push({
-          x: _party.x + (Math.random() - 0.5) * LV_TILE * 0.2,
-          y: _party.y + LV_TILE * 0.16,
-          vx: (Math.random() - 0.5) * 0.8 - dx * 0.5,
-          vy: -Math.random() * 0.5 - 0.2,
-          t: 0, maxT: 18 + Math.floor(Math.random() * 10)
-        });
-      }
-    }
   }
   _party.vx = dx; _party.vy = dy;
   LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 3);
@@ -1790,8 +1534,6 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   _objs = objects;
   _heroCanvases = heroCanvases || [];
   _deathParticles = [];
-  _dustParticles = [];
-  _lastDustMs = 0;
 
   // Create offscreen canvas (must be HTMLCanvasElement for Phaser compatibility)
   _canvas = document.createElement('canvas');
@@ -1818,7 +1560,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
     x: (startX + 0.5) * LV_TILE,
     y: (startY + 0.5) * LV_TILE,
     vx: 0, vy: 0,
-    speed: 4.2,
+    speed: 2.8,
     facing: 'down',
     animT: 0
   };
@@ -1933,7 +1675,7 @@ export function setGameState(gs) {
  * Trigger a red flash effect (e.g. on encounter).
  * @param {number} amount - Flash intensity (frames)
  */
-function triggerFlash(amount) {
+export function triggerFlash(amount) {
   _gs.flash = amount || 8;
 }
 
@@ -1948,9 +1690,6 @@ export function markDead(id) {
   for (var oi = 0; oi < _objs.length; oi++) {
     var o = _objs[oi];
     if (o.id === id) {
-      // Chests stay visible after being opened: flag the open state and
-      // timestamp it so LV_drawChest can play a brief lid-open animation.
-      if (o.type === 'chest') { o.open = true; o.openedAt = Date.now(); }
       var wx = (o.tx + 0.5) * LV_TILE, wy = (o.ty + 0.5) * LV_TILE;
       var colors = ['#ff6060', '#ffaa44', '#ffe040', '#ff80a0'];
       for (var pi = 0; pi < 8; pi++) {
@@ -2003,12 +1742,13 @@ export function LV_setTransformed(val) {
  * @param {number} ty - Tile Y
  * @param {number} newType - New tile type (LV_TW, LV_TF, etc.)
  */
-function LV_setTile(tx, ty, newType) {
+export function LV_setTile(tx, ty, newType) {
   if (ty >= 0 && ty < _ROWS && tx >= 0 && tx < _COLS) {
     _map[ty][tx] = newType;
   }
 }
 
+export function setSkipCanvasHero(val) { _skipCanvasHero = !!val; }
 export { LV_PAL, LV_TILE };
 
 export function revealSecret(tx, ty) {
@@ -2032,4 +1772,47 @@ export function markDoorOpen(id) {
 export function addObject(obj) {
   if (!obj || !obj.type) return;
   _objs.push(obj);
+}
+
+/**
+ * Return overlay rectangles for wall tops that should render above the hero.
+ * MazeScene draws these on a separate Phaser layer so the hero walks behind tall walls.
+ * @param {number[][]} grid - tile grid [row][col]
+ * @param {number} floorId - floor theme id
+ * @returns {Array<{x:number,y:number,w:number,h:number,color:string}>}
+ */
+export function getWallOverlays(grid, floorId) {
+  var WALL_COLOR_BY_FLOOR = {
+    1: '#1a3c10', // hedge dark
+    2: '#2a4818', // tidepool
+    3: '#c0d8f0', // cloud
+    4: '#1a0808', // ember
+    5: '#304858', // ice
+    6: '#381060', // crystal
+    7: '#4a3818', // market
+    8: '#1a1008', // library
+    9: '#100818', // mending
+  };
+  var wallColor = WALL_COLOR_BY_FLOOR[floorId] || '#1a3c10';
+  var ts = LV_TILE; // 56
+  var hFactor = MAZE_PERSPECTIVE.heightFactor; // 0.4
+  var overlays = [];
+  for (var row = 0; row < grid.length; row++) {
+    for (var col = 0; col < grid[row].length; col++) {
+      if (grid[row][col] !== LV_TW) continue;
+      // Only include walls whose south face is visible (tile below is not a wall)
+      var belowIsWall = (row + 1 < grid.length) && (grid[row + 1][col] === LV_TW);
+      if (belowIsWall) continue;
+      overlays.push({
+        tx: col,
+        ty: row,
+        x: col * ts,
+        y: row * ts,
+        w: ts,
+        h: ts * hFactor,
+        color: wallColor
+      });
+    }
+  }
+  return overlays;
 }
