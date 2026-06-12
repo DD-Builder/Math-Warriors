@@ -338,8 +338,22 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   });
 
   // Skeletal rig — joint-rotation animation on the body-part textures.
-  // Each part rotates around its pivot point for articulated movement.
-  const rig = new CharacterRig(parts, scene);
+  // Pivot fractions are computed from THIS hero's art geometry so each
+  // part rotates around its actual joint (hip/shoulder/neck/waist/grip),
+  // not a generic canvas fraction. Joint heights in hero art space:
+  // neck ≈ -26, shoulder ≈ -16, grip ≈ -4, waist ≈ +18, hip ≈ +26.
+  const geom = heroArtGeometry(w, h, art, 80, 78);
+  const yFrac = (yArt) => Math.max(0.05, Math.min(0.95, (geom.cy + yArt * geom.sc) / h));
+  const pivots = {
+    leftLeg:  { x: 0.5, y: yFrac(26) },
+    rightLeg: { x: 0.5, y: yFrac(26) },
+    torso:    { x: 0.5, y: yFrac(18) },
+    armL:     { x: 0.5, y: yFrac(-16) },
+    armR:     { x: 0.5, y: yFrac(-16) },
+    weapon:   { x: 0.5, y: yFrac(-4) },
+    head:     { x: 0.5, y: yFrac(-26) },
+  };
+  const rig = new CharacterRig(parts, scene, pivots);
   container.rig = rig;
 
   // State machine — drives the rig via named animations

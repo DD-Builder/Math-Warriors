@@ -11,24 +11,39 @@
  */
 
 export class CharacterRig {
-  constructor(parts, scene) {
+  /**
+   * @param {object} parts — { leftLeg, rightLeg, torso, armL, armR, weapon, head } Phaser Images
+   * @param {Phaser.Scene} scene
+   * @param {object} pivots — per-part origin fractions { partName: { x, y } },
+   *   computed from the hero's art geometry so rotation happens at the
+   *   actual joint (hip/shoulder/neck/waist/grip), not an arbitrary point.
+   */
+  constructor(parts, scene, pivots = null) {
     this.parts = parts;
     this.scene = scene;
     this._tweens = [];
     this._timeline = null;
 
-    this._setPivots();
+    this._setPivots(pivots || DEFAULT_PIVOTS);
   }
 
-  _setPivots() {
-    const p = this.parts;
-    if (p.leftLeg)  p.leftLeg.setOrigin(0.5, 0.15);
-    if (p.rightLeg) p.rightLeg.setOrigin(0.5, 0.15);
-    if (p.torso)    p.torso.setOrigin(0.5, 0.7);
-    if (p.armL)     p.armL.setOrigin(0.6, 0.12);
-    if (p.armR)     p.armR.setOrigin(0.4, 0.12);
-    if (p.weapon)   p.weapon.setOrigin(0.5, 0.85);
-    if (p.head)     p.head.setOrigin(0.5, 0.85);
+  _setPivots(pivots) {
+    // CRITICAL: a Phaser Image's (x, y) is the position of its ORIGIN.
+    // Changing the origin without compensating the position shifts the
+    // texture on screen — which scattered hero parts all over the place.
+    // So: change origin, then move the image so its texture stays put.
+    for (const [name, part] of Object.entries(this.parts)) {
+      if (!part || !part.setOrigin) continue;
+      const pv = pivots[name] || { x: 0.5, y: 0.5 };
+      const oldOx = part.originX, oldOy = part.originY;
+      part.setOrigin(pv.x, pv.y);
+      part.x += (pv.x - oldOx) * part.displayWidth;
+      part.y += (pv.y - oldOy) * part.displayHeight;
+      // Base position: where the part rests with no animation applied.
+      // State-machine resets must return here, NOT to (0, 0).
+      part._baseX = part.x;
+      part._baseY = part.y;
+    }
   }
 
   setPose(pose) {
@@ -144,3 +159,16 @@ export class CharacterRig {
 }
 
 function rad2deg(r) { return r * (180 / Math.PI); }
+
+// Fallback pivots when no art geometry is supplied. Y fractions are in
+// full-canvas space (the hero occupies roughly the middle 60% of the
+// canvas, feet near 0.85, head top near 0.15).
+const DEFAULT_PIVOTS = {
+  leftLeg:  { x: 0.5, y: 0.62 },  // hip
+  rightLeg: { x: 0.5, y: 0.62 },  // hip
+  torso:    { x: 0.5, y: 0.58 },  // waist
+  armL:     { x: 0.5, y: 0.42 },  // shoulder
+  armR:     { x: 0.5, y: 0.42 },  // shoulder
+  weapon:   { x: 0.5, y: 0.48 },  // grip (hand height)
+  head:     { x: 0.5, y: 0.33 },  // neck
+};
