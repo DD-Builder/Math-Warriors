@@ -2,13 +2,15 @@
  * Animation state machine for hero sprites.
  *
  * Manages transitions between idle, walk, guard, attack, hit, ko, victory,
- * cast, and selection-sway states. Each state owns the tweens it creates
- * and cleans them up on exit.
- *
- * Pure JS with no Phaser import — receives scene + parts from the outside.
- * The scene object must provide: tweens.add(), tweens.killTweensOf(),
- * time.delayedCall().
+ * cast, and selection-sway states. Each state drives a CharacterRig
+ * (joint-rotation animation) when available, falling back to raw tweens.
  */
+
+import {
+  WALK_CYCLE, IDLE_BREATHE, SELECTION_SWAY,
+  KNIGHT_SLASH, WIZARD_CAST, BUNNY_PUNCH,
+  GUARD_STANCE, HIT_FLINCH, KO_COLLAPSE, VICTORY_CHEER,
+} from '../data/characterAnimations.js';
 
 const VALID_TRANSITIONS = {
   idle:      ['walk', 'guard', 'attack', 'hit', 'ko', 'victory', 'cast', 'selection-sway', 'breathe'],
@@ -30,25 +32,8 @@ const STATE_DEFS = {};
 // ──────────────────────────────────────────────────────────────
 STATE_DEFS.idle = {
   enter(sm) {
-    const { parts, scene, heroClass } = sm;
-    if (parts.torso) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.045, y: -2, duration: 1600,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.weapon) {
-      const dur = heroClass === 'wizard' ? 2400 : 3000;
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.weapon, angle: 1.5, duration: dur,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (heroClass === 'bunny' && parts.legs) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.legs, y: -2, duration: 600,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
+    if (sm.rig) {
+      sm.rig.playAnimation(IDLE_BREATHE);
     }
   },
 };
@@ -73,43 +58,8 @@ STATE_DEFS.breathe = {
 // ──────────────────────────────────────────────────────────────
 STATE_DEFS.walk = {
   enter(sm) {
-    const { parts, scene } = sm;
-    const spd = sm.visualMods.walkSpeed ?? 200;
-    if (parts.legs) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.legs, y: 4, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.armL) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.armL, y: -3, x: -2, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.armR) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.armR, y: 3, x: 2, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd / 2,
-      }));
-    }
-    if (parts.torso) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, y: -2, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
-      }));
-    }
-    if (parts.head) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.head, y: -2.5, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
-      }));
-    }
-    if (parts.weapon) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.weapon, angle: 3, y: -1, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
-      }));
+    if (sm.rig) {
+      sm.rig.playAnimation(WALK_CYCLE);
     }
   },
 };
@@ -119,49 +69,7 @@ STATE_DEFS.walk = {
 // ──────────────────────────────────────────────────────────────
 STATE_DEFS.guard = {
   enter(sm) {
-    const { parts, scene, heroClass } = sm;
-    if (heroClass === 'knight') {
-      if (parts.armL) {
-        sm._tweens.push(scene.tweens.add({
-          targets: parts.armL, x: 8, y: -6, angle: -15, duration: 200, ease: 'Back.out',
-        }));
-      }
-      if (parts.weapon) {
-        sm._tweens.push(scene.tweens.add({
-          targets: parts.weapon, x: 6, y: -4, angle: -20, duration: 200, ease: 'Back.out',
-        }));
-      }
-    } else if (heroClass === 'wizard') {
-      if (parts.weapon) {
-        sm._tweens.push(scene.tweens.add({
-          targets: parts.weapon, x: 10, y: -8, angle: 15, duration: 250, ease: 'Quad.out',
-        }));
-      }
-      const arms = [parts.armL, parts.armR].filter(Boolean);
-      arms.forEach(arm => {
-        sm._tweens.push(scene.tweens.add({
-          targets: arm, y: -5, duration: 250, ease: 'Quad.out',
-        }));
-      });
-    } else {
-      const arms = [parts.armL, parts.armR].filter(Boolean);
-      arms.forEach((arm, i) => {
-        sm._tweens.push(scene.tweens.add({
-          targets: arm, x: i === 0 ? -6 : 6, y: -4, duration: 200, ease: 'Back.out',
-        }));
-      });
-      if (parts.torso) {
-        sm._tweens.push(scene.tweens.add({
-          targets: parts.torso, y: 3, duration: 200, ease: 'Quad.out',
-        }));
-      }
-    }
-    if (parts.torso) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.01, duration: 1200,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
+    if (sm.rig) sm.rig.playAnimation(GUARD_STANCE);
   },
 };
 
@@ -175,33 +83,16 @@ STATE_DEFS.attack = {
     const subtype = opts.subtype ?? (heroClass === 'wizard' ? 'magic' : heroClass === 'bunny' ? 'punch' : 'slash');
     const duration = opts.duration ?? 300;
 
-    if (subtype === 'slash') {
+    if (sm.rig) {
+      const animMap = { slash: KNIGHT_SLASH, magic: WIZARD_CAST, cast: WIZARD_CAST, punch: BUNNY_PUNCH, kick: BUNNY_PUNCH };
+      const anim = animMap[subtype] || KNIGHT_SLASH;
+      sm.rig.playAnimation(anim);
+    } else if (subtype === 'slash') {
       const targets = [parts.armR, parts.weapon].filter(Boolean);
       if (targets.length) {
         sm._tweens.push(scene.tweens.add({
           targets, x: 18, y: -12, angle: -25, duration: 100,
           yoyo: true, ease: 'Back.out',
-        }));
-      }
-    } else if (subtype === 'magic' || subtype === 'cast') {
-      const arms = [parts.armL, parts.armR].filter(Boolean);
-      if (arms.length) {
-        sm._tweens.push(scene.tweens.add({
-          targets: arms, y: -10, duration: 150, yoyo: true, ease: 'Quad.out',
-        }));
-      }
-      if (parts.weapon) {
-        sm._tweens.push(scene.tweens.add({
-          targets: parts.weapon, y: -8, scaleX: (parts.weapon._baseScaleX ?? parts.weapon.scaleX) * 1.1, scaleY: (parts.weapon._baseScaleY ?? parts.weapon.scaleY) * 1.1,
-          duration: 200, yoyo: true, ease: 'Quad.out',
-        }));
-      }
-    } else if (subtype === 'punch') {
-      const arm = parts.armR || parts.armL;
-      if (arm) {
-        sm._tweens.push(scene.tweens.add({
-          targets: arm, x: 14, duration: 60,
-          yoyo: true, repeat: 2, ease: 'Sine.inOut',
         }));
       }
       if (parts.legs) {
@@ -275,15 +166,13 @@ STATE_DEFS.hit = {
   enter(sm, opts = {}) {
     const { parts, scene } = sm;
     const dur = opts.duration ?? 350;
+    if (sm.rig) sm.rig.playAnimation(HIT_FLINCH);
     Object.values(parts).forEach(part => {
-      sm._tweens.push(scene.tweens.add({
-        targets: part, x: -6, duration: 80, yoyo: true, ease: 'Sine.out',
-      }));
-      if (part.setTint) part.setTint(0xff6666);
+      if (part && part.setTint) part.setTint(0xff6666);
     });
     sm._returnTimer = scene.time.delayedCall(150, () => {
       Object.values(parts).forEach(part => {
-        if (part.clearTint) part.clearTint();
+        if (part && part.clearTint) part.clearTint();
       });
     });
     scene.time.delayedCall(dur, () => {
@@ -292,7 +181,7 @@ STATE_DEFS.hit = {
   },
   exit(sm) {
     Object.values(sm.parts).forEach(part => {
-      if (part.clearTint) part.clearTint();
+      if (part && part.clearTint) part.clearTint();
     });
     if (sm._returnTimer) {
       sm._returnTimer.remove(false);
@@ -306,15 +195,17 @@ STATE_DEFS.hit = {
 // ──────────────────────────────────────────────────────────────
 STATE_DEFS.ko = {
   enter(sm) {
-    const { parts, scene } = sm;
-    Object.values(parts).forEach(part => {
-      sm._tweens.push(scene.tweens.add({
-        targets: part, alpha: 0.4, y: 12, angle: 15, duration: 500, ease: 'Quad.in',
-      }));
-    });
+    if (sm.rig) {
+      sm.rig.playAnimation(KO_COLLAPSE);
+      Object.values(sm.parts).forEach(part => {
+        if (part) sm.scene.tweens.add({ targets: part, alpha: 0.4, duration: 500, ease: 'Quad.in' });
+      });
+    }
   },
   exit(sm) {
+    if (sm.rig) sm.rig.resetPose();
     Object.values(sm.parts).forEach(part => {
+      if (!part) return;
       part.alpha = 1;
       part.y = 0;
       part.angle = 0;
@@ -327,24 +218,7 @@ STATE_DEFS.ko = {
 // ──────────────────────────────────────────────────────────────
 STATE_DEFS.victory = {
   enter(sm) {
-    const { parts, scene } = sm;
-    Object.values(parts).forEach(part => {
-      sm._tweens.push(scene.tweens.add({
-        targets: part, y: -18, duration: 250,
-        yoyo: true, repeat: 2, ease: 'Quad.out',
-      }));
-    });
-    const arms = [parts.armL, parts.armR].filter(Boolean);
-    arms.forEach(arm => {
-      sm._tweens.push(scene.tweens.add({
-        targets: arm, y: -14, angle: -20, duration: 350, ease: 'Back.out',
-      }));
-    });
-    if (parts.weapon) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.weapon, y: -16, angle: -30, duration: 400, ease: 'Back.out',
-      }));
-    }
+    if (sm.rig) sm.rig.playAnimation(VICTORY_CHEER);
   },
 };
 
@@ -353,23 +227,7 @@ STATE_DEFS.victory = {
 // ──────────────────────────────────────────────────────────────
 STATE_DEFS['selection-sway'] = {
   enter(sm) {
-    const { parts, scene } = sm;
-    const allParts = Object.values(parts);
-    allParts.forEach((part, i) => {
-      sm._tweens.push(scene.tweens.add({
-        targets: part,
-        y: -2 + i * 0.3,
-        angle: 1.5,
-        duration: 1800 + i * 150,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    });
-    if (parts.torso) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.02, duration: 2200,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
+    if (sm.rig) sm.rig.playAnimation(SELECTION_SWAY);
   },
 };
 

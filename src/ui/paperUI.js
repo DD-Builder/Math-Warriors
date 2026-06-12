@@ -454,9 +454,10 @@ export const TEXT = {
   }),
   stat: (overrides = {}) => ({
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-    fontSize: '14px',
+    fontSize: '16px',
     color: COLORS_CSS.paper,
     letterSpacing: 1,
+    resolution: 2,
     ...overrides,
   }),
 };
