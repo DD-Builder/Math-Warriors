@@ -207,7 +207,9 @@ STATE_DEFS.ko = {
     Object.values(sm.parts).forEach(part => {
       if (!part) return;
       part.alpha = 1;
-      part.y = 0;
+      // Reset to the rig's base position (origin-compensated), not 0 —
+      // resetting to 0 would shift pivot-adjusted parts out of place.
+      part.y = part._baseY ?? 0;
       part.angle = 0;
     });
   },
@@ -279,8 +281,10 @@ export class HeroAnimationSM {
     Object.values(this.parts).forEach(part => {
       if (!part) return;
       if (this.scene && this.scene.tweens) this.scene.tweens.killTweensOf(part);
-      part.x = 0;
-      part.y = 0;
+      // Base position is the origin-compensated rig rest pose — parts
+      // whose origin was moved to a joint do NOT rest at (0, 0).
+      part.x = part._baseX ?? 0;
+      part.y = part._baseY ?? 0;
       part.angle = 0;
       part.scaleX = part._baseScaleX ?? part.scaleX;
       part.scaleY = part._baseScaleY ?? part.scaleY;
