@@ -310,7 +310,9 @@ export class WorldMapScene extends Phaser.Scene {
       });
     }
 
-    const labelY = y + radius + 14;
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    const maxLabelY = area.bottom - 130;
+    const labelY = Math.min(y + radius + 14, maxLabelY);
     const labelW = 260;
     const labelH = 56;
     PaperPanel(this, x, labelY, labelW, labelH, {
