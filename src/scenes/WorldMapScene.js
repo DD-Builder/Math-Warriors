@@ -140,13 +140,14 @@ export class WorldMapScene extends Phaser.Scene {
       }
       this._parallaxObjects.push(screenObjs);
 
-      // Clip each screen's background to its boundary — prevents the
-      // purple/teal bleed from adjacent screens' hill graphics.
+      // Clip backgrounds to their screen boundary (geometry mask).
+      // The mask shape must be invisible — if visible, it draws a
+      // white rectangle over the scene.
       if (screenObjs.length > 0) {
-        const maskGfx = this.add.graphics();
-        maskGfx.fillStyle(0xffffff);
-        maskGfx.fillRect(offsetX, 0, SCREEN_W, GAME_HEIGHT);
-        const mask = maskGfx.createGeometryMask();
+        const maskShape = this.make.graphics({ add: false });
+        maskShape.fillStyle(0xffffff);
+        maskShape.fillRect(offsetX, 0, SCREEN_W, GAME_HEIGHT);
+        const mask = maskShape.createGeometryMask();
         screenObjs.forEach(obj => { if (obj.setMask) obj.setMask(mask); });
       }
 
