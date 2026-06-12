@@ -16,6 +16,7 @@ import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
 import { PAPER, PAPER_CSS } from '../config.js';
 import { HeroAnimationSM } from '../systems/animationStateMachine.js';
+import { CharacterRig } from '../systems/characterRig.js';
 import { getEquipmentOverlay, applyEquipmentOverlays, getTierIndex } from './equipmentOverlays.js';
 import { getEquipmentById } from '../systems/equipment.js';
 
@@ -223,8 +224,10 @@ function getHeroCardBg(heroId) {
 }
 
 // ─── BODY PART SEED RANGES ─────────────────────────────────────
+// Split legs into left/right for articulated walking animation.
 const BODY_PARTS = {
-  legs:   [1, 2, 10, 11, 20, 21],
+  leftLeg:  [1, 2, 10],
+  rightLeg: [11, 20, 21],
   torso:  [30, 31, 32, 33, 34, 35, 36, 37, 38, 39],
   armL:   [50, 51, 61, 62, 63],
   armR:   [52, 53, 54, 60, 64, 65],
@@ -247,7 +250,7 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const w = HERO_W, h = HERO_H;
   const container = scene.add.container(x, y);
 
-  const partOrder = ['legs', 'torso', 'armL', 'armR', 'weapon', 'head'];
+  const partOrder = ['leftLeg', 'rightLeg', 'torso', 'armL', 'armR', 'weapon', 'head'];
   const parts = {};
 
   const floorId = opts.floorId || 1;
@@ -334,9 +337,14 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     part._baseScaleY = part.scaleY;
   });
 
-  // State machine (Phase 0A) — the canonical animation controller
-  // (heroClass computed above is reused for class-specific animations)
+  // Skeletal rig — joint-rotation animation on the body-part textures.
+  // Each part rotates around its pivot point for articulated movement.
+  const rig = new CharacterRig(parts, scene);
+  container.rig = rig;
+
+  // State machine — drives the rig via named animations
   const sm = new HeroAnimationSM(parts, scene, heroClass, hero.id);
+  sm.rig = rig;
   container.stateMachine = sm;
 
   // Start in idle by default
