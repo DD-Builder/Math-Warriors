@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
+import { generateFloorMaze } from '../data/floors.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, ALL_HEROES, levelBonuses } from '../data/heroes.js';
@@ -56,7 +57,26 @@ export class MazeScene extends Phaser.Scene {
 
   init(data) {
     this.floorId = data?.floor ?? 1;
-    this.floor = getFloor(this.floorId);
+    // Use the room-based maze architect when no saved maze state exists.
+    // The architect generates rooms, corridors, challenge items, and a
+    // boss sequence — not the old random grid.
+    const savedMazeKey = mazeStateKey(this.floorId);
+    const hasSavedMaze = !!localStorage.getItem(savedMazeKey);
+    const baseFloor = getFloor(this.floorId);
+    if (!hasSavedMaze) {
+      try {
+        const seed = this.floorId * 1000 + (data?.seed || Date.now() % 10000);
+        const generated = generateFloorMaze(this.floorId, seed);
+        this.floor = { ...baseFloor, tiles: generated.tiles, objects: generated.objects };
+        this._generatedStartX = generated.startX;
+        this._generatedStartY = generated.startY;
+      } catch (e) {
+        console.warn('Maze architect failed, using static floor:', e);
+        this.floor = baseFloor;
+      }
+    } else {
+      this.floor = baseFloor;
+    }
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
 
@@ -97,9 +117,9 @@ export class MazeScene extends Phaser.Scene {
       this.mazeTransformed = mazeState.mazeTransformed || false;
       this.revealedSecrets = mazeState.revealedSecrets || [];
     } else {
-      // Fresh entry: reset state
-      this.playerX = this.floor.startX;
-      this.playerY = this.floor.startY;
+      // Fresh entry: use architect start position if available
+      this.playerX = this._generatedStartX ?? this.floor.startX;
+      this.playerY = this._generatedStartY ?? this.floor.startY;
       this.fog = this.buildInitialFog();
       this.bossDefeated = false;
       this.hasKey = false;
@@ -390,16 +410,16 @@ export class MazeScene extends Phaser.Scene {
 
     // --- Follow-camera with zoom ---
     // The level engine already centers the party on the canvas, so the
-    // heroSprite sits at (GAME_WIDTH/2, GAME_HEIGHT/2). Camera zoom
-    // makes the hero and tiles appear larger (2×). setBounds prevents
+    // The level engine already renders tiles at an internal scale that
+    // fills the viewport, so camera zoom just zooms that full-screen
+    // image (causing the HUD to scroll off-screen). No camera zoom.
+    // heroSprite sits at (GAME_WIDTH/2, GAME_HEIGHT/2). setBounds prevents
     // the zoomed viewport from showing void beyond the level image.
     // startFollow keeps the camera locked to the heroSprite (which is
     // effectively static since the engine internally scrolls).
     const cam = this.cameras.main;
-    cam.setZoom(2.0);
     cam.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
     if (this.heroSprite) {
-      cam.startFollow(this.heroSprite, true, 0.08, 0.08);
     }
 
     this.dialogue = new DialogueOverlay(this);
@@ -695,13 +715,13 @@ export class MazeScene extends Phaser.Scene {
 
     // Gold card
     const g1 = this.add.graphics();
-    g1.fillStyle(0xc08818, 0.9); g1.fillRoundedRect(cardStartX, cardY - cardH / 2, cardW, cardH, 8);
+    g1.fillStyle(PAPER.orange, 0.9); g1.fillRoundedRect(cardStartX, cardY - cardH / 2, cardW, cardH, 8);
     this.hudGold = this.add.text(cardStartX + cardW / 2, cardY, `${this.save.gold}`, cardStyle).setOrigin(0.5);
 
     // Potion card
     const px = cardStartX + cardW + cardGap;
     const g2 = this.add.graphics();
-    g2.fillStyle(0x6828a0, 0.9); g2.fillRoundedRect(px, cardY - cardH / 2, cardW, cardH, 8);
+    g2.fillStyle(PAPER.lavenderD, 0.9); g2.fillRoundedRect(px, cardY - cardH / 2, cardW, cardH, 8);
     this.hudPotions = this.add.text(px + cardW / 2, cardY, `${this.save.potions}`, cardStyle).setOrigin(0.5);
 
     // Challenge card
@@ -1021,8 +1041,16 @@ export class MazeScene extends Phaser.Scene {
     this._mathDoorActive = true;
     let answered = false;
     const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
-    const opSymbol = question.op === '*' ? '×' : question.op;
-    const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, `${question.a} ${opSymbol} ${question.b} = ?`, {
+    // Format question text based on type — fractions/geometry/money/word
+    // use their .text field; arithmetic uses a OP b = ?
+    let qStr;
+    if (question.text) {
+      qStr = question.text;
+    } else {
+      const opSymbol = question.op === '*' ? '×' : question.op === '/' ? '÷' : question.op;
+      qStr = `${question.a} ${opSymbol} ${question.b} = ?`;
+    }
+    const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, qStr, {
       fontFamily: '"Fredoka One", sans-serif',
       fontSize: '48px', color: '#f0e8d0',
       stroke: '#1a0e04', strokeThickness: 4,
