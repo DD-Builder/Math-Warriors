@@ -2467,8 +2467,8 @@ export class BattleScene extends Phaser.Scene {
         }
         // Camera punch-in for attack impact
         if (!this.reducedMotion) {
-          this.cameras.main.zoomTo(1.06, 200, 'Cubic.out');
-          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.out'));
+          this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
+          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
         }
         playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, {
           onHit: () => {
@@ -2490,8 +2490,8 @@ export class BattleScene extends Phaser.Scene {
         }
         // Camera punch-in for attack impact
         if (!this.reducedMotion) {
-          this.cameras.main.zoomTo(1.06, 200, 'Cubic.out');
-          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.out'));
+          this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
+          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
         }
         playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
           onHit: () => {
