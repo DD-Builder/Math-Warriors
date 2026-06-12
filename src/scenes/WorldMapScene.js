@@ -6,7 +6,7 @@ import { audio } from '../systems/audio.js';
 import { drawWorldMapGarden, drawWorldMapCaves, drawWorldMapStarlitHighlands } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { getEvolutionStage } from '../systems/evolution.js';
 import { getDailyChallenge, isDailyChallengeCompleted } from '../systems/dailyChallenge.js';
 import { getDailyQuests, getQuestProgress, claimQuestReward, getLoginReward } from '../systems/dailyQuests.js';
@@ -74,21 +74,43 @@ export class WorldMapScene extends Phaser.Scene {
     this.updatePageDots();
     this.updateArrows();
 
-    // Keyboard arrow navigation between floors
-    this.input.keyboard.on('keydown-RIGHT', () => {
-      if (this.currentScreen < this.maxScreen) {
-        this.currentScreen++;
-        this.cameras.main.pan(this.currentScreen * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, 600, 'Sine.easeInOut');
+    // Keyboard navigation: arrows walk the HERO between floor nodes
+    // (Mario World style), panning the camera along when the target
+    // node lives on another screen. ENTER enters the current floor.
+    const navigateHero = (dir) => {
+      if (this._navLocked || this._mapHeroWalking) return;
+      let target = this.mapHeroNodeIndex + dir;
+      // Skip locked floors in the travel direction
+      while (target >= 0 && target <= 8 && !this.save.floors[target]?.unlocked) {
+        target += dir;
+      }
+      if (target < 0 || target > 8) return;
+      audio.play('ui/click');
+      const targetScreen = Math.floor(target / 3);
+      if (targetScreen !== this.currentScreen && targetScreen <= this.maxScreen) {
+        this.currentScreen = targetScreen;
+        this.cameras.main.pan(targetScreen * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, 600, 'Sine.easeInOut');
         this.updatePageDots();
         this.updateArrows();
       }
+      this.walkHeroToNode(target, () => {});
+    };
+    this.input.keyboard.on('keydown-RIGHT', () => navigateHero(1));
+    this.input.keyboard.on('keydown-LEFT', () => navigateHero(-1));
+    this.input.keyboard.on('keydown-ENTER', () => {
+      if (this._navLocked || this._mapHeroWalking) return;
+      const floorIdx = this.mapHeroNodeIndex;
+      if (this.save.floors[floorIdx]?.unlocked) {
+        audio.play('ui/confirm');
+        this.enterFloor(floorIdx + 1);
+      }
     });
-    this.input.keyboard.on('keydown-LEFT', () => {
-      if (this.currentScreen > 0) {
-        this.currentScreen--;
-        this.cameras.main.pan(this.currentScreen * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, 600, 'Sine.easeInOut');
-        this.updatePageDots();
-        this.updateArrows();
+    this.input.keyboard.on('keydown-SPACE', () => {
+      if (this._navLocked || this._mapHeroWalking) return;
+      const floorIdx = this.mapHeroNodeIndex;
+      if (this.save.floors[floorIdx]?.unlocked) {
+        audio.play('ui/confirm');
+        this.enterFloor(floorIdx + 1);
       }
     });
 
@@ -537,11 +559,16 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   buildMapHero() {
+    // Stand on the ACTIVE floor (first unlocked-incomplete, where the
+    // beacon glows) — falling back to the last completed floor.
     this.mapHeroNodeIndex = 0;
     for (let i = 8; i >= 0; i--) {
-      if (this.save.floors[i]?.complete) {
+      if (this.save.floors[i]?.unlocked && !this.save.floors[i]?.complete) {
         this.mapHeroNodeIndex = i;
         break;
+      }
+      if (this.save.floors[i]?.complete && this.mapHeroNodeIndex === 0) {
+        this.mapHeroNodeIndex = i;
       }
     }
 
@@ -558,7 +585,9 @@ export class WorldMapScene extends Phaser.Scene {
       : null;
 
     if (leadHero) {
-      this.mapHero = drawHeroSprite(this, heroX, heroY, leadHero, { scale: 0.4 });
+      // Animated rig hero — actually walks the paths between nodes
+      // (leg swings via the skeletal rig) instead of a static image.
+      this.mapHero = createAnimatedHero(this, heroX, heroY, leadHero, { scale: 0.32 });
     } else {
       this.mapHero = this.add.circle(heroX, heroY, 12, PAPER.gold);
     }
@@ -624,9 +653,16 @@ export class WorldMapScene extends Phaser.Scene {
 
     const targetX = this.nodePositions[targetNodeIndex].x;
     const startX = this.nodePositions[fromIndex].x;
+    // Face the travel direction. The animated hero is a Container —
+    // flip via scaleX sign (setFlipX only exists on Images).
     if (this.mapHero.setFlipX) {
       this.mapHero.setFlipX(targetX < startX);
+    } else if (this.mapHero.scaleX !== undefined) {
+      const mag = Math.abs(this.mapHero.scaleX) || 1;
+      this.mapHero.scaleX = targetX < startX ? -mag : mag;
     }
+    // Real walk cycle (leg swings) while traveling the path
+    if (this.mapHero.startWalk) this.mapHero.startWalk();
 
     let pointIndex = 0;
     const walkStep = () => {
@@ -636,6 +672,7 @@ export class WorldMapScene extends Phaser.Scene {
         this.mapHero.setPosition(destPos.x + heroOffX, destPos.y + heroOffY);
         this.mapHeroNodeIndex = targetNodeIndex;
         this._mapHeroWalking = false;
+        if (this.mapHero.stopWalk) this.mapHero.stopWalk();
         this._mapHeroBob = this.tweens.add({
           targets: this.mapHero,
           y: this.mapHero.y - 3,
