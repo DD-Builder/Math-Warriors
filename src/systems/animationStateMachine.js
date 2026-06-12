@@ -95,15 +95,17 @@ STATE_DEFS.attack = {
           yoyo: true, ease: 'Back.out',
         }));
       }
-      if (parts.legs) {
+      const slashLegs = [parts.leftLeg, parts.rightLeg].filter(Boolean);
+      if (slashLegs.length) {
         sm._tweens.push(scene.tweens.add({
-          targets: parts.legs, y: -3, duration: 80, yoyo: true, ease: 'Quad.out',
+          targets: slashLegs, y: -3, duration: 80, yoyo: true, ease: 'Quad.out',
         }));
       }
     } else if (subtype === 'kick') {
-      if (parts.legs) {
+      const kickLegs = [parts.leftLeg, parts.rightLeg].filter(Boolean);
+      if (kickLegs.length) {
         sm._tweens.push(scene.tweens.add({
-          targets: parts.legs, x: 12, y: -6, angle: 20, duration: 120,
+          targets: kickLegs, x: 12, y: -6, angle: 20, duration: 120,
           yoyo: true, ease: 'Back.out',
         }));
       }
