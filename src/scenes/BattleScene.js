@@ -721,20 +721,51 @@ export class BattleScene extends Phaser.Scene {
       const spriteData = { body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y };
       this.enemySprites.push(spriteData);
 
-      // Enemy breathing — visible life, not a barely-perceptible pulse.
-      // Must be RELATIVE to the current scale (formation-scaled).
+      // Monster idle animation — form-specific movement, not generic
+      // breathing. Each floor's creatures have distinct body mechanics.
       const bsx = body.scaleX || monsterScale;
       const bsy = body.scaleY || monsterScale;
-      this.tweens.add({
+      const floorAnims = {
+        // Garden: plant creatures sway side to side (rooted, organic)
+        1: { scaleX: bsx * 1.02, scaleY: bsy * 1.04, x: x + 4, y: y - 2, dur: 1800 },
+        // Tidepool: aquatic creatures bob and pulse (underwater rhythm)
+        2: { scaleX: bsx * 1.05, scaleY: bsy * 0.97, x: x + 3, y: y - 5, dur: 2000 },
+        // Cloud: flying creatures hover with gentle up-down drift
+        3: { scaleX: bsx * 1.02, scaleY: bsy * 1.02, x: x + 2, y: y - 8, dur: 2200 },
+        // Ember: fire creatures flicker (rapid scale pulse, jittery)
+        4: { scaleX: bsx * 1.06, scaleY: bsy * 1.03, x: x + 1, y: y - 2, dur: 800 },
+        // Frozen: ice creatures barely move (stiff, glacial)
+        5: { scaleX: bsx * 1.01, scaleY: bsy * 1.015, x: x, y: y - 1, dur: 3000 },
+        // Crystal: prism creatures rotate subtly
+        6: { scaleX: bsx * 1.03, scaleY: bsy * 1.03, x: x + 3, y: y - 3, dur: 1600, angle: 2 },
+        // Market: merchant creatures shift weight (restless commerce)
+        7: { scaleX: bsx * 1.02, scaleY: bsy * 1.03, x: x + 5, y: y - 2, dur: 1400 },
+        // Library: page creatures flutter (papery, lightweight)
+        8: { scaleX: bsx * 1.04, scaleY: bsy * 0.98, x: x + 2, y: y - 4, dur: 1200 },
+        // Mending: arcane creatures pulse with energy
+        9: { scaleX: bsx * 1.04, scaleY: bsy * 1.05, x: x + 1, y: y - 3, dur: 1600 },
+      };
+      const anim = floorAnims[this.floor] || { scaleX: bsx * 1.035, scaleY: bsy * 1.04, x: x, y: y - 3, dur: 1400 };
+      const tweenCfg = {
         targets: body,
-        scaleX: bsx * 1.035,
-        scaleY: bsy * 1.04,
-        y: y - 3,
-        duration: 1400 + ei * 300,
+        scaleX: anim.scaleX,
+        scaleY: anim.scaleY,
+        x: anim.x,
+        y: anim.y,
+        duration: anim.dur + ei * 200,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.inOut',
-      });
+      };
+      if (anim.angle) tweenCfg.angle = anim.angle;
+      // Boss enemies get extra dramatic idle — larger movement amplitude
+      if (enemy.isBoss) {
+        tweenCfg.scaleX = bsx * 1.06;
+        tweenCfg.scaleY = bsy * 1.07;
+        tweenCfg.y = y - 6;
+        tweenCfg.duration = anim.dur * 1.2;
+      }
+      this.tweens.add(tweenCfg);
     }
 
     // Backward compat: this.enemySprite points to first enemy sprite

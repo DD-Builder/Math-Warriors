@@ -7,7 +7,9 @@
  */
 
 import {
-  WALK_CYCLE, IDLE_BREATHE, SELECTION_SWAY,
+  WALK_CYCLE, WALK_KNIGHT, WALK_WIZARD, WALK_BUNNY,
+  IDLE_BREATHE, IDLE_KNIGHT, IDLE_WIZARD, IDLE_BUNNY,
+  SELECTION_SWAY,
   KNIGHT_SLASH, WIZARD_CAST, BUNNY_PUNCH,
   GUARD_STANCE, HIT_FLINCH, KO_COLLAPSE, VICTORY_CHEER,
 } from '../data/characterAnimations.js';
@@ -33,7 +35,9 @@ const STATE_DEFS = {};
 STATE_DEFS.idle = {
   enter(sm) {
     if (sm.rig) {
-      sm.rig.playAnimation(IDLE_BREATHE);
+      const cls = sm.heroClass;
+      const anim = cls === 'wizard' ? IDLE_WIZARD : cls === 'bunny' ? IDLE_BUNNY : IDLE_KNIGHT;
+      sm.rig.playAnimation(anim);
     }
   },
 };
@@ -59,7 +63,9 @@ STATE_DEFS.breathe = {
 STATE_DEFS.walk = {
   enter(sm) {
     if (sm.rig) {
-      sm.rig.playAnimation(WALK_CYCLE);
+      const cls = sm.heroClass;
+      const anim = cls === 'wizard' ? WALK_WIZARD : cls === 'bunny' ? WALK_BUNNY : WALK_KNIGHT;
+      sm.rig.playAnimation(anim);
     }
   },
 };
