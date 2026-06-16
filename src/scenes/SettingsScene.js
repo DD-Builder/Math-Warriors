@@ -135,7 +135,7 @@ export class SettingsScene extends Phaser.Scene {
     }).setOrigin(0.5, 0.5);
 
     this.resetBtn = PaperButton(this, area.cx, statsY + 22, 'RESET ALL PROGRESS', {
-      w: 360, h: 50, color: 0x9c2020, fontSize: 16,
+      w: 360, h: 50, color: PAPER.coralD, fontSize: 16,
       onClick: () => this.onResetPressed(),
     });
 

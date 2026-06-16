@@ -17,7 +17,7 @@ const PAPER = {
   cream:   COLORS.paper,    // 0xf0e4cc
   inkTeal: COLORS.ink,      // 0x1a0e04
   teal:    COLORS.cobalt,   // 0x2e4e88
-  shadow:  0x000000,
+  shadow:  0x1f3d3f,
 };
 
 const PAPER_CSS = {

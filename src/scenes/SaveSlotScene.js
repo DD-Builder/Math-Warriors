@@ -42,7 +42,7 @@ export class SaveSlotScene extends Phaser.Scene {
     }
 
     PaperButton(this, area.cx, area.bottom - 30, 'BACK', {
-      w: 200, h: 60, color: 0x6090c0, fontSize: 22,
+      w: 200, h: 60, color: PAPER.teal, fontSize: 22,
       onClick: () => {
         audio.play('ui/back');
         transitionTo(this, SCENES.TITLE, undefined, 200);
@@ -142,7 +142,7 @@ export class SaveSlotScene extends Phaser.Scene {
       if (meta.lastPlayed) {
         const ago = this.timeAgo(meta.lastPlayed);
         this.add.text(x, dotY + 65, `Last played: ${ago}`, {
-          ...TEXT.stat(), fontSize: '15px', color: PAPER_CSS.sand,
+          ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.sand,
         }).setOrigin(0.5);
       }
 
@@ -156,7 +156,7 @@ export class SaveSlotScene extends Phaser.Scene {
       });
 
       PaperButton(this, x + 70, y + h / 2 - 60, 'DELETE', {
-        w: 140, h: 60, color: 0x9c2020, fontSize: 18,
+        w: 140, h: 60, color: PAPER.coralD, fontSize: 18,
         onClick: () => {
           audio.play('ui/click');
           this.confirmDelete(slot, meta.name || `Slot ${slot}`);
@@ -184,7 +184,7 @@ export class SaveSlotScene extends Phaser.Scene {
     const cleanup = () => panel.forEach(o => o.destroy());
 
     const yesBtn = PaperButton(this, GAME_WIDTH / 2 - 120, GAME_HEIGHT / 2 + 50, 'DELETE', {
-      w: 200, h: 60, color: 0x9c2020, fontSize: 22,
+      w: 200, h: 60, color: PAPER.coralD, fontSize: 22,
       onClick: () => {
         audio.play('ui/confirm');
         clearSave(slot);
@@ -202,7 +202,7 @@ export class SaveSlotScene extends Phaser.Scene {
     });
 
     const noBtn = PaperButton(this, GAME_WIDTH / 2 + 120, GAME_HEIGHT / 2 + 50, 'CANCEL', {
-      w: 200, h: 60, color: 0x6090c0, fontSize: 22,
+      w: 200, h: 60, color: PAPER.teal, fontSize: 22,
       onClick: () => {
         audio.play('ui/back');
         cleanup();
@@ -304,7 +304,7 @@ export class SaveSlotScene extends Phaser.Scene {
     const controlY = startY + 3 * (btnSize + btnGap) + 10;
 
     const delBtn = PaperButton(this, GAME_WIDTH / 2 - 160, controlY, 'DELETE', {
-      w: 180, h: 60, color: 0xc06030, fontSize: 20,
+      w: 180, h: 60, color: PAPER.orange, fontSize: 20,
       onClick: () => {
         if (currentName.length > 0) {
           currentName = currentName.slice(0, -1);
@@ -329,7 +329,7 @@ export class SaveSlotScene extends Phaser.Scene {
     if (okBtn.zone) this._pickerObjects.push(okBtn.zone);
 
     const cancelBtn = PaperButton(this, GAME_WIDTH / 2, controlY + 80, 'CANCEL', {
-      w: 200, h: 56, color: 0x6090c0, fontSize: 20,
+      w: 200, h: 56, color: PAPER.teal, fontSize: 20,
       onClick: () => {
         audio.play('ui/back');
         this.closePicker();

@@ -106,7 +106,7 @@ export class GradeSelectScene extends Phaser.Scene {
 
       this.add.text(x, y + 70, g.hint, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '14px',
+        fontSize: '16px',
         color: PAPER_CSS.cream,
         align: 'center',
         wordWrap: { width: cardW - 30 },

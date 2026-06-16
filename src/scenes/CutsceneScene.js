@@ -354,7 +354,7 @@ export class CutsceneScene extends Phaser.Scene {
     if (enemy) {
       // Brief screen darken for boss reveal — covers the panel section
       const darkenX = off + GAME_WIDTH / 2;
-      const darken = this.add.rectangle(darkenX, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6);
+      const darken = this.add.rectangle(darkenX, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.6);
       this.artContainer.add(darken);
       this.tweens.add({ targets: darken, alpha: 0, duration: 800, delay: 400, onComplete: () => darken.destroy() });
 

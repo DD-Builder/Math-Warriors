@@ -229,7 +229,7 @@ function _showLoadingTip(scene) {
     const tip = LOADING_TIPS[Math.floor(Math.random() * LOADING_TIPS.length)];
     const tipText = scene.add.text(W / 2, H - 40, tip, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '14px',
+      fontSize: '16px',
       color: PAPER_CSS.cream,
       stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,

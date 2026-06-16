@@ -121,7 +121,7 @@ export class GalleryScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     PaperButton(this, area.cx, backBtnY, 'BACK', {
-      w: 200, h: backBtnH, color: 0x6090c0, fontSize: 22,
+      w: 200, h: backBtnH, color: PAPER.teal, fontSize: 22,
       onClick: () => {
         audio.play('ui/back');
         transitionTo(this, SCENES.WORLD_MAP, undefined, 200);

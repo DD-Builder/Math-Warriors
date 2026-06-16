@@ -1371,7 +1371,7 @@ function LV_draw(t) {
         _G.fillRect(scx, southTop, ts + 1, wallH);
         // Subtle vertical mortar lines on the face for texture
         _G.globalAlpha = 0.15;
-        _G.strokeStyle = '#000000';
+        _G.strokeStyle = '#1f4244';
         _G.lineWidth = 0.5;
         var mortarStep = ts * 0.25;
         for (var ml = 1; ml < 4; ml++) {

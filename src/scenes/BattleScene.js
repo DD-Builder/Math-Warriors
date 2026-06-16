@@ -807,7 +807,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.add.text(barX - 10, topY, 'MOMENTUM', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '13px',
+      fontSize: '16px',
       color: '#3a2410',
       letterSpacing: 1,
     }).setOrigin(1, 0.5).setDepth(21);
@@ -820,7 +820,7 @@ export class BattleScene extends Phaser.Scene {
     }
     this.momentumLabel = this.add.text(barX + barW + 10, topY, 'ZONE', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '13px',
+      fontSize: '16px',
       color: '#b86820',
       letterSpacing: 1,
     }).setOrigin(0, 0.5);
@@ -3554,7 +3554,7 @@ export class BattleScene extends Phaser.Scene {
           const badge = this.add.circle(-120, ay, 10, 0xf0c040);
           const star = this.add.text(-120, ay, '*', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-            fontSize: '14px',
+            fontSize: '16px',
             color: '#3a2410',
           }).setOrigin(0.5);
           const achText = this.add.text(-100, ay, ach.name, {

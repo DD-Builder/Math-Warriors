@@ -717,7 +717,7 @@ export class MazeScene extends Phaser.Scene {
     // Floor name — top-left of HUD
     this.add.text(area.left + 20, hudCenterY - 36, `F${this.floorId}: ${this.floor.name.toUpperCase()}`, {
       ...TEXT.heading(), fontSize: '16px', color: '#f0d060',
-      stroke: '#000000', strokeThickness: 3,
+      stroke: '#1f4244', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
     // Status cards — compact colored pills with white text
@@ -727,7 +727,7 @@ export class MazeScene extends Phaser.Scene {
     const cardW = 90;
     const cardGap = 8;
     const cardStartX = area.left + 24;
-    const cardStyle = { fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '18px', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
+    const cardStyle = { fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '18px', color: '#ffffff', stroke: '#1f4244', strokeThickness: 3 };
 
     // Gold card
     const g1 = this.add.graphics();
@@ -841,7 +841,7 @@ export class MazeScene extends Phaser.Scene {
     const hint = this.add.text(GAME_WIDTH / 2, 130, 'Tap a hero to swap into your party', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '20px', color: '#f0e4cc',
-      stroke: '#000000', strokeThickness: 2,
+      stroke: '#1f4244', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
 
     const unlocked = ALL_HEROES.filter(h => isHeroUnlocked(this.save, h.id));
@@ -976,7 +976,7 @@ export class MazeScene extends Phaser.Scene {
     }
 
     const cancelBtn = PaperButton(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 140, 'CANCEL', {
-      w: 180, h: 50, color: 0x6090c0, fontSize: 18,
+      w: 180, h: 50, color: PAPER.teal, fontSize: 18,
       onClick: () => {
         audio.play('ui/back');
         slotObjs.forEach(o => o.destroy());
@@ -1084,7 +1084,7 @@ export class MazeScene extends Phaser.Scene {
       const label = this.add.text(x, btnY, ansText, {
         fontFamily: '"Fredoka One", sans-serif',
         fontSize: '32px', color: '#ffffff',
-        stroke: '#000000', strokeThickness: 2,
+        stroke: '#1f4244', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(82).setScrollFactor(0);
       elements.push(bg, label);
       bg.on('pointerdown', () => {
@@ -1220,8 +1220,13 @@ export class MazeScene extends Phaser.Scene {
     if (!this.currentRoom?.exits || this._transitioning) return;
     for (const exit of this.currentRoom.exits) {
       if (exit.x === px && exit.y === py) {
+        // Validate target room exists before transitioning
+        const targetRoom = this.realm.rooms.find(r => r.id === exit.targetRoom);
+        if (!targetRoom) {
+          console.error(`Room exit points to non-existent room: ${exit.targetRoom}`);
+          return;
+        }
         this._transitioning = true;
-        // Save which room we're moving to
         this.save[`realm${this.floorId}_room`] = exit.targetRoom;
         writeSave(this.save, this.slot);
         // Brief fade transition then restart MazeScene in the target room
@@ -1674,7 +1679,7 @@ export class MazeScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '20px',
       color: '#f0d060',
-      stroke: '#000000',
+      stroke: '#1f4244',
       strokeThickness: 3,
     }).setOrigin(0.5).setAlpha(0).setScrollFactor(0);
 
@@ -1755,7 +1760,7 @@ export class MazeScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '18px',
       color,
-      stroke: '#000000',
+      stroke: '#1f4244',
       strokeThickness: 4,
     }).setOrigin(0.5).setScrollFactor(0);
     this.tweens.add({

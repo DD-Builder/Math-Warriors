@@ -111,7 +111,7 @@ export class TutorialScene extends Phaser.Scene {
     this.hpBarFullW = hpBarW - 4;
     this.hpText = this.add.text(enemyX, hpBarY + 14, `${this.dummyHp}/${this.dummyMaxHp}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '14px',
+      fontSize: '16px',
       color: PAPER_CSS.cream,
       stroke: PAPER_CSS.inkTeal,
       strokeThickness: 3,
