@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { generateFloorMaze } from '../data/floors.js';
+import { getRealm } from '../data/realms.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, ALL_HEROES, levelBonuses } from '../data/heroes.js';
@@ -57,28 +58,43 @@ export class MazeScene extends Phaser.Scene {
 
   init(data) {
     this.floorId = data?.floor ?? 1;
-    // Use the room-based maze architect when no saved maze state exists.
-    // The architect generates rooms, corridors, challenge items, and a
-    // boss sequence — not the old random grid.
-    const savedMazeKey = mazeStateKey(this.floorId);
-    const hasSavedMaze = !!localStorage.getItem(savedMazeKey);
-    const baseFloor = getFloor(this.floorId);
-    if (!hasSavedMaze) {
-      try {
-        const seed = this.floorId * 1000 + (data?.seed || Date.now() % 10000);
-        const generated = generateFloorMaze(this.floorId, seed);
-        this.floor = { ...baseFloor, tiles: generated.tiles, objects: generated.objects };
-        this._generatedStartX = generated.startX;
-        this._generatedStartY = generated.startY;
-      } catch (e) {
-        console.warn('Maze architect failed, using static floor:', e);
-        this.floor = baseFloor;
-      }
-    } else {
-      this.floor = baseFloor;
-    }
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
+
+    // ── REALM ROOM-CHAIN SYSTEM ──
+    // Load the hand-crafted realm. Each realm is a chain of connected
+    // rooms. We render one room at a time and transition between them
+    // when the hero reaches an exit tile.
+    this.realm = getRealm(this.floorId);
+    this.currentRoomId = data?.roomId || this.save[`realm${this.floorId}_room`] || 'entrance';
+    this.currentRoom = this.realm.rooms.find(r => r.id === this.currentRoomId) || this.realm.rooms[0];
+
+    // Build a flat floor object from the current room for the existing
+    // levelEngine (it expects { tiles, objects, name, ... })
+    const baseFloor = getFloor(this.floorId);
+    this.floor = {
+      ...baseFloor,
+      tiles: this.currentRoom.tiles,
+      objects: this.currentRoom.objects || [],
+      name: this.currentRoom.name || baseFloor.name,
+    };
+
+    // Use the room's start position for entrance rooms, otherwise
+    // place the hero near the exit they came from
+    if (this.currentRoom.startX !== undefined) {
+      this._generatedStartX = this.currentRoom.startX;
+      this._generatedStartY = this.currentRoom.startY;
+    } else if (data?.fromExit) {
+      // Place hero at the exit that connects back to where they came from
+      const returnExit = this.currentRoom.exits?.find(e => e.targetRoom === data.fromRoom);
+      if (returnExit) {
+        // Place hero 1 tile inward from the exit
+        const dx = returnExit.direction === 'east' ? -1 : returnExit.direction === 'west' ? 1 : 0;
+        const dy = returnExit.direction === 'south' ? -1 : returnExit.direction === 'north' ? 1 : 0;
+        this._generatedStartX = returnExit.x + dx;
+        this._generatedStartY = returnExit.y + dy;
+      }
+    }
 
     // Hydrate party from save, applying level bonuses
     this.party = (this.save.party || [])
@@ -1137,6 +1153,8 @@ export class MazeScene extends Phaser.Scene {
     this.playerY = tile.ty;
     if (this.playerX !== prevX || this.playerY !== prevY) {
       this.checkObjectAt(this.playerX, this.playerY);
+      // ── ROOM TRANSITION: check if the hero stepped on an exit ──
+      this._checkRoomExit(this.playerX, this.playerY);
     }
 
     // Update animated hero sprite walk/idle state and facing
@@ -1191,6 +1209,33 @@ export class MazeScene extends Phaser.Scene {
 
       // Depth based on tile row
       this.heroSprite.setDepth(tileDepth(this.playerY, this.playerX, 5));
+    }
+  }
+
+  /**
+   * Check if the hero is standing on a room exit tile.
+   * If so, save progress and transition to the target room.
+   */
+  _checkRoomExit(px, py) {
+    if (!this.currentRoom?.exits || this._transitioning) return;
+    for (const exit of this.currentRoom.exits) {
+      if (exit.x === px && exit.y === py) {
+        this._transitioning = true;
+        // Save which room we're moving to
+        this.save[`realm${this.floorId}_room`] = exit.targetRoom;
+        writeSave(this.save, this.slot);
+        // Brief fade transition then restart MazeScene in the target room
+        this.cameras.main.fadeOut(200, 31, 66, 68);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.restart({
+            floor: this.floorId,
+            roomId: exit.targetRoom,
+            fromRoom: this.currentRoomId,
+            fromExit: true,
+          });
+        });
+        return;
+      }
     }
   }
 
