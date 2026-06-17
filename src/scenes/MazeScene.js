@@ -72,11 +72,27 @@ export class MazeScene extends Phaser.Scene {
     // Build a flat floor object from the current room for the existing
     // levelEngine (it expects { tiles, objects, name, ... })
     const baseFloor = getFloor(this.floorId);
+
+    // Deep-copy room tiles so we can punch doorways without mutating realm data
+    const roomTiles = this.currentRoom.tiles.map(row => [...row]);
+
+    // Open doorways at exit positions — exits sit on boundary wall tiles,
+    // so convert them to floor tiles so the hero can walk through
+    if (this.currentRoom.exits) {
+      for (const exit of this.currentRoom.exits) {
+        if (roomTiles[exit.y]?.[exit.x] === 0) {
+          roomTiles[exit.y][exit.x] = 1;
+        }
+      }
+    }
+
     this.floor = {
       ...baseFloor,
-      tiles: this.currentRoom.tiles,
+      tiles: roomTiles,
       objects: this.currentRoom.objects || [],
       name: this.currentRoom.name || baseFloor.name,
+      width: roomTiles[0]?.length ?? baseFloor.width,
+      height: roomTiles.length ?? baseFloor.height,
     };
 
     // Use the room's start position for entrance rooms, otherwise
@@ -116,6 +132,8 @@ export class MazeScene extends Phaser.Scene {
     let mazeState = this.registry.get(mazeStateKey(this.floorId));
     if (!mazeState) { try { const s = localStorage.getItem(`mw_maze_${this.floorId}`); if (s) mazeState = JSON.parse(s); } catch (e) { /* ignore */ } }
     if (mazeState && (typeof mazeState.x !== 'number' || !Array.isArray(mazeState.objects))) mazeState = null;
+    // Discard saved state if it belongs to a different room
+    if (mazeState && mazeState.roomId && mazeState.roomId !== this.currentRoomId) mazeState = null;
     this.freshEntry = !mazeState;
     if (mazeState) {
       this.playerX = mazeState.x;
@@ -1652,6 +1670,7 @@ export class MazeScene extends Phaser.Scene {
   saveMazeState() {
     const gs = getGameState();
     const state = {
+      roomId: this.currentRoomId,
       x: this.playerX,
       y: this.playerY,
       objects: this.objects,
