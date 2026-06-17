@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
+import { generateFloorMaze } from '../data/floors.js';
+import { getRealm } from '../data/realms.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, ALL_HEROES, levelBonuses } from '../data/heroes.js';
@@ -56,9 +58,43 @@ export class MazeScene extends Phaser.Scene {
 
   init(data) {
     this.floorId = data?.floor ?? 1;
-    this.floor = getFloor(this.floorId);
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
+
+    // ── REALM ROOM-CHAIN SYSTEM ──
+    // Load the hand-crafted realm. Each realm is a chain of connected
+    // rooms. We render one room at a time and transition between them
+    // when the hero reaches an exit tile.
+    this.realm = getRealm(this.floorId);
+    this.currentRoomId = data?.roomId || this.save[`realm${this.floorId}_room`] || 'entrance';
+    this.currentRoom = this.realm.rooms.find(r => r.id === this.currentRoomId) || this.realm.rooms[0];
+
+    // Build a flat floor object from the current room for the existing
+    // levelEngine (it expects { tiles, objects, name, ... })
+    const baseFloor = getFloor(this.floorId);
+    this.floor = {
+      ...baseFloor,
+      tiles: this.currentRoom.tiles,
+      objects: this.currentRoom.objects || [],
+      name: this.currentRoom.name || baseFloor.name,
+    };
+
+    // Use the room's start position for entrance rooms, otherwise
+    // place the hero near the exit they came from
+    if (this.currentRoom.startX !== undefined) {
+      this._generatedStartX = this.currentRoom.startX;
+      this._generatedStartY = this.currentRoom.startY;
+    } else if (data?.fromExit) {
+      // Place hero at the exit that connects back to where they came from
+      const returnExit = this.currentRoom.exits?.find(e => e.targetRoom === data.fromRoom);
+      if (returnExit) {
+        // Place hero 1 tile inward from the exit
+        const dx = returnExit.direction === 'east' ? -1 : returnExit.direction === 'west' ? 1 : 0;
+        const dy = returnExit.direction === 'south' ? -1 : returnExit.direction === 'north' ? 1 : 0;
+        this._generatedStartX = returnExit.x + dx;
+        this._generatedStartY = returnExit.y + dy;
+      }
+    }
 
     // Hydrate party from save, applying level bonuses
     this.party = (this.save.party || [])
@@ -97,9 +133,9 @@ export class MazeScene extends Phaser.Scene {
       this.mazeTransformed = mazeState.mazeTransformed || false;
       this.revealedSecrets = mazeState.revealedSecrets || [];
     } else {
-      // Fresh entry: reset state
-      this.playerX = this.floor.startX;
-      this.playerY = this.floor.startY;
+      // Fresh entry: use architect start position if available
+      this.playerX = this._generatedStartX ?? this.floor.startX;
+      this.playerY = this._generatedStartY ?? this.floor.startY;
       this.fog = this.buildInitialFog();
       this.bossDefeated = false;
       this.hasKey = false;
@@ -390,16 +426,16 @@ export class MazeScene extends Phaser.Scene {
 
     // --- Follow-camera with zoom ---
     // The level engine already centers the party on the canvas, so the
-    // heroSprite sits at (GAME_WIDTH/2, GAME_HEIGHT/2). Camera zoom
-    // makes the hero and tiles appear larger (2×). setBounds prevents
+    // The level engine already renders tiles at an internal scale that
+    // fills the viewport, so camera zoom just zooms that full-screen
+    // image (causing the HUD to scroll off-screen). No camera zoom.
+    // heroSprite sits at (GAME_WIDTH/2, GAME_HEIGHT/2). setBounds prevents
     // the zoomed viewport from showing void beyond the level image.
     // startFollow keeps the camera locked to the heroSprite (which is
     // effectively static since the engine internally scrolls).
     const cam = this.cameras.main;
-    cam.setZoom(2.0);
     cam.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
     if (this.heroSprite) {
-      cam.startFollow(this.heroSprite, true, 0.08, 0.08);
     }
 
     this.dialogue = new DialogueOverlay(this);
@@ -681,7 +717,7 @@ export class MazeScene extends Phaser.Scene {
     // Floor name — top-left of HUD
     this.add.text(area.left + 20, hudCenterY - 36, `F${this.floorId}: ${this.floor.name.toUpperCase()}`, {
       ...TEXT.heading(), fontSize: '16px', color: '#f0d060',
-      stroke: '#000000', strokeThickness: 3,
+      stroke: '#1f4244', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
     // Status cards — compact colored pills with white text
@@ -691,17 +727,17 @@ export class MazeScene extends Phaser.Scene {
     const cardW = 90;
     const cardGap = 8;
     const cardStartX = area.left + 24;
-    const cardStyle = { fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '18px', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
+    const cardStyle = { fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '18px', color: '#ffffff', stroke: '#1f4244', strokeThickness: 3 };
 
     // Gold card
     const g1 = this.add.graphics();
-    g1.fillStyle(0xc08818, 0.9); g1.fillRoundedRect(cardStartX, cardY - cardH / 2, cardW, cardH, 8);
+    g1.fillStyle(PAPER.orange, 0.9); g1.fillRoundedRect(cardStartX, cardY - cardH / 2, cardW, cardH, 8);
     this.hudGold = this.add.text(cardStartX + cardW / 2, cardY, `${this.save.gold}`, cardStyle).setOrigin(0.5);
 
     // Potion card
     const px = cardStartX + cardW + cardGap;
     const g2 = this.add.graphics();
-    g2.fillStyle(0x6828a0, 0.9); g2.fillRoundedRect(px, cardY - cardH / 2, cardW, cardH, 8);
+    g2.fillStyle(PAPER.lavenderD, 0.9); g2.fillRoundedRect(px, cardY - cardH / 2, cardW, cardH, 8);
     this.hudPotions = this.add.text(px + cardW / 2, cardY, `${this.save.potions}`, cardStyle).setOrigin(0.5);
 
     // Challenge card
@@ -805,7 +841,7 @@ export class MazeScene extends Phaser.Scene {
     const hint = this.add.text(GAME_WIDTH / 2, 130, 'Tap a hero to swap into your party', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '20px', color: '#f0e4cc',
-      stroke: '#000000', strokeThickness: 2,
+      stroke: '#1f4244', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(OVERLAY_DEPTH + 1);
 
     const unlocked = ALL_HEROES.filter(h => isHeroUnlocked(this.save, h.id));
@@ -940,7 +976,7 @@ export class MazeScene extends Phaser.Scene {
     }
 
     const cancelBtn = PaperButton(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 140, 'CANCEL', {
-      w: 180, h: 50, color: 0x6090c0, fontSize: 18,
+      w: 180, h: 50, color: PAPER.teal, fontSize: 18,
       onClick: () => {
         audio.play('ui/back');
         slotObjs.forEach(o => o.destroy());
@@ -1021,8 +1057,16 @@ export class MazeScene extends Phaser.Scene {
     this._mathDoorActive = true;
     let answered = false;
     const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
-    const opSymbol = question.op === '*' ? '×' : question.op;
-    const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, `${question.a} ${opSymbol} ${question.b} = ?`, {
+    // Format question text based on type — fractions/geometry/money/word
+    // use their .text field; arithmetic uses a OP b = ?
+    let qStr;
+    if (question.text) {
+      qStr = question.text;
+    } else {
+      const opSymbol = question.op === '*' ? '×' : question.op === '/' ? '÷' : question.op;
+      qStr = `${question.a} ${opSymbol} ${question.b} = ?`;
+    }
+    const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, qStr, {
       fontFamily: '"Fredoka One", sans-serif',
       fontSize: '48px', color: '#f0e8d0',
       stroke: '#1a0e04', strokeThickness: 4,
@@ -1040,7 +1084,7 @@ export class MazeScene extends Phaser.Scene {
       const label = this.add.text(x, btnY, ansText, {
         fontFamily: '"Fredoka One", sans-serif',
         fontSize: '32px', color: '#ffffff',
-        stroke: '#000000', strokeThickness: 2,
+        stroke: '#1f4244', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(82).setScrollFactor(0);
       elements.push(bg, label);
       bg.on('pointerdown', () => {
@@ -1109,6 +1153,8 @@ export class MazeScene extends Phaser.Scene {
     this.playerY = tile.ty;
     if (this.playerX !== prevX || this.playerY !== prevY) {
       this.checkObjectAt(this.playerX, this.playerY);
+      // ── ROOM TRANSITION: check if the hero stepped on an exit ──
+      this._checkRoomExit(this.playerX, this.playerY);
     }
 
     // Update animated hero sprite walk/idle state and facing
@@ -1163,6 +1209,38 @@ export class MazeScene extends Phaser.Scene {
 
       // Depth based on tile row
       this.heroSprite.setDepth(tileDepth(this.playerY, this.playerX, 5));
+    }
+  }
+
+  /**
+   * Check if the hero is standing on a room exit tile.
+   * If so, save progress and transition to the target room.
+   */
+  _checkRoomExit(px, py) {
+    if (!this.currentRoom?.exits || this._transitioning) return;
+    for (const exit of this.currentRoom.exits) {
+      if (exit.x === px && exit.y === py) {
+        // Validate target room exists before transitioning
+        const targetRoom = this.realm.rooms.find(r => r.id === exit.targetRoom);
+        if (!targetRoom) {
+          console.error(`Room exit points to non-existent room: ${exit.targetRoom}`);
+          return;
+        }
+        this._transitioning = true;
+        this.save[`realm${this.floorId}_room`] = exit.targetRoom;
+        writeSave(this.save, this.slot);
+        // Brief fade transition then restart MazeScene in the target room
+        this.cameras.main.fadeOut(200, 31, 66, 68);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.restart({
+            floor: this.floorId,
+            roomId: exit.targetRoom,
+            fromRoom: this.currentRoomId,
+            fromExit: true,
+          });
+        });
+        return;
+      }
     }
   }
 
@@ -1601,7 +1679,7 @@ export class MazeScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '20px',
       color: '#f0d060',
-      stroke: '#000000',
+      stroke: '#1f4244',
       strokeThickness: 3,
     }).setOrigin(0.5).setAlpha(0).setScrollFactor(0);
 
@@ -1682,7 +1760,7 @@ export class MazeScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '18px',
       color,
-      stroke: '#000000',
+      stroke: '#1f4244',
       strokeThickness: 4,
     }).setOrigin(0.5).setScrollFactor(0);
     this.tweens.add({

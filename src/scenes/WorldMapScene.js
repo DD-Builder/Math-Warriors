@@ -74,21 +74,39 @@ export class WorldMapScene extends Phaser.Scene {
     this.updatePageDots();
     this.updateArrows();
 
-    // Keyboard arrow navigation between floors
-    this.input.keyboard.on('keydown-RIGHT', () => {
-      if (this.currentScreen < this.maxScreen) {
-        this.currentScreen++;
-        this.cameras.main.pan(this.currentScreen * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, 600, 'Sine.easeInOut');
+    const navigateHero = (dir) => {
+      if (this._navLocked || this._mapHeroWalking) return;
+      let target = this.mapHeroNodeIndex + dir;
+      while (target >= 0 && target <= 8 && !this.save.floors[target]?.unlocked) {
+        target += dir;
+      }
+      if (target < 0 || target > 8) return;
+      audio.play('ui/click');
+      const targetScreen = Math.floor(target / 3);
+      if (targetScreen !== this.currentScreen && targetScreen <= this.maxScreen) {
+        this.currentScreen = targetScreen;
+        this.cameras.main.pan(targetScreen * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, 600, 'Sine.easeInOut');
         this.updatePageDots();
         this.updateArrows();
       }
+      this.walkHeroToNode(target, () => {});
+    };
+    this.input.keyboard.on('keydown-RIGHT', () => navigateHero(1));
+    this.input.keyboard.on('keydown-LEFT', () => navigateHero(-1));
+    this.input.keyboard.on('keydown-ENTER', () => {
+      if (this._navLocked || this._mapHeroWalking) return;
+      const floorIdx = this.mapHeroNodeIndex;
+      if (this.save.floors[floorIdx]?.unlocked) {
+        audio.play('ui/confirm');
+        this.enterFloor(floorIdx + 1);
+      }
     });
-    this.input.keyboard.on('keydown-LEFT', () => {
-      if (this.currentScreen > 0) {
-        this.currentScreen--;
-        this.cameras.main.pan(this.currentScreen * SCREEN_W + SCREEN_W / 2, GAME_HEIGHT / 2, 600, 'Sine.easeInOut');
-        this.updatePageDots();
-        this.updateArrows();
+    this.input.keyboard.on('keydown-SPACE', () => {
+      if (this._navLocked || this._mapHeroWalking) return;
+      const floorIdx = this.mapHeroNodeIndex;
+      if (this.save.floors[floorIdx]?.unlocked) {
+        audio.play('ui/confirm');
+        this.enterFloor(floorIdx + 1);
       }
     });
 

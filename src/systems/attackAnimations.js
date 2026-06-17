@@ -1589,7 +1589,7 @@ export function playFizzleAnimation(scene, heroSprite) {
     fontSize: '28px',
     fontStyle: 'bold',
     color: '#c080f0',
-    stroke: '#000000',
+    stroke: '#1f4244',
     strokeThickness: 4,
   }).setOrigin(0.5).setDepth(30);
   scene.tweens.add({
@@ -2013,7 +2013,7 @@ function enemyHitReaction(scene, targetSprite, damage) {
       fontSize: '28px',
       fontStyle: 'bold',
       color: '#ff4444',
-      stroke: '#000000',
+      stroke: '#1f4244',
       strokeThickness: 4,
     }).setOrigin(0.5).setDepth(30);
     scene.tweens.add({

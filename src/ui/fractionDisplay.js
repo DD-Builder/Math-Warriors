@@ -19,7 +19,7 @@ const PAPER = {
   cream:   COLORS.paper,    // 0xf0e4cc — warm cream background
   inkTeal: COLORS.ink,      // 0x1a0e04 — dark ink for text
   teal:    COLORS.cobalt,   // 0x2e4e88 — blue accent for borders / lines
-  shadow:  0x000000,
+  shadow:  0x1f3d3f,
 };
 
 const PAPER_CSS = {

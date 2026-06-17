@@ -76,7 +76,7 @@ export class MasteryScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       this.add.text(cx, cy + 5, `Standard: ${s.standard}`, {
-        ...TEXT.stat(), fontSize: '13px', color: PAPER_CSS.inkTeal,
+        ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.inkTeal,
       }).setOrigin(0.5);
 
       const barW = 220;
@@ -95,7 +95,7 @@ export class MasteryScene extends Phaser.Scene {
       const accText = s.total >= 10 ? `${Math.round(s.accuracy * 100)}%` : `${s.total}/10`;
       this.add.text(cx, barY + barH / 2, accText, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '12px', color: PAPER_CSS.cream,
+        fontSize: '16px', color: PAPER_CSS.cream,
         stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
       }).setOrigin(0.5);
 
@@ -104,16 +104,16 @@ export class MasteryScene extends Phaser.Scene {
       badge.fillRoundedRect(cx - 50, cy + 56, 100, 24, 8);
       this.add.text(cx, cy + 68, levelLabel, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '12px', color: PAPER_CSS.cream,
+        fontSize: '16px', color: PAPER_CSS.cream,
       }).setOrigin(0.5);
 
       this.add.text(cx, cy + 88, `${s.total} questions`, {
-        ...TEXT.stat(), fontSize: '13px', color: PAPER_CSS.inkTeal,
+        ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.inkTeal,
       }).setOrigin(0.5);
     }
 
     PaperButton(this, area.cx, area.bottom - 30, 'BACK', {
-      w: 200, h: 60, color: 0x6090c0, fontSize: 22,
+      w: 200, h: 60, color: PAPER.teal, fontSize: 22,
       onClick: () => {
         audio.play('ui/back');
         transitionTo(this, SCENES.WORLD_MAP, undefined, 200);

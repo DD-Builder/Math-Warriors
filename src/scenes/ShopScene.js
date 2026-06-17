@@ -108,7 +108,7 @@ export class ShopScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       this.add.text(x, cardY - 20, item.desc, {
-        ...TEXT.body(), fontSize: '13px', color: PAPER_CSS.cream,
+        ...TEXT.body(), fontSize: '16px', color: PAPER_CSS.cream,
         align: 'center', wordWrap: { width: cardW - 20 },
       }).setOrigin(0.5);
 
@@ -156,7 +156,7 @@ export class ShopScene extends Phaser.Scene {
 
       if (!unlocked) {
         this.add.text(x, cardY, `Unlock Floor ${tier.floor}\nto buy`, {
-          ...TEXT.body(), fontSize: '14px', color: PAPER_CSS.sand, align: 'center',
+          ...TEXT.body(), fontSize: '16px', color: PAPER_CSS.sand, align: 'center',
         }).setOrigin(0.5);
         return;
       }
@@ -167,7 +167,7 @@ export class ShopScene extends Phaser.Scene {
         `❤ ${tier.accessory.name}  +${tier.accessory.hp} HP`,
       ];
       this.add.text(x, cardY - 40, lines.join('\n'), {
-        ...TEXT.body(), fontSize: '12px', color: PAPER_CSS.cream, align: 'left',
+        ...TEXT.body(), fontSize: '16px', color: PAPER_CSS.cream, align: 'left',
         lineSpacing: 8, wordWrap: { width: cardW - 20 },
       }).setOrigin(0.5);
 
@@ -390,7 +390,7 @@ export class ShopScene extends Phaser.Scene {
 
       const rarBadge = this.add.text(cx, cardY - cardH / 2 + 48, getRarityLabel(rarity), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-        fontSize: '12px', color: rarityCol.label,
+        fontSize: '16px', color: rarityCol.label,
       }).setOrigin(0.5);
 
       for (let si = 0; si < skins.length; si++) {
@@ -401,18 +401,18 @@ export class ShopScene extends Phaser.Scene {
 
         const skinLabel = this.add.text(cx - cardW / 2 + 20, sy, skin.name, {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-          fontSize: '15px', color: equipped ? '#7d9f6d' : (owned ? PAPER_CSS.inkTeal : PAPER_CSS.sand),
+          fontSize: '16px', color: equipped ? '#7d9f6d' : (owned ? PAPER_CSS.inkTeal : PAPER_CSS.sand),
         }).setOrigin(0, 0.5);
 
         if (equipped) {
           const eqT = this.add.text(cx + cardW / 2 - 20, sy, 'EQUIPPED', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-            fontSize: '12px', color: '#7d9f6d',
+            fontSize: '16px', color: '#7d9f6d',
           }).setOrigin(1, 0.5);
         } else if (owned) {
           const eqBtn = this.add.text(cx + cardW / 2 - 20, sy, 'EQUIP', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-            fontSize: '13px', color: PAPER_CSS.teal, stroke: PAPER_CSS.inkTeal, strokeThickness: 1,
+            fontSize: '16px', color: PAPER_CSS.teal, stroke: PAPER_CSS.inkTeal, strokeThickness: 1,
           }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
           eqBtn.on('pointerdown', () => {
             hero.skin = skin.id;
@@ -424,7 +424,7 @@ export class ShopScene extends Phaser.Scene {
           const buyT = this.add.text(cx + cardW / 2 - 20, sy,
             this.save.gold >= skin.cost ? `BUY ${skin.cost}g` : `${skin.cost}g`, {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-            fontSize: '13px',
+            fontSize: '16px',
             color: this.save.gold >= skin.cost ? PAPER_CSS.gold : PAPER_CSS.sand,
             stroke: PAPER_CSS.inkTeal, strokeThickness: 1,
           }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });

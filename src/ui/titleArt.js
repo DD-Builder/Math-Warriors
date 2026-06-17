@@ -260,7 +260,7 @@ export function drawFlowers(scene, width, height, rng, depth = 6) {
     });
     scene.add.text(pos.x, pos.y, mathLabels[i], {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '12px', fontStyle: 'bold',
+      fontSize: '16px', fontStyle: 'bold',
       color: PAPER_CSS.forestD,
       stroke: PAPER_CSS.cream,
       strokeThickness: 1,
@@ -293,7 +293,7 @@ export function drawEquationStones(scene, width, height, rng, depth = 6) {
 
     scene.add.text(pos.x, pos.y, equations[i], {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '13px', color: PAPER_CSS.forest,
+      fontSize: '16px', color: PAPER_CSS.forest,
     }).setOrigin(0.5).setDepth(depth + 1).setAlpha(0.7);
   }
 
