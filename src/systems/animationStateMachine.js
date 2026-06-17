@@ -74,41 +74,46 @@ STATE_DEFS.breathe = {
 STATE_DEFS.walk = {
   enter(sm) {
     const { parts, scene } = sm;
-    const spd = sm.visualMods.walkSpeed ?? 180;
+    const step = sm.visualMods.walkSpeed ?? 150;
+    const half = step / 2;
+
     if (parts.legs) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.legs, y: 10, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+        targets: parts.legs, y: 12, x: 6, angle: 4,
+        duration: step, yoyo: true, repeat: -1, ease: 'Sine.inOut',
       }));
     }
     if (parts.armL) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.armL, y: -8, x: -4, angle: -8, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+        targets: parts.armL, y: -10, x: 8, angle: -15,
+        duration: step, yoyo: true, repeat: -1, ease: 'Sine.inOut',
       }));
     }
     if (parts.armR) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.armR, y: 8, x: 4, angle: 8, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd / 2,
+        targets: parts.armR, y: 10, x: -8, angle: 15,
+        duration: step, yoyo: true, repeat: -1, ease: 'Sine.inOut',
+        delay: half,
       }));
     }
     if (parts.torso) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, y: -4, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
+        targets: parts.torso, y: -6,
+        duration: half, yoyo: true, repeat: -1, ease: 'Quad.out',
       }));
     }
     if (parts.head) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.head, y: -5, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
+        targets: parts.head, y: -7, angle: 2,
+        duration: half, yoyo: true, repeat: -1, ease: 'Quad.out',
+        delay: half * 0.15,
       }));
     }
     if (parts.weapon) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.weapon, angle: 8, y: -3, duration: spd,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
+        targets: parts.weapon, angle: 12, y: -4,
+        duration: step, yoyo: true, repeat: -1, ease: 'Sine.inOut',
+        delay: half * 0.25,
       }));
     }
   },

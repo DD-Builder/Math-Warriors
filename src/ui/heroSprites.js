@@ -223,14 +223,30 @@ function getHeroCardBg(heroId) {
 }
 
 // ─── BODY PART SEED RANGES ─────────────────────────────────────
-const BODY_PARTS = {
-  legs:   [1, 2, 10, 11, 20, 21],
-  torso:  [30, 31, 32, 33, 34, 35, 36, 37, 38, 39],
-  armL:   [50, 51, 61, 62, 63],
-  armR:   [52, 53, 54, 60, 64, 65],
+const BODY_PARTS_DEFAULT = {
+  legs:   [1, 2, 3, 4, 10, 11, 12, 13, 20, 21],
+  torso:  [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45],
+  armL:   [50, 51, 60, 61, 62, 63],
+  armR:   [52, 53, 54, 64, 65],
   weapon: [80, 81, 82, 83, 84, 85, 86, 87, 88, 89],
-  head:   [90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
+  head:   [55, 56, 57, 58, 59, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
 };
+
+const BODY_PARTS_BUNNY = {
+  legs:   [1, 2, 10, 11, 20, 21],
+  torso:  [30, 32, 40, 71, 72],
+  armL:   [],
+  armR:   [],
+  weapon: [],
+  head:   [50, 51, 53, 55, 56, 59, 61, 62, 63, 64, 67],
+};
+
+function getBodyPartsForClass(heroClass) {
+  if (heroClass === 'bunny') return BODY_PARTS_BUNNY;
+  return BODY_PARTS_DEFAULT;
+}
+
+const BODY_PARTS = BODY_PARTS_DEFAULT;
 
 /**
  * Create an animated hero sprite composed of separate body-part layers.
@@ -253,16 +269,17 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const floorId = opts.floorId || 1;
   const heroClass = getHeroClass(hero);
   const equipment = resolveEquipment(opts.equipment);
+  const classParts = getBodyPartsForClass(heroClass);
 
   for (let i = 0; i < partOrder.length; i++) {
     const partName = partOrder[i];
-    const seeds = BODY_PARTS[partName];
+    const seeds = classParts[partName];
 
     // Pixel-content check is expensive (full-canvas getImageData) —
     // cache the answer per hero+part so repeat battles don't re-read.
     // Overlays only ever decorate parts that already have content, so
     // this cache stays valid regardless of equipment.
-    const contentKey = `${hero.id}-${partName}`;
+    const contentKey = `${hero.id}-${partName}-${heroClass}`;
     if (PART_HAS_CONTENT[contentKey] === false) continue;
 
     // Equipment overlay for this part (weapon → weapon, armor → torso,
