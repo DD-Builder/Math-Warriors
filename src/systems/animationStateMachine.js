@@ -74,40 +74,40 @@ STATE_DEFS.breathe = {
 STATE_DEFS.walk = {
   enter(sm) {
     const { parts, scene } = sm;
-    const spd = sm.visualMods.walkSpeed ?? 200;
+    const spd = sm.visualMods.walkSpeed ?? 180;
     if (parts.legs) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.legs, y: 4, duration: spd,
+        targets: parts.legs, y: 10, duration: spd,
         yoyo: true, repeat: -1, ease: 'Sine.inOut',
       }));
     }
     if (parts.armL) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.armL, y: -3, x: -2, duration: spd,
+        targets: parts.armL, y: -8, x: -4, angle: -8, duration: spd,
         yoyo: true, repeat: -1, ease: 'Sine.inOut',
       }));
     }
     if (parts.armR) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.armR, y: 3, x: 2, duration: spd,
+        targets: parts.armR, y: 8, x: 4, angle: 8, duration: spd,
         yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd / 2,
       }));
     }
     if (parts.torso) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, y: -2, duration: spd,
+        targets: parts.torso, y: -4, duration: spd,
         yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
       }));
     }
     if (parts.head) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.head, y: -2.5, duration: spd,
+        targets: parts.head, y: -5, duration: spd,
         yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
       }));
     }
     if (parts.weapon) {
       sm._tweens.push(scene.tweens.add({
-        targets: parts.weapon, angle: 3, y: -1, duration: spd,
+        targets: parts.weapon, angle: 8, y: -3, duration: spd,
         yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
       }));
     }
