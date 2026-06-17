@@ -17,38 +17,38 @@
 export const DIALOGUE = {
   // ── GAME INTRO ──
   game_intro: [
-    { speaker: 'Narrator', text: 'Once, numbers made the world.', wide: true },
-    { speaker: 'Narrator', text: 'A Great Equation kept it whole.', wide: true },
-    { speaker: 'Elder Fairy', text: 'I am Elara. I guard balance.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'But something BROKE it.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Not an accident. A choice.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Nine pieces. Nine hurt realms.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'I do not know WHO did this.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'But I know where to start.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Will you help us find out?', side: 'left' },
+    { speaker: 'Narrator', text: 'Long ago, a Great Equation held the world together.', wide: true },
+    { speaker: 'Narrator', text: 'Every number had a place. Every sum had meaning.', wide: true },
+    { speaker: 'Elder Fairy', text: 'I am Elara, keeper of the balance.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Someone shattered the Equation.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Not by accident. On purpose.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Its nine pieces scattered across the realms.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Without them, nothing adds up.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'I need brave heroes to set it right.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Will you answer the call?', side: 'left' },
   ],
 
   world_map_intro: [
-    { speaker: 'Narrator', text: 'Nine realms. Nine fragments.', wide: true },
-    { speaker: 'Narrator', text: 'Something waits at the end.', wide: true },
+    { speaker: 'Narrator', text: 'Nine realms lie in ruin.', wide: true },
+    { speaker: 'Narrator', text: 'A fragment waits in each one.', wide: true },
   ],
 
   first_battle: [
-    { speaker: 'Elder Fairy', text: 'A Number Eater! Get ready!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Answer math to attack!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'You can do it, heroes!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'A Number Eater blocks the way!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Solve the math to strike back!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Show it what heroes can do!', side: 'left' },
   ],
 
   hero_unlock: [
-    { speaker: 'Elder Fairy', text: 'The magic freed a new ally!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'You freed a new ally!', side: 'left' },
   ],
 
   mid_floor_encourage: [
-    { speaker: 'Elder Fairy', text: 'Keep going! You are close!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Almost there! Keep pushing!', side: 'left' },
   ],
 
   phase2_start: [
-    { speaker: 'Elder Fairy', text: 'New items appeared! Find them!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'New items have appeared nearby!', side: 'left' },
   ],
 
   // ══════════════════════════════════════
@@ -57,34 +57,34 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor1_entry: [
-    { speaker: 'Elder Fairy', text: 'The Garden is dying!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Flowers grow backward now.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Addition is broken here.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Things that should grow shrink.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Free the trapped fairies!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Then find the Rune Stones.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Something guards the gate...', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Add your courage. Let us go!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'This was once a beautiful garden.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Now the flowers are wilting.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Addition itself is broken here.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Seeds planted never bloom.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'First, free the trapped fairies.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Then search for the Rune Stones.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'I can feel something watching us.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Stay sharp. Let us begin!', side: 'left' },
   ],
   floor1_mid_explore: [
     { speaker: 'Elder Fairy', text: 'Wait. Look at these marks.' },
-    { speaker: 'Elder Fairy', text: 'Something big did this.' },
-    { speaker: 'Elder Fairy', text: 'This was not just an accident.' },
+    { speaker: 'Elder Fairy', text: 'Something very large came through.' },
+    { speaker: 'Elder Fairy', text: 'This damage was deliberate.' },
   ],
   floor1_boss: [
-    { speaker: 'Elder Fairy', text: 'The Briar King! It blocks us!', side: 'left' },
-    { speaker: 'Briar King', text: 'My vines grow with every sum!', sprite: 'briarking', side: 'right' },
-    { speaker: 'Briar King', text: 'No one passes. NO ONE.', sprite: 'briarking', side: 'right' },
-    { speaker: 'Narrator', text: 'Add fast to cut through!', wide: true },
+    { speaker: 'Elder Fairy', text: 'The Briar King! It guards the way!', side: 'left' },
+    { speaker: 'Briar King', text: 'My thorns feed on broken sums!', sprite: 'briarking', side: 'right' },
+    { speaker: 'Briar King', text: 'None shall pass this gate.', sprite: 'briarking', side: 'right' },
+    { speaker: 'Narrator', text: 'Add quickly to cut through!', wide: true },
   ],
   floor1_victory: [
-    { speaker: 'Elder Fairy', text: 'The first fragment glows!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'But look. Claw marks on it.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Someone RIPPED this out.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'This was no accident.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'I hear water ahead...', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'But it sounds wrong.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Like it flows uphill.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'The first fragment is ours!', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'But look — claw marks on it.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Someone tore this out by force.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'This was no accident at all.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'I hear rushing water ahead.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Something about it sounds wrong.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'As if the tide runs backward.', side: 'left' },
   ],
 
   // ══════════════════════════════════════
@@ -93,14 +93,14 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor2_entry: [
-    { speaker: 'Water Fairy', text: 'The tides flow backward!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Subtraction makes things grow.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'I... I grew up here.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'This was beautiful once.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Open the drain valves!', side: 'left' },
+    { speaker: 'Water Fairy', text: 'The tides are flowing backward!', side: 'left' },
+    { speaker: 'Water Fairy', text: 'Subtraction has gone haywire.', side: 'left' },
+    { speaker: 'Water Fairy', text: 'I grew up in these ruins.', side: 'left' },
+    { speaker: 'Water Fairy', text: 'They were beautiful once.', side: 'left' },
+    { speaker: 'Water Fairy', text: 'We need to open the drain valves.', side: 'left' },
     { speaker: 'Water Fairy', text: 'Then find the Coral Keys.', side: 'left' },
     { speaker: 'Water Fairy', text: 'Something lurks in the deep.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Subtract the flood! Hurry!', side: 'left' },
+    { speaker: 'Water Fairy', text: 'Watch your step down there.', side: 'left' },
   ],
   floor2_fairy_talk: [
     { speaker: 'Elder Fairy', text: 'Marina, are you alright?' },
@@ -109,19 +109,19 @@ export const DIALOGUE = {
     { speaker: 'Elder Fairy', text: '...Was?' },
   ],
   floor2_boss: [
-    { speaker: 'Water Fairy', text: 'Oh no. I know that shadow.', side: 'left' },
-    { speaker: 'The Pressure', text: 'The deep takes everything!', sprite: 'pressure', side: 'right' },
-    { speaker: 'The Pressure', text: 'Even old friends.', sprite: 'pressure', side: 'right' },
-    { speaker: 'Narrator', text: 'Subtract its strength! Fast!', wide: true },
+    { speaker: 'Water Fairy', text: 'No... I know that shadow.', side: 'left' },
+    { speaker: 'The Pressure', text: 'The deep swallows everything!', sprite: 'pressure', side: 'right' },
+    { speaker: 'The Pressure', text: 'Even old friendships.', sprite: 'pressure', side: 'right' },
+    { speaker: 'Narrator', text: 'Subtract its power! Quickly!', wide: true },
   ],
   floor2_victory: [
-    { speaker: 'Water Fairy', text: 'The tides calm. We did it.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'But what it said...', side: 'left' },
-    { speaker: 'Water Fairy', text: '"Answers are chains."', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Someone convinced them.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Told the old guardians that', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'answers are the enemy.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'We must find out who. And why.', side: 'left' },
+    { speaker: 'Water Fairy', text: 'The tides are calming. We did it.', side: 'left' },
+    { speaker: 'Water Fairy', text: 'But its last words haunt me.', side: 'left' },
+    { speaker: 'Water Fairy', text: 'It whispered: "Answers are chains."', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Someone has been lying to them.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Turning the old guardians against answers.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Against everything we stand for.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'We must find out who is behind this.', side: 'left' },
   ],
 
   // ══════════════════════════════════════
@@ -131,13 +131,13 @@ export const DIALOGUE = {
 
   floor3_entry: [
     { speaker: 'Sky Fairy', text: 'The clouds are tearing apart!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Multiply should make MORE.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'But up here it divides.', side: 'left' },
-    { speaker: 'Sky Fairy', text: '...I used to play here.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Light the three sky beacons!', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'Multiplication has gone wrong.', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'Instead of growing, things split.', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'I used to play up here as a child.', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'Light the three sky beacons first.', side: 'left' },
     { speaker: 'Sky Fairy', text: 'Then ring the Wind Chimes.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'The Skywhale hides above...', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Multiply your courage! Go!', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'The Skywhale circles above us.', side: 'left' },
+    { speaker: 'Sky Fairy', text: 'Careful now. The wind bites here.', side: 'left' },
   ],
   floor3_mid_explore: [
     { speaker: 'Sky Fairy', text: 'These beasts were not here.' },
@@ -147,9 +147,9 @@ export const DIALOGUE = {
     { speaker: 'Sky Fairy', text: 'Someone turned them.' },
   ],
   floor3_boss: [
-    { speaker: 'Sky Fairy', text: 'Skywhale... old friend...', side: 'left' },
-    { speaker: 'Skywhale', text: 'I will NEVER give answers!', sprite: 'skywhale', side: 'right' },
-    { speaker: 'Skywhale', text: 'It promised me freedom!', sprite: 'skywhale', side: 'right' },
+    { speaker: 'Sky Fairy', text: 'Skywhale... what happened to you?', side: 'left' },
+    { speaker: 'Skywhale', text: 'I will never give answers again!', sprite: 'skywhale', side: 'right' },
+    { speaker: 'Skywhale', text: 'It promised me freedom from all that!', sprite: 'skywhale', side: 'right' },
     { speaker: 'Narrator', text: 'Multiply to break the spell!', wide: true },
   ],
   floor3_victory: [
@@ -168,14 +168,14 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor4_entry: [
-    { speaker: 'Fire Fairy', text: 'The lava will not divide!', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'The lava refuses to divide!', side: 'left' },
     { speaker: 'Fire Fairy', text: 'It should split into streams.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Instead it multiplies!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'The caves are flooding.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Seal the three lava vents!', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'Instead it keeps growing.', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'The caves are flooding with it.', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'Seal the three lava vents first.', side: 'left' },
     { speaker: 'Fire Fairy', text: 'Then build the Lava Bridges.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'I know who is down there.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Pyra. She was... kind once.', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'I know who waits down there.', side: 'left' },
+    { speaker: 'Fire Fairy', text: 'Pyra. She was kind, once.', side: 'left' },
   ],
   floor4_boss: [
     { speaker: 'Fire Fairy', text: 'Pyra! It is me, Ember!', side: 'left' },
@@ -200,15 +200,15 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor5_entry: [
-    { speaker: 'Ice Fairy', text: 'Everything is f-frozen.', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Not just the water. The MATH.', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Answers freeze before you...', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'before you can reach them.', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'Everything here is f-frozen solid.', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'Not just the water. The math too.', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'Answers freeze before you can', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'even reach them.', side: 'left' },
     { speaker: 'Elder Fairy', text: 'Frost, what happened here?', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'The Theorem f-froze me too.', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'It said answers do not matter.', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'The Theorem did this to me.', side: 'left' },
+    { speaker: 'Ice Fairy', text: 'It told me answers never matter.', side: 'left' },
     { speaker: 'Ice Fairy', text: 'I b-believed it. I was wrong.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'We will fix this. Together.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'We will set this right. Together.', side: 'left' },
   ],
   floor5_mid_explore: [
     { speaker: 'Ice Fairy', text: 'The cold is getting worse.' },
@@ -240,15 +240,15 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor6_entry: [
-    { speaker: 'Crystal Fairy', text: 'Shapes are falling apart.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Geometry cannot hold.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Crystals crack into chaos.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Wait. Are these pieces safe?', side: 'left' },
+    { speaker: 'Crystal Fairy', text: 'The shapes are breaking apart.', side: 'left' },
+    { speaker: 'Crystal Fairy', text: 'Geometry is unraveling.', side: 'left' },
+    { speaker: 'Crystal Fairy', text: 'Crystals crack and shatter.', side: 'left' },
+    { speaker: 'Water Fairy', text: 'Wait. Are these fragments safe?', side: 'left' },
     { speaker: 'Sky Fairy', text: 'What do you mean, Marina?', side: 'left' },
     { speaker: 'Water Fairy', text: 'What if they are traps?', side: 'left' },
     { speaker: 'Fire Fairy', text: 'We cannot stop now!', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Focus. Collect the shards.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'We will figure it out.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Collect the shards. Stay sharp.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'We will sort this out together.', side: 'left' },
   ],
   floor6_fairy_talk: [
     { speaker: 'Water Fairy', text: 'Elara, I am scared.' },
@@ -279,14 +279,14 @@ export const DIALOGUE = {
 
   floor7_entry: [
     { speaker: 'Market Fairy', text: 'Nothing costs what it should!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'Gold coins turn to copper.', side: 'left' },
-    { speaker: 'Market Fairy', text: 'Copper coins act like gold.', side: 'left' },
-    { speaker: 'Market Fairy', text: 'Money math is all wrong.', side: 'left' },
-    { speaker: 'Market Fairy', text: 'I have to tell you something.', side: 'left' },
-    { speaker: 'Market Fairy', text: 'The Theorem paid me.', side: 'left' },
-    { speaker: 'Market Fairy', text: 'I hid a fragment for gold.', side: 'left' },
-    { speaker: 'Market Fairy', text: 'I was wrong. I am sorry.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'You are helping now. Go.', side: 'left' },
+    { speaker: 'Market Fairy', text: 'Gold coins have turned to copper.', side: 'left' },
+    { speaker: 'Market Fairy', text: 'And copper acts like gold.', side: 'left' },
+    { speaker: 'Market Fairy', text: 'All the money math is wrong.', side: 'left' },
+    { speaker: 'Market Fairy', text: 'I have a confession to make.', side: 'left' },
+    { speaker: 'Market Fairy', text: 'The Theorem bribed me.', side: 'left' },
+    { speaker: 'Market Fairy', text: 'I hid a fragment in exchange.', side: 'left' },
+    { speaker: 'Market Fairy', text: 'I was a fool. I am sorry.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'You are making it right now.', side: 'left' },
   ],
   floor7_boss: [
     { speaker: 'The Counterfeiter', text: 'Everything has a price!', sprite: 'counterfeiter', side: 'right' },
@@ -313,15 +313,15 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor8_entry: [
-    { speaker: 'Book Fairy', text: 'Words are scrambling!', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Stories rewrite themselves!', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Word problems lie on purpose.', side: 'left' },
+    { speaker: 'Book Fairy', text: 'The words are scrambling!', side: 'left' },
+    { speaker: 'Book Fairy', text: 'Stories are rewriting themselves!', side: 'left' },
+    { speaker: 'Book Fairy', text: 'Even the word problems lie now.', side: 'left' },
     { speaker: 'Book Fairy', text: 'But there are lost pages here.', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Pages from a journal.', side: 'left' },
-    { speaker: 'Book Fairy', text: 'The Theorem wrote them.', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Its own story is here.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Find the pages. Read them.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Understand why it did this.', side: 'left' },
+    { speaker: 'Book Fairy', text: 'Pages from a private journal.', side: 'left' },
+    { speaker: 'Book Fairy', text: 'The Theorem wrote them itself.', side: 'left' },
+    { speaker: 'Book Fairy', text: 'Its own story is hidden here.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Find the pages and read them.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'We need to understand why.', side: 'left' },
   ],
   floor8_mid_explore: [
     { speaker: 'Book Fairy', text: 'This page... listen.' },
@@ -356,14 +356,14 @@ export const DIALOGUE = {
 
   floor9_entry: [
     { speaker: 'All Fairies', text: 'The Mending Room. At last.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Everything you learned matters.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Every add. Every subtract.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Every shape and every word.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'The Theorem is here.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Everything you learned led here.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Every addition. Every subtraction.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'Every shape and every riddle.', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'The Theorem waits inside.', side: 'left' },
     { speaker: 'Elder Fairy', text: 'It is not a monster.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'It is a question afraid', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'It is a question that is terrified', side: 'left' },
     { speaker: 'Elder Fairy', text: 'of its own answer.', side: 'left' },
-    { speaker: 'All Fairies', text: 'Show it answers are OK.', side: 'left' },
+    { speaker: 'All Fairies', text: 'Show it there is nothing to fear.', side: 'left' },
   ],
   floor9_mid_explore: [
     { speaker: 'The Theorem', text: 'Why do you keep coming?' },
@@ -428,15 +428,14 @@ export const DIALOGUE = {
 
   // ── ENDING EPILOGUE ──
   game_ending: [
-    { speaker: 'Narrator', text: 'The nine realms breathe again.', wide: true },
-    { speaker: 'Narrator', text: 'Numbers find their place.', wide: true },
-    { speaker: 'Narrator', text: 'Flowers add and grow.', wide: true },
-    { speaker: 'Narrator', text: 'Tides subtract and calm.', wide: true },
-    { speaker: 'Narrator', text: 'Clouds multiply and form.', wide: true },
-    { speaker: 'Narrator', text: 'Lava divides and cools.', wide: true },
-    { speaker: 'Elder Fairy', text: 'And one scared question', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'learned the best answer:', side: 'left' },
-    { speaker: 'All Fairies', text: 'Every ending is a beginning.', side: 'left' },
+    { speaker: 'Narrator', text: 'The nine realms breathe once more.', wide: true },
+    { speaker: 'Narrator', text: 'Numbers find their rightful place.', wide: true },
+    { speaker: 'Narrator', text: 'Flowers bloom. Tides settle.', wide: true },
+    { speaker: 'Narrator', text: 'Clouds gather. Lava cools.', wide: true },
+    { speaker: 'Narrator', text: 'The Great Equation shines whole.', wide: true },
+    { speaker: 'Elder Fairy', text: 'And one frightened question', side: 'left' },
+    { speaker: 'Elder Fairy', text: 'learned the most important lesson:', side: 'left' },
+    { speaker: 'All Fairies', text: 'Every answer is a new beginning.', side: 'left' },
   ],
 
   // ── IN-MAZE SMALL MOMENTS ──
@@ -711,70 +710,70 @@ export function getRescueDialogue(floorId, heroIds) {
 export const HERO_REACTIONS = {
   // ── FLOOR 1: THE GARDEN ──
   1: {
-    'knight-crusader': { text: '"The Garden cries for justice!"', trigger: 'intro' },
-    'wizard-bookworm': { text: '"Fascinating botanical corruption..."', trigger: 'intro' },
-    'bunny-pepper': { text: '"Ooh! Dead flowers! SPOOKY! Let\'s GO!"', trigger: 'intro' },
-    'knight-shadow': { text: '"...Something hides in these thorns."', trigger: 'intro' },
+    'knight-crusader': { text: '"This garden deserves a protector."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Remarkable... the roots grow in spirals."', trigger: 'intro' },
+    'bunny-pepper': { text: '"I smell ADVENTURE! Let\'s MOVE!"', trigger: 'intro' },
+    'knight-shadow': { text: '"...Something watches from the thorns."', trigger: 'intro' },
   },
   // ── FLOOR 2: TIDEPOOL RUINS ──
   2: {
-    'wizard-bookworm': { text: '"The tidal math inversions match chapter 7 of my research!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Tidal inversions! Chapter 7 of my notes!"', trigger: 'intro' },
     'bunny-pepper': { text: '"Water goes UP?! That\'s HILARIOUS!"', trigger: 'intro' },
-    'knight-crusader': { text: '"These ruins once held sacred truths."', trigger: 'intro' },
-    'wizard-stargazer': { text: '"The stars reflect strangely in backward tides..."', trigger: 'intro' },
+    'knight-crusader': { text: '"These ruins hold old truths. I feel it."', trigger: 'intro' },
+    'wizard-stargazer': { text: '"The stars look strange in backward tides."', trigger: 'intro' },
   },
   // ── FLOOR 3: CLOUD MAZE ──
   3: {
-    'bunny-pepper': { text: '"CLOUDS! I wanna BOUNCE on them!"', trigger: 'intro' },
-    'wizard-stargazer': { text: '"We are closer to my domain now. The stars weep."', trigger: 'intro' },
+    'bunny-pepper': { text: '"CLOUDS! Can I bounce on them?!"', trigger: 'intro' },
+    'wizard-stargazer': { text: '"We are close to the stars. They weep."', trigger: 'intro' },
     'knight-paladin': { text: '"I will shield us from the storm."', trigger: 'intro' },
     'knight-shadow': { text: '"Good visibility. Bad for hiding."', trigger: 'intro' },
   },
   // ── FLOOR 4: EMBER CAVES — Berserker was imprisoned here ──
   4: {
-    'knight-berserker': { text: '"I remember these cages... NEVER AGAIN!"', trigger: 'intro' },
-    'wizard-bookworm': { text: '"The ember patterns match my research!"', trigger: 'intro' },
-    'bunny-pepper': { text: '"HOT HOT HOT! But I\'m FASTER than fire!"', trigger: 'intro' },
+    'knight-berserker': { text: '"I remember these cages. NEVER AGAIN!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"These ember patterns match my research!"', trigger: 'intro' },
+    'bunny-pepper': { text: '"HOT HOT HOT! But I\'m FASTER!"', trigger: 'intro' },
     'knight-crusader': { text: '"Ember, we will free your friend."', trigger: 'intro' },
     'bunny-blaze': { text: '"This heat... feels like home."', trigger: 'intro' },
   },
   // ── FLOOR 5: FROZEN PEAK ──
   5: {
-    'bunny-blaze': { text: '"ICE?! My NEMESIS! Let me at it!"', trigger: 'intro' },
+    'bunny-blaze': { text: '"ICE?! My sworn enemy! Let me at it!"', trigger: 'intro' },
     'wizard-bookworm': { text: '"Cryogenic math stasis. Remarkable."', trigger: 'intro' },
-    'knight-shadow': { text: '"The cold reveals footprints. Someone was here."', trigger: 'intro' },
-    'bunny-pepper': { text: '"B-b-brrr! My ears are FREEZING!"', trigger: 'intro' },
+    'knight-shadow': { text: '"Fresh footprints in the frost. Recent."', trigger: 'intro' },
+    'bunny-pepper': { text: '"B-b-brrr! My EARS are freezing off!"', trigger: 'intro' },
   },
   // ── FLOOR 6: CRYSTAL CAVERNS ──
   6: {
-    'wizard-stargazer': { text: '"These crystals refract starlight beautifully."', trigger: 'intro' },
-    'wizard-bookworm': { text: '"Geometric instability. I should take notes."', trigger: 'intro' },
-    'knight-greathelm': { text: '"Prism sealed me here. I owe it a visit."', trigger: 'intro' },
-    'bunny-pepper': { text: '"SHINY! Can I keep one? PLEASE?!"', trigger: 'intro' },
+    'wizard-stargazer': { text: '"These crystals refract starlight. Lovely."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Geometric instability. Taking notes."', trigger: 'intro' },
+    'knight-greathelm': { text: '"The Prism sealed me here. Payback time."', trigger: 'intro' },
+    'bunny-pepper': { text: '"SO SHINY! Can I keep one? PLEASE?!"', trigger: 'intro' },
   },
   // ── FLOOR 7: MARKET SQUARE — Duchess was sold here ──
   7: {
     'bunny-duchess': { text: '"This market... they SOLD me here."', trigger: 'intro' },
-    'knight-crusader': { text: '"Commerce without honor is theft."', trigger: 'intro' },
-    'bunny-pepper': { text: '"FREE SAMPLES?! Oh wait, everything\'s fake."', trigger: 'intro' },
-    'wizard-bookworm': { text: '"Counterfeit currency violates seventeen laws."', trigger: 'intro' },
-    'knight-shadow': { text: '"...I know how to spot a fake."', trigger: 'intro' },
+    'knight-crusader': { text: '"Trade without honor is just theft."', trigger: 'intro' },
+    'bunny-pepper': { text: '"Ooh, free samples! Wait... all fake."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"This violates at least seventeen laws."', trigger: 'intro' },
+    'knight-shadow': { text: '"...I can always spot a fake."', trigger: 'intro' },
   },
   // ── FLOOR 8: INFINITY LIBRARY ──
   8: {
-    'wizard-bookworm': { text: '"I recognize this handwriting... it is the Theorem!"', trigger: 'boss' },
-    'wizard-stargazer': { text: '"The constellations in these pages... they move."', trigger: 'intro' },
-    'bunny-pepper': { text: '"Books?! BORING! ...Wait, this one has PICTURES!"', trigger: 'intro' },
+    'wizard-bookworm': { text: '"This handwriting... it is the Theorem\'s!"', trigger: 'boss' },
+    'wizard-stargazer': { text: '"The constellations on these pages move."', trigger: 'intro' },
+    'bunny-pepper': { text: '"Books?! Wait, this one has PICTURES!"', trigger: 'intro' },
     'knight-paladin': { text: '"Even words can be weapons. Stay alert."', trigger: 'intro' },
-    'wizard-grandmage': { text: '"These texts... I wrote some of them. Long ago."', trigger: 'intro' },
+    'wizard-grandmage': { text: '"These texts... I wrote some. Long ago."', trigger: 'intro' },
   },
   // ── FLOOR 9: THE MENDING ROOM ──
   9: {
-    'knight-crusader': { text: '"Justice is not punishment. It is restoration."', trigger: 'intro' },
+    'knight-crusader': { text: '"Justice is restoration, not punishment."', trigger: 'intro' },
     'knight-shadow': { text: '"...The final shadow falls here."', trigger: 'intro' },
-    'wizard-bookworm': { text: '"Every equation has an answer. Even this one."', trigger: 'intro' },
-    'bunny-pepper': { text: '"FINAL BOSS! FINAL BOSS! LET\'S GOOOOO!"', trigger: 'intro' },
-    'bunny-duchess': { text: '"By royal decree: we finish this today."', trigger: 'intro' },
+    'wizard-bookworm': { text: '"Every equation has an answer. Even this."', trigger: 'intro' },
+    'bunny-pepper': { text: '"FINAL BOSS TIME! LET\'S GOOOOO!"', trigger: 'intro' },
+    'bunny-duchess': { text: '"By royal decree: we end this today."', trigger: 'intro' },
     'knight-berserker': { text: '"No more cages. No more fear. CHARGE!"', trigger: 'boss' },
   },
 };

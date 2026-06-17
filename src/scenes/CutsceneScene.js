@@ -44,6 +44,8 @@ export class CutsceneScene extends Phaser.Scene {
     this.charIdx = 0;
     this.fullText = '';
     this.timer = null;
+    this._showPanelStamp = 0;
+    this._typingStarted = 0;
     this.save = loadSave(getActiveSlot(this));
   }
 
@@ -127,17 +129,14 @@ export class CutsceneScene extends Phaser.Scene {
     });
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this._tapLock = false;
     this.advanceBtn = PaperButton(this, area.right - 130, area.bottom - 50, 'NEXT ▶', {
       w: 200, h: 60, color: PAPER.orange, fontSize: 22,
       onClick: () => this.onTap(),
     });
-    // Fix advance button to camera so it stays visible during pans,
-    // and always renders above panel content (depth 50+).
     [this.advanceBtn.bg, this.advanceBtn.shadow, this.advanceBtn.label, this.advanceBtn.zone].forEach((el, i) => {
       if (el) { el.setScrollFactor(0); el.setDepth(49 + i); }
     });
-
-    this.input.on('pointerdown', () => this.onTap());
 
     if (this.panels.length > 0) {
       this.showPanel(0, 0);
@@ -164,8 +163,7 @@ export class CutsceneScene extends Phaser.Scene {
     const panTargetX = sectionX + GAME_WIDTH / 2;
     this._panelOffsetX = sectionX;
 
-    // Cinematic camera pan to this panel's section
-    this.cameras.main.pan(panTargetX, GAME_HEIGHT / 2, 800, 'Sine.easeInOut');
+    this.cameras.main.pan(panTargetX, GAME_HEIGHT / 2, 800, 'Sine.easeInOut', true);
 
     const isBoss = line.sprite && (getEnemyById(line.sprite) != null);
     const isWide = line.wide || false;
@@ -219,10 +217,11 @@ export class CutsceneScene extends Phaser.Scene {
       }
     });
 
-    // Start typing only after camera pan completes so text isn't off-screen.
-    // If the panel offset changed (a pan was triggered), wait for the event;
-    // otherwise start immediately.
+    const panelStamp = ++this._showPanelStamp;
     const startTyping = () => {
+      if (panelStamp !== this._showPanelStamp) return;
+      if (this._typingStarted === panelStamp) return;
+      this._typingStarted = panelStamp;
       this.typing = true;
       if (this.timer) this.timer.remove();
       this.timer = this.time.addEvent({
@@ -239,6 +238,7 @@ export class CutsceneScene extends Phaser.Scene {
     this._prevPanelOffsetX = sectionX;
     if (prevOffset !== undefined && prevOffset !== sectionX) {
       this.cameras.main.once('camerapancomplete', startTyping);
+      this.time.delayedCall(900, startTyping);
     } else {
       startTyping();
     }
@@ -462,6 +462,9 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   onTap() {
+    if (this._tapLock || this._leaving) return;
+    this._tapLock = true;
+    this.time.delayedCall(150, () => { this._tapLock = false; });
     if (this.typing) {
       this.finishTyping();
     } else {

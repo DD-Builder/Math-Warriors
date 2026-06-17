@@ -52,10 +52,15 @@ export function transitionTo(scene, key, data, duration = DEFAULT_FADE, type = '
     _transitionSlide(scene, key, data, duration);
   } else {
     // Default: fade
-    scene.cameras.main.fadeOut(duration, 31, 66, 68);
-    scene.cameras.main.once('camerafadeoutcomplete', () => {
+    let started = false;
+    const doStart = () => {
+      if (started) return;
+      started = true;
       scene.scene.start(key, data);
-    });
+    };
+    scene.cameras.main.fadeOut(duration, 31, 66, 68);
+    scene.cameras.main.once('camerafadeoutcomplete', doStart);
+    scene.time.delayedCall(duration + 200, doStart);
   }
 }
 
