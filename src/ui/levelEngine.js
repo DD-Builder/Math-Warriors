@@ -1501,54 +1501,105 @@ function LV_draw(t) {
       }
     }
   }
-  // Decorations: small trees/shrubs along wall-to-floor borders
+  // Decorations: theme-specific elements along wall-to-floor borders
   for (var dy = sy0; dy < sy1; dy++) for (var dx = sx0; dx < sx1; dx++) {
     if (!_fog[dy] || !_fog[dy][dx]) continue;
     var dtt = _map[dy][dx];
-    if (dtt === LV_TW || dtt === LV_TS) continue; // skip wall tiles themselves
+    if (dtt === LV_TW || dtt === LV_TS) continue;
     var dsx = camX + dx * ts, dsy = camY + dy * ts;
     if (dsx + ts < 0 || dsx > _W || dsy + ts < 0 || dsy > _H) continue;
     var dr = mkRng(dx * 47 + dy * 83 + 555);
-    // Only decorate tiles that border a wall (north side)
     var northIsWall = (dy > 0) && (_map[dy - 1][dx] === LV_TW || _map[dy - 1][dx] === LV_TS);
-    if (northIsWall && dr() < 0.35 && _floorTheme <= 2) {
-      // Small tree/shrub at this wall edge
-      var treeX = dsx + ts * (0.15 + dr() * 0.7);
-      var treeBaseY = dsy + ts * 0.15;
-      var treeH = ts * (0.3 + dr() * 0.15);
-      // Trunk
+    if (northIsWall && dr() < 0.35) {
+      var decX = dsx + ts * (0.15 + dr() * 0.7);
+      var decBaseY = dsy + ts * 0.15;
       _G.save();
-      _G.fillStyle = '#5a3c18';
-      _G.fillRect(treeX - ts * 0.02, treeBaseY, ts * 0.04, treeH * 0.4);
-      // Canopy layers (3 organic circles)
-      var canR = ts * (0.08 + dr() * 0.04);
-      var canopyCols = ['#2a5818', '#3a7828', '#4a8838'];
-      for (var ci = 0; ci < 3; ci++) {
-        _G.fillStyle = canopyCols[ci];
-        _G.shadowColor = 'rgba(14,6,2,0.3)';
-        _G.shadowBlur = 3;
-        _G.shadowOffsetY = 2;
+      if (_floorTheme <= 2) {
+        // Garden/Tidepool: trees and shrubs
+        _G.fillStyle = '#5a3c18';
+        _G.fillRect(decX - ts * 0.02, decBaseY, ts * 0.04, ts * 0.12);
+        var canR = ts * (0.08 + dr() * 0.04);
+        var canopyCols = ['#2a5818', '#3a7828', '#4a8838'];
+        for (var ci = 0; ci < 3; ci++) {
+          _G.fillStyle = canopyCols[ci];
+          _G.shadowColor = 'rgba(14,6,2,0.3)'; _G.shadowBlur = 3; _G.shadowOffsetY = 2;
+          _G.beginPath();
+          _G.arc(decX + (dr() - 0.5) * canR * 0.6, decBaseY - ci * canR * 0.5, canR * (1 - ci * 0.15), 0, Math.PI * 2);
+          _G.fill();
+        }
+      } else if (_floorTheme === 3) {
+        // Cloud: wisps of cloud puff along edges
+        _G.globalAlpha = 0.25 + dr() * 0.15;
+        _G.fillStyle = '#c8d8e8';
+        _G.shadowColor = 'rgba(180,200,220,0.3)'; _G.shadowBlur = 5;
         _G.beginPath();
-        _G.arc(treeX + (dr() - 0.5) * canR * 0.6, treeBaseY - ci * canR * 0.5, canR * (1 - ci * 0.15), 0, Math.PI * 2);
+        _G.arc(decX, decBaseY, ts * 0.07, 0, Math.PI * 2);
+        _G.arc(decX + ts * 0.06, decBaseY - ts * 0.02, ts * 0.05, 0, Math.PI * 2);
+        _G.fill();
+      } else if (_floorTheme === 4) {
+        // Ember: glowing embers and cracks
+        _G.globalAlpha = 0.5 + dr() * 0.3;
+        _G.fillStyle = '#e86020';
+        _G.shadowColor = '#ff6030'; _G.shadowBlur = 4;
+        _G.beginPath();
+        _G.arc(decX, decBaseY + ts * 0.05, ts * 0.025, 0, Math.PI * 2);
+        _G.fill();
+        _G.strokeStyle = '#c04010'; _G.lineWidth = 0.8; _G.globalAlpha = 0.4;
+        _G.beginPath();
+        _G.moveTo(decX - ts * 0.06, decBaseY + ts * 0.08);
+        _G.lineTo(decX + ts * 0.04, decBaseY + ts * 0.02);
+        _G.stroke();
+      } else if (_floorTheme === 5 || _floorTheme === 6) {
+        // Ice/Crystal: icicle or crystal shard
+        _G.globalAlpha = 0.5;
+        _G.fillStyle = _floorTheme === 5 ? '#a0d8e8' : '#b088d0';
+        _G.shadowColor = _floorTheme === 5 ? 'rgba(160,216,232,0.4)' : 'rgba(176,136,208,0.4)';
+        _G.shadowBlur = 3;
+        _G.beginPath();
+        _G.moveTo(decX - ts * 0.015, decBaseY + ts * 0.15);
+        _G.lineTo(decX, decBaseY - ts * 0.02);
+        _G.lineTo(decX + ts * 0.015, decBaseY + ts * 0.15);
+        _G.fill();
+      } else if (_floorTheme >= 7) {
+        // Market/Library/Mending: lantern or candle
+        _G.globalAlpha = 0.6;
+        _G.fillStyle = '#8a7050';
+        _G.fillRect(decX - 1, decBaseY + ts * 0.02, 2, ts * 0.06);
+        _G.fillStyle = '#f0c040';
+        _G.shadowColor = '#f0c040'; _G.shadowBlur = 4;
+        _G.beginPath();
+        _G.arc(decX, decBaseY, ts * 0.02, 0, Math.PI * 2);
         _G.fill();
       }
       _G.restore();
     }
-    // Scattered small ground decorations where east/west wall borders
+    // Side decorations
     var westIsWall = (dx > 0) && (_map[dy][dx - 1] === LV_TW);
     var eastIsWall = (dx + 1 < _COLS) && (_map[dy][dx + 1] === LV_TW);
-    if ((westIsWall || eastIsWall) && dr() < 0.2 && _floorTheme <= 2) {
-      var mushroomX = westIsWall ? dsx + ts * 0.1 : dsx + ts * 0.85;
-      var mushroomY = dsy + ts * (0.5 + dr() * 0.3);
+    if ((westIsWall || eastIsWall) && dr() < 0.2) {
+      var sideX = westIsWall ? dsx + ts * 0.1 : dsx + ts * 0.85;
+      var sideY = dsy + ts * (0.5 + dr() * 0.3);
       _G.save();
       _G.globalAlpha = 0.6;
-      // Tiny mushroom
-      _G.fillStyle = '#8a7060';
-      _G.fillRect(mushroomX - 1, mushroomY, 2, ts * 0.06);
-      _G.fillStyle = dr() < 0.5 ? '#c8584a' : '#d0a050';
-      _G.beginPath();
-      _G.arc(mushroomX, mushroomY, ts * 0.03, Math.PI, 0);
-      _G.fill();
+      if (_floorTheme <= 2) {
+        // Mushroom
+        _G.fillStyle = '#8a7060';
+        _G.fillRect(sideX - 1, sideY, 2, ts * 0.06);
+        _G.fillStyle = dr() < 0.5 ? '#c8584a' : '#d0a050';
+        _G.beginPath(); _G.arc(sideX, sideY, ts * 0.03, Math.PI, 0); _G.fill();
+      } else if (_floorTheme === 4) {
+        // Small lava crack
+        _G.strokeStyle = '#e85020'; _G.lineWidth = 1.2;
+        _G.shadowColor = '#ff4010'; _G.shadowBlur = 3;
+        _G.beginPath();
+        _G.moveTo(sideX, sideY - ts * 0.04);
+        _G.lineTo(sideX + (dr() - 0.5) * 4, sideY + ts * 0.04);
+        _G.stroke();
+      } else {
+        // Generic: small moss/lichen dot
+        _G.fillStyle = '#6a8050';
+        _G.beginPath(); _G.arc(sideX, sideY, ts * 0.02, 0, Math.PI * 2); _G.fill();
+      }
       _G.restore();
     }
   }
@@ -1622,15 +1673,33 @@ function LV_draw(t) {
     if (fsx + ts < 0 || fsx > _W || fsy + ts < 0 || fsy > _H) continue;
     _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.94)'; _G.fillRect(fsx, fsy, ts + 1, ts + 1);
   }
-  // Fog edge softening
+  // Fog edge softening — two-pass for smooth transition
+  var fogEdgeCol = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.30)';
+  var fogEdgeCol2 = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.15)';
   for (var fy3 = sy0; fy3 < sy1; fy3++) for (var fx3 = sx0; fx3 < sx1; fx3++) {
     if (!_fog[fy3][fx3]) continue;
-    var hasUnrev = (fy3 > 0 && !_fog[fy3 - 1][fx3]) || (fy3 < _ROWS - 1 && !_fog[fy3 + 1][fx3]) || (fx3 > 0 && !_fog[fy3][fx3 - 1]) || (fx3 < _COLS - 1 && !_fog[fy3][fx3 + 1]);
-    if (hasUnrev) { _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.35)'; _G.fillRect(camX + fx3 * ts, camY + fy3 * ts, ts + 1, ts + 1); }
+    var efx = camX + fx3 * ts, efy = camY + fy3 * ts;
+    if (efx + ts < 0 || efx > _W || efy + ts < 0 || efy > _H) continue;
+    var fogN = (fy3 > 0 && !_fog[fy3 - 1][fx3]);
+    var fogS = (fy3 < _ROWS - 1 && !_fog[fy3 + 1][fx3]);
+    var fogW = (fx3 > 0 && !_fog[fy3][fx3 - 1]);
+    var fogE = (fx3 < _COLS - 1 && !_fog[fy3][fx3 + 1]);
+    var adjCount = (fogN ? 1 : 0) + (fogS ? 1 : 0) + (fogW ? 1 : 0) + (fogE ? 1 : 0);
+    if (adjCount > 0) {
+      _G.fillStyle = adjCount >= 2 ? fogEdgeCol : fogEdgeCol2;
+      _G.fillRect(efx, efy, ts + 1, ts + 1);
+    }
   }
-  // Vignette
-  var vig = _G.createRadialGradient(_W / 2, _H / 2, Math.min(_W, _H) * 0.2, _W / 2, _H / 2, Math.min(_W, _H) * 0.72);
-  vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,0.6)');
+  // Vignette (theme-tinted)
+  var vigR = Math.min(_W, _H);
+  var vig = _G.createRadialGradient(_W / 2, _H / 2, vigR * 0.22, _W / 2, _H / 2, vigR * 0.68);
+  var _vigTint = {
+    1: 'rgba(6,18,4,', 2: 'rgba(4,12,20,', 3: 'rgba(12,16,24,',
+    4: 'rgba(16,4,0,', 5: 'rgba(4,12,18,', 6: 'rgba(10,4,18,',
+    7: 'rgba(12,10,4,', 8: 'rgba(6,4,2,', 9: 'rgba(4,2,8,',
+  };
+  var vigBase = _vigTint[_floorTheme] || 'rgba(0,0,0,';
+  vig.addColorStop(0, vigBase + '0)'); vig.addColorStop(0.7, vigBase + '0.15)'); vig.addColorStop(1, vigBase + '0.55)');
   _G.fillStyle = vig; _G.fillRect(0, 0, _W, _H);
   // Flash
   if (_gs.flash > 0) { _G.fillStyle = 'rgba(156,32,32,' + (_gs.flash / 10 * 0.45) + ')'; _G.fillRect(0, 0, _W, _H); _gs.flash--; }
