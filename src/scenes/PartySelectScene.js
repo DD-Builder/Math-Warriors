@@ -120,7 +120,8 @@ export class PartySelectScene extends Phaser.Scene {
         color: PAPER.white, alpha: 0.95, radius: 16,
       });
 
-      const heroImg = drawHeroSprite(this, cx, cardY - 50, hero, { scale: 1.0 });
+      const heroImg = createAnimatedHero(this, cx, cardY - 50, hero, { scale: 1.0 });
+      if (heroImg.setSelectionSway) heroImg.setSelectionSway();
 
       const classLabel = hero.class.charAt(0).toUpperCase() + hero.class.slice(1);
       this.add.text(cx, cardY + 80, hero.name.toUpperCase(), {
