@@ -143,8 +143,6 @@ export class CutsceneScene extends Phaser.Scene {
       } else if (layout === 'party') {
         this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.28, line.speaker, 50);
         this.drawPartyHeroes();
-      } else if (layout === 'wide') {
-        // no art for wide narrator lines
       } else {
         this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
       }
