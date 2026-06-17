@@ -17,14 +17,16 @@ export class CutsceneScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.allLines = data.lines || [];
+    this.mainLines = data.lines || [];
     this.floorId = data.floorId || 1;
     this.nextScene = data.nextScene || SCENES.WORLD_MAP;
     this.nextData = data.nextData || undefined;
     this.cutsceneTrigger = data.trigger || 'intro';
 
     this.save = loadSave(getActiveSlot(this));
-    this.appendHeroReactionLines();
+
+    this.allLines = [];
+    this.buildLineList();
 
     this.lineIdx = 0;
     this.typing = false;
@@ -32,20 +34,41 @@ export class CutsceneScene extends Phaser.Scene {
     this.fullText = '';
     this.timer = null;
     this._leaving = false;
+    this._lastLayout = null;
   }
 
-  appendHeroReactionLines() {
+  buildLineList() {
+    const main = this.mainLines;
+    const third = Math.max(1, Math.ceil(main.length / 3));
+
+    for (let i = 0; i < main.length; i++) {
+      const line = { ...main[i] };
+      if (i >= third && i < third * 2) {
+        line._layout = 'party';
+      } else if (main[i].sprite && getEnemyById(main[i].sprite)) {
+        line._layout = 'boss';
+      } else if (main[i].wide) {
+        line._layout = 'wide';
+      } else {
+        line._layout = 'fairy';
+      }
+      this.allLines.push(line);
+    }
+
     const party = this.save.party || [];
     const floorReactions = HERO_REACTIONS[this.floorId];
-    if (!floorReactions) return;
-
-    for (const slot of party) {
-      if (!slot || !slot.id) continue;
-      const reaction = floorReactions[slot.id];
-      if (!reaction || reaction.trigger !== this.cutsceneTrigger) continue;
-      const heroDef = getHeroById(slot.id);
-      const heroName = heroDef ? heroDef.name : slot.name || slot.id;
-      this.allLines.push({ speaker: heroName, text: reaction.text, side: 'left' });
+    if (floorReactions) {
+      for (const slot of party) {
+        if (!slot || !slot.id) continue;
+        const reaction = floorReactions[slot.id];
+        if (!reaction || reaction.trigger !== this.cutsceneTrigger) continue;
+        const heroDef = getHeroById(slot.id);
+        const heroName = heroDef ? heroDef.name : slot.name || slot.id;
+        this.allLines.push({
+          speaker: heroName, text: reaction.text, side: 'left',
+          _layout: 'party',
+        });
+      }
     }
   }
 
@@ -58,8 +81,8 @@ export class CutsceneScene extends Phaser.Scene {
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.25);
 
     this.artContainer = this.add.container(0, 0);
+    this.heroContainer = this.add.container(0, 0).setDepth(5);
     this.bubbleGfx = this.add.graphics().setDepth(20);
-    this.sparkleContainer = this.add.container(0, 0);
 
     this.speakerDot = this.add.circle(0, 0, 10, PAPER.sky).setDepth(21);
     this.nameText = this.add.text(0, 0, '', {
@@ -104,20 +127,36 @@ export class CutsceneScene extends Phaser.Scene {
     const line = this.allLines[idx];
     if (!line) { this.finish(); return; }
 
-    this.artContainer.removeAll(true);
-    this.sparkleContainer.removeAll(true);
+    const layout = line._layout || 'fairy';
+    const layoutChanged = layout !== this._lastLayout;
+    this._lastLayout = layout;
+
+    if (layoutChanged) {
+      this.artContainer.removeAll(true);
+      this.heroContainer.removeAll(true);
+    }
     this.bubbleGfx.clear();
 
-    const isBoss = line.sprite && (getEnemyById(line.sprite) != null);
-    const isWide = line.wide || false;
-
-    if (isBoss) {
-      this.drawBossArt(line);
-      this.layoutContent('right', isWide, line);
-    } else {
-      this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
-      this.layoutContent('left', isWide, line);
+    if (layoutChanged) {
+      if (layout === 'boss') {
+        this.drawBossArt(line);
+      } else if (layout === 'party') {
+        this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.28, line.speaker, 50);
+        this.drawPartyHeroes();
+      } else if (layout === 'wide') {
+        // no art for wide narrator lines
+      } else {
+        this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
+      }
     }
+
+    const isWide = line.wide || false;
+    let bubbleLayout = 'left';
+    if (layout === 'boss') bubbleLayout = 'right';
+    else if (layout === 'party') bubbleLayout = 'party';
+    else if (isWide) bubbleLayout = 'wide';
+
+    this.layoutBubble(bubbleLayout, isWide, line);
 
     this.nameText.setText(line.speaker || '');
     this.fullText = line.text || '';
@@ -136,13 +175,25 @@ export class CutsceneScene extends Phaser.Scene {
     });
   }
 
-  layoutContent(layout, isWide, line) {
+  layoutBubble(layout, isWide, line) {
     const maxW = isWide ? GAME_WIDTH * 0.76 : 560;
     const wrapW = maxW - 60;
     const pad = { x: 20, top: 44, bottom: 20, name: 36 };
-    let bx = layout === 'right' ? GAME_WIDTH * 0.02 : GAME_WIDTH * 0.39;
-    const by = GAME_HEIGHT * 0.25;
-    if (isWide) bx = GAME_WIDTH * 0.12;
+
+    let bx, by;
+    if (layout === 'wide') {
+      bx = GAME_WIDTH * 0.12;
+      by = GAME_HEIGHT * 0.35;
+    } else if (layout === 'right') {
+      bx = GAME_WIDTH * 0.02;
+      by = GAME_HEIGHT * 0.25;
+    } else if (layout === 'party') {
+      bx = GAME_WIDTH * 0.19;
+      by = GAME_HEIGHT * 0.08;
+    } else {
+      bx = GAME_WIDTH * 0.39;
+      by = GAME_HEIGHT * 0.25;
+    }
 
     this.bodyText.setWordWrapWidth(wrapW);
     this.bodyText.setText(line.text || '');
@@ -208,6 +259,34 @@ export class CutsceneScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
     this.artContainer.add(label);
+  }
+
+  drawPartyHeroes() {
+    const party = this.save.party || [];
+    const positions = [
+      { x: GAME_WIDTH * 0.18, y: GAME_HEIGHT * 0.74 },
+      { x: GAME_WIDTH * 0.50, y: GAME_HEIGHT * 0.70 },
+      { x: GAME_WIDTH * 0.82, y: GAME_HEIGHT * 0.74 },
+    ];
+    for (let i = 0; i < Math.min(3, party.length); i++) {
+      const slot = party[i];
+      if (!slot) continue;
+      const def = getHeroById(slot.id);
+      if (!def) continue;
+      const pos = positions[i];
+      const startX = pos.x - 200;
+      const heroSprite = createAnimatedHero(this, startX, pos.y, def, { scale: 1.2 });
+      heroSprite.startWalk();
+      this.heroContainer.add(heroSprite);
+      this.tweens.add({
+        targets: heroSprite,
+        x: pos.x,
+        duration: 600 + i * 200,
+        ease: 'Sine.out',
+        delay: i * 150,
+        onComplete: () => { heroSprite.stopWalk(); },
+      });
+    }
   }
 
   drawBossArt(line) {
