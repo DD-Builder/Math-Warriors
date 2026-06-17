@@ -6,6 +6,9 @@
  * and cleans them up on exit.
  */
 
+import { CharacterRig } from './characterRig.js';
+import { WALK_KNIGHT, WALK_WIZARD, WALK_BUNNY } from '../data/characterAnimations.js';
+
 const VALID_TRANSITIONS = {
   idle:      ['walk', 'guard', 'attack', 'hit', 'ko', 'victory', 'cast', 'selection-sway', 'breathe'],
   walk:      ['idle', 'hit', 'ko', 'attack', 'guard', 'selection-sway'],
@@ -88,52 +91,16 @@ STATE_DEFS.breathe = {
   },
 };
 
-// ── WALK — real stride cycle ──
+// ── WALK — skeletal stride cycle driven by biomechanical keyframes ──
 STATE_DEFS.walk = {
   enter(sm) {
-    const { parts, scene } = sm;
-    const step = sm.visualMods.walkSpeed ?? 150;
-    const half = step / 2;
-
-    if (parts.legs) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.legs, y: 12, x: 6, angle: 4,
-        duration: step, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.armL) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.armL, y: -10, x: 8, angle: -15,
-        duration: step, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.armR) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.armR, y: 10, x: -8, angle: 15,
-        duration: step, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-        delay: half,
-      }));
-    }
-    if (parts.torso) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.torso, y: -6,
-        duration: half, yoyo: true, repeat: -1, ease: 'Quad.out',
-      }));
-    }
-    if (parts.head) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.head, y: -7, angle: 2,
-        duration: half, yoyo: true, repeat: -1, ease: 'Quad.out',
-        delay: half * 0.15,
-      }));
-    }
-    if (parts.weapon) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.weapon, angle: 12, y: -4,
-        duration: step, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-        delay: half * 0.25,
-      }));
-    }
+    const walkAnim = sm.heroClass === 'wizard' ? WALK_WIZARD
+                   : sm.heroClass === 'bunny'  ? WALK_BUNNY
+                   : WALK_KNIGHT;
+    sm.rig.playAnimation(walkAnim);
+  },
+  exit(sm) {
+    sm.rig.resetPose();
   },
 };
 
@@ -493,6 +460,7 @@ export class HeroAnimationSM {
     this._returnState = 'idle';
     this._returnTimer = null;
     this.visualMods = {};
+    this.rig = new CharacterRig(parts, scene);
   }
 
   transition(toState, opts = {}) {
@@ -526,8 +494,8 @@ export class HeroAnimationSM {
     Object.values(this.parts).forEach(part => {
       if (!part) return;
       if (this.scene && this.scene.tweens) this.scene.tweens.killTweensOf(part);
-      part.x = 0;
-      part.y = 0;
+      part.x = part._baseX ?? 0;
+      part.y = part._baseY ?? 0;
       part.angle = 0;
       part.scaleX = part._baseScaleX ?? part.scaleX;
       part.scaleY = part._baseScaleY ?? part.scaleY;
@@ -537,6 +505,7 @@ export class HeroAnimationSM {
 
   destroy() {
     this._exitCurrent();
+    if (this.rig) { this.rig.destroy(); this.rig = null; }
     this.parts = null;
     this.scene = null;
   }

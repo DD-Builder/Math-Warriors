@@ -127,12 +127,12 @@ test('destroy nulls references', () => {
   assert.equal(sm.scene, null);
 });
 
-test('visualMods.walkSpeed affects walk animation', () => {
+test('walk uses class-specific keyframe animation via rig', () => {
   const scene = makeMockScene();
   const sm = new HeroAnimationSM(makeMockParts(), scene, 'knight', 'knight-shadow');
-  sm.visualMods.walkSpeed = 400;
   sm.transition('walk');
-  assert.ok(scene._tweens.some(t => t._cfg.duration === 400));
+  assert.equal(sm.state, 'walk');
+  assert.ok(scene._tweens.length > 0);
 });
 
 test('selection-sway creates gentle rocking on all parts', () => {

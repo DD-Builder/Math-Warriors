@@ -3260,9 +3260,9 @@ export class BattleScene extends Phaser.Scene {
       } else {
         lines = [];
         for (const h of newHeroes) {
-          lines.push({ speaker: 'Elder Fairy', text: `The dark magic shatters! A new warrior emerges!`, wide: true });
+          lines.push({ speaker: 'Elara', text: `The dark magic shatters! A new warrior emerges!`, wide: true });
           lines.push({ speaker: h.name, text: `${h.trait}`, wide: true });
-          lines.push({ speaker: 'Elder Fairy', text: `${h.name} has joined your quest!`, wide: true });
+          lines.push({ speaker: 'Elara', text: `${h.name} has joined your quest!`, wide: true });
         }
       }
       // Clear pending rescues from save since we are about to show them

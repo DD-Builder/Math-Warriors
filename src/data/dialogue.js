@@ -19,13 +19,13 @@ export const DIALOGUE = {
   game_intro: [
     { speaker: 'Narrator', text: 'Long ago, a Great Equation held the world together.', wide: true },
     { speaker: 'Narrator', text: 'Every number had a place. Every sum had meaning.', wide: true },
-    { speaker: 'Elder Fairy', text: 'I am Elara, keeper of the balance.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Someone shattered the Equation.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Not by accident. On purpose.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Its nine pieces scattered across the realms.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Without them, nothing adds up.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'I need brave heroes to set it right.', side: 'left' },
-    { speaker: 'Elder Fairy', text: 'Will you answer the call?', side: 'left' },
+    { speaker: 'Elara', text: 'I am Elara, keeper of the balance.', side: 'left' },
+    { speaker: 'Elara', text: 'Someone shattered the Equation.', side: 'left' },
+    { speaker: 'Elara', text: 'Not by accident. On purpose.', side: 'left' },
+    { speaker: 'Elara', text: 'Its nine pieces scattered across the realms.', side: 'left' },
+    { speaker: 'Elara', text: 'Without them, nothing adds up.', side: 'left' },
+    { speaker: 'Elara', text: 'I need brave heroes to set it right.', side: 'left' },
+    { speaker: 'Elara', text: 'Will you answer the call?', side: 'left' },
   ],
 
   world_map_intro: [
