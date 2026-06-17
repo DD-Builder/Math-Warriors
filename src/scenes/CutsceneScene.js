@@ -138,6 +138,8 @@ export class CutsceneScene extends Phaser.Scene {
       if (el) { el.setScrollFactor(0); el.setDepth(49 + i); }
     });
 
+    this.input.on('pointerup', () => this.onTap());
+
     if (this.panels.length > 0) {
       this.showPanel(0, 0);
     } else {

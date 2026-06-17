@@ -44,17 +44,15 @@ export class PartySelectScene extends Phaser.Scene {
 
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 333);
 
-    // ── SHADOW-BOX FRAME around hero grid area (v2 papercut aesthetic) ──
-    // const frameGfx = this.add.graphics().setDepth(1);
-    // Shadow-box disabled: opaque layers cover scene content
-    // TODO: implement ring-draw (fill border only, transparent center)
+    if (!this.editMode) {
+      this.createLeaderPicker(area);
+      return;
+    }
 
-    // Cream backdrop
     PaperPanel(this, area.cx, area.cy, area.w - 20, area.h - 20, {
       color: PAPER.cream, alpha: 1.0, radius: 28,
     });
 
-    // Header
     this.add.text(area.cx, area.top + 50, 'BUILD YOUR PARTY', {
       ...TEXT.title(),
       fontSize: '44px',
@@ -63,29 +61,139 @@ export class PartySelectScene extends Phaser.Scene {
       strokeThickness: 5,
     }).setOrigin(0.5);
 
-    // Class tabs
     this.buildClassTabs(area);
 
-    // Grid label
     this.gridLabel = this.add.text(area.cx, area.top + 200, '', {
       ...TEXT.body(),
       fontSize: '18px',
       color: PAPER_CSS.inkTeal,
     }).setOrigin(0.5);
 
-    // Hero card grid container
     this.heroCardContainer = this.add.container(0, 0);
 
-    // Party strip — bottom-left, inside safe area
     this.buildPartyStrip(area);
-
-    // Confirm button — bottom-right
     this.buildConfirmButton(area);
 
-    // Render initial state
     this.rebuildHeroGrid();
     this.updatePartyStrip();
     this.updateConfirmButton();
+  }
+
+  createLeaderPicker(area) {
+    const STARTERS = ['knight-shadow', 'wizard-stargazer', 'bunny-pepper'];
+    const starterDefs = STARTERS.map(id => getHeroById(id));
+
+    PaperPanel(this, area.cx, area.cy, area.w - 20, area.h - 20, {
+      color: PAPER.cream, alpha: 1.0, radius: 28,
+    });
+
+    this.add.text(area.cx, area.top + 50, 'CHOOSE YOUR LEADER', {
+      ...TEXT.title(),
+      fontSize: '44px',
+      color: PAPER_CSS.orange,
+      stroke: PAPER_CSS.cream,
+      strokeThickness: 5,
+    }).setOrigin(0.5);
+
+    this.add.text(area.cx, area.top + 100, 'Your leader walks the maze. Tap to choose!', {
+      ...TEXT.body(),
+      fontSize: '20px',
+      color: PAPER_CSS.inkTeal,
+    }).setOrigin(0.5);
+
+    const cardW = 220;
+    const cardH = 340;
+    const gap = 30;
+    const totalW = 3 * cardW + 2 * gap;
+    const startX = area.cx - totalW / 2 + cardW / 2;
+    const cardY = area.cy - 10;
+
+    const highlights = [];
+
+    starterDefs.forEach((hero, i) => {
+      if (!hero) return;
+      const cx = startX + i * (cardW + gap);
+
+      const highlight = this.add.graphics();
+      highlight.setVisible(false);
+      highlight.fillStyle(PAPER.gold, 0.25);
+      highlight.fillRoundedRect(cx - cardW / 2 - 8, cardY - cardH / 2 - 8, cardW + 16, cardH + 16, 20);
+      highlight.lineStyle(4, PAPER.gold, 0.9);
+      highlight.strokeRoundedRect(cx - cardW / 2 - 8, cardY - cardH / 2 - 8, cardW + 16, cardH + 16, 20);
+      highlights.push(highlight);
+
+      PaperPanel(this, cx, cardY, cardW, cardH, {
+        color: PAPER.white, alpha: 0.95, radius: 16,
+      });
+
+      const heroImg = drawHeroSprite(this, cx, cardY - 50, hero, { scale: 1.0 });
+
+      const classLabel = hero.class.charAt(0).toUpperCase() + hero.class.slice(1);
+      this.add.text(cx, cardY + 80, hero.name.toUpperCase(), {
+        ...TEXT.heading(),
+        fontSize: '22px',
+        color: PAPER_CSS.orange,
+        stroke: PAPER_CSS.inkTeal,
+        strokeThickness: 2,
+      }).setOrigin(0.5);
+
+      this.add.text(cx, cardY + 106, classLabel, {
+        ...TEXT.body(),
+        fontSize: '16px',
+        color: PAPER_CSS.forest,
+      }).setOrigin(0.5);
+
+      this.add.text(cx, cardY + 130, hero.trait, {
+        ...TEXT.stat(),
+        fontSize: '14px',
+        color: PAPER_CSS.sage,
+        wordWrap: { width: cardW - 20 },
+        align: 'center',
+      }).setOrigin(0.5);
+
+      const zone = this.add.rectangle(cx, cardY, cardW, cardH, 0xffffff, 0)
+        .setInteractive({ useHandCursor: true });
+      zone.on('pointerup', () => {
+        if (this._leaderPicked) return;
+        this._leaderPicked = true;
+        audio.play('ui/confirm');
+
+        highlights.forEach(h => h.setVisible(false));
+        highlights[i].setVisible(true);
+
+        const party = [];
+        party.push(spawnHero(hero.id));
+        starterDefs.forEach((h, j) => {
+          if (j !== i && h) party.push(spawnHero(h.id));
+        });
+
+        this.time.delayedCall(400, () => this.confirmLeader(party));
+      });
+    });
+  }
+
+  confirmLeader(party) {
+    const save = loadSave(this.slot);
+    const fresh = makeDefaultSave();
+    save.grade = this.grade;
+    save.party = party.map((h) => ({ id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp }));
+    save.floors = fresh.floors;
+    save.gold = 0;
+    save.potions = 2;
+    save.unlockedHeroes = [...fresh.unlockedHeroes];
+    save.slotName = this.registry.get('newSlotName') || null;
+    writeSave(save, this.slot);
+
+    if (DIALOGUE.game_intro) {
+      transitionTo(this, SCENES.CUTSCENE, {
+        lines: DIALOGUE.game_intro,
+        floorId: 1,
+        nextScene: SCENES.WORLD_MAP,
+        nextData: undefined,
+      }, 300, 'wipe');
+    } else {
+      transitionTo(this, SCENES.WORLD_MAP, undefined, 300, 'wipe');
+    }
   }
 
   buildClassTabs(area) {
