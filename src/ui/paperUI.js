@@ -226,33 +226,22 @@ export function PaperButton(scene, x, y, text, opts = {}) {
   if (opts.onClick) {
     const btnTargets = [bg, shadow, label, zone];
     zone.on('pointerdown', () => {
-      // Squash down on press
       scene.tweens.add({
         targets: btnTargets,
-        scaleX: 0.92,
-        scaleY: 0.92,
-        duration: 60,
-        ease: 'Power1',
+        scaleX: 0.97,
+        scaleY: 0.97,
+        duration: 50,
+        ease: 'Sine.out',
       });
     });
     zone.on('pointerup', () => {
       opts.onClick();
-      // Bounce up and settle
       scene.tweens.add({
         targets: btnTargets,
-        scaleX: 1.08,
-        scaleY: 1.08,
-        duration: 80,
-        ease: 'Power1',
-        onComplete: () => {
-          scene.tweens.add({
-            targets: btnTargets,
-            scaleX: 1.0,
-            scaleY: 1.0,
-            duration: 150,
-            ease: 'Back.out',
-          });
-        },
+        scaleX: 1.0,
+        scaleY: 1.0,
+        duration: 100,
+        ease: 'Sine.out',
       });
     });
     zone.on('pointerout', () => {

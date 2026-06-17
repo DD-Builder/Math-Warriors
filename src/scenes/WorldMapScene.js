@@ -143,7 +143,7 @@ export class WorldMapScene extends Phaser.Scene {
       // Clip each screen's background to its boundary — prevents the
       // purple/teal bleed from adjacent screens' hill graphics.
       if (screenObjs.length > 0) {
-        const maskGfx = this.add.graphics();
+        const maskGfx = this.make.graphics({ add: false });
         maskGfx.fillStyle(0xffffff);
         maskGfx.fillRect(offsetX, 0, SCREEN_W, GAME_HEIGHT);
         const mask = maskGfx.createGeometryMask();

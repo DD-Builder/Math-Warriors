@@ -95,12 +95,6 @@ export class PartySelectScene extends Phaser.Scene {
       strokeThickness: 5,
     }).setOrigin(0.5);
 
-    this.add.text(area.cx, area.top + 100, 'Your leader walks the maze. Tap to choose!', {
-      ...TEXT.body(),
-      fontSize: '20px',
-      color: PAPER_CSS.inkTeal,
-    }).setOrigin(0.5);
-
     const cardW = 220;
     const cardH = 340;
     const gap = 30;
