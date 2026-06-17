@@ -330,26 +330,28 @@ export class WorldMapScene extends Phaser.Scene {
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     const maxLabelY = area.bottom - 130;
-    const labelY = Math.min(y + radius + 14, maxLabelY);
+    const labelY = Math.min(y + radius + 18, maxLabelY);
     const labelW = 260;
-    const labelH = 56;
-    PaperPanel(this, x, labelY, labelW, labelH, {
+    const labelH = 64;
+    const labelPanel = PaperPanel(this, x, labelY, labelW, labelH, {
       color: locked ? PAPER.sand : PAPER.white,
       alpha: 0.95,
       radius: 14,
     });
-    this.add.text(x, labelY - 10, info.name, {
+    if (labelPanel.shadow) labelPanel.shadow.setDepth(12);
+    if (labelPanel.bg) labelPanel.bg.setDepth(12);
+    this.add.text(x, labelY - 12, info.name, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
+      fontSize: '17px',
       color: locked ? PAPER_CSS.inkTeal : PAPER_CSS.orange,
       stroke: locked ? undefined : PAPER_CSS.inkTeal,
       strokeThickness: locked ? 0 : 2,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(13);
     this.add.text(x, labelY + 12, info.tagline, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '16px',
+      fontSize: '15px',
       color: locked ? PAPER_CSS.forest : PAPER_CSS.forestD,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(13);
 
     if (!locked) {
       // Create an invisible hit zone for interaction instead of ring stroke

@@ -155,6 +155,8 @@ var _skipCanvasHero = false;
 var _deathParticles = [];
 var _minimapCanvas = null;
 var _minimapG = null;
+var _fgCanvas = null;   // foreground overlay canvas (walls in front of hero)
+var _fgG = null;         // foreground 2D context
 
 // ─── HELPER: ellipse shorthand ──────────────────────────────────
 
@@ -1348,6 +1350,49 @@ function LV_drawExit(sx, sy, ts, t) {
   }
 }
 
+function LV_drawDoorway(sx, sy, ts, o, t) {
+  var x = sx + ts * 0.5, y = sy + ts * 0.5;
+  var dir = o.doorDir || 'east';
+  var pulse = 0.5 + Math.sin(t * 2) * 0.2;
+  // Soft green/gold glow
+  _G.save(); _G.globalAlpha = 0.25 + Math.sin(t * 1.8) * 0.1;
+  var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.55);
+  gr.addColorStop(0, 'rgba(180,230,120,0.7)'); gr.addColorStop(1, 'rgba(120,180,60,0)');
+  _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.55, 0, Math.PI * 2); _G.fill(); _G.restore();
+  // Archway
+  var aw = ts * 0.5, ah = ts * 0.7;
+  _G.save(); _G.translate(x, y);
+  if (dir === 'east' || dir === 'west') {
+    _G.rotate(0);
+  } else {
+    _G.rotate(Math.PI / 2);
+  }
+  _G.strokeStyle = '#8a6830'; _G.lineWidth = ts * 0.07; _G.globalAlpha = 0.85;
+  _G.beginPath();
+  _G.moveTo(-aw / 2, ah / 2); _G.lineTo(-aw / 2, -ah * 0.1);
+  _G.bezierCurveTo(-aw / 2, -ah * 0.35, aw / 2, -ah * 0.35, aw / 2, -ah * 0.1);
+  _G.lineTo(aw / 2, ah / 2);
+  _G.stroke();
+  // Arrow indicator
+  _G.fillStyle = '#f0d060'; _G.globalAlpha = pulse;
+  var ax = dir === 'east' ? ts * 0.12 : dir === 'west' ? -ts * 0.12 : 0;
+  var ay = dir === 'south' ? ts * 0.12 : dir === 'north' ? -ts * 0.12 : 0;
+  if (dir === 'east' || dir === 'west') {
+    var sign = dir === 'east' ? 1 : -1;
+    _G.beginPath(); _G.moveTo(sign * ts * 0.05, -ts * 0.08); _G.lineTo(sign * ts * 0.18, 0); _G.lineTo(sign * ts * 0.05, ts * 0.08); _G.fill();
+  } else {
+    var sign = dir === 'south' ? 1 : -1;
+    _G.beginPath(); _G.moveTo(-ts * 0.08, sign * ts * 0.05); _G.lineTo(0, sign * ts * 0.18); _G.lineTo(ts * 0.08, sign * ts * 0.05); _G.fill();
+  }
+  _G.restore();
+  // Sparkles
+  for (var sp = 0; sp < 3; sp++) {
+    var sa = (sp / 3) * Math.PI * 2 + t * 1.2;
+    var spx = x + Math.cos(sa) * ts * 0.35, spy = y + Math.sin(sa) * ts * 0.3;
+    _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2.5 + sp) * 0.25; _G.fillStyle = '#ffe870'; _G.beginPath(); _G.arc(spx, spy, ts * 0.02, 0, Math.PI * 2); _G.fill(); _G.restore();
+  }
+}
+
 // ─── PARTY DRAWING (1:1 from reference) ─────────────────────────
 
 function LV_drawPartyMember(px, py, ts, idx, moving, t) {
@@ -1660,6 +1705,7 @@ function LV_draw(t) {
     else if (o.type === 'monster' && o.alive && o.hidden) LV_drawEncounterIndicator(osx, osy, ts, o, t);
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
+    else if (o.type === 'doorway') LV_drawDoorway(osx, osy, ts, o, t);
   }
   // Party — draw leader only (skip if external animated hero is used)
   if (!_skipCanvasHero) {
@@ -1776,6 +1822,12 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   // Minimap will be created lazily in LV_drawMinimap
   _minimapCanvas = null;
   _minimapG = null;
+
+  // Create foreground overlay canvas (for walls that render in front of hero)
+  _fgCanvas = document.createElement('canvas');
+  _fgCanvas.width = _W;
+  _fgCanvas.height = _H;
+  _fgG = _fgCanvas.getContext('2d');
 
   // Fog — all hidden initially
   _fog = [];
@@ -2047,4 +2099,96 @@ export function getWallOverlays(grid, floorId) {
     }
   }
   return overlays;
+}
+
+/**
+ * Draw foreground wall overlay — wall tiles and their south-face extensions
+ * that are at rows >= heroRow, so they render visually in front of the hero.
+ *
+ * This copies pixel regions from the already-rendered main canvas onto the
+ * foreground canvas, so all the complex wall rendering (bezier hedges,
+ * shadows, decorations) is preserved pixel-perfectly.
+ *
+ * @param {number} heroRow - The hero's current tile row
+ */
+export function drawForeground(heroRow) {
+  if (!_fgCanvas || !_fgG || !_canvas) return;
+  _fgG.clearRect(0, 0, _W, _H);
+
+  var ts = LV_TILE * _SCALE;
+  var camX = _W / 2 - _party.x * _SCALE;
+  var camY = _H / 2 - _party.y * _SCALE;
+  var wallH = MAZE_PERSPECTIVE.heightFactor * ts;
+
+  for (var ty = 0; ty < _ROWS; ty++) {
+    for (var tx = 0; tx < _COLS; tx++) {
+      if (!_fog[ty] || !_fog[ty][tx]) continue;
+      var tt = _map[ty][tx];
+      // We want wall tiles whose visual area is below the hero.
+      // A wall at row ty occupies screen from camY + ty*ts to camY + ty*ts + ts.
+      // Its south face extends further down by wallH.
+      // The hero is at row heroRow. Walls at rows > heroRow should be in
+      // foreground. Also walls at heroRow itself if they have a south face
+      // that extends below the hero center.
+      if (tt !== LV_TW && tt !== LV_TS) continue;
+      // Only walls at rows after the hero row should be foreground
+      if (ty <= heroRow) continue;
+
+      var scx = camX + tx * ts;
+      var scy = camY + ty * ts;
+
+      // Determine the full vertical extent of this wall tile's rendering
+      var belowIsWall = (ty + 1 < _ROWS) && (_map[ty + 1][tx] === LV_TW);
+      var totalH = ts;
+      if (!belowIsWall) {
+        totalH = ts + wallH; // includes south-face extension
+      }
+
+      // Clip to canvas bounds
+      var srcX = Math.max(0, Math.floor(scx));
+      var srcY = Math.max(0, Math.floor(scy));
+      var srcW = Math.min(Math.ceil(ts + 1), _W - srcX);
+      var srcH = Math.min(Math.ceil(totalH + 1), _H - srcY);
+
+      if (srcW <= 0 || srcH <= 0) continue;
+      if (srcX >= _W || srcY >= _H) continue;
+
+      // Copy this wall region from the main canvas to the foreground canvas
+      _fgG.drawImage(_canvas, srcX, srcY, srcW, srcH, srcX, srcY, srcW, srcH);
+    }
+  }
+
+  // Also copy decorations that sit on floor tiles adjacent to foreground walls
+  // (these are drawn in the decoration pass of LV_draw and sit on floor tiles
+  // at rows > heroRow that border walls)
+  for (var dy = 0; dy < _ROWS; dy++) {
+    if (dy <= heroRow) continue;
+    for (var dx = 0; dx < _COLS; dx++) {
+      if (!_fog[dy] || !_fog[dy][dx]) continue;
+      var dtt = _map[dy][dx];
+      if (dtt === LV_TW || dtt === LV_TS) continue; // already copied above
+      // Check if this floor tile borders a wall (has decorations)
+      var northIsWall = (dy > 0) && (_map[dy - 1][dx] === LV_TW || _map[dy - 1][dx] === LV_TS);
+      var westIsWall = (dx > 0) && (_map[dy][dx - 1] === LV_TW);
+      var eastIsWall = (dx + 1 < _COLS) && (_map[dy][dx + 1] === LV_TW);
+      if (!northIsWall && !westIsWall && !eastIsWall) continue;
+
+      var dsx = camX + dx * ts;
+      var dsy = camY + dy * ts;
+      var dsrcX = Math.max(0, Math.floor(dsx));
+      var dsrcY = Math.max(0, Math.floor(dsy));
+      var dsrcW = Math.min(Math.ceil(ts + 1), _W - dsrcX);
+      var dsrcH = Math.min(Math.ceil(ts + 1), _H - dsrcY);
+      if (dsrcW <= 0 || dsrcH <= 0 || dsrcX >= _W || dsrcY >= _H) continue;
+
+      _fgG.drawImage(_canvas, dsrcX, dsrcY, dsrcW, dsrcH, dsrcX, dsrcY, dsrcW, dsrcH);
+    }
+  }
+}
+
+/**
+ * Return the foreground overlay canvas.
+ */
+export function getForegroundCanvas() {
+  return _fgCanvas;
 }
