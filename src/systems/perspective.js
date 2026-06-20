@@ -35,7 +35,7 @@ export const BATTLE_PERSPECTIVE = {
 export const MAZE_PERSPECTIVE = {
   tileScaleNear: 1.0,
   tileScaleFar: 0.85,
-  heightFactor: 0.4,
+  heightFactor: 0.65,
   depthShade: 0.08,
 };
 

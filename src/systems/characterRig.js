@@ -50,6 +50,14 @@ export class CharacterRig {
     const p = this.parts;
     if (pose.leftLeg  !== undefined && p.leftLeg)  p.leftLeg.angle  = rad2deg(pose.leftLeg);
     if (pose.rightLeg !== undefined && p.rightLeg) p.rightLeg.angle = rad2deg(pose.rightLeg);
+    // Unified legs part: average left/right into single rotation + vertical stride bob
+    if (p.legs && !p.leftLeg && !p.rightLeg) {
+      const lAngle = pose.leftLeg ?? 0;
+      const rAngle = pose.rightLeg ?? 0;
+      p.legs.angle = rad2deg((lAngle - rAngle) * 0.5);
+      const strideSpread = Math.abs(lAngle - rAngle);
+      p.legs.y = (p.legs._baseY ?? 0) + strideSpread * 18;
+    }
     if (pose.torso    !== undefined && p.torso)    p.torso.angle    = rad2deg(pose.torso);
     if (pose.armL     !== undefined && p.armL)     p.armL.angle     = rad2deg(pose.armL);
     if (pose.armR     !== undefined && p.armR)     p.armR.angle     = rad2deg(pose.armR);
@@ -72,6 +80,19 @@ export class CharacterRig {
         this._tweens.push(t);
       }
     }
+    // Unified legs: tween angle and y-bob together
+    if (p.legs && !p.leftLeg && !p.rightLeg) {
+      const lAngle = pose.leftLeg ?? 0;
+      const rAngle = pose.rightLeg ?? 0;
+      const strideSpread = Math.abs(lAngle - rAngle);
+      this._tweens.push(this.scene.tweens.add({
+        targets: p.legs,
+        angle: rad2deg((lAngle - rAngle) * 0.5),
+        y: (p.legs._baseY ?? 0) + strideSpread * 18,
+        duration,
+        ease,
+      }));
+    }
   }
 
   playAnimation(anim, onComplete) {
@@ -79,6 +100,8 @@ export class CharacterRig {
     if (!anim || !anim.keyframes || anim.keyframes.length < 2) return;
 
     const totalDur = anim.duration || 400;
+    const p = this.parts;
+    const hasUnifiedLegs = p.legs && !p.leftLeg && !p.rightLeg;
     let loopCount = 0;
     const maxLoops = anim.loop ? 9999 : 1;
 
@@ -95,30 +118,42 @@ export class CharacterRig {
         const curr = kf[i];
         const segStart = prev.t * totalDur;
         const segDur = (curr.t - prev.t) * totalDur;
+        const ease = anim.ease || 'Sine.inOut';
 
         const keys = Object.keys(curr.pose);
         for (const key of keys) {
-          const part = this.parts[key];
+          if (hasUnifiedLegs && (key === 'leftLeg' || key === 'rightLeg')) continue;
+          const part = p[key];
           if (!part) continue;
-
-          const startAngle = rad2deg(prev.pose[key] ?? 0);
-          const endAngle = rad2deg(curr.pose[key] ?? 0);
 
           const tw = this.scene.tweens.add({
             targets: part,
-            angle: endAngle,
+            angle: rad2deg(curr.pose[key] ?? 0),
             duration: segDur,
-            delay: segStart + (loopCount > 1 ? 0 : 0),
-            ease: anim.ease || 'Sine.inOut',
+            delay: segStart,
+            ease,
           });
           this._tweens.push(tw);
         }
+
+        // Unified legs: blend leftLeg/rightLeg into single part
+        if (hasUnifiedLegs && (curr.pose.leftLeg !== undefined || curr.pose.rightLeg !== undefined)) {
+          const lA = curr.pose.leftLeg ?? 0;
+          const rA = curr.pose.rightLeg ?? 0;
+          const spread = Math.abs(lA - rA);
+          this._tweens.push(this.scene.tweens.add({
+            targets: p.legs,
+            angle: rad2deg((lA - rA) * 0.5),
+            y: (p.legs._baseY ?? 0) + spread * 18,
+            duration: segDur,
+            delay: segStart,
+            ease,
+          }));
+        }
       }
 
-      // Schedule next cycle
       if (anim.loop) {
         const timer = this.scene.time.delayedCall(totalDur, () => {
-          // Reset to frame 0 pose before next cycle
           if (kf[0]?.pose) this.setPose(kf[0].pose);
           runCycle();
         });
@@ -130,7 +165,6 @@ export class CharacterRig {
       }
     };
 
-    // Set initial pose
     if (anim.keyframes[0]?.pose) this.setPose(anim.keyframes[0].pose);
     runCycle();
   }
@@ -145,9 +179,11 @@ export class CharacterRig {
 
   resetPose() {
     this.stopAll();
-    const keys = ['leftLeg', 'rightLeg', 'torso', 'armL', 'armR', 'weapon', 'head'];
+    const keys = ['leftLeg', 'rightLeg', 'legs', 'torso', 'armL', 'armR', 'weapon', 'head'];
     for (const key of keys) {
-      if (this.parts[key]) this.parts[key].angle = 0;
+      if (!this.parts[key]) continue;
+      this.parts[key].angle = 0;
+      if (key === 'legs') this.parts[key].y = this.parts[key]._baseY ?? 0;
     }
   }
 
@@ -166,6 +202,7 @@ function rad2deg(r) { return r * (180 / Math.PI); }
 const DEFAULT_PIVOTS = {
   leftLeg:  { x: 0.5, y: 0.62 },  // hip
   rightLeg: { x: 0.5, y: 0.62 },  // hip
+  legs:     { x: 0.5, y: 0.62 },  // hip (unified)
   torso:    { x: 0.5, y: 0.58 },  // waist
   armL:     { x: 0.5, y: 0.42 },  // shoulder
   armR:     { x: 0.5, y: 0.42 },  // shoulder

@@ -155,6 +155,8 @@ var _skipCanvasHero = false;
 var _deathParticles = [];
 var _minimapCanvas = null;
 var _minimapG = null;
+var _fgCanvas = null;   // foreground overlay canvas (walls in front of hero)
+var _fgG = null;         // foreground 2D context
 
 // ─── HELPER: ellipse shorthand ──────────────────────────────────
 
@@ -263,13 +265,51 @@ function LV_drawFloor(sx, sy, ts, tx, ty) {
   var r = mkRng(tx * 19 + ty * 53 + 2);
   LV_cut(LV_PAL.dirt, 2, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   if (r() < 0.55) { var pr = mkRng(tx * 29 + ty * 67 + 4); var px = sx + pr() * ts * 0.5 + ts * 0.1, py = sy + pr() * ts * 0.5 + ts * 0.1; LV_cut(LV_PAL.dirtL, 1, function () { _G.rect(px, py, ts * (0.3 + pr() * 0.3), ts * (0.2 + pr() * 0.2)); }); }
-  if (r() < 0.06) { var flr = mkRng(tx * 43 + ty * 29 + 5); var flx = sx + ts * (0.35 + flr() * 0.3), fly = sy + ts * (0.35 + flr() * 0.3); LV_cut(flr() < 0.5 ? LV_PAL.rose : LV_PAL.goldL, 1, function () { _G.arc(flx, fly, ts * 0.055, 0, Math.PI * 2); }); }
+  // Grass tufts scattered on floor tiles
+  var gr = mkRng(tx * 37 + ty * 71 + 33);
+  var grassCount = Math.floor(gr() * 3) + 1;
+  for (var gi = 0; gi < grassCount; gi++) {
+    var gx = sx + ts * (0.1 + gr() * 0.8), gy = sy + ts * (0.4 + gr() * 0.5);
+    var gc = gr() < 0.6 ? '#5a9838' : '#4a8828';
+    _G.save();
+    _G.strokeStyle = gc;
+    _G.lineWidth = 0.8;
+    _G.globalAlpha = 0.5 + gr() * 0.3;
+    var bladeH = ts * (0.06 + gr() * 0.05);
+    for (var bi = 0; bi < 3; bi++) {
+      _G.beginPath();
+      _G.moveTo(gx + bi * 2 - 2, gy);
+      _G.quadraticCurveTo(gx + bi * 2 - 2 + (gr() - 0.5) * 4, gy - bladeH, gx + bi * 2 - 2 + (gr() - 0.5) * 3, gy - bladeH * 1.2);
+      _G.stroke();
+    }
+    _G.restore();
+  }
+  // Flowers (slightly higher chance than before for visual richness)
+  if (r() < 0.12) {
+    var flr = mkRng(tx * 43 + ty * 29 + 5);
+    var flx = sx + ts * (0.25 + flr() * 0.5), fly = sy + ts * (0.25 + flr() * 0.5);
+    var fc = flr() < 0.33 ? LV_PAL.rose : flr() < 0.66 ? LV_PAL.goldL : '#88bbdd';
+    // Stem
+    _G.save(); _G.strokeStyle = '#4a7830'; _G.lineWidth = 1; _G.globalAlpha = 0.6;
+    _G.beginPath(); _G.moveTo(flx, fly + ts * 0.05); _G.lineTo(flx, fly + ts * 0.12); _G.stroke(); _G.restore();
+    // Petals
+    LV_cut(fc, 1, function () { for (var p = 0; p < 5; p++) { var a = (p / 5) * Math.PI * 2 - Math.PI * 0.5; _G.moveTo(flx, fly); _G.arc(flx + Math.cos(a) * ts * 0.04, fly + Math.sin(a) * ts * 0.04, ts * 0.025, 0, Math.PI * 2); } });
+    LV_cut(LV_PAL.goldL, 0, function () { _G.arc(flx, fly, ts * 0.015, 0, Math.PI * 2); });
+  }
+  // Small stones
+  if (r() < 0.08) {
+    var sr2 = mkRng(tx * 59 + ty * 41 + 7);
+    var stx = sx + ts * (0.15 + sr2() * 0.7), sty = sy + ts * (0.5 + sr2() * 0.35);
+    _G.save(); _G.globalAlpha = 0.35;
+    LV_cut('#8a8878', 1, function () { LV_ellipse(stx, sty, ts * 0.04, ts * 0.025, sr2() * 0.5); });
+    _G.restore();
+  }
   // Transformation: flowers and petals bloom on bare dirt
   if (_transformed && r() < 0.25) {
     var fr = mkRng(tx * 67 + ty * 31 + 99);
     var fx = sx + ts * (0.2 + fr() * 0.6), fy = sy + ts * (0.2 + fr() * 0.6);
-    var fc = fr() < 0.5 ? LV_PAL.rose : LV_PAL.goldL;
-    LV_cut(fc, 1, function() { _G.arc(fx, fy, ts * 0.06 + fr() * ts * 0.03, 0, Math.PI * 2); });
+    var fc2 = fr() < 0.5 ? LV_PAL.rose : LV_PAL.goldL;
+    LV_cut(fc2, 1, function() { _G.arc(fx, fy, ts * 0.06 + fr() * ts * 0.03, 0, Math.PI * 2); });
     if (fr() < 0.4) {
       var lx = sx + ts * (0.15 + fr() * 0.7), ly = sy + ts * (0.15 + fr() * 0.5);
       LV_cut('#50a838', 0, function() { _G.arc(lx, ly, ts * 0.04, 0, Math.PI * 2); });
@@ -284,12 +324,62 @@ function LV_drawPath(sx, sy, ts, tx, ty) {
     var st = stones[si]; var sr = mkRng(tx * 41 + ty * 83 + si * 11);
     LV_cut(si % 2 === 0 ? LV_PAL.stone : LV_PAL.stoneD, 2, (function (st2, sr2) { return function () { LV_wobRect(st2[0] + sr2() * 2, st2[1] + sr2() * 2, st2[2] - sr2() * 2, st2[3] - sr2() * 2, mkRng(si * 7 + tx + ty), 1.5); }; })(st, sr));
   }
+  // Moss growing between stone cracks
+  var mr = mkRng(tx * 37 + ty * 61 + 42);
+  if (mr() < 0.4) {
+    _G.save();
+    _G.globalAlpha = 0.35;
+    var mossCol = '#4a8030';
+    for (var mi = 0; mi < 2 + Math.floor(mr() * 2); mi++) {
+      var mx = sx + ts * (0.08 + mr() * 0.84), my = sy + ts * mr();
+      _G.fillStyle = mossCol;
+      _G.beginPath();
+      _G.arc(mx, my, ts * 0.015 + mr() * ts * 0.01, 0, Math.PI * 2);
+      _G.fill();
+    }
+    _G.restore();
+  }
+  // Stone wear marks
+  var wr = mkRng(tx * 23 + ty * 47 + 8);
+  if (wr() < 0.3) {
+    _G.save();
+    _G.globalAlpha = 0.12;
+    _G.fillStyle = '#000';
+    var wcx = sx + ts * (0.2 + wr() * 0.6), wcy = sy + ts * (0.2 + wr() * 0.6);
+    _G.beginPath();
+    LV_ellipse(wcx, wcy, ts * (0.08 + wr() * 0.06), ts * (0.04 + wr() * 0.03), wr() * 1.5);
+    _G.fill();
+    _G.restore();
+  }
 }
 
 function LV_drawWater(sx, sy, ts, tx, ty, t) {
   LV_cut(LV_PAL.pond0, 5, function () { _G.rect(sx, sy, ts + 1, ts + 1); });
   LV_cut(LV_PAL.pond1, 3, function () { _G.rect(sx + ts * 0.05, sy + ts * 0.1, ts * 0.9, ts * 0.75); });
+  // Animated highlight stripe
   LV_cut(LV_PAL.pondHL, 0, function () { _G.rect(sx + ts * 0.15, sy + ts * 0.18 + Math.sin(t * 2 + ty) * ts * 0.04, ts * 0.35, ts * 0.05); });
+  // Second highlight (offset phase)
+  _G.save();
+  _G.globalAlpha = 0.25;
+  _G.fillStyle = LV_PAL.pondHL;
+  _G.fillRect(sx + ts * 0.55, sy + ts * 0.45 + Math.sin(t * 1.5 + tx * 2) * ts * 0.03, ts * 0.25, ts * 0.03);
+  _G.restore();
+  // Animated ripple ring
+  var rr = mkRng(tx * 17 + ty * 31 + 88);
+  if (rr() < 0.35) {
+    var rcx = sx + ts * (0.3 + rr() * 0.4), rcy = sy + ts * (0.3 + rr() * 0.4);
+    var phase = (t * 0.8 + tx * 1.2 + ty * 0.7) % 3;
+    var rippleR = ts * 0.04 + phase * ts * 0.04;
+    var rippleAlpha = Math.max(0, 0.3 - phase * 0.1);
+    _G.save();
+    _G.globalAlpha = rippleAlpha;
+    _G.strokeStyle = LV_PAL.pondHL;
+    _G.lineWidth = 0.6;
+    _G.beginPath();
+    _G.arc(rcx, rcy, rippleR, 0, Math.PI * 2);
+    _G.stroke();
+    _G.restore();
+  }
 }
 
 // ─── FLOOR 2: TIDEPOOL TILES (zone-aware) ───────────────────────
@@ -1260,6 +1350,49 @@ function LV_drawExit(sx, sy, ts, t) {
   }
 }
 
+function LV_drawDoorway(sx, sy, ts, o, t) {
+  var x = sx + ts * 0.5, y = sy + ts * 0.5;
+  var dir = o.doorDir || 'east';
+  var pulse = 0.5 + Math.sin(t * 2) * 0.2;
+  // Soft green/gold glow
+  _G.save(); _G.globalAlpha = 0.25 + Math.sin(t * 1.8) * 0.1;
+  var gr = _G.createRadialGradient(x, y, 0, x, y, ts * 0.55);
+  gr.addColorStop(0, 'rgba(180,230,120,0.7)'); gr.addColorStop(1, 'rgba(120,180,60,0)');
+  _G.fillStyle = gr; _G.beginPath(); _G.arc(x, y, ts * 0.55, 0, Math.PI * 2); _G.fill(); _G.restore();
+  // Archway
+  var aw = ts * 0.5, ah = ts * 0.7;
+  _G.save(); _G.translate(x, y);
+  if (dir === 'east' || dir === 'west') {
+    _G.rotate(0);
+  } else {
+    _G.rotate(Math.PI / 2);
+  }
+  _G.strokeStyle = '#8a6830'; _G.lineWidth = ts * 0.07; _G.globalAlpha = 0.85;
+  _G.beginPath();
+  _G.moveTo(-aw / 2, ah / 2); _G.lineTo(-aw / 2, -ah * 0.1);
+  _G.bezierCurveTo(-aw / 2, -ah * 0.35, aw / 2, -ah * 0.35, aw / 2, -ah * 0.1);
+  _G.lineTo(aw / 2, ah / 2);
+  _G.stroke();
+  // Arrow indicator
+  _G.fillStyle = '#f0d060'; _G.globalAlpha = pulse;
+  var ax = dir === 'east' ? ts * 0.12 : dir === 'west' ? -ts * 0.12 : 0;
+  var ay = dir === 'south' ? ts * 0.12 : dir === 'north' ? -ts * 0.12 : 0;
+  if (dir === 'east' || dir === 'west') {
+    var sign = dir === 'east' ? 1 : -1;
+    _G.beginPath(); _G.moveTo(sign * ts * 0.05, -ts * 0.08); _G.lineTo(sign * ts * 0.18, 0); _G.lineTo(sign * ts * 0.05, ts * 0.08); _G.fill();
+  } else {
+    var sign = dir === 'south' ? 1 : -1;
+    _G.beginPath(); _G.moveTo(-ts * 0.08, sign * ts * 0.05); _G.lineTo(0, sign * ts * 0.18); _G.lineTo(ts * 0.08, sign * ts * 0.05); _G.fill();
+  }
+  _G.restore();
+  // Sparkles
+  for (var sp = 0; sp < 3; sp++) {
+    var sa = (sp / 3) * Math.PI * 2 + t * 1.2;
+    var spx = x + Math.cos(sa) * ts * 0.35, spy = y + Math.sin(sa) * ts * 0.3;
+    _G.save(); _G.globalAlpha = 0.3 + Math.sin(t * 2.5 + sp) * 0.25; _G.fillStyle = '#ffe870'; _G.beginPath(); _G.arc(spx, spy, ts * 0.02, 0, Math.PI * 2); _G.fill(); _G.restore();
+  }
+}
+
 // ─── PARTY DRAWING (1:1 from reference) ─────────────────────────
 
 function LV_drawPartyMember(px, py, ts, idx, moving, t) {
@@ -1351,42 +1484,168 @@ function LV_draw(t) {
     if (tt2 === LV_TW) {
       var wallH = MAZE_PERSPECTIVE.heightFactor * ts;
       var southTop = scy + ts;
-      // Only draw if the tile below is NOT a wall (otherwise the face is hidden)
       var belowIsWall = (ty2 + 1 < _ROWS) && (_map[ty2 + 1][tx2] === LV_TW);
       if (!belowIsWall) {
         _G.save();
-        // Floor-themed side face color (darker shade of the wall theme)
         var _sideCols = {
-          1: 'rgba(12,28,6,0.55)',   // hedge dark
-          2: 'rgba(18,32,10,0.50)',   // tidepool
-          3: 'rgba(80,100,120,0.40)', // cloud
-          4: 'rgba(14,4,2,0.55)',     // ember
-          5: 'rgba(20,36,44,0.50)',   // ice
-          6: 'rgba(28,8,48,0.50)',    // crystal
-          7: 'rgba(36,28,12,0.50)',   // market
-          8: 'rgba(12,8,4,0.55)',     // library
-          9: 'rgba(8,4,12,0.55)',     // mending
+          1: ['#0c1c06', '#1a3c0e'],   // hedge dark → mid
+          2: ['#122010', '#2a4a1e'],   // tidepool
+          3: ['#485868', '#6a8898'],   // cloud
+          4: ['#0e0402', '#2a1208'],   // ember
+          5: ['#142428', '#2a4a54'],   // ice
+          6: ['#1c0830', '#3a1858'],   // crystal
+          7: ['#241c0c', '#4a3820'],   // market
+          8: ['#0c0804', '#2a1c10'],   // library
+          9: ['#08040c', '#1a1028'],   // mending
         };
-        _G.fillStyle = _sideCols[_floorTheme] || 'rgba(10,5,2,0.45)';
+        var cols = _sideCols[_floorTheme] || ['#0a0502', '#1a1208'];
+        // Gradient from dark (bottom) to slightly lighter (top)
+        var grad = _G.createLinearGradient(scx, southTop, scx, southTop + wallH);
+        grad.addColorStop(0, cols[1]);
+        grad.addColorStop(1, cols[0]);
+        _G.fillStyle = grad;
         _G.fillRect(scx, southTop, ts + 1, wallH);
-        // Subtle vertical mortar lines on the face for texture
-        _G.globalAlpha = 0.15;
+        // Vertical mortar lines with varied spacing
+        _G.globalAlpha = 0.18;
         _G.strokeStyle = '#1f4244';
-        _G.lineWidth = 0.5;
+        _G.lineWidth = 0.7;
+        var wr = mkRng(tx2 * 31 + ty2 * 97 + 777);
         var mortarStep = ts * 0.25;
         for (var ml = 1; ml < 4; ml++) {
+          var mx = scx + ml * mortarStep + (wr() - 0.5) * 2;
           _G.beginPath();
-          _G.moveTo(scx + ml * mortarStep, southTop);
-          _G.lineTo(scx + ml * mortarStep, southTop + wallH);
+          _G.moveTo(mx, southTop);
+          _G.lineTo(mx + (wr() - 0.5) * 1.5, southTop + wallH);
           _G.stroke();
         }
-        // Horizontal mortar line midway
+        // Horizontal mortar lines
         _G.beginPath();
-        _G.moveTo(scx, southTop + wallH * 0.5);
-        _G.lineTo(scx + ts + 1, southTop + wallH * 0.5);
+        _G.moveTo(scx, southTop + wallH * 0.33);
+        _G.lineTo(scx + ts + 1, southTop + wallH * 0.33);
+        _G.stroke();
+        _G.beginPath();
+        _G.moveTo(scx, southTop + wallH * 0.66);
+        _G.lineTo(scx + ts + 1, southTop + wallH * 0.66);
+        _G.stroke();
+        _G.globalAlpha = 1;
+        // Highlight edge on top of the side face
+        _G.strokeStyle = 'rgba(255,255,240,0.12)';
+        _G.lineWidth = 1.2;
+        _G.beginPath();
+        _G.moveTo(scx, southTop + 0.5);
+        _G.lineTo(scx + ts + 1, southTop + 0.5);
+        _G.stroke();
+        // Dark edge at bottom
+        _G.strokeStyle = 'rgba(0,0,0,0.25)';
+        _G.lineWidth = 1;
+        _G.beginPath();
+        _G.moveTo(scx, southTop + wallH);
+        _G.lineTo(scx + ts + 1, southTop + wallH);
         _G.stroke();
         _G.restore();
       }
+    }
+  }
+  // Decorations: theme-specific elements along wall-to-floor borders
+  for (var dy = sy0; dy < sy1; dy++) for (var dx = sx0; dx < sx1; dx++) {
+    if (!_fog[dy] || !_fog[dy][dx]) continue;
+    var dtt = _map[dy][dx];
+    if (dtt === LV_TW || dtt === LV_TS) continue;
+    var dsx = camX + dx * ts, dsy = camY + dy * ts;
+    if (dsx + ts < 0 || dsx > _W || dsy + ts < 0 || dsy > _H) continue;
+    var dr = mkRng(dx * 47 + dy * 83 + 555);
+    var northIsWall = (dy > 0) && (_map[dy - 1][dx] === LV_TW || _map[dy - 1][dx] === LV_TS);
+    if (northIsWall && dr() < 0.35) {
+      var decX = dsx + ts * (0.15 + dr() * 0.7);
+      var decBaseY = dsy + ts * 0.15;
+      _G.save();
+      if (_floorTheme <= 2) {
+        // Garden/Tidepool: trees and shrubs
+        _G.fillStyle = '#5a3c18';
+        _G.fillRect(decX - ts * 0.02, decBaseY, ts * 0.04, ts * 0.12);
+        var canR = ts * (0.08 + dr() * 0.04);
+        var canopyCols = ['#2a5818', '#3a7828', '#4a8838'];
+        for (var ci = 0; ci < 3; ci++) {
+          _G.fillStyle = canopyCols[ci];
+          _G.shadowColor = 'rgba(14,6,2,0.3)'; _G.shadowBlur = 3; _G.shadowOffsetY = 2;
+          _G.beginPath();
+          _G.arc(decX + (dr() - 0.5) * canR * 0.6, decBaseY - ci * canR * 0.5, canR * (1 - ci * 0.15), 0, Math.PI * 2);
+          _G.fill();
+        }
+      } else if (_floorTheme === 3) {
+        // Cloud: wisps of cloud puff along edges
+        _G.globalAlpha = 0.25 + dr() * 0.15;
+        _G.fillStyle = '#c8d8e8';
+        _G.shadowColor = 'rgba(180,200,220,0.3)'; _G.shadowBlur = 5;
+        _G.beginPath();
+        _G.arc(decX, decBaseY, ts * 0.07, 0, Math.PI * 2);
+        _G.arc(decX + ts * 0.06, decBaseY - ts * 0.02, ts * 0.05, 0, Math.PI * 2);
+        _G.fill();
+      } else if (_floorTheme === 4) {
+        // Ember: glowing embers and cracks
+        _G.globalAlpha = 0.5 + dr() * 0.3;
+        _G.fillStyle = '#e86020';
+        _G.shadowColor = '#ff6030'; _G.shadowBlur = 4;
+        _G.beginPath();
+        _G.arc(decX, decBaseY + ts * 0.05, ts * 0.025, 0, Math.PI * 2);
+        _G.fill();
+        _G.strokeStyle = '#c04010'; _G.lineWidth = 0.8; _G.globalAlpha = 0.4;
+        _G.beginPath();
+        _G.moveTo(decX - ts * 0.06, decBaseY + ts * 0.08);
+        _G.lineTo(decX + ts * 0.04, decBaseY + ts * 0.02);
+        _G.stroke();
+      } else if (_floorTheme === 5 || _floorTheme === 6) {
+        // Ice/Crystal: icicle or crystal shard
+        _G.globalAlpha = 0.5;
+        _G.fillStyle = _floorTheme === 5 ? '#a0d8e8' : '#b088d0';
+        _G.shadowColor = _floorTheme === 5 ? 'rgba(160,216,232,0.4)' : 'rgba(176,136,208,0.4)';
+        _G.shadowBlur = 3;
+        _G.beginPath();
+        _G.moveTo(decX - ts * 0.015, decBaseY + ts * 0.15);
+        _G.lineTo(decX, decBaseY - ts * 0.02);
+        _G.lineTo(decX + ts * 0.015, decBaseY + ts * 0.15);
+        _G.fill();
+      } else if (_floorTheme >= 7) {
+        // Market/Library/Mending: lantern or candle
+        _G.globalAlpha = 0.6;
+        _G.fillStyle = '#8a7050';
+        _G.fillRect(decX - 1, decBaseY + ts * 0.02, 2, ts * 0.06);
+        _G.fillStyle = '#f0c040';
+        _G.shadowColor = '#f0c040'; _G.shadowBlur = 4;
+        _G.beginPath();
+        _G.arc(decX, decBaseY, ts * 0.02, 0, Math.PI * 2);
+        _G.fill();
+      }
+      _G.restore();
+    }
+    // Side decorations
+    var westIsWall = (dx > 0) && (_map[dy][dx - 1] === LV_TW);
+    var eastIsWall = (dx + 1 < _COLS) && (_map[dy][dx + 1] === LV_TW);
+    if ((westIsWall || eastIsWall) && dr() < 0.2) {
+      var sideX = westIsWall ? dsx + ts * 0.1 : dsx + ts * 0.85;
+      var sideY = dsy + ts * (0.5 + dr() * 0.3);
+      _G.save();
+      _G.globalAlpha = 0.6;
+      if (_floorTheme <= 2) {
+        // Mushroom
+        _G.fillStyle = '#8a7060';
+        _G.fillRect(sideX - 1, sideY, 2, ts * 0.06);
+        _G.fillStyle = dr() < 0.5 ? '#c8584a' : '#d0a050';
+        _G.beginPath(); _G.arc(sideX, sideY, ts * 0.03, Math.PI, 0); _G.fill();
+      } else if (_floorTheme === 4) {
+        // Small lava crack
+        _G.strokeStyle = '#e85020'; _G.lineWidth = 1.2;
+        _G.shadowColor = '#ff4010'; _G.shadowBlur = 3;
+        _G.beginPath();
+        _G.moveTo(sideX, sideY - ts * 0.04);
+        _G.lineTo(sideX + (dr() - 0.5) * 4, sideY + ts * 0.04);
+        _G.stroke();
+      } else {
+        // Generic: small moss/lichen dot
+        _G.fillStyle = '#6a8050';
+        _G.beginPath(); _G.arc(sideX, sideY, ts * 0.02, 0, Math.PI * 2); _G.fill();
+      }
+      _G.restore();
     }
   }
   // Objects
@@ -1446,6 +1705,7 @@ function LV_draw(t) {
     else if (o.type === 'monster' && o.alive && o.hidden) LV_drawEncounterIndicator(osx, osy, ts, o, t);
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
+    else if (o.type === 'doorway') LV_drawDoorway(osx, osy, ts, o, t);
   }
   // Party — draw leader only (skip if external animated hero is used)
   if (!_skipCanvasHero) {
@@ -1459,15 +1719,33 @@ function LV_draw(t) {
     if (fsx + ts < 0 || fsx > _W || fsy + ts < 0 || fsy > _H) continue;
     _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.94)'; _G.fillRect(fsx, fsy, ts + 1, ts + 1);
   }
-  // Fog edge softening
+  // Fog edge softening — two-pass for smooth transition
+  var fogEdgeCol = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.30)';
+  var fogEdgeCol2 = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.15)';
   for (var fy3 = sy0; fy3 < sy1; fy3++) for (var fx3 = sx0; fx3 < sx1; fx3++) {
     if (!_fog[fy3][fx3]) continue;
-    var hasUnrev = (fy3 > 0 && !_fog[fy3 - 1][fx3]) || (fy3 < _ROWS - 1 && !_fog[fy3 + 1][fx3]) || (fx3 > 0 && !_fog[fy3][fx3 - 1]) || (fx3 < _COLS - 1 && !_fog[fy3][fx3 + 1]);
-    if (hasUnrev) { _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.35)'; _G.fillRect(camX + fx3 * ts, camY + fy3 * ts, ts + 1, ts + 1); }
+    var efx = camX + fx3 * ts, efy = camY + fy3 * ts;
+    if (efx + ts < 0 || efx > _W || efy + ts < 0 || efy > _H) continue;
+    var fogN = (fy3 > 0 && !_fog[fy3 - 1][fx3]);
+    var fogS = (fy3 < _ROWS - 1 && !_fog[fy3 + 1][fx3]);
+    var fogW = (fx3 > 0 && !_fog[fy3][fx3 - 1]);
+    var fogE = (fx3 < _COLS - 1 && !_fog[fy3][fx3 + 1]);
+    var adjCount = (fogN ? 1 : 0) + (fogS ? 1 : 0) + (fogW ? 1 : 0) + (fogE ? 1 : 0);
+    if (adjCount > 0) {
+      _G.fillStyle = adjCount >= 2 ? fogEdgeCol : fogEdgeCol2;
+      _G.fillRect(efx, efy, ts + 1, ts + 1);
+    }
   }
-  // Vignette
-  var vig = _G.createRadialGradient(_W / 2, _H / 2, Math.min(_W, _H) * 0.2, _W / 2, _H / 2, Math.min(_W, _H) * 0.72);
-  vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,0.6)');
+  // Vignette (theme-tinted)
+  var vigR = Math.min(_W, _H);
+  var vig = _G.createRadialGradient(_W / 2, _H / 2, vigR * 0.22, _W / 2, _H / 2, vigR * 0.68);
+  var _vigTint = {
+    1: 'rgba(6,18,4,', 2: 'rgba(4,12,20,', 3: 'rgba(12,16,24,',
+    4: 'rgba(16,4,0,', 5: 'rgba(4,12,18,', 6: 'rgba(10,4,18,',
+    7: 'rgba(12,10,4,', 8: 'rgba(6,4,2,', 9: 'rgba(4,2,8,',
+  };
+  var vigBase = _vigTint[_floorTheme] || 'rgba(0,0,0,';
+  vig.addColorStop(0, vigBase + '0)'); vig.addColorStop(0.7, vigBase + '0.15)'); vig.addColorStop(1, vigBase + '0.55)');
   _G.fillStyle = vig; _G.fillRect(0, 0, _W, _H);
   // Flash
   if (_gs.flash > 0) { _G.fillStyle = 'rgba(156,32,32,' + (_gs.flash / 10 * 0.45) + ')'; _G.fillRect(0, 0, _W, _H); _gs.flash--; }
@@ -1544,6 +1822,12 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   // Minimap will be created lazily in LV_drawMinimap
   _minimapCanvas = null;
   _minimapG = null;
+
+  // Create foreground overlay canvas (for walls that render in front of hero)
+  _fgCanvas = document.createElement('canvas');
+  _fgCanvas.width = _W;
+  _fgCanvas.height = _H;
+  _fgG = _fgCanvas.getContext('2d');
 
   // Fog — all hidden initially
   _fog = [];
@@ -1815,4 +2099,96 @@ export function getWallOverlays(grid, floorId) {
     }
   }
   return overlays;
+}
+
+/**
+ * Draw foreground wall overlay — wall tiles and their south-face extensions
+ * that are at rows >= heroRow, so they render visually in front of the hero.
+ *
+ * This copies pixel regions from the already-rendered main canvas onto the
+ * foreground canvas, so all the complex wall rendering (bezier hedges,
+ * shadows, decorations) is preserved pixel-perfectly.
+ *
+ * @param {number} heroRow - The hero's current tile row
+ */
+export function drawForeground(heroRow) {
+  if (!_fgCanvas || !_fgG || !_canvas) return;
+  _fgG.clearRect(0, 0, _W, _H);
+
+  var ts = LV_TILE * _SCALE;
+  var camX = _W / 2 - _party.x * _SCALE;
+  var camY = _H / 2 - _party.y * _SCALE;
+  var wallH = MAZE_PERSPECTIVE.heightFactor * ts;
+
+  for (var ty = 0; ty < _ROWS; ty++) {
+    for (var tx = 0; tx < _COLS; tx++) {
+      if (!_fog[ty] || !_fog[ty][tx]) continue;
+      var tt = _map[ty][tx];
+      // We want wall tiles whose visual area is below the hero.
+      // A wall at row ty occupies screen from camY + ty*ts to camY + ty*ts + ts.
+      // Its south face extends further down by wallH.
+      // The hero is at row heroRow. Walls at rows > heroRow should be in
+      // foreground. Also walls at heroRow itself if they have a south face
+      // that extends below the hero center.
+      if (tt !== LV_TW && tt !== LV_TS) continue;
+      // Only walls at rows after the hero row should be foreground
+      if (ty <= heroRow) continue;
+
+      var scx = camX + tx * ts;
+      var scy = camY + ty * ts;
+
+      // Determine the full vertical extent of this wall tile's rendering
+      var belowIsWall = (ty + 1 < _ROWS) && (_map[ty + 1][tx] === LV_TW);
+      var totalH = ts;
+      if (!belowIsWall) {
+        totalH = ts + wallH; // includes south-face extension
+      }
+
+      // Clip to canvas bounds
+      var srcX = Math.max(0, Math.floor(scx));
+      var srcY = Math.max(0, Math.floor(scy));
+      var srcW = Math.min(Math.ceil(ts + 1), _W - srcX);
+      var srcH = Math.min(Math.ceil(totalH + 1), _H - srcY);
+
+      if (srcW <= 0 || srcH <= 0) continue;
+      if (srcX >= _W || srcY >= _H) continue;
+
+      // Copy this wall region from the main canvas to the foreground canvas
+      _fgG.drawImage(_canvas, srcX, srcY, srcW, srcH, srcX, srcY, srcW, srcH);
+    }
+  }
+
+  // Also copy decorations that sit on floor tiles adjacent to foreground walls
+  // (these are drawn in the decoration pass of LV_draw and sit on floor tiles
+  // at rows > heroRow that border walls)
+  for (var dy = 0; dy < _ROWS; dy++) {
+    if (dy <= heroRow) continue;
+    for (var dx = 0; dx < _COLS; dx++) {
+      if (!_fog[dy] || !_fog[dy][dx]) continue;
+      var dtt = _map[dy][dx];
+      if (dtt === LV_TW || dtt === LV_TS) continue; // already copied above
+      // Check if this floor tile borders a wall (has decorations)
+      var northIsWall = (dy > 0) && (_map[dy - 1][dx] === LV_TW || _map[dy - 1][dx] === LV_TS);
+      var westIsWall = (dx > 0) && (_map[dy][dx - 1] === LV_TW);
+      var eastIsWall = (dx + 1 < _COLS) && (_map[dy][dx + 1] === LV_TW);
+      if (!northIsWall && !westIsWall && !eastIsWall) continue;
+
+      var dsx = camX + dx * ts;
+      var dsy = camY + dy * ts;
+      var dsrcX = Math.max(0, Math.floor(dsx));
+      var dsrcY = Math.max(0, Math.floor(dsy));
+      var dsrcW = Math.min(Math.ceil(ts + 1), _W - dsrcX);
+      var dsrcH = Math.min(Math.ceil(ts + 1), _H - dsrcY);
+      if (dsrcW <= 0 || dsrcH <= 0 || dsrcX >= _W || dsrcY >= _H) continue;
+
+      _fgG.drawImage(_canvas, dsrcX, dsrcY, dsrcW, dsrcH, dsrcX, dsrcY, dsrcW, dsrcH);
+    }
+  }
+}
+
+/**
+ * Return the foreground overlay canvas.
+ */
+export function getForegroundCanvas() {
+  return _fgCanvas;
 }

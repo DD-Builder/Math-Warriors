@@ -13,7 +13,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { tileDepth } from '../systems/perspective.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, setSkipCanvasHero } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
 import { generateRatedQuestion } from '../systems/math.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
@@ -72,11 +72,27 @@ export class MazeScene extends Phaser.Scene {
     // Build a flat floor object from the current room for the existing
     // levelEngine (it expects { tiles, objects, name, ... })
     const baseFloor = getFloor(this.floorId);
+
+    // Deep-copy room tiles so we can punch doorways without mutating realm data
+    const roomTiles = this.currentRoom.tiles.map(row => [...row]);
+
+    // Open doorways at exit positions — exits sit on boundary wall tiles,
+    // so convert them to floor tiles so the hero can walk through
+    if (this.currentRoom.exits) {
+      for (const exit of this.currentRoom.exits) {
+        if (roomTiles[exit.y]?.[exit.x] === 0) {
+          roomTiles[exit.y][exit.x] = 1;
+        }
+      }
+    }
+
     this.floor = {
       ...baseFloor,
-      tiles: this.currentRoom.tiles,
+      tiles: roomTiles,
       objects: this.currentRoom.objects || [],
       name: this.currentRoom.name || baseFloor.name,
+      width: roomTiles[0]?.length ?? baseFloor.width,
+      height: roomTiles.length ?? baseFloor.height,
     };
 
     // Use the room's start position for entrance rooms, otherwise
@@ -116,6 +132,8 @@ export class MazeScene extends Phaser.Scene {
     let mazeState = this.registry.get(mazeStateKey(this.floorId));
     if (!mazeState) { try { const s = localStorage.getItem(`mw_maze_${this.floorId}`); if (s) mazeState = JSON.parse(s); } catch (e) { /* ignore */ } }
     if (mazeState && (typeof mazeState.x !== 'number' || !Array.isArray(mazeState.objects))) mazeState = null;
+    // Discard saved state if it belongs to a different room
+    if (mazeState && mazeState.roomId && mazeState.roomId !== this.currentRoomId) mazeState = null;
     this.freshEntry = !mazeState;
     if (mazeState) {
       this.playerX = mazeState.x;
@@ -337,6 +355,18 @@ export class MazeScene extends Phaser.Scene {
       };
     });
 
+    // Add doorway indicators at room exit positions
+    if (this.currentRoom.exits) {
+      for (const exit of this.currentRoom.exits) {
+        engineObjs.push({
+          type: 'doorway', tx: exit.x, ty: exit.y,
+          id: `doorway-${exit.targetRoom}`,
+          alive: true, open: false, hidden: false, visible: true,
+          doorDir: exit.direction,
+        });
+      }
+    }
+
     setFloorTheme(this.floorId);
     LV_setTransformed(this.mazeTransformed);
     initLevel(GAME_WIDTH, GAME_HEIGHT, this.floor.tiles, engineObjs, heroCanvases, this.playerX, this.playerY);
@@ -413,12 +443,24 @@ export class MazeScene extends Phaser.Scene {
     const heroLeader = this.party[0];
     if (heroLeader) {
       setSkipCanvasHero(true);
-      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.28, floorId: this.floorId || 1 });
+      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1 });
       this.heroSprite.setDepth(10);
       this.heroSprite.setIdle();
       this._heroWasMoving = false;
       this._lastPartyX = null;
       this._lastPartyY = null;
+    }
+
+    // Foreground wall overlay — walls at rows below the hero render on top
+    // of the hero sprite so the hero correctly walks behind foreground walls
+    drawForeground(this.playerY ?? 0);
+    const fgCv = getForegroundCanvas();
+    if (fgCv) {
+      if (this.textures.exists('level-fg')) this.textures.remove('level-fg');
+      this.textures.addCanvas('level-fg', fgCv);
+      this.fgImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'level-fg');
+      this.fgImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+      this.fgImage.setDepth(20); // above hero (depth ~10) but below HUD
     }
 
     this.buildHUD();
@@ -1157,6 +1199,16 @@ export class MazeScene extends Phaser.Scene {
       this._checkRoomExit(this.playerX, this.playerY);
     }
 
+    // Redraw foreground wall overlay so walls below hero render on top
+    if (this.fgImage) {
+      drawForeground(this.playerY);
+      if (this.textures.exists('level-fg')) {
+        const fgTex = this.textures.get('level-fg');
+        if (fgTex.refresh) fgTex.refresh();
+        else if (fgTex.update) fgTex.update();
+      }
+    }
+
     // Update animated hero sprite walk/idle state and facing
     if (this.heroSprite) {
       const gs = getGameState();
@@ -1208,7 +1260,13 @@ export class MazeScene extends Phaser.Scene {
       }
 
       // Depth based on tile row
-      this.heroSprite.setDepth(tileDepth(this.playerY, this.playerX, 5));
+      const heroDepth = tileDepth(this.playerY, this.playerX, 5);
+      this.heroSprite.setDepth(heroDepth);
+
+      // Foreground wall overlay must always be above the hero
+      if (this.fgImage) {
+        this.fgImage.setDepth(heroDepth + 1);
+      }
     }
   }
 
@@ -1652,6 +1710,7 @@ export class MazeScene extends Phaser.Scene {
   saveMazeState() {
     const gs = getGameState();
     const state = {
+      roomId: this.currentRoomId,
       x: this.playerX,
       y: this.playerY,
       objects: this.objects,
