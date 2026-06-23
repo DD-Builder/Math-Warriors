@@ -11,7 +11,7 @@
  *   const image = drawHeroSprite(scene, x, y, hero, { scale: 1 });
  */
 
-import { createHeroCanvas, createHeroPartCanvas } from './legacyRenderer.js';
+import { createHeroCanvas, createHeroPartCanvas, createHeroPartCanvasClipped } from './legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
 import { PAPER, PAPER_CSS } from '../config.js';
@@ -248,6 +248,17 @@ function getBodyPartsForClass(heroClass) {
 
 const BODY_PARTS = BODY_PARTS_DEFAULT;
 
+// Articulated part definitions — clip boundaries for splitting limbs
+const ARTICULATION = {
+  default: {
+    legClipFraction: 0.55,
+    armClipFraction: 0.52,
+  },
+  bunny: {
+    legClipFraction: 0.50,
+  },
+};
+
 /**
  * Create an animated hero sprite composed of separate body-part layers.
  * Returns a Phaser Container with .parts, .startWalk(), .stopWalk(),
@@ -263,43 +274,43 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const w = HERO_W, h = HERO_H;
   const container = scene.add.container(x, y);
 
-  const partOrder = ['legs', 'torso', 'armL', 'armR', 'weapon', 'head'];
-  const parts = {};
-
   const floorId = opts.floorId || 1;
   const heroClass = getHeroClass(hero);
   const equipment = resolveEquipment(opts.equipment);
   const classParts = getBodyPartsForClass(heroClass);
+  const artCfg = heroClass === 'bunny' ? ARTICULATION.bunny : ARTICULATION.default;
 
-  for (let i = 0; i < partOrder.length; i++) {
-    const partName = partOrder[i];
-    const seeds = classParts[partName];
+  const parts = {};
 
-    // Pixel-content check is expensive (full-canvas getImageData) —
-    // cache the answer per hero+part so repeat battles don't re-read.
-    // Overlays only ever decorate parts that already have content, so
-    // this cache stays valid regardless of equipment.
+  // Helper: create a textured Image from seed-filtered canvas (with caching)
+  function makePartImage(partName, seeds, clipFraction, clipAbove) {
     const contentKey = `${hero.id}-${partName}-${heroClass}`;
-    if (PART_HAS_CONTENT[contentKey] === false) continue;
+    if (PART_HAS_CONTENT[contentKey] === false) return null;
 
-    // Equipment overlay for this part (weapon → weapon, armor → torso,
-    // accessory → head). The texture key carries the slot+tier identity
-    // so equipped/unequipped renders never share a cached texture; parts
-    // without an overlay keep their pre-equipment keys.
-    const slot = PART_TO_SLOT[partName];
+    const slot = PART_TO_SLOT[partName.replace(/^(upper|forearm|thigh|shin)/, match => {
+      if (match === 'upper') return '';
+      if (match === 'forearm') return '';
+      if (match === 'thigh' || match === 'shin') return '';
+      return match;
+    })] || PART_TO_SLOT[partName] || null;
+    const basePart = partName.includes('Arm') ? (partName.includes('L') ? 'armL' : 'armR')
+                   : partName.includes('hig') || partName.includes('hin') ? 'legs'
+                   : partName;
     const equipped = equipment && slot ? equipment[slot] : null;
     const overlay = equipped ? getEquipmentOverlay(equipped.id, equipped.tier, slot) : null;
-    const equipSuffix = overlay ? `-e${SLOT_CODE[slot]}${getTierIndex(equipped.tier)}` : '';
-    const key = `hero-${hero.id}-${partName}-f${floorId}${equipSuffix}`;
+    const clipSuffix = clipFraction !== undefined ? `-c${clipAbove ? 'a' : 'b'}${Math.round(clipFraction * 100)}` : '';
+    const equipSuffix = overlay ? `-e${SLOT_CODE[slot] || ''}${getTierIndex(equipped.tier)}` : '';
+    const key = `hero-${hero.id}-${partName}-f${floorId}${clipSuffix}${equipSuffix}`;
 
     if (!scene.textures.exists(key)) {
-      // createHeroPartCanvas returns a FRESH canvas per call (it is not
-      // shared like CANVAS_CACHE), so filtering and overlay-drawing on
-      // it directly is safe.
-      const cv = createHeroPartCanvas(w, h, art.draw, art.topExt, art.botExt, seeds);
+      const baseSeeds = classParts[basePart] || seeds;
+      let cv;
+      if (clipFraction !== undefined) {
+        cv = createHeroPartCanvasClipped(w, h, art.draw, art.topExt, art.botExt, baseSeeds, clipFraction, clipAbove);
+      } else {
+        cv = createHeroPartCanvas(w, h, art.draw, art.topExt, art.botExt, baseSeeds);
+      }
       if (PART_HAS_CONTENT[contentKey] === undefined) {
-        // Check if canvas has any visible content — skip empty body parts
-        // (e.g. a hero with no weapon would produce an empty weapon canvas)
         const checkCtx = cv.getContext('2d');
         const imgData = checkCtx.getImageData(0, 0, cv.width, cv.height);
         let hasContent = false;
@@ -307,7 +318,7 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
           if (imgData.data[p] > 0) { hasContent = true; break; }
         }
         PART_HAS_CONTENT[contentKey] = hasContent;
-        if (!hasContent) continue;
+        if (!hasContent) return null;
       }
       applySpriteFilter(cv, floorId);
       if (overlay) {
@@ -320,10 +331,62 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     const img = scene.add.image(0, 0, key);
     img.setScale(scale);
     img.setOrigin(0.5, 0.5);
-    img.setDepth(i);
-    container.add(img);
-    parts[partName] = img;
+    return img;
   }
+
+  // ── Build articulated body parts ──
+
+  // LEFT LEG: thigh (upper) + shin (lower)
+  const legSeeds = classParts.legs;
+  if (legSeeds && legSeeds.length > 0) {
+    const thighL = makePartImage('thighL', legSeeds, artCfg.legClipFraction, true);
+    const shinL = makePartImage('shinL', legSeeds, artCfg.legClipFraction, false);
+    if (thighL) { thighL.setDepth(0); container.add(thighL); parts.thighL = thighL; }
+    if (shinL) { shinL.setDepth(0); container.add(shinL); parts.shinL = shinL; }
+  }
+
+  // RIGHT LEG: reuse same seeds, slightly offset for visual separation
+  if (legSeeds && legSeeds.length > 0) {
+    const thighR = makePartImage('thighR', legSeeds, artCfg.legClipFraction, true);
+    const shinR = makePartImage('shinR', legSeeds, artCfg.legClipFraction, false);
+    if (thighR) { thighR.setDepth(1); container.add(thighR); parts.thighR = thighR; }
+    if (shinR) { shinR.setDepth(1); container.add(shinR); parts.shinR = shinR; }
+  }
+
+  // TORSO
+  const torso = makePartImage('torso', classParts.torso);
+  if (torso) { torso.setDepth(2); container.add(torso); parts.torso = torso; }
+
+  // LEFT ARM: upper arm + forearm
+  if (classParts.armL && classParts.armL.length > 0) {
+    const upperArmL = makePartImage('upperArmL', classParts.armL, artCfg.armClipFraction, true);
+    const forearmL = makePartImage('forearmL', classParts.armL, artCfg.armClipFraction, false);
+    if (upperArmL) { upperArmL.setDepth(3); container.add(upperArmL); parts.upperArmL = upperArmL; }
+    if (forearmL) { forearmL.setDepth(3); container.add(forearmL); parts.forearmL = forearmL; }
+  }
+
+  // RIGHT ARM: upper arm + forearm
+  if (classParts.armR && classParts.armR.length > 0) {
+    const upperArmR = makePartImage('upperArmR', classParts.armR, artCfg.armClipFraction, true);
+    const forearmR = makePartImage('forearmR', classParts.armR, artCfg.armClipFraction, false);
+    if (upperArmR) { upperArmR.setDepth(4); container.add(upperArmR); parts.upperArmR = upperArmR; }
+    if (forearmR) { forearmR.setDepth(4); container.add(forearmR); parts.forearmR = forearmR; }
+  }
+
+  // WEAPON
+  const weapon = makePartImage('weapon', classParts.weapon);
+  if (weapon) { weapon.setDepth(5); container.add(weapon); parts.weapon = weapon; }
+
+  // HEAD
+  const head = makePartImage('head', classParts.head);
+  if (head) { head.setDepth(6); container.add(head); parts.head = head; }
+
+  // Backward-compat aliases for code that references old part names
+  if (parts.thighL) parts.leftLeg = parts.thighL;
+  if (parts.thighR) parts.rightLeg = parts.thighR;
+  if (parts.thighL) parts.legs = parts.thighL;
+  if (parts.upperArmL) parts.armL = parts.upperArmL;
+  if (parts.upperArmR) parts.armR = parts.upperArmR;
 
   // Make container work as a drop-in replacement for hs.body
   container.body = container;
