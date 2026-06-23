@@ -1,37 +1,53 @@
 /**
  * Skeletal character rig — joint-rotation animation on body-part textures.
  *
- * Each hero's 7 body parts (leftLeg, rightLeg, torso, armL, armR, weapon,
- * head) are Phaser Images with their origin set to their joint pivot.
- * The rig rotates each part around that pivot to produce articulated
- * movement: walking gaits, sword swings, casting poses, etc.
+ * Body parts are Phaser Images with their origin set to their joint pivot.
+ * The rig rotates each part around that pivot and propagates parent-child
+ * transforms so the skeleton moves as a connected body:
+ *   - Torso rotation carries head, arms, and weapon
+ *   - Thigh rotation carries shin (knee follows hip)
+ *   - Upper arm rotation carries forearm (elbow follows shoulder)
  *
  * Poses are objects mapping part names to angles (radians).
  * Animations are sequences of keyframed poses with timing.
  */
 
+const DEG_TO_RAD = Math.PI / 180;
+
+// Parent-child chains for forward kinematics.
+// Each entry: [parentName, childName]. Order matters — parents first.
+const HIERARCHY = [
+  // Torso carries upper body
+  ['torso', 'head'],
+  ['torso', 'upperArmL'],
+  ['torso', 'upperArmR'],
+  ['torso', 'weapon'],
+  // Upper arm carries forearm
+  ['upperArmL', 'forearmL'],
+  ['upperArmR', 'forearmR'],
+  // Thigh carries shin
+  ['thighL', 'shinL'],
+  ['thighR', 'shinR'],
+];
+
 export class CharacterRig {
   /**
-   * @param {object} parts — { leftLeg, rightLeg, torso, armL, armR, weapon, head } Phaser Images
+   * @param {object} parts — { thighL, shinL, torso, upperArmL, forearmL, ... } Phaser Images
    * @param {Phaser.Scene} scene
-   * @param {object} pivots — per-part origin fractions { partName: { x, y } },
-   *   computed from the hero's art geometry so rotation happens at the
-   *   actual joint (hip/shoulder/neck/waist/grip), not an arbitrary point.
+   * @param {object} pivots — per-part origin fractions { partName: { x, y } }
    */
   constructor(parts, scene, pivots = null) {
     this.parts = parts;
     this.scene = scene;
     this._tweens = [];
     this._timeline = null;
+    this._updateEvent = null;
 
     this._setPivots(pivots || DEFAULT_PIVOTS);
+    this._startPropagation();
   }
 
   _setPivots(pivots) {
-    // CRITICAL: a Phaser Image's (x, y) is the position of its ORIGIN.
-    // Changing the origin without compensating the position shifts the
-    // texture on screen — which scattered hero parts all over the place.
-    // So: change origin, then move the image so its texture stays put.
     for (const [name, part] of Object.entries(this.parts)) {
       if (!part || !part.setOrigin) continue;
       const pv = pivots[name] || { x: 0.5, y: 0.5 };
@@ -39,26 +55,72 @@ export class CharacterRig {
       part.setOrigin(pv.x, pv.y);
       part.x += (pv.x - oldOx) * part.displayWidth;
       part.y += (pv.y - oldOy) * part.displayHeight;
-      // Base position: where the part rests with no animation applied.
-      // State-machine resets must return here, NOT to (0, 0).
       part._baseX = part.x;
       part._baseY = part.y;
     }
   }
 
+  _startPropagation() {
+    if (!this.scene || !this.scene.events) return;
+    this._updateEvent = () => this.propagate();
+    this.scene.events.on('update', this._updateEvent);
+  }
+
+  /**
+   * Forward kinematics — propagate parent rotations to child positions.
+   * Called every frame so children track their parents during tweened animations.
+   */
+  propagate() {
+    const p = this.parts;
+    if (!p) return;
+
+    for (let i = 0; i < HIERARCHY.length; i++) {
+      const [parentName, childName] = HIERARCHY[i];
+      const parent = p[parentName];
+      const child = p[childName];
+      if (!parent || !child || parent._baseX === undefined || child._baseX === undefined) continue;
+
+      // Cumulative angle: sum of all ancestors' angles up to this parent.
+      // For two-level chains (torso → upperArm → forearm), the forearm
+      // already got moved when torso → upperArm was processed (earlier in
+      // the HIERARCHY array). We only need the DIRECT parent's angle here
+      // because the child's _baseX/_baseY offset is relative to root space.
+      // However, for the child's position we need to rotate around the
+      // parent's CURRENT position (which may have been moved by its own parent).
+      const parentAngle = parent.angle * DEG_TO_RAD;
+      if (Math.abs(parentAngle) < 0.0005 && parent.x === parent._baseX && parent.y === parent._baseY) {
+        // Parent hasn't moved — reset child to base position
+        child.x = child._baseX;
+        child.y = child._baseY;
+        continue;
+      }
+
+      // Vector from parent's pivot to child's rest position (in root space)
+      const dx = child._baseX - parent._baseX;
+      const dy = child._baseY - parent._baseY;
+
+      // Rotate that vector by the parent's angle
+      const cos = Math.cos(parentAngle);
+      const sin = Math.sin(parentAngle);
+      const rotX = dx * cos - dy * sin;
+      const rotY = dx * sin + dy * cos;
+
+      // Child's new position: parent's CURRENT position + rotated offset
+      child.x = parent.x + rotX;
+      child.y = parent.y + rotY;
+    }
+  }
+
   setPose(pose) {
     const p = this.parts;
-    // Articulated legs: thighL/shinL and thighR/shinR
     if (pose.thighL !== undefined && p.thighL) p.thighL.angle = rad2deg(pose.thighL);
     if (pose.shinL  !== undefined && p.shinL)  p.shinL.angle  = rad2deg(pose.shinL);
     if (pose.thighR !== undefined && p.thighR) p.thighR.angle = rad2deg(pose.thighR);
     if (pose.shinR  !== undefined && p.shinR)  p.shinR.angle  = rad2deg(pose.shinR);
-    // Legacy leg names → map to thigh (backward compat)
     if (pose.leftLeg !== undefined && p.thighL && pose.thighL === undefined) p.thighL.angle = rad2deg(pose.leftLeg);
     if (pose.rightLeg !== undefined && p.thighR && pose.thighR === undefined) p.thighR.angle = rad2deg(pose.rightLeg);
     if (pose.leftLeg  !== undefined && p.leftLeg && !p.thighL)  p.leftLeg.angle  = rad2deg(pose.leftLeg);
     if (pose.rightLeg !== undefined && p.rightLeg && !p.thighR) p.rightLeg.angle = rad2deg(pose.rightLeg);
-    // Unified legs fallback
     if (p.legs && !p.leftLeg && !p.rightLeg && !p.thighL && !p.thighR) {
       const lAngle = pose.leftLeg ?? pose.thighL ?? 0;
       const rAngle = pose.rightLeg ?? pose.thighR ?? 0;
@@ -67,18 +129,18 @@ export class CharacterRig {
       p.legs.y = (p.legs._baseY ?? 0) + strideSpread * 18;
     }
     if (pose.torso !== undefined && p.torso) p.torso.angle = rad2deg(pose.torso);
-    // Articulated arms: upperArmL/forearmL and upperArmR/forearmR
     if (pose.upperArmL !== undefined && p.upperArmL) p.upperArmL.angle = rad2deg(pose.upperArmL);
     if (pose.forearmL  !== undefined && p.forearmL)  p.forearmL.angle  = rad2deg(pose.forearmL);
     if (pose.upperArmR !== undefined && p.upperArmR) p.upperArmR.angle = rad2deg(pose.upperArmR);
     if (pose.forearmR  !== undefined && p.forearmR)  p.forearmR.angle  = rad2deg(pose.forearmR);
-    // Legacy arm names → map to upperArm (backward compat)
     if (pose.armL !== undefined && p.upperArmL && pose.upperArmL === undefined) p.upperArmL.angle = rad2deg(pose.armL);
     if (pose.armR !== undefined && p.upperArmR && pose.upperArmR === undefined) p.upperArmR.angle = rad2deg(pose.armR);
     if (pose.armL !== undefined && p.armL && !p.upperArmL) p.armL.angle = rad2deg(pose.armL);
     if (pose.armR !== undefined && p.armR && !p.upperArmR) p.armR.angle = rad2deg(pose.armR);
     if (pose.weapon !== undefined && p.weapon) p.weapon.angle = rad2deg(pose.weapon);
     if (pose.head   !== undefined && p.head)   p.head.angle   = rad2deg(pose.head);
+
+    this.propagate();
   }
 
   tweenToPose(pose, duration = 300, ease = 'Sine.inOut') {
@@ -221,12 +283,17 @@ export class CharacterRig {
     for (const key of keys) {
       if (!this.parts[key]) continue;
       this.parts[key].angle = 0;
-      if (key === 'legs') this.parts[key].y = this.parts[key]._baseY ?? 0;
+      this.parts[key].x = this.parts[key]._baseX ?? this.parts[key].x;
+      this.parts[key].y = this.parts[key]._baseY ?? this.parts[key].y;
     }
   }
 
   destroy() {
     this.stopAll();
+    if (this.scene && this.scene.events && this._updateEvent) {
+      this.scene.events.off('update', this._updateEvent);
+    }
+    this._updateEvent = null;
     this.parts = null;
     this.scene = null;
   }
