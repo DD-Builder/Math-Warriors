@@ -267,6 +267,20 @@ export function createHeroPartCanvas(w, h, drawFn, topExt, botExt, allowedSeeds)
   return cv;
 }
 
+/export function createHeroPartCanvasClipped(w, h, drawFn, topExt, botExt, allowedSeeds, clipFraction, clipAbove) {
+  var full = createHeroPartCanvas(w, h, drawFn, topExt, botExt, allowedSeeds);
+  var cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  var ctx = cv.getContext('2d');
+  var clipY = Math.round(h * clipFraction);
+  if (clipAbove) {
+    ctx.drawImage(full, 0, 0, w, clipY, 0, 0, w, clipY);
+  } else {
+    ctx.drawImage(full, 0, clipY, w, h - clipY, 0, clipY, w, h - clipY);
+  }
+  return cv;
+}
+
 // ─── CONVENIENCE: Create monster canvas ─────────────────────────
 export function createMonsterCanvas(size, bgColor, drawFn, t) {
   var cv = document.createElement('canvas');
