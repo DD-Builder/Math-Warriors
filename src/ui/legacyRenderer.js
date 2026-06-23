@@ -267,7 +267,7 @@ export function createHeroPartCanvas(w, h, drawFn, topExt, botExt, allowedSeeds)
   return cv;
 }
 
-/export function createHeroPartCanvasClipped(w, h, drawFn, topExt, botExt, allowedSeeds, clipFraction, clipAbove) {
+export function createHeroPartCanvasClipped(w, h, drawFn, topExt, botExt, allowedSeeds, clipFraction, clipAbove) {
   var full = createHeroPartCanvas(w, h, drawFn, topExt, botExt, allowedSeeds);
   var cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
