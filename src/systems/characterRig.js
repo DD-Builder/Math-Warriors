@@ -48,28 +48,51 @@ export class CharacterRig {
 
   setPose(pose) {
     const p = this.parts;
-    if (pose.leftLeg  !== undefined && p.leftLeg)  p.leftLeg.angle  = rad2deg(pose.leftLeg);
-    if (pose.rightLeg !== undefined && p.rightLeg) p.rightLeg.angle = rad2deg(pose.rightLeg);
-    // Unified legs part: average left/right into single rotation + vertical stride bob
-    if (p.legs && !p.leftLeg && !p.rightLeg) {
-      const lAngle = pose.leftLeg ?? 0;
-      const rAngle = pose.rightLeg ?? 0;
+    // Articulated legs: thighL/shinL and thighR/shinR
+    if (pose.thighL !== undefined && p.thighL) p.thighL.angle = rad2deg(pose.thighL);
+    if (pose.shinL  !== undefined && p.shinL)  p.shinL.angle  = rad2deg(pose.shinL);
+    if (pose.thighR !== undefined && p.thighR) p.thighR.angle = rad2deg(pose.thighR);
+    if (pose.shinR  !== undefined && p.shinR)  p.shinR.angle  = rad2deg(pose.shinR);
+    // Legacy leg names → map to thigh (backward compat)
+    if (pose.leftLeg !== undefined && p.thighL && pose.thighL === undefined) p.thighL.angle = rad2deg(pose.leftLeg);
+    if (pose.rightLeg !== undefined && p.thighR && pose.thighR === undefined) p.thighR.angle = rad2deg(pose.rightLeg);
+    if (pose.leftLeg  !== undefined && p.leftLeg && !p.thighL)  p.leftLeg.angle  = rad2deg(pose.leftLeg);
+    if (pose.rightLeg !== undefined && p.rightLeg && !p.thighR) p.rightLeg.angle = rad2deg(pose.rightLeg);
+    // Unified legs fallback
+    if (p.legs && !p.leftLeg && !p.rightLeg && !p.thighL && !p.thighR) {
+      const lAngle = pose.leftLeg ?? pose.thighL ?? 0;
+      const rAngle = pose.rightLeg ?? pose.thighR ?? 0;
       p.legs.angle = rad2deg((lAngle - rAngle) * 0.5);
       const strideSpread = Math.abs(lAngle - rAngle);
       p.legs.y = (p.legs._baseY ?? 0) + strideSpread * 18;
     }
-    if (pose.torso    !== undefined && p.torso)    p.torso.angle    = rad2deg(pose.torso);
-    if (pose.armL     !== undefined && p.armL)     p.armL.angle     = rad2deg(pose.armL);
-    if (pose.armR     !== undefined && p.armR)     p.armR.angle     = rad2deg(pose.armR);
-    if (pose.weapon   !== undefined && p.weapon)   p.weapon.angle   = rad2deg(pose.weapon);
-    if (pose.head     !== undefined && p.head)     p.head.angle     = rad2deg(pose.head);
+    if (pose.torso !== undefined && p.torso) p.torso.angle = rad2deg(pose.torso);
+    // Articulated arms: upperArmL/forearmL and upperArmR/forearmR
+    if (pose.upperArmL !== undefined && p.upperArmL) p.upperArmL.angle = rad2deg(pose.upperArmL);
+    if (pose.forearmL  !== undefined && p.forearmL)  p.forearmL.angle  = rad2deg(pose.forearmL);
+    if (pose.upperArmR !== undefined && p.upperArmR) p.upperArmR.angle = rad2deg(pose.upperArmR);
+    if (pose.forearmR  !== undefined && p.forearmR)  p.forearmR.angle  = rad2deg(pose.forearmR);
+    // Legacy arm names → map to upperArm (backward compat)
+    if (pose.armL !== undefined && p.upperArmL && pose.upperArmL === undefined) p.upperArmL.angle = rad2deg(pose.armL);
+    if (pose.armR !== undefined && p.upperArmR && pose.upperArmR === undefined) p.upperArmR.angle = rad2deg(pose.armR);
+    if (pose.armL !== undefined && p.armL && !p.upperArmL) p.armL.angle = rad2deg(pose.armL);
+    if (pose.armR !== undefined && p.armR && !p.upperArmR) p.armR.angle = rad2deg(pose.armR);
+    if (pose.weapon !== undefined && p.weapon) p.weapon.angle = rad2deg(pose.weapon);
+    if (pose.head   !== undefined && p.head)   p.head.angle   = rad2deg(pose.head);
   }
 
   tweenToPose(pose, duration = 300, ease = 'Sine.inOut') {
     this.stopAll();
     const p = this.parts;
-    const keys = ['leftLeg', 'rightLeg', 'torso', 'armL', 'armR', 'weapon', 'head'];
-    for (const key of keys) {
+    const allKeys = [
+      'thighL', 'shinL', 'thighR', 'shinR',
+      'leftLeg', 'rightLeg',
+      'torso',
+      'upperArmL', 'forearmL', 'upperArmR', 'forearmR',
+      'armL', 'armR',
+      'weapon', 'head',
+    ];
+    for (const key of allKeys) {
       if (pose[key] !== undefined && p[key]) {
         const t = this.scene.tweens.add({
           targets: p[key],
@@ -80,10 +103,10 @@ export class CharacterRig {
         this._tweens.push(t);
       }
     }
-    // Unified legs: tween angle and y-bob together
-    if (p.legs && !p.leftLeg && !p.rightLeg) {
-      const lAngle = pose.leftLeg ?? 0;
-      const rAngle = pose.rightLeg ?? 0;
+    // Unified legs fallback
+    if (p.legs && !p.leftLeg && !p.rightLeg && !p.thighL && !p.thighR) {
+      const lAngle = pose.leftLeg ?? pose.thighL ?? 0;
+      const rAngle = pose.rightLeg ?? pose.thighR ?? 0;
       const strideSpread = Math.abs(lAngle - rAngle);
       this._tweens.push(this.scene.tweens.add({
         targets: p.legs,
@@ -101,7 +124,14 @@ export class CharacterRig {
 
     const totalDur = anim.duration || 400;
     const p = this.parts;
-    const hasUnifiedLegs = p.legs && !p.leftLeg && !p.rightLeg;
+    const hasUnifiedLegs = p.legs && !p.leftLeg && !p.rightLeg && !p.thighL && !p.thighR;
+    // Map legacy pose keys to articulated part names
+    const LEGACY_MAP = {
+      leftLeg: p.thighL ? 'thighL' : (p.leftLeg ? 'leftLeg' : null),
+      rightLeg: p.thighR ? 'thighR' : (p.rightLeg ? 'rightLeg' : null),
+      armL: p.upperArmL ? 'upperArmL' : (p.armL ? 'armL' : null),
+      armR: p.upperArmR ? 'upperArmR' : (p.armR ? 'armR' : null),
+    };
     let loopCount = 0;
     const maxLoops = anim.loop ? 9999 : 1;
 
@@ -123,7 +153,8 @@ export class CharacterRig {
         const keys = Object.keys(curr.pose);
         for (const key of keys) {
           if (hasUnifiedLegs && (key === 'leftLeg' || key === 'rightLeg')) continue;
-          const part = p[key];
+          const mappedKey = LEGACY_MAP[key] || key;
+          const part = p[mappedKey];
           if (!part) continue;
 
           const tw = this.scene.tweens.add({
@@ -179,7 +210,14 @@ export class CharacterRig {
 
   resetPose() {
     this.stopAll();
-    const keys = ['leftLeg', 'rightLeg', 'legs', 'torso', 'armL', 'armR', 'weapon', 'head'];
+    const keys = [
+      'thighL', 'shinL', 'thighR', 'shinR',
+      'leftLeg', 'rightLeg', 'legs',
+      'torso',
+      'upperArmL', 'forearmL', 'upperArmR', 'forearmR',
+      'armL', 'armR',
+      'weapon', 'head',
+    ];
     for (const key of keys) {
       if (!this.parts[key]) continue;
       this.parts[key].angle = 0;
@@ -200,10 +238,22 @@ function rad2deg(r) { return r * (180 / Math.PI); }
 // full-canvas space (the hero occupies roughly the middle 60% of the
 // canvas, feet near 0.85, head top near 0.15).
 const DEFAULT_PIVOTS = {
+  // Articulated legs
+  thighL:   { x: 0.5, y: 0.15 },  // hip (top of thigh)
+  shinL:    { x: 0.5, y: 0.10 },  // knee (top of shin)
+  thighR:   { x: 0.5, y: 0.15 },  // hip (top of thigh)
+  shinR:    { x: 0.5, y: 0.10 },  // knee (top of shin)
+  // Legacy leg pivots
   leftLeg:  { x: 0.5, y: 0.62 },  // hip
   rightLeg: { x: 0.5, y: 0.62 },  // hip
   legs:     { x: 0.5, y: 0.62 },  // hip (unified)
   torso:    { x: 0.5, y: 0.58 },  // waist
+  // Articulated arms
+  upperArmL: { x: 0.5, y: 0.15 }, // shoulder (top of upper arm)
+  forearmL:  { x: 0.5, y: 0.10 }, // elbow (top of forearm)
+  upperArmR: { x: 0.5, y: 0.15 }, // shoulder (top of upper arm)
+  forearmR:  { x: 0.5, y: 0.10 }, // elbow (top of forearm)
+  // Legacy arm pivots
   armL:     { x: 0.5, y: 0.42 },  // shoulder
   armR:     { x: 0.5, y: 0.42 },  // shoulder
   weapon:   { x: 0.5, y: 0.48 },  // grip (hand height)

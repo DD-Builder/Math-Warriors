@@ -7,7 +7,10 @@
  */
 
 import { CharacterRig } from './characterRig.js';
-import { WALK_KNIGHT, WALK_WIZARD, WALK_BUNNY } from '../data/characterAnimations.js';
+import {
+  WALK_KNIGHT, WALK_WIZARD, WALK_BUNNY,
+  IDLE_KNIGHT, IDLE_WIZARD, IDLE_BUNNY,
+} from '../data/characterAnimations.js';
 
 const VALID_TRANSITIONS = {
   idle:      ['walk', 'guard', 'attack', 'hit', 'ko', 'victory', 'cast', 'selection-sway', 'breathe'],
@@ -24,70 +27,29 @@ const VALID_TRANSITIONS = {
 
 const STATE_DEFS = {};
 
-// ── IDLE — alive and breathing ──
+// ── IDLE — alive and breathing (rig-driven keyframe animation) ──
 STATE_DEFS.idle = {
   enter(sm) {
-    const { parts, scene, heroClass } = sm;
-    if (parts.torso) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.torso,
-        scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.04,
-        y: -2,
-        duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.head) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.head, y: -2, angle: 0.8,
-        duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.weapon) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.weapon, angle: 1.5,
-        duration: heroClass === 'wizard' ? 2200 : 2800,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.armL) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.armL, y: -1, angle: -1,
-        duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.armR) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.armR, y: -1, angle: 1,
-        duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-        delay: 400,
-      }));
-    }
-    if (heroClass === 'bunny' && parts.legs) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.legs, y: -3,
-        duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
+    const idleAnim = sm.heroClass === 'wizard' ? IDLE_WIZARD
+                   : sm.heroClass === 'bunny'  ? IDLE_BUNNY
+                   : IDLE_KNIGHT;
+    sm.rig.playAnimation(idleAnim);
+  },
+  exit(sm) {
+    sm.rig.resetPose();
   },
 };
 
 // ── BREATHE — subtle background breathing for non-active battle heroes ──
 STATE_DEFS.breathe = {
   enter(sm) {
-    const { parts, scene } = sm;
-    if (parts.torso) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.torso,
-        scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.015,
-        duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
-    if (parts.head) {
-      sm._tweens.push(scene.tweens.add({
-        targets: parts.head, y: -1,
-        duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      }));
-    }
+    const idleAnim = sm.heroClass === 'wizard' ? IDLE_WIZARD
+                   : sm.heroClass === 'bunny'  ? IDLE_BUNNY
+                   : IDLE_KNIGHT;
+    sm.rig.playAnimation(idleAnim);
+  },
+  exit(sm) {
+    sm.rig.resetPose();
   },
 };
 
