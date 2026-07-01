@@ -50,7 +50,7 @@ test('walk → idle resets parts', () => {
   sm.transition('walk');
   sm.parts.legs.y = 999;
   sm.transition('idle');
-  assert.ok(Math.abs(sm.parts.legs.y) < 10, `legs.y should be near 0, got ${sm.parts.legs.y}`);
+  assert.equal(sm.parts.legs.y, 0);
 });
 
 test('cannot transition ko → attack', () => {
@@ -116,7 +116,7 @@ test('ko drops alpha on all parts', () => {
   const scene = makeMockScene();
   const sm = new HeroAnimationSM(makeMockParts(), scene, 'bunny', 'bunny-boulder');
   sm.transition('ko');
-  assert.ok(scene._tweens.some(t => t._cfg.alpha <= 0.4));
+  assert.ok(scene._tweens.some(t => t._cfg.alpha === 0.4));
 });
 
 test('destroy nulls references', () => {
@@ -127,17 +127,17 @@ test('destroy nulls references', () => {
   assert.equal(sm.scene, null);
 });
 
-test('walk uses class-specific keyframe animation via rig', () => {
+test('visualMods.walkSpeed affects walk animation', () => {
   const scene = makeMockScene();
   const sm = new HeroAnimationSM(makeMockParts(), scene, 'knight', 'knight-shadow');
+  sm.visualMods.walkSpeed = 400;
   sm.transition('walk');
-  assert.equal(sm.state, 'walk');
-  assert.ok(scene._tweens.length > 0);
+  assert.ok(scene._tweens.some(t => t._cfg.duration === 400));
 });
 
 test('selection-sway creates gentle rocking on all parts', () => {
   const scene = makeMockScene();
   const sm = new HeroAnimationSM(makeMockParts(), scene, 'wizard', 'wizard-stargazer');
   sm.transition('selection-sway');
-  assert.ok(scene._tweens.length >= 3);
+  assert.ok(scene._tweens.length >= 6);
 });

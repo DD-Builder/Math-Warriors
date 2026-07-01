@@ -4,15 +4,11 @@
  * Manages transitions between idle, walk, guard, attack, hit, ko, victory,
  * cast, and selection-sway states. Each state owns the tweens it creates
  * and cleans them up on exit.
+ *
+ * Pure JS with no Phaser import — receives scene + parts from the outside.
+ * The scene object must provide: tweens.add(), tweens.killTweensOf(),
+ * time.delayedCall().
  */
-
-import { CharacterRig } from './characterRig.js';
-import {
-  WALK_KNIGHT, WALK_WIZARD, WALK_BUNNY,
-  IDLE_KNIGHT, IDLE_WIZARD, IDLE_BUNNY,
-  KNIGHT_SLASH, WIZARD_CAST, BUNNY_PUNCH,
-  GUARD_KNIGHT, HIT_FLINCH, KO_COLLAPSE, VICTORY_CHEER, SELECTION_SWAY,
-} from '../data/characterAnimations.js';
 
 const VALID_TRANSITIONS = {
   idle:      ['walk', 'guard', 'attack', 'hit', 'ko', 'victory', 'cast', 'selection-sway', 'breathe'],
@@ -29,80 +25,217 @@ const VALID_TRANSITIONS = {
 
 const STATE_DEFS = {};
 
-// ── IDLE — alive and breathing (rig-driven keyframe animation) ──
+// ──────────────────────────────────────────────────────────────
+// IDLE — subtle breathing, weapon micro-sway
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.idle = {
   enter(sm) {
-    const idleAnim = sm.heroClass === 'wizard' ? IDLE_WIZARD
-                   : sm.heroClass === 'bunny'  ? IDLE_BUNNY
-                   : IDLE_KNIGHT;
-    sm.rig.playAnimation(idleAnim);
-  },
-  exit(sm) {
-    sm.rig.resetPose();
+    const { parts, scene, heroClass } = sm;
+    if (parts.torso) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.045, y: -2, duration: 1600,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
+    if (parts.weapon) {
+      const dur = heroClass === 'wizard' ? 2400 : 3000;
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.weapon, angle: 1.5, duration: dur,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
+    if (heroClass === 'bunny' && parts.legs) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.legs, y: -2, duration: 600,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
   },
 };
 
-// ── BREATHE — subtle background breathing for non-active battle heroes ──
+// ──────────────────────────────────────────────────────────────
+// BREATHE — like idle but even subtler (for non-active heroes in battle)
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.breathe = {
   enter(sm) {
-    const idleAnim = sm.heroClass === 'wizard' ? IDLE_WIZARD
-                   : sm.heroClass === 'bunny'  ? IDLE_BUNNY
-                   : IDLE_KNIGHT;
-    sm.rig.playAnimation(idleAnim);
-  },
-  exit(sm) {
-    sm.rig.resetPose();
+    const { parts, scene } = sm;
+    if (parts.torso) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.015, duration: 2600,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
   },
 };
 
-// ── WALK — skeletal stride cycle driven by biomechanical keyframes ──
+// ──────────────────────────────────────────────────────────────
+// WALK — legs pump, arms counter-swing, torso/head bob
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.walk = {
   enter(sm) {
-    const walkAnim = sm.heroClass === 'wizard' ? WALK_WIZARD
-                   : sm.heroClass === 'bunny'  ? WALK_BUNNY
-                   : WALK_KNIGHT;
-    sm.rig.playAnimation(walkAnim);
-  },
-  exit(sm) {
-    sm.rig.resetPose();
+    const { parts, scene } = sm;
+    const spd = sm.visualMods.walkSpeed ?? 200;
+    if (parts.legs) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.legs, y: 4, duration: spd,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
+    if (parts.armL) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.armL, y: -3, x: -2, duration: spd,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
+    if (parts.armR) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.armR, y: 3, x: 2, duration: spd,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd / 2,
+      }));
+    }
+    if (parts.torso) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.torso, y: -2, duration: spd,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
+      }));
+    }
+    if (parts.head) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.head, y: -2.5, duration: spd,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
+      }));
+    }
+    if (parts.weapon) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.weapon, angle: 3, y: -1, duration: spd,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut', delay: spd * 0.25,
+      }));
+    }
   },
 };
 
-// ── GUARD — rig-driven defensive stance ──
+// ──────────────────────────────────────────────────────────────
+// GUARD — class-specific defensive stance
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.guard = {
   enter(sm) {
-    sm.rig.playAnimation(GUARD_KNIGHT);
-  },
-  exit(sm) {
-    sm.rig.resetPose();
+    const { parts, scene, heroClass } = sm;
+    if (heroClass === 'knight') {
+      if (parts.armL) {
+        sm._tweens.push(scene.tweens.add({
+          targets: parts.armL, x: 8, y: -6, angle: -15, duration: 200, ease: 'Back.out',
+        }));
+      }
+      if (parts.weapon) {
+        sm._tweens.push(scene.tweens.add({
+          targets: parts.weapon, x: 6, y: -4, angle: -20, duration: 200, ease: 'Back.out',
+        }));
+      }
+    } else if (heroClass === 'wizard') {
+      if (parts.weapon) {
+        sm._tweens.push(scene.tweens.add({
+          targets: parts.weapon, x: 10, y: -8, angle: 15, duration: 250, ease: 'Quad.out',
+        }));
+      }
+      const arms = [parts.armL, parts.armR].filter(Boolean);
+      arms.forEach(arm => {
+        sm._tweens.push(scene.tweens.add({
+          targets: arm, y: -5, duration: 250, ease: 'Quad.out',
+        }));
+      });
+    } else {
+      const arms = [parts.armL, parts.armR].filter(Boolean);
+      arms.forEach((arm, i) => {
+        sm._tweens.push(scene.tweens.add({
+          targets: arm, x: i === 0 ? -6 : 6, y: -4, duration: 200, ease: 'Back.out',
+        }));
+      });
+      if (parts.torso) {
+        sm._tweens.push(scene.tweens.add({
+          targets: parts.torso, y: 3, duration: 200, ease: 'Quad.out',
+        }));
+      }
+    }
+    if (parts.torso) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.01, duration: 1200,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
   },
 };
 
-// ── ATTACK — rig-driven class-aware combat strikes ──
+// ──────────────────────────────────────────────────────────────
+// ATTACK — subtype-driven: 'slash', 'magic', 'punch', or heroId-specific
+// Returns to previous state via _returnState after the attack duration.
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.attack = {
   enter(sm, opts = {}) {
-    const { scene, heroClass } = sm;
-    const subtype = opts.subtype ?? (heroClass === 'wizard' ? 'magic' : heroClass === 'bunny' ? 'kick' : 'slash');
-    const duration = opts.duration ?? 350;
+    const { parts, scene, heroClass } = sm;
+    const subtype = opts.subtype ?? (heroClass === 'wizard' ? 'magic' : heroClass === 'bunny' ? 'punch' : 'slash');
+    const duration = opts.duration ?? 300;
 
-    const attackAnim = (subtype === 'magic' || subtype === 'cast') ? WIZARD_CAST
-                     : (subtype === 'punch' || subtype === 'kick') ? BUNNY_PUNCH
-                     : KNIGHT_SLASH;
-
-    sm.rig.playAnimation(attackAnim, () => {
-      if (sm.state === 'attack') {
-        sm.transition(sm._returnState || 'idle');
+    if (subtype === 'slash') {
+      const targets = [parts.armR, parts.weapon].filter(Boolean);
+      if (targets.length) {
+        sm._tweens.push(scene.tweens.add({
+          targets, x: 18, y: -12, angle: -25, duration: 100,
+          yoyo: true, ease: 'Back.out',
+        }));
       }
-    });
+    } else if (subtype === 'magic' || subtype === 'cast') {
+      const arms = [parts.armL, parts.armR].filter(Boolean);
+      if (arms.length) {
+        sm._tweens.push(scene.tweens.add({
+          targets: arms, y: -10, duration: 150, yoyo: true, ease: 'Quad.out',
+        }));
+      }
+      if (parts.weapon) {
+        sm._tweens.push(scene.tweens.add({
+          targets: parts.weapon, y: -8, scaleX: (parts.weapon._baseScaleX ?? parts.weapon.scaleX) * 1.1, scaleY: (parts.weapon._baseScaleY ?? parts.weapon.scaleY) * 1.1,
+          duration: 200, yoyo: true, ease: 'Quad.out',
+        }));
+      }
+    } else if (subtype === 'punch') {
+      const arm = parts.armR || parts.armL;
+      if (arm) {
+        sm._tweens.push(scene.tweens.add({
+          targets: arm, x: 14, duration: 60,
+          yoyo: true, repeat: 2, ease: 'Sine.inOut',
+        }));
+      }
+      if (parts.legs) {
+        sm._tweens.push(scene.tweens.add({
+          targets: parts.legs, y: -3, duration: 80, yoyo: true, ease: 'Quad.out',
+        }));
+      }
+    } else if (subtype === 'kick') {
+      if (parts.legs) {
+        sm._tweens.push(scene.tweens.add({
+          targets: parts.legs, x: 12, y: -6, angle: 20, duration: 120,
+          yoyo: true, ease: 'Back.out',
+        }));
+      }
+      if (parts.torso) {
+        sm._tweens.push(scene.tweens.add({
+          targets: parts.torso, angle: -8, duration: 120, yoyo: true, ease: 'Sine.inOut',
+        }));
+      }
+    } else if (subtype === 'charge') {
+      Object.values(parts).forEach(part => {
+        sm._tweens.push(scene.tweens.add({
+          targets: part, scaleX: (part._baseScaleX ?? part.scaleX) * 1.08, scaleY: (part._baseScaleY ?? part.scaleY) * 1.08, duration: 200, ease: 'Quad.out',
+        }));
+      });
+    }
 
-    sm._returnTimer = scene.time.delayedCall(Math.max(duration, attackAnim.duration + 50), () => {
+    sm._returnTimer = scene.time.delayedCall(duration, () => {
       if (sm.state === 'attack') {
         sm.transition(sm._returnState || 'idle');
       }
     });
   },
   exit(sm) {
-    sm.rig.resetPose();
     if (sm._returnTimer) {
       sm._returnTimer.remove(false);
       sm._returnTimer = null;
@@ -110,27 +243,47 @@ STATE_DEFS.attack = {
   },
 };
 
-// ── CAST — rig-driven spell channeling ──
+// ──────────────────────────────────────────────────────────────
+// CAST — arms raised, weapon glows, sustained until cancelled
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.cast = {
   enter(sm) {
-    sm.rig.playAnimation(WIZARD_CAST);
+    const { parts, scene } = sm;
+    const arms = [parts.armL, parts.armR].filter(Boolean);
+    arms.forEach(arm => {
+      sm._tweens.push(scene.tweens.add({
+        targets: arm, y: -12, duration: 300, ease: 'Quad.out',
+      }));
+    });
+    if (parts.weapon) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.weapon, y: -10, scaleX: (parts.weapon._baseScaleX ?? parts.weapon.scaleX) * 1.15, scaleY: (parts.weapon._baseScaleY ?? parts.weapon.scaleY) * 1.15,
+        duration: 400, ease: 'Quad.out',
+      }));
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.weapon, alpha: 0.7, duration: 400,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
   },
 };
 
-// ── HIT — rig-driven flinch with flash ──
+// ──────────────────────────────────────────────────────────────
+// HIT — flinch backward, brief red tint (on parts, not whole sprite)
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.hit = {
   enter(sm, opts = {}) {
     const { parts, scene } = sm;
     const dur = opts.duration ?? 350;
     Object.values(parts).forEach(part => {
-      if (part && part.setTint) part.setTint(0xff6666);
-    });
-    sm.rig.playAnimation(HIT_FLINCH, () => {
-      if (sm.state === 'hit') sm.transition(sm._returnState || 'idle');
+      sm._tweens.push(scene.tweens.add({
+        targets: part, x: -6, duration: 80, yoyo: true, ease: 'Sine.out',
+      }));
+      if (part.setTint) part.setTint(0xff6666);
     });
     sm._returnTimer = scene.time.delayedCall(150, () => {
       Object.values(parts).forEach(part => {
-        if (part && part.clearTint) part.clearTint();
+        if (part.clearTint) part.clearTint();
       });
     });
     scene.time.delayedCall(dur, () => {
@@ -138,9 +291,8 @@ STATE_DEFS.hit = {
     });
   },
   exit(sm) {
-    sm.rig.resetPose();
     Object.values(sm.parts).forEach(part => {
-      if (part && part.clearTint) part.clearTint();
+      if (part.clearTint) part.clearTint();
     });
     if (sm._returnTimer) {
       sm._returnTimer.remove(false);
@@ -149,48 +301,81 @@ STATE_DEFS.hit = {
   },
 };
 
-// ── KO — rig-driven staged collapse ──
+// ──────────────────────────────────────────────────────────────
+// KO — slump / fall
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.ko = {
   enter(sm) {
-    const { parts } = sm;
-    sm.rig.playAnimation(KO_COLLAPSE);
+    const { parts, scene } = sm;
     Object.values(parts).forEach(part => {
-      if (part) {
-        sm._tweens.push(sm.scene.tweens.add({
-          targets: part, alpha: 0.35, duration: 600, ease: 'Quad.in',
-        }));
-      }
+      sm._tweens.push(scene.tweens.add({
+        targets: part, alpha: 0.4, y: 12, angle: 15, duration: 500, ease: 'Quad.in',
+      }));
     });
   },
   exit(sm) {
-    sm.rig.resetPose();
     Object.values(sm.parts).forEach(part => {
-      if (part) part.alpha = 1;
+      part.alpha = 1;
+      part.y = 0;
+      part.angle = 0;
     });
   },
 };
 
-// ── VICTORY — rig-driven celebration ──
+// ──────────────────────────────────────────────────────────────
+// VICTORY — jump + arm raise
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS.victory = {
   enter(sm) {
-    sm.rig.playAnimation(VICTORY_CHEER);
-  },
-  exit(sm) {
-    sm.rig.resetPose();
+    const { parts, scene } = sm;
+    Object.values(parts).forEach(part => {
+      sm._tweens.push(scene.tweens.add({
+        targets: part, y: -18, duration: 250,
+        yoyo: true, repeat: 2, ease: 'Quad.out',
+      }));
+    });
+    const arms = [parts.armL, parts.armR].filter(Boolean);
+    arms.forEach(arm => {
+      sm._tweens.push(scene.tweens.add({
+        targets: arm, y: -14, angle: -20, duration: 350, ease: 'Back.out',
+      }));
+    });
+    if (parts.weapon) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.weapon, y: -16, angle: -30, duration: 400, ease: 'Back.out',
+      }));
+    }
   },
 };
 
-// ── SELECTION-SWAY — rig-driven living display for cards and gallery ──
+// ──────────────────────────────────────────────────────────────
+// SELECTION-SWAY — gentle rocking for party select / gallery
+// ──────────────────────────────────────────────────────────────
 STATE_DEFS['selection-sway'] = {
   enter(sm) {
-    sm.rig.playAnimation(SELECTION_SWAY);
-  },
-  exit(sm) {
-    sm.rig.resetPose();
+    const { parts, scene } = sm;
+    const allParts = Object.values(parts);
+    allParts.forEach((part, i) => {
+      sm._tweens.push(scene.tweens.add({
+        targets: part,
+        y: -2 + i * 0.3,
+        angle: 1.5,
+        duration: 1800 + i * 150,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    });
+    if (parts.torso) {
+      sm._tweens.push(scene.tweens.add({
+        targets: parts.torso, scaleY: (parts.torso._baseScaleY ?? parts.torso.scaleY) * 1.02, duration: 2200,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      }));
+    }
   },
 };
 
-// ── STATE MACHINE CLASS ──
+// ──────────────────────────────────────────────────────────────
+// STATE MACHINE CLASS
+// ──────────────────────────────────────────────────────────────
 
 export class HeroAnimationSM {
   constructor(parts, scene, heroClass, heroId) {
@@ -203,7 +388,6 @@ export class HeroAnimationSM {
     this._returnState = 'idle';
     this._returnTimer = null;
     this.visualMods = {};
-    this.rig = new CharacterRig(parts, scene);
   }
 
   transition(toState, opts = {}) {
@@ -237,8 +421,8 @@ export class HeroAnimationSM {
     Object.values(this.parts).forEach(part => {
       if (!part) return;
       if (this.scene && this.scene.tweens) this.scene.tweens.killTweensOf(part);
-      part.x = part._baseX ?? 0;
-      part.y = part._baseY ?? 0;
+      part.x = 0;
+      part.y = 0;
       part.angle = 0;
       part.scaleX = part._baseScaleX ?? part.scaleX;
       part.scaleY = part._baseScaleY ?? part.scaleY;
@@ -248,7 +432,6 @@ export class HeroAnimationSM {
 
   destroy() {
     this._exitCurrent();
-    if (this.rig) { this.rig.destroy(); this.rig = null; }
     this.parts = null;
     this.scene = null;
   }
