@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { generateFloorMaze } from '../data/floors.js';
-import { getRealm } from '../data/realms.js';
+import { getLevel } from '../data/levels.js';
 import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, ALL_HEROES, levelBonuses } from '../data/heroes.js';
@@ -13,7 +13,12 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { tileDepth } from '../systems/perspective.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
+
+// Bump whenever the maze save-state shape or level layouts change in an
+// incompatible way — stale device saves are silently discarded instead
+// of resurrecting an old broken layout.
+const MAZE_STATE_SCHEMA = 3;
 import { generateRatedQuestion } from '../systems/math.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
@@ -61,56 +66,24 @@ export class MazeScene extends Phaser.Scene {
     this.slot = getActiveSlot(this);
     this.save = loadSave(this.slot);
 
-    // ── REALM ROOM-CHAIN SYSTEM ──
-    // Load the hand-crafted realm. Each realm is a chain of connected
-    // rooms. We render one room at a time and transition between them
-    // when the hero reaches an exit tile.
-    this.realm = getRealm(this.floorId);
-    this.currentRoomId = data?.roomId || this.save[`realm${this.floorId}_room`] || 'entrance';
-    this.currentRoom = this.realm.rooms.find(r => r.id === this.currentRoomId) || this.realm.rooms[0];
-
-    // Build a flat floor object from the current room for the existing
-    // levelEngine (it expects { tiles, objects, name, ... })
+    // ── HANDCRAFTED LEVEL SYSTEM ──
+    // One purposeful scrolling map per floor (levels.js). The floor's
+    // challenge physically TRANSFORMS the map when completed (a bridge
+    // grows, a tide drains), opening the sealed boss area. Palettes,
+    // challenge config and battle variants still come from floors.js.
+    this.level = getLevel(this.floorId);
     const baseFloor = getFloor(this.floorId);
-
-    // Deep-copy room tiles so we can punch doorways without mutating realm data
-    const roomTiles = this.currentRoom.tiles.map(row => [...row]);
-
-    // Open doorways at exit positions — exits sit on boundary wall tiles,
-    // so convert them to floor tiles so the hero can walk through
-    if (this.currentRoom.exits) {
-      for (const exit of this.currentRoom.exits) {
-        if (roomTiles[exit.y]?.[exit.x] === 0) {
-          roomTiles[exit.y][exit.x] = 1;
-        }
-      }
-    }
 
     this.floor = {
       ...baseFloor,
-      tiles: roomTiles,
-      objects: this.currentRoom.objects || [],
-      name: this.currentRoom.name || baseFloor.name,
-      width: roomTiles[0]?.length ?? baseFloor.width,
-      height: roomTiles.length ?? baseFloor.height,
+      tiles: this.level.tiles.map(row => [...row]),
+      objects: this.level.objects,
+      name: baseFloor.name,
+      width: this.level.width,
+      height: this.level.height,
+      startX: this.level.startX,
+      startY: this.level.startY,
     };
-
-    // Use the room's start position for entrance rooms, otherwise
-    // place the hero near the exit they came from
-    if (this.currentRoom.startX !== undefined) {
-      this._generatedStartX = this.currentRoom.startX;
-      this._generatedStartY = this.currentRoom.startY;
-    } else if (data?.fromExit) {
-      // Place hero at the exit that connects back to where they came from
-      const returnExit = this.currentRoom.exits?.find(e => e.targetRoom === data.fromRoom);
-      if (returnExit) {
-        // Place hero 1 tile inward from the exit
-        const dx = returnExit.direction === 'east' ? -1 : returnExit.direction === 'west' ? 1 : 0;
-        const dy = returnExit.direction === 'south' ? -1 : returnExit.direction === 'north' ? 1 : 0;
-        this._generatedStartX = returnExit.x + dx;
-        this._generatedStartY = returnExit.y + dy;
-      }
-    }
 
     // Hydrate party from save, applying level bonuses
     this.party = (this.save.party || [])
@@ -132,8 +105,13 @@ export class MazeScene extends Phaser.Scene {
     let mazeState = this.registry.get(mazeStateKey(this.floorId));
     if (!mazeState) { try { const s = localStorage.getItem(`mw_maze_${this.floorId}`); if (s) mazeState = JSON.parse(s); } catch (e) { /* ignore */ } }
     if (mazeState && (typeof mazeState.x !== 'number' || !Array.isArray(mazeState.objects))) mazeState = null;
-    // Discard saved state if it belongs to a different room
-    if (mazeState && mazeState.roomId && mazeState.roomId !== this.currentRoomId) mazeState = null;
+    // SCHEMA GUARD: saved state from an older level layout (different
+    // schema version or map size) is discarded, never resurrected.
+    // Stale device saves were how "fixed" levels kept looking broken.
+    if (mazeState && (mazeState.v !== MAZE_STATE_SCHEMA ||
+        mazeState.levelW !== this.floor.width || mazeState.levelH !== this.floor.height)) {
+      mazeState = null;
+    }
     this.freshEntry = !mazeState;
     if (mazeState) {
       this.playerX = mazeState.x;
@@ -151,9 +129,12 @@ export class MazeScene extends Phaser.Scene {
       this.mazeTransformed = mazeState.mazeTransformed || false;
       this.revealedSecrets = mazeState.revealedSecrets || [];
     } else {
-      // Fresh entry: use architect start position if available
-      this.playerX = this._generatedStartX ?? this.floor.startX;
-      this.playerY = this._generatedStartY ?? this.floor.startY;
+      // Fresh entry — every object is HAND-PLACED by the level design.
+      // No randomization: the layout, the gates, and the rewards are
+      // deliberate, and the validator (levels.test.js) has already
+      // proven challenge reachability and the boss seal.
+      this.playerX = this.floor.startX;
+      this.playerY = this.floor.startY;
       this.fog = this.buildInitialFog();
       this.bossDefeated = false;
       this.hasKey = false;
@@ -166,111 +147,11 @@ export class MazeScene extends Phaser.Scene {
       this.mazeTransformed = false;
       this.revealedSecrets = [];
 
-      // Build reachable tile set via flood fill from player start
-      const reachable = this.floodFillReachable(this.playerX, this.playerY);
-
-      // Separate fixed-position items (boss, exit) from randomizable items
-      const fixedTypes = new Set(['boss', 'exit']);
-      const challengeType = this.floor.challenge?.type;
-      const phase2Type = this.floor.challenge?.phase2?.type;
-      const randomizableTypes = new Set([
-        challengeType, phase2Type,
-        'chest', 'potion', 'gold', 'fountain', 'golden', 'mathdoor',
-      ].filter(Boolean));
-
-      const fixedItems = [];
-      const itemsToRandomize = [];
-
-      for (const o of this.floor.objects) {
-        if (o.type === 'encounter') continue;
-        if (fixedTypes.has(o.type)) {
-          fixedItems.push(o);
-        } else if (randomizableTypes.has(o.type)) {
-          itemsToRandomize.push(o);
-        } else {
-          fixedItems.push(o);
-        }
-      }
-
-      // Build occupied set from fixed items + player start
-      const occupied = new Set();
-      occupied.add(`${this.playerX},${this.playerY}`);
-      fixedItems.forEach((o) => occupied.add(`${o.x},${o.y}`));
-
-      // Find reachable, walkable, unoccupied tiles for randomized placement
-      const placementCandidates = [];
-      for (const key of reachable) {
-        if (occupied.has(key)) continue;
-        const [x, y] = key.split(',').map(Number);
-        const dx = x - this.playerX;
-        const dy = y - this.playerY;
-        if (Math.abs(dx) + Math.abs(dy) < 3) continue;
-        placementCandidates.push({ x, y });
-      }
-
-      // Shuffle candidates
-      for (let i = placementCandidates.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [placementCandidates[i], placementCandidates[j]] = [placementCandidates[j], placementCandidates[i]];
-      }
-
-      // Place randomizable items on reachable tiles
-      const randomizedItems = [];
-      let candIdx = 0;
-      for (const o of itemsToRandomize) {
-        if (candIdx < placementCandidates.length) {
-          const pos = placementCandidates[candIdx++];
-          randomizedItems.push({ ...o, x: pos.x, y: pos.y });
-          occupied.add(`${pos.x},${pos.y}`);
-        } else {
-          randomizedItems.push(o);
-        }
-      }
-
-      // Validate fixed items are reachable; if not, relocate them
-      const validatedFixed = fixedItems.map(o => {
-        if (reachable.has(`${o.x},${o.y}`)) return o;
-        // Item is unreachable — find nearest reachable tile
-        for (const pos of placementCandidates) {
-          const key = `${pos.x},${pos.y}`;
-          if (!occupied.has(key)) {
-            occupied.add(key);
-            return { ...o, x: pos.x, y: pos.y };
-          }
-        }
-        return o;
-      });
-
-      const handPlaced = [...validatedFixed, ...randomizedItems].map((o) => ({
+      this.objects = this.floor.objects.map((o, idx) => ({
         ...o,
-        id: `${o.type}-${o.x}-${o.y}`,
+        id: o.id || `${o.type}-${o.x}-${o.y}-${idx}`,
         consumed: false,
       }));
-
-      // Randomize encounter positions on reachable tiles
-      const encounterCount = this.floor.objects.filter((o) => o.type === 'encounter').length;
-      const encounterCandidates = [];
-      for (const key of reachable) {
-        if (occupied.has(key)) continue;
-        const [x, y] = key.split(',').map(Number);
-        const dx = x - this.playerX;
-        const dy = y - this.playerY;
-        if (Math.abs(dx) + Math.abs(dy) < 2) continue;
-        encounterCandidates.push({ x, y });
-      }
-      for (let i = encounterCandidates.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [encounterCandidates[i], encounterCandidates[j]] = [encounterCandidates[j], encounterCandidates[i]];
-      }
-      const encounters = encounterCandidates.slice(0, encounterCount).map((p, idx) => ({
-        type: 'encounter',
-        x: p.x,
-        y: p.y,
-        id: `encounter-${p.x}-${p.y}-${idx}`,
-        consumed: false,
-      }));
-
-      this.objects = [...handPlaced, ...encounters];
     }
 
     // Movement state
@@ -355,21 +236,14 @@ export class MazeScene extends Phaser.Scene {
       };
     });
 
-    // Add doorway indicators at room exit positions
-    if (this.currentRoom.exits) {
-      for (const exit of this.currentRoom.exits) {
-        engineObjs.push({
-          type: 'doorway', tx: exit.x, ty: exit.y,
-          id: `doorway-${exit.targetRoom}`,
-          alive: true, open: false, hidden: false, visible: true,
-          doorDir: exit.direction,
-        });
-      }
-    }
-
     setFloorTheme(this.floorId);
     LV_setTransformed(this.mazeTransformed);
     initLevel(GAME_WIDTH, GAME_HEIGHT, this.floor.tiles, engineObjs, heroCanvases, this.playerX, this.playerY);
+
+    // If the challenge was already completed (returning from battle or
+    // resuming a save), the world must stay transformed — re-apply the
+    // level's tile changes on top of the freshly-loaded base layout.
+    if (this.mazeTransformed) this.applyLevelTransform();
 
     if (this.revealedSecrets) {
       for (const s of this.revealedSecrets) {
@@ -464,6 +338,7 @@ export class MazeScene extends Phaser.Scene {
     }
 
     this.buildHUD();
+    this.updateHud();
     this.startMazeParticles();
 
     // --- Follow-camera with zoom ---
@@ -762,6 +637,14 @@ export class MazeScene extends Phaser.Scene {
       stroke: '#1f4244', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
+    // Objective tracker — always tells the player what to do NEXT.
+    // Centered at the top of the screen, updated by updateHud().
+    this.hudObjective = this.add.text(GAME_WIDTH / 2, area.top + 16, '', {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '20px', color: '#f5eedd',
+      stroke: '#1f4244', strokeThickness: 4,
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(40);
+
     // Status cards — compact colored pills with white text
     const ch = this.floor.challenge || { count: 3, label: 'QUEST' };
     const cardY = hudCenterY + 4;
@@ -863,6 +746,31 @@ export class MazeScene extends Phaser.Scene {
         this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
       }
     }
+    if (this.hudObjective) this.hudObjective.setText(this.currentObjectiveText());
+  }
+
+  /**
+   * The player's current goal, derived from live progress against the
+   * level's objective steps. There is never a moment without a clear
+   * "here's what to do next".
+   */
+  currentObjectiveText() {
+    const ch = this.floor.challenge || { count: 3 };
+    const steps = this.level?.objective || [];
+    const label = (key, fallback) => steps.find(s => s.key === key)?.label || fallback;
+    if (this.challengeProgress < ch.count) {
+      return `${label('challenge', 'Complete the challenges')}  (${this.challengeProgress}/${ch.count})`;
+    }
+    if (this.phase2Active && ch.phase2 && this.phase2Progress < ch.phase2.count) {
+      return `${ch.phase2.label}: ${this.phase2Progress}/${ch.phase2.count}`;
+    }
+    if (!this.bossDefeated) {
+      return this.mazeTransformed
+        ? label('boss', 'Face the boss!')
+        : label('transform', 'The way is open — cross over!');
+    }
+    if (!this.hasKey) return 'Claim the golden treasure!';
+    return 'Step through the glowing exit!';
   }
 
   showHeroSwapOverlay() {
@@ -1167,7 +1075,7 @@ export class MazeScene extends Phaser.Scene {
   // MOVEMENT
   // ================================================================
 
-  update(time) {
+  update(time, delta) {
     if (this.dialogue?.active || this._mathDoorActive) return;
     const keys = {};
     if (this.cursors.left.isDown || this.wasd.A.isDown || this._touchDir === 'left') keys.ArrowLeft = true;
@@ -1175,7 +1083,12 @@ export class MazeScene extends Phaser.Scene {
     if (this.cursors.up.isDown || this.wasd.W.isDown || this._touchDir === 'up') keys.ArrowUp = true;
     if (this.cursors.down.isDown || this.wasd.S.isDown || this._touchDir === 'down') keys.ArrowDown = true;
 
-    updateLevel(keys);
+    // The level engine moves the party a fixed distance PER CALL
+    // (assuming ~60fps). Step it by real elapsed time so movement
+    // speed is identical on a 120Hz iPad and a struggling low-fps
+    // device — otherwise low fps makes the hero crawl.
+    const steps = Math.min(6, Math.max(1, Math.round((delta ?? 16.7) / 16.7)));
+    for (let s = 0; s < steps; s++) updateLevel(keys);
     drawLevel(time / 1000);
 
     // Refresh the Phaser texture from the level engine canvas
@@ -1195,8 +1108,6 @@ export class MazeScene extends Phaser.Scene {
     this.playerY = tile.ty;
     if (this.playerX !== prevX || this.playerY !== prevY) {
       this.checkObjectAt(this.playerX, this.playerY);
-      // ── ROOM TRANSITION: check if the hero stepped on an exit ──
-      this._checkRoomExit(this.playerX, this.playerY);
     }
 
     // Redraw foreground wall overlay so walls below hero render on top
@@ -1271,34 +1182,19 @@ export class MazeScene extends Phaser.Scene {
   }
 
   /**
-   * Check if the hero is standing on a room exit tile.
-   * If so, save progress and transition to the target room.
+   * Apply the level's world transformation: the physical map change
+   * earned by completing the floor challenge (flower bridge grows,
+   * tide drains, lava cools...). Mutates both the engine's live map
+   * (movement + rendering) and our floor copy (battle variants).
    */
-  _checkRoomExit(px, py) {
-    if (!this.currentRoom?.exits || this._transitioning) return;
-    for (const exit of this.currentRoom.exits) {
-      if (exit.x === px && exit.y === py) {
-        // Validate target room exists before transitioning
-        const targetRoom = this.realm.rooms.find(r => r.id === exit.targetRoom);
-        if (!targetRoom) {
-          console.error(`Room exit points to non-existent room: ${exit.targetRoom}`);
-          return;
-        }
-        this._transitioning = true;
-        this.save[`realm${this.floorId}_room`] = exit.targetRoom;
-        writeSave(this.save, this.slot);
-        // Brief fade transition then restart MazeScene in the target room
-        this.cameras.main.fadeOut(200, 31, 66, 68);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.scene.restart({
-            floor: this.floorId,
-            roomId: exit.targetRoom,
-            fromRoom: this.currentRoomId,
-            fromExit: true,
-          });
-        });
-        return;
-      }
+  applyLevelTransform() {
+    const tf = this.level?.transform;
+    if (!tf) return;
+    const CODE = { W: 0, F: 1, P: 2, Q: 3, S: 4 };
+    for (const [x, y, t] of tf.tiles) {
+      const code = CODE[t] ?? 2;
+      LV_setTile(x, y, code);
+      if (this.floor.tiles[y]) this.floor.tiles[y][x] = code;
     }
   }
 
@@ -1661,15 +1557,18 @@ export class MazeScene extends Phaser.Scene {
       });
     }
 
-    // 3. Toast message
-    this.showToast('The maze transforms!', '#f0c040');
+    // 3. Toast message — the level's own transformation story beat
+    this.showToast(this.level?.transform?.message || 'The world transforms!', '#f0c040');
 
-    // 4. Tell level engine to render transformed state
+    // 4. Physically change the map: this is the structural payoff of
+    // the challenge (bridge grows / tide drains / lava cools)
+    this.mazeTransformed = true;
+    this.applyLevelTransform();
     LV_setTransformed(true);
 
-    // 5. Save transformed state
-    this.mazeTransformed = true;
+    // 5. Save transformed state + refresh the objective tracker
     this.saveMazeState();
+    this.updateHud();
   }
 
   startBattle(isBoss, enemyId) {
@@ -1710,7 +1609,9 @@ export class MazeScene extends Phaser.Scene {
   saveMazeState() {
     const gs = getGameState();
     const state = {
-      roomId: this.currentRoomId,
+      v: MAZE_STATE_SCHEMA,
+      levelW: this.floor.width,
+      levelH: this.floor.height,
       x: this.playerX,
       y: this.playerY,
       objects: this.objects,

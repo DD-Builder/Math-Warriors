@@ -281,6 +281,11 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   };
 
   function render() {
+    // Guard against post-destroy calls: scene tweens (e.g. a cutscene
+    // walk tween's onComplete) can fire stopWalk() after this hero and
+    // its canvas texture are gone — refreshing a dead texture kills
+    // Phaser's render loop.
+    if (container._destroyed || !scene.textures || !scene.textures.exists(texKey)) return;
     ctx.clearRect(0, 0, cw, ch);
     const pose = sampleCycle(state.cycle, state.elapsed);
     drawCharacter(ctx, skinId, pose, { x: cw / 2, y: feetY, scale: sc, view: state.view });
@@ -288,6 +293,7 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   }
 
   function setState(name, o = {}) {
+    if (container._destroyed) return;
     state.name = name;
     state.cycle = getCycle(heroClass, name === 'sway' ? 'sway' : name);
     state.elapsed = 0;
