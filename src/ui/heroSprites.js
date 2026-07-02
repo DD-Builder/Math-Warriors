@@ -15,7 +15,8 @@ import { createHeroCanvas, createHeroPartCanvas, createHeroPartCanvasClipped } f
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
 import { PAPER, PAPER_CSS } from '../config.js';
-import { HeroAnimationSM } from '../systems/animationStateMachine.js';
+import { drawCharacter, characterHeight, HERO_SKINS } from './characterModel.js';
+import { getCycle, sampleCycle, cycleDone } from '../systems/poseAnimator.js';
 import { getEquipmentOverlay, applyEquipmentOverlays, getTierIndex } from './equipmentOverlays.js';
 import { getEquipmentById } from '../systems/equipment.js';
 
@@ -222,237 +223,128 @@ function getHeroCardBg(heroId) {
   return art ? art.cardBg : PAPER_CSS.creamD;
 }
 
-// ─── BODY PART SEED RANGES ─────────────────────────────────────
-const BODY_PARTS_DEFAULT = {
-  legs:   [1, 2, 3, 4, 10, 11, 12, 13, 20, 21],
-  torso:  [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45],
-  armL:   [50, 51, 60, 61, 62, 63],
-  armR:   [52, 53, 54, 64, 65],
-  weapon: [80, 81, 82, 83, 84, 85, 86, 87, 88, 89],
-  head:   [55, 56, 57, 58, 59, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
-};
+// ─── POSE-DRIVEN ANIMATED HERO ─────────────────────────────────
+//
+// Characters are DRAWN each frame from a pose (joint angles) by the
+// parametric character model — never assembled from pre-cut image
+// pieces. Limbs are single connected shapes through their joints, so
+// knees and elbows genuinely bend and nothing can ever detach.
+//
+// The container keeps the same API the whole game already calls:
+//   startWalk/stopWalk/playAttack/setGuard/playHit/playKO/
+//   playVictory/playCast/setSelectionSway/setIdle/setTint/clearTint
 
-const BODY_PARTS_BUNNY = {
-  legs:   [1, 2, 10, 11, 20, 21],
-  torso:  [30, 32, 40, 71, 72],
-  armL:   [],
-  armR:   [],
-  weapon: [],
-  head:   [50, 51, 53, 55, 56, 59, 61, 62, 63, 64, 67],
-};
+let NEXT_HERO_UID = 1;
 
-function getBodyPartsForClass(heroClass) {
-  if (heroClass === 'bunny') return BODY_PARTS_BUNNY;
-  return BODY_PARTS_DEFAULT;
-}
-
-const BODY_PARTS = BODY_PARTS_DEFAULT;
-
-// Articulated part definitions — clip boundaries for splitting limbs
-const ARTICULATION = {
-  default: {
-    legClipFraction: 0.55,
-    armClipFraction: 0.52,
-  },
-  bunny: {
-    legClipFraction: 0.50,
-  },
-};
+// States whose final pose should be HELD after the cycle completes
+const HOLD_STATES = new Set(['guard', 'ko', 'victory']);
 
 /**
- * Create an animated hero sprite composed of separate body-part layers.
- * Returns a Phaser Container with .parts, .startWalk(), .stopWalk(),
- * and .playAttack(type) methods.
- *
- * Falls back to drawHeroSprite() if hero art is not found.
+ * Create an animated hero. Returns a Phaser Container that renders the
+ * hero from live poses at ~25fps (a deliberate, papercut stop-motion
+ * cadence). Falls back to drawHeroSprite() if the hero is unknown.
  */
 export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const scale = opts.scale ?? 1;
-  const art = ART_LOOKUP[hero.id];
-  if (!art || !art.draw) return drawHeroSprite(scene, x, y, hero, opts);
+  const heroClass = getHeroClass(hero);
+  const skinId = HERO_SKINS[hero.id] ? hero.id
+    : heroClass === 'wizard' ? 'wizard-stargazer'
+    : heroClass === 'bunny' ? 'bunny-pepper' : 'knight-shadow';
 
-  const w = HERO_W, h = HERO_H;
   const container = scene.add.container(x, y);
 
-  const floorId = opts.floorId || 1;
-  const heroClass = getHeroClass(hero);
-  const equipment = resolveEquipment(opts.equipment);
-  const classParts = getBodyPartsForClass(heroClass);
-  const artCfg = heroClass === 'bunny' ? ARTICULATION.bunny : ARTICULATION.default;
+  // Per-instance canvas → Phaser texture
+  const cw = HERO_W, ch = HERO_H;
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext('2d');
+  const texKey = `heroPose-${hero.id}-${NEXT_HERO_UID++}`;
+  const tex = scene.textures.addCanvas(texKey, cv);
+  const img = scene.add.image(0, 0, texKey);
+  img.setOrigin(0.5, 0.5);
+  img.setScale(scale);
+  container.add(img);
 
-  const parts = {};
+  // Model → canvas fit (same visual density as the old portrait art,
+  // so every scene's existing scale factor keeps working)
+  const modelH = characterHeight(skinId);
+  const sc = (ch - 90) / modelH;
+  const feetY = ch - 58;
 
-  // Helper: create a textured Image from seed-filtered canvas (with caching)
-  function makePartImage(partName, seeds, clipFraction, clipAbove) {
-    const contentKey = `${hero.id}-${partName}-${heroClass}`;
-    if (PART_HAS_CONTENT[contentKey] === false) return null;
-
-    const slot = PART_TO_SLOT[partName.replace(/^(upper|forearm|thigh|shin)/, match => {
-      if (match === 'upper') return '';
-      if (match === 'forearm') return '';
-      if (match === 'thigh' || match === 'shin') return '';
-      return match;
-    })] || PART_TO_SLOT[partName] || null;
-    const basePart = partName.includes('Arm') ? (partName.includes('L') ? 'armL' : 'armR')
-                   : partName.includes('hig') || partName.includes('hin') ? 'legs'
-                   : partName;
-    const equipped = equipment && slot ? equipment[slot] : null;
-    const overlay = equipped ? getEquipmentOverlay(equipped.id, equipped.tier, slot) : null;
-    const clipSuffix = clipFraction !== undefined ? `-c${clipAbove ? 'a' : 'b'}${Math.round(clipFraction * 100)}` : '';
-    const equipSuffix = overlay ? `-e${SLOT_CODE[slot] || ''}${getTierIndex(equipped.tier)}` : '';
-    const key = `hero-${hero.id}-${partName}-f${floorId}${clipSuffix}${equipSuffix}`;
-
-    if (!scene.textures.exists(key)) {
-      const baseSeeds = classParts[basePart] || seeds;
-      let cv;
-      if (clipFraction !== undefined) {
-        cv = createHeroPartCanvasClipped(w, h, art.draw, art.topExt, art.botExt, baseSeeds, clipFraction, clipAbove);
-      } else {
-        cv = createHeroPartCanvas(w, h, art.draw, art.topExt, art.botExt, baseSeeds);
-      }
-      if (PART_HAS_CONTENT[contentKey] === undefined) {
-        const checkCtx = cv.getContext('2d');
-        const imgData = checkCtx.getImageData(0, 0, cv.width, cv.height);
-        let hasContent = false;
-        for (let p = 3; p < imgData.data.length; p += 4) {
-          if (imgData.data[p] > 0) { hasContent = true; break; }
-        }
-        PART_HAS_CONTENT[contentKey] = hasContent;
-        if (!hasContent) return null;
-      }
-      applySpriteFilter(cv, floorId);
-      if (overlay) {
-        const geom = heroArtGeometry(w, h, art, 60, 60);
-        overlay.draw(cv.getContext('2d'), geom.cx, geom.cy, geom.sc, heroClass);
-      }
-      scene.textures.addCanvas(key, cv);
-    }
-
-    const img = scene.add.image(0, 0, key);
-    img.setScale(scale);
-    img.setOrigin(0.5, 0.5);
-    return img;
-  }
-
-  // ── Build articulated body parts ──
-
-  // LEFT LEG: thigh (upper) + shin (lower)
-  const legSeeds = classParts.legs;
-  if (legSeeds && legSeeds.length > 0) {
-    const thighL = makePartImage('thighL', legSeeds, artCfg.legClipFraction, true);
-    const shinL = makePartImage('shinL', legSeeds, artCfg.legClipFraction, false);
-    if (thighL) { thighL.setDepth(0); container.add(thighL); parts.thighL = thighL; }
-    if (shinL) { shinL.setDepth(0); container.add(shinL); parts.shinL = shinL; }
-  }
-
-  // RIGHT LEG: reuse same seeds, slightly offset for visual separation
-  if (legSeeds && legSeeds.length > 0) {
-    const thighR = makePartImage('thighR', legSeeds, artCfg.legClipFraction, true);
-    const shinR = makePartImage('shinR', legSeeds, artCfg.legClipFraction, false);
-    if (thighR) { thighR.setDepth(1); container.add(thighR); parts.thighR = thighR; }
-    if (shinR) { shinR.setDepth(1); container.add(shinR); parts.shinR = shinR; }
-  }
-
-  // TORSO
-  const torso = makePartImage('torso', classParts.torso);
-  if (torso) { torso.setDepth(2); container.add(torso); parts.torso = torso; }
-
-  // LEFT ARM: upper arm + forearm
-  if (classParts.armL && classParts.armL.length > 0) {
-    const upperArmL = makePartImage('upperArmL', classParts.armL, artCfg.armClipFraction, true);
-    const forearmL = makePartImage('forearmL', classParts.armL, artCfg.armClipFraction, false);
-    if (upperArmL) { upperArmL.setDepth(3); container.add(upperArmL); parts.upperArmL = upperArmL; }
-    if (forearmL) { forearmL.setDepth(3); container.add(forearmL); parts.forearmL = forearmL; }
-  }
-
-  // RIGHT ARM: upper arm + forearm
-  if (classParts.armR && classParts.armR.length > 0) {
-    const upperArmR = makePartImage('upperArmR', classParts.armR, artCfg.armClipFraction, true);
-    const forearmR = makePartImage('forearmR', classParts.armR, artCfg.armClipFraction, false);
-    if (upperArmR) { upperArmR.setDepth(4); container.add(upperArmR); parts.upperArmR = upperArmR; }
-    if (forearmR) { forearmR.setDepth(4); container.add(forearmR); parts.forearmR = forearmR; }
-  }
-
-  // WEAPON
-  const weapon = makePartImage('weapon', classParts.weapon);
-  if (weapon) { weapon.setDepth(5); container.add(weapon); parts.weapon = weapon; }
-
-  // HEAD
-  const head = makePartImage('head', classParts.head);
-  if (head) { head.setDepth(6); container.add(head); parts.head = head; }
-
-  // Backward-compat aliases for code that references old part names
-  if (parts.thighL) parts.leftLeg = parts.thighL;
-  if (parts.thighR) parts.rightLeg = parts.thighR;
-  if (parts.thighL) parts.legs = parts.thighL;
-  if (parts.upperArmL) parts.armL = parts.upperArmL;
-  if (parts.upperArmR) parts.armR = parts.upperArmR;
-
-  // Make container work as a drop-in replacement for hs.body
-  container.body = container;
-
-  // Animation state
-  container.parts = parts;
-
-  // Phaser Containers have no tint API, but ~60 attack-animation call
-  // sites do body.setTint()/clearTint() on hero sprites. Without these,
-  // the first hero attack throws inside Phaser's RAF callback and the
-  // game loop dies PERMANENTLY (the historical "battle freeze"). Fan
-  // tint out to the part images instead.
-  container.setTint = function (color) {
-    Object.values(parts).forEach(p => { if (p && p.setTint) p.setTint(color); });
-    return this;
-  };
-  container.clearTint = function () {
-    Object.values(parts).forEach(p => { if (p && p.clearTint) p.clearTint(); });
-    return this;
+  // ── animation state ──
+  const state = {
+    name: 'idle',
+    cycle: getCycle(heroClass, 'idle'),
+    view: 'front',   // 'front' | 'side'
+    hold: false,
+    elapsed: 0,
   };
 
-  // Store base scales so the state machine can restore them
-  Object.values(parts).forEach(part => {
-    part._baseScaleX = part.scaleX;
-    part._baseScaleY = part.scaleY;
+  function render() {
+    ctx.clearRect(0, 0, cw, ch);
+    const pose = sampleCycle(state.cycle, state.elapsed);
+    drawCharacter(ctx, skinId, pose, { x: cw / 2, y: feetY, scale: sc, view: state.view });
+    tex.refresh();
+  }
+
+  function setState(name, o = {}) {
+    state.name = name;
+    state.cycle = getCycle(heroClass, name === 'sway' ? 'sway' : name);
+    state.elapsed = 0;
+    state.hold = o.hold ?? HOLD_STATES.has(name);
+    if (o.view) state.view = o.view;
+    render();
+  }
+
+  const FRAME_MS = 40; // 25fps
+  const timer = scene.time.addEvent({
+    delay: FRAME_MS, loop: true,
+    callback: () => {
+      if (container._destroyed) return;
+      state.elapsed += FRAME_MS;
+      if (!state.cycle.loop && cycleDone(state.cycle, state.elapsed)) {
+        if (!state.hold) { setState('idle', { view: 'front' }); return; }
+      }
+      render();
+    },
   });
 
-  // State machine (Phase 0A) — the canonical animation controller
-  // (heroClass computed above is reused for class-specific animations)
-  const sm = new HeroAnimationSM(parts, scene, heroClass, hero.id);
-  container.stateMachine = sm;
+  setState('idle', { view: 'front' });
 
-  // Start in idle by default
-  sm.transition('idle');
-
-  // Backward-compatible thin wrappers over the state machine
-  container.startWalk = function () {
-    sm.transition('walk');
+  // ── public API (same surface the whole game already uses) ──
+  container.startWalk = function () { if (state.name !== 'walk') setState('walk', { view: 'side' }); };
+  container.stopWalk = function () { setState('idle', { view: 'front' }); };
+  container.playAttack = function (type) {
+    // class cycles carry the flavor; magic/cast routes to the cast cycle
+    setState(type === 'magic' || type === 'cast' ? 'cast' : 'attack');
+  };
+  container.setGuard = function () { setState('guard'); };
+  container.playHit = function () { setState('hit'); };
+  container.playKO = function () { setState('ko'); };
+  container.playVictory = function () { setState('victory'); };
+  container.playCast = function () { setState('cast'); };
+  container.setSelectionSway = function () { setState('sway'); };
+  container.setIdle = function () { setState('idle', { view: 'front' }); };
+  container.setFacing = function (dir) {
+    // horizontal facing is an external scaleX flip (scenes already do it);
+    // this just picks the drawn profile
+    state.view = (dir === 'left' || dir === 'right' || dir === 'side') ? 'side' : 'front';
+    render();
   };
 
-  container.stopWalk = function () {
-    sm.transition('idle');
-  };
+  container.setTint = function (color) { img.setTint(color); return this; };
+  container.clearTint = function () { img.clearTint(); return this; };
 
-  container.playAttack = function (type, duration) {
-    sm.transition('attack', { subtype: type, duration });
-  };
+  // Drop-in stand-ins for legacy call sites
+  container.body = container;
+  container.parts = {};
 
-  // New state machine methods exposed on the container for call sites
-  container.setGuard = function () { sm.transition('guard'); };
-  container.playHit = function (duration) { sm.transition('hit', { duration }); };
-  container.playKO = function () { sm.transition('ko'); };
-  container.playVictory = function () { sm.transition('victory'); };
-  container.playCast = function () { sm.transition('cast'); };
-  container.setSelectionSway = function () { sm.transition('selection-sway'); };
-  container.setIdle = function () { sm.transition('idle'); };
-
-
-  // Evolution visuals — callers pass evolutionStage; honor it the same
-  // way drawHeroSprite does so evolved heroes look evolved EVERYWHERE
-  // (battle, party select, gallery), not just in the ceremony.
+  // Evolution visuals — aura ring at stage 2+, orbiting motes at 3+
   const evolutionStage = opts.evolutionStage ?? 1;
   if (evolutionStage >= 2) {
     const heroColor = hero.displayColor || PAPER.teal;
     const aura = scene.add.circle(0, 20 * scale, 70 * scale, heroColor, 0.14);
-    container.addAt(aura, 0); // behind all body parts
+    container.addAt(aura, 0);
     scene.tweens.add({
       targets: aura, scaleX: 1.12, scaleY: 1.12, alpha: 0.07,
       duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut',
@@ -476,7 +368,7 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     }
   }
 
-  // Clean up state machine on container destroy.
+  // Clean up on destroy.
   // CRITICAL: clear the body self-reference first — Phaser's destroy()
   // calls this.body.destroy() when .body is set, and since body IS this
   // container that recurses infinitely and crashes scene shutdown.
@@ -484,9 +376,10 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   container.destroy = function (fromScene) {
     if (this._destroyed) return;
     this._destroyed = true;
-    sm.destroy();
+    timer.remove();
     this.body = undefined;
     origDestroy(fromScene);
+    if (scene.textures && scene.textures.exists(texKey)) scene.textures.remove(texKey);
   };
 
   return container;

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Character Model Proof Sheet</title>
+<style>
+  body { background: #1f4244; margin: 0; font-family: sans-serif; }
+  h2 { color: #f5eedd; margin: 12px 16px 4px; font-size: 15px; }
+  canvas { display: block; margin: 0 16px 8px; background: #2a5658; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h2>Row per hero — [front idle] [side walk ×6 phases] [attack peak] [cast peak] [victory] [KO]</h2>
+<canvas id="sheet" width="1560" height="1580"></canvas>
+<script type="module">
+import { drawCharacter, HERO_SKINS } from '/src/ui/characterModel.js';
+import { getCycle, sampleCycle } from '/src/systems/poseAnimator.js';
+
+const cv = document.getElementById('sheet');
+const ctx = cv.getContext('2d');
+const heroes = Object.keys(HERO_SKINS);
+const CELL = 104, GROUND = 96, SCALE = 0.44;
+const clsOf = id => id.startsWith('wizard') ? 'wizard' : id.startsWith('bunny') ? 'bunny' : 'knight';
+
+heroes.forEach((id, row) => {
+  const y0 = row * CELL + GROUND;
+  const cls = clsOf(id);
+  let col = 0;
+  const cell = () => (col++) * CELL + CELL * 0.55;
+  // ground line
+  ctx.strokeStyle = 'rgba(245,238,221,0.15)';
+  ctx.beginPath(); ctx.moveTo(0, y0 + 2); ctx.lineTo(cv.width, y0 + 2); ctx.stroke();
+  ctx.fillStyle = '#f5eedd'; ctx.font = '10px sans-serif';
+  ctx.fillText(id, 4, y0 - 78);
+
+  // front idle (mid-breath)
+  const idle = getCycle(cls, 'idle');
+  drawCharacter(ctx, id, sampleCycle(idle, idle.duration * 0.45), { x: cell(), y: y0, scale: SCALE, view: 'front' });
+  // side walk — 6 phases
+  const walk = getCycle(cls, 'walk');
+  for (let i = 0; i < 6; i++) {
+    drawCharacter(ctx, id, sampleCycle(walk, walk.duration * i / 6), { x: cell(), y: y0, scale: SCALE, view: 'side' });
+  }
+  // attack peak
+  const atk = getCycle(cls, 'attack');
+  drawCharacter(ctx, id, sampleCycle(atk, atk.duration * 0.45), { x: cell(), y: y0, scale: SCALE, view: 'side' });
+  // cast peak
+  const cast = getCycle(cls, 'cast');
+  drawCharacter(ctx, id, sampleCycle(cast, cast.duration * 0.5), { x: cell(), y: y0, scale: SCALE, view: 'front' });
+  // victory leap
+  const vic = getCycle(cls, 'victory');
+  drawCharacter(ctx, id, sampleCycle(vic, vic.duration * 0.42), { x: cell(), y: y0, scale: SCALE, view: 'front' });
+  // KO slump
+  const ko = getCycle(cls, 'ko');
+  drawCharacter(ctx, id, sampleCycle(ko, ko.duration), { x: cell(), y: y0, scale: SCALE, view: 'side' });
+});
+window.__sheetDone = true;
+</script>
+</body>
+</html>
