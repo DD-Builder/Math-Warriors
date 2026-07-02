@@ -1557,7 +1557,8 @@ export class MazeScene extends Phaser.Scene {
       });
     }
 
-    // 3. Toast message — the level's own transformation story beat
+    // 3. Toast + triumphant sting — the level's transformation story beat
+    audio.play('world/floor-complete');
     this.showToast(this.level?.transform?.message || 'The world transforms!', '#f0c040');
 
     // 4. Physically change the map: this is the structural payoff of
