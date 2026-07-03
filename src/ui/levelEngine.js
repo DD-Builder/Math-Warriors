@@ -1490,6 +1490,11 @@ function LV_drawMinimap() {
 
 var ART_MARGIN = 96;
 var _artCanvas = null, _artG = null;
+// Transparent canvas holding ONLY the wall art (faces/masses/crowns).
+// The hero-behind-walls foreground pass copies from THIS, so square
+// copy regions can never drag backdrop pixels along (the pale-boxes
+// bug from copying off the full composite).
+var _wallsArtCanvas = null, _wallsArtG = null;
 var _artBackdrop = '#182e33';
 
 var _ART_THEMES = {
@@ -1638,6 +1643,18 @@ function LV_buildArtLayer() {
 
   // 5. Walls — the big papercut masses.
   //    South faces first (they hang below), then base, inset, crowns.
+  //    PAINTED INTO A TRANSPARENT WALLS-ONLY CANVAS, then composited
+  //    onto the main art — the foreground (hero-behind-walls) pass
+  //    copies from the walls-only canvas so it can never drag backdrop
+  //    pixels along inside its square copy regions.
+  if (!_wallsArtCanvas || _wallsArtCanvas.width !== aw || _wallsArtCanvas.height !== ah) {
+    _wallsArtCanvas = document.createElement('canvas');
+    _wallsArtCanvas.width = aw; _wallsArtCanvas.height = ah;
+    _wallsArtG = _wallsArtCanvas.getContext('2d');
+  }
+  _wallsArtG.clearRect(0, 0, aw, ah);
+  var _mainArtG = g;
+  g = _wallsArtG; // wall sections below draw into the transparent layer
   var wallH = T * MAZE_PERSPECTIVE.heightFactor;
   for (var fi = 0; fi < faceCells.length; fi++) {
     var fc = faceCells[fi];
@@ -1704,6 +1721,10 @@ function LV_buildArtLayer() {
       g.fill();
     }
   }
+
+  // Composite the wall layer onto the main art, restore main target
+  g = _mainArtG;
+  g.drawImage(_wallsArtCanvas, 0, 0);
 
   // 6. Meadow scatter on open floor: sprigs, petals, tiny blooms
   for (var si = 0; si < floors.length; si++) {
@@ -1952,6 +1973,15 @@ function LV_draw(t) {
     if (!_fog[o.ty] || !_fog[o.ty][o.tx]) continue;
     var osx = camX + o.tx * ts, osy = camY + o.ty * ts;
     if (osx + ts < 0 || osx > _W || osy + ts < 0 || osy > _H) continue;
+    // Universal papercut contact shadow — grounds every item on the page
+    if (o.type !== 'monster' || !o.hidden) {
+      _G.save();
+      _G.fillStyle = 'rgba(31,61,63,0.22)';
+      _G.beginPath();
+      _G.ellipse(osx + ts * 0.5, osy + ts * 0.86, ts * 0.34, ts * 0.10, 0, 0, Math.PI * 2);
+      _G.fill();
+      _G.restore();
+    }
     // Draw activated phase 2 items with a golden glow ring
     if (isActivated) {
       var acx = osx + ts * 0.5, acy = osy + ts * 0.5;
@@ -2426,76 +2456,30 @@ export function getWallOverlays(grid, floorId) {
  * @param {number} heroRow - The hero's current tile row
  */
 export function drawForeground(heroRow) {
-  if (!_fgCanvas || !_fgG || !_canvas) return;
+  if (!_fgCanvas || !_fgG || !_wallsArtCanvas) return;
   _fgG.clearRect(0, 0, _W, _H);
 
-  var ts = LV_TILE * _SCALE;
   var camX = _W / 2 - _party.x * _SCALE;
   var camY = _H / 2 - _party.y * _SCALE;
-  var wallH = MAZE_PERSPECTIVE.heightFactor * ts;
+  var T = LV_TILE;
+  // Copy generous pads so crown bumps above and face extrusions below
+  // the cell are included; the walls-only source is transparent
+  // everywhere else, so pads can never smear backdrop or ground.
+  var padT = T * 0.55, padS = T * 0.35;
+  var padB = T * (MAZE_PERSPECTIVE.heightFactor + 0.45);
 
-  for (var ty = 0; ty < _ROWS; ty++) {
+  for (var ty = heroRow + 1; ty < _ROWS; ty++) {
     for (var tx = 0; tx < _COLS; tx++) {
       if (!_fog[ty] || !_fog[ty][tx]) continue;
       var tt = _map[ty][tx];
-      // We want wall tiles whose visual area is below the hero.
-      // A wall at row ty occupies screen from camY + ty*ts to camY + ty*ts + ts.
-      // Its south face extends further down by wallH.
-      // The hero is at row heroRow. Walls at rows > heroRow should be in
-      // foreground. Also walls at heroRow itself if they have a south face
-      // that extends below the hero center.
       if (tt !== LV_TW && tt !== LV_TS) continue;
-      // Only walls at rows after the hero row should be foreground
-      if (ty <= heroRow) continue;
-
-      var scx = camX + tx * ts;
-      var scy = camY + ty * ts;
-
-      // Determine the full vertical extent of this wall tile's rendering
-      var belowIsWall = (ty + 1 < _ROWS) && (_map[ty + 1][tx] === LV_TW);
-      var totalH = ts;
-      if (!belowIsWall) {
-        totalH = ts + wallH; // includes south-face extension
-      }
-
-      // Clip to canvas bounds
-      var srcX = Math.max(0, Math.floor(scx));
-      var srcY = Math.max(0, Math.floor(scy));
-      var srcW = Math.min(Math.ceil(ts + 1), _W - srcX);
-      var srcH = Math.min(Math.ceil(totalH + 1), _H - srcY);
-
-      if (srcW <= 0 || srcH <= 0) continue;
-      if (srcX >= _W || srcY >= _H) continue;
-
-      // Copy this wall region from the main canvas to the foreground canvas
-      _fgG.drawImage(_canvas, srcX, srcY, srcW, srcH, srcX, srcY, srcW, srcH);
-    }
-  }
-
-  // Also copy decorations that sit on floor tiles adjacent to foreground walls
-  // (these are drawn in the decoration pass of LV_draw and sit on floor tiles
-  // at rows > heroRow that border walls)
-  for (var dy = 0; dy < _ROWS; dy++) {
-    if (dy <= heroRow) continue;
-    for (var dx = 0; dx < _COLS; dx++) {
-      if (!_fog[dy] || !_fog[dy][dx]) continue;
-      var dtt = _map[dy][dx];
-      if (dtt === LV_TW || dtt === LV_TS) continue; // already copied above
-      // Check if this floor tile borders a wall (has decorations)
-      var northIsWall = (dy > 0) && (_map[dy - 1][dx] === LV_TW || _map[dy - 1][dx] === LV_TS);
-      var westIsWall = (dx > 0) && (_map[dy][dx - 1] === LV_TW);
-      var eastIsWall = (dx + 1 < _COLS) && (_map[dy][dx + 1] === LV_TW);
-      if (!northIsWall && !westIsWall && !eastIsWall) continue;
-
-      var dsx = camX + dx * ts;
-      var dsy = camY + dy * ts;
-      var dsrcX = Math.max(0, Math.floor(dsx));
-      var dsrcY = Math.max(0, Math.floor(dsy));
-      var dsrcW = Math.min(Math.ceil(ts + 1), _W - dsrcX);
-      var dsrcH = Math.min(Math.ceil(ts + 1), _H - dsrcY);
-      if (dsrcW <= 0 || dsrcH <= 0 || dsrcX >= _W || dsrcY >= _H) continue;
-
-      _fgG.drawImage(_canvas, dsrcX, dsrcY, dsrcW, dsrcH, dsrcX, dsrcY, dsrcW, dsrcH);
+      var sx = ART_MARGIN + tx * T - padS;
+      var sy = ART_MARGIN + ty * T - padT;
+      var sw = T + padS * 2;
+      var sh = T + padT + padB;
+      var dxp = camX + (tx * T - padS) * _SCALE;
+      var dyp = camY + (ty * T - padT) * _SCALE;
+      _fgG.drawImage(_wallsArtCanvas, sx, sy, sw, sh, dxp, dyp, sw * _SCALE, sh * _SCALE);
     }
   }
 }

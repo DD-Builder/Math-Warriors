@@ -681,19 +681,21 @@ export class MazeScene extends Phaser.Scene {
     this.add.text(px + cardW / 2, cardY + cardH / 2 + 8, 'POTIONS', labelStyle).setOrigin(0.5);
     this.add.text(cx2 + (cardW + 20) / 2, cardY + cardH / 2 + 8, ch.label.toUpperCase(), labelStyle).setOrigin(0.5);
 
-    // Party strip — center of HUD with mini hero sprites
+    // Party strip — center of HUD with mini hero sprites. Everything
+    // here sits ABOVE the HUD panel (depth 31+) and is sized to stay
+    // INSIDE the bar — the old version poked above it half-occluded.
     const partyCx = area.cx;
     const partyY = hudCenterY;
     for (let i = 0; i < this.party.length; i++) {
       const hero = this.party[i];
       const x = partyCx - 120 + i * 110;
-      const spriteScale = 0.35;
-      drawHeroSprite(this, x, partyY - 18, hero, { scale: spriteScale });
+      const spr = drawHeroSprite(this, x, partyY - 8, hero, { scale: 0.22 });
+      if (spr && spr.setDepth) spr.setDepth(31);
       this.add.text(x, partyY + 26, hero.name, {
         ...TEXT.stat(), fontSize: '16px', color: '#3a2410',
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(31);
       const pct = hero.hp / hero.maxHp;
-      const hpBg = this.add.graphics();
+      const hpBg = this.add.graphics().setDepth(31);
       hpBg.fillStyle(0x3a2410, 0.4);
       hpBg.fillRoundedRect(x - 30, partyY + 36, 60, 4, 2);
       hpBg.fillStyle(PAPER.forest, 1);
@@ -735,6 +737,9 @@ export class MazeScene extends Phaser.Scene {
     for (let i = before; i < after; i++) {
       const child = this.children.getAt(i);
       if (child && child.setScrollFactor) child.setScrollFactor(0);
+      // HUD must beat world depths (tileDepth grows to ~190 on deep
+      // rows, which let foreground hedges draw OVER the bottom bar).
+      if (child && child.setDepth) child.setDepth(200 + (child.depth || 0));
     }
   }
 
@@ -997,7 +1002,7 @@ export class MazeScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '24px', color: color || '#f0d040',
       stroke: '#1a0e04', strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(120);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(320);
     this.tweens.add({
       targets: t, alpha: 0, y: t.y - 60,
       duration: 1500, delay: 800,
@@ -1731,7 +1736,7 @@ export class MazeScene extends Phaser.Scene {
       color,
       stroke: '#1f4244',
       strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(120);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(320);
     this.tweens.add({
       targets: t,
       y: sy - 60,

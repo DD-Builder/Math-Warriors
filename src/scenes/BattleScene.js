@@ -751,6 +751,33 @@ export class BattleScene extends Phaser.Scene {
   // UI — momentum, question, answers, toasts, end screen
   // ================================================================
 
+  /**
+   * Floating damage number — the impact readout kids watch for.
+   */
+  popDamage(targetIdx, result) {
+    const es = this.enemySprites[targetIdx];
+    if (!es || !es.body) return;
+    const dmg = result?.modifiedDamage ?? result?.damage;
+    if (!dmg) return;
+    const t = this.add.text(es.body.x, es.body.y - 60, `-${dmg}`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '54px', color: '#fff3d0', stroke: '#c04020', strokeThickness: 8,
+    }).setOrigin(0.5).setDepth(900).setScale(0.4);
+    this.tweens.add({ targets: t, scale: 1, y: t.y - 70, duration: 500, ease: 'Back.out' });
+    this.tweens.add({ targets: t, alpha: 0, delay: 550, duration: 300, onComplete: () => t.destroy() });
+  }
+
+  /** Physical knock-back recoil on the struck enemy. */
+  recoilEnemy(targetIdx) {
+    const es = this.enemySprites[targetIdx];
+    if (!es || !es.body) return;
+    const bx = es.body.x;
+    this.tweens.add({
+      targets: es.body, x: bx + 26, duration: 90, yoyo: true, ease: 'Quad.out',
+      onComplete: () => { es.body.x = bx; },
+    });
+  }
+
   setUIDepth(obj, depth) {
     if (!obj) return;
     for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track']) {
@@ -2522,6 +2549,8 @@ export class BattleScene extends Phaser.Scene {
             this.hitFlash();
             this.flashEnemy(result, targetIdx);
             this.updateEnemyHp(targetIdx);
+            this.popDamage(targetIdx, result);
+            this.recoilEnemy(targetIdx);
             this.shakeCamera(0.022, 500);
             audio.play('battle/hit-enemy');
           });
@@ -2547,6 +2576,8 @@ export class BattleScene extends Phaser.Scene {
               this.hitFlash();
               this.flashEnemy(result, targetIdx);
               this.updateEnemyHp(targetIdx);
+              this.popDamage(targetIdx, result);
+              this.recoilEnemy(targetIdx);
               audio.play('battle/hit-enemy');
             },
           });
