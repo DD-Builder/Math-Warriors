@@ -13,7 +13,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { tileDepth } from '../systems/perspective.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, LV_rebuildArtLayer, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
 
 // Bump whenever the maze save-state shape or level layouts change in an
 // incompatible way — stale device saves are silently discarded instead
@@ -1196,6 +1196,9 @@ export class MazeScene extends Phaser.Scene {
       LV_setTile(x, y, code);
       if (this.floor.tiles[y]) this.floor.tiles[y][x] = code;
     }
+    // The terrain is pre-painted — repaint it so the transformation
+    // (grown bridge / drained tide / cooled lava) becomes visible.
+    LV_rebuildArtLayer();
   }
 
   tryMove({ dx, dy }) {
