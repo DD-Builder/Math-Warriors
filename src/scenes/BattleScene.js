@@ -2576,11 +2576,8 @@ export class BattleScene extends Phaser.Scene {
               this.hitFlash();
               this.flashEnemy(result, targetIdx);
               this.updateEnemyHp(targetIdx);
-<<<<<<< HEAD
               this.popDamage(targetIdx, result);
               this.recoilEnemy(targetIdx);
-=======
->>>>>>> origin/main
               audio.play('battle/hit-enemy');
             },
           });
