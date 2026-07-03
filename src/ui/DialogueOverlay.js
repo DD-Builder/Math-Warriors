@@ -62,6 +62,13 @@ export class DialogueOverlay {
       this.panelGfx, this.nameText, this.bodyText,
       this.continueBtn.bg, this.continueBtn.shadow, this.continueBtn.label, this.continueBtn.zone,
     ];
+    // Dialogue must render ABOVE everything in the scene — the maze's
+    // foreground wall overlay sits at depth ~20 and was occluding hint
+    // boxes left at the default depth 0.
+    this.allObjects.forEach(o => {
+      if (o && o.setDepth) o.setDepth(120);
+      if (o && o.setScrollFactor) o.setScrollFactor(0);
+    });
     this.hide();
   }
 

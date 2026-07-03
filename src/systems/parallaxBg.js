@@ -154,14 +154,23 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
     shadowDy: -5, shadowAlpha: 0.18,
   });
 
-  // Path across center
-  const pathPts = waveEdgePoints(width * 0.05, width * 0.95, groundY + 12, {
-    seed: seed + 150, amplitude: 4,
-  });
-  const pathBottom = pathPts.map(p => ({ x: p.x, y: p.y + 35 })).reverse();
-  drawShadowedPoly(ground, [...pathPts, ...pathBottom], PAPER.sand, {
-    shadowDy: 3, shadowAlpha: 0.12,
-  });
+  // Tonal depth strata — two soft darker wave bands across the ground
+  // give the papercut layered-depth read. (Replaces the old cream
+  // "path" stripe, which cut across the hills like a stray light beam.)
+  for (const [f, alpha] of [[0.30, 0.05], [0.62, 0.07]]) {
+    const bandY = groundY + (height - groundY) * f;
+    const bandPts = waveEdgePoints(-40, width + 40, bandY, {
+      seed: seed + 150 + Math.floor(f * 100), amplitude: 12,
+    });
+    ground.fillStyle(0x1f2828, alpha);
+    ground.beginPath();
+    ground.moveTo(bandPts[0].x, bandPts[0].y);
+    for (const p of bandPts) ground.lineTo(p.x, p.y);
+    ground.lineTo(width + 40, height + 40);
+    ground.lineTo(-40, height + 40);
+    ground.closePath();
+    ground.fillPath();
+  }
 
   // Scattered flowers and leaf sprigs on ground
   for (let i = 0; i < 8; i++) {

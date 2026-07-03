@@ -33,6 +33,7 @@ import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } fr
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
 import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnightSuper, playBunnySuper, playWizardSuper } from '../systems/attackAnimations.js';
+import { playSparkBurst, playProjectile, playImpactRing, playElementalBurst } from '../systems/vfx.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
@@ -626,8 +627,11 @@ export class BattleScene extends Phaser.Scene {
       });
       body.setDepth(pos.depth);
 
-      // Name + HP BELOW the hero's feet so they never overlap the sprite
-      const labelY = y + 80;
+      // Name + HP BELOW the hero's feet — and ABOVE every hero sprite's
+      // depth (bodies use pos.depth ≈ their y), so a neighboring hero
+      // can never draw over another hero's nameplate.
+      const labelDepth = pos.depth + 4;
+      const labelY = y + 96;
       const name = this.add.text(x, labelY, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '22px',
@@ -635,24 +639,24 @@ export class BattleScene extends Phaser.Scene {
         stroke: COLORS_CSS.ink,
         strokeThickness: 3,
         resolution: 2,
-      }).setOrigin(0.5).setDepth(14);
+      }).setOrigin(0.5).setDepth(labelDepth);
 
       const hpBarY = labelY + 18;
       const hpBarBg = this.add.rectangle(x, hpBarY, 150, 14, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
+        .setStrokeStyle(2, COLORS.paperD).setDepth(labelDepth - 1);
       const hpBarFill = this.add.rectangle(x - 73, hpBarY, 146, 10, 0x40c040)
-        .setOrigin(0, 0.5).setDepth(13);
+        .setOrigin(0, 0.5).setDepth(labelDepth - 1);
       const hpStroke = this.add.rectangle(x, hpBarY, 150, 14)
-        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
+        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(labelDepth);
       const hpText = this.add.text(x, hpBarY + 14, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '16px',
         color: COLORS_CSS.paper,
         resolution: 2,
-      }).setOrigin(0.5).setDepth(14);
+      }).setOrigin(0.5).setDepth(labelDepth);
 
       const indicator = this.add.triangle(x, y - 100, 0, 0, 20, 0, 10, 20, COLORS.goldL)
-        .setVisible(false).setDepth(15);
+        .setVisible(false).setDepth(labelDepth + 1);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, hpStroke, indicator, x, y };
     });
@@ -677,38 +681,43 @@ export class BattleScene extends Phaser.Scene {
       const enemy = this.enemies[ei];
       const pos = positions[ei];
       const x = pos.x;
-      const y = pos.y;
       const monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.02) : pos.scale;
 
-      // Draw ground shadow beneath this monster
-      drawGroundShadow(monsterShadowGfx, x, y, monsterScale, { rx: 40 });
-
-      const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
+      // FEET-ANCHORED placement: the formation gives us where the
+      // creature touches the ground; center the sprite so its bottom
+      // rests there. Centering at the formation y floated monsters in
+      // the sky with an orphaned shadow at their waist.
+      const feetY = pos.feetY ?? pos.y;
+      const body = drawMonsterSprite(this, x, 0, enemy, { scale: monsterScale, floorId: this.floor });
+      const displayH = body.displayHeight ?? (640 * monsterScale);
+      const y = feetY - displayH * 0.44;
+      body.y = y;
       body.setDepth(pos.depth);
 
-      // Name/HP bars anchored above the sprite's actual rendered bounds
-      // (640 is the base monster canvas size — scaled by the formation scale
-      // and the 0.5 origin means top is y - displayHalfH).
-      const displayH = body.displayHeight ?? (640 * monsterScale);
+      // Ground shadow under the FEET, squashed wide — sells contact
+      drawGroundShadow(monsterShadowGfx, x, feetY - 6, monsterScale, { rx: 58, alpha: 0.30 });
+
       const nameY = y - displayH * 0.48 - 14;
       const hpY = nameY + 20;
       const hpTextY = hpY + 16;
 
+      // Labels sit just above their own sprite's depth so they can
+      // never be swallowed by the creature art.
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: count >= 3 ? '20px' : '26px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.scarlet,
         strokeThickness: 4,
-      }).setOrigin(0.5).setDepth(14);
+      }).setOrigin(0.5).setDepth(pos.depth + 3);
 
       const hpBarBg = this.add.rectangle(x, hpY, w + 20, 20, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
+        .setStrokeStyle(2, COLORS.paperD).setDepth(pos.depth + 2);
       const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (enemy.hp / enemy.maxHp), 14, 0xc04030)
-        .setOrigin(0, 0.5).setDepth(13);
+        .setOrigin(0, 0.5).setDepth(pos.depth + 2);
       // 1px white stroke around HP bar for clarity
       const hpStroke = this.add.rectangle(x, hpY, w + 20, 20)
-        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
+        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(pos.depth + 3);
       const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '16px',
@@ -716,7 +725,7 @@ export class BattleScene extends Phaser.Scene {
         stroke: '#1f4244',
         strokeThickness: 3,
         resolution: 2,
-      }).setOrigin(0.5).setDepth(14);
+      }).setOrigin(0.5).setDepth(pos.depth + 3);
 
       const spriteData = { body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y };
       this.enemySprites.push(spriteData);
@@ -2489,48 +2498,56 @@ export class BattleScene extends Phaser.Scene {
         if (nextAlive >= 0) this.currentTarget = nextAlive;
         // Fall through to turn advance
       } else if (activeCommand === COMMANDS.MAGIC) {
-        // MAGIC: spectacular animation (900ms) via the new animation system
+        // MAGIC — a READABLE three-beat cast, guaranteed visible no
+        // matter what the per-hero registry animation draws:
+        //   1. charge: staff-glow sparks at the caster (~420ms)
+        //   2. bolt: a projectile arcs across to the target
+        //   3. impact: burst + ring + flash + damage lands
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
-        // Trigger body-part attack animation
-        if (heroSprite.body && heroSprite.body.playAttack) {
-          heroSprite.body.playAttack('magic');
-        }
-        // Camera punch-in for attack impact
-        if (!this.reducedMotion) {
-          this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
-          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
-        }
-        playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, {
-          onHit: () => {
+        if (heroSprite.body && heroSprite.body.playCast) heroSprite.body.playCast();
+        const hb = heroSprite.body, tb = targetSprite.body;
+        const castX = hb.x + 40, castY = hb.y - 70;
+        playSparkBurst(this, castX, castY, { count: 14, colors: [0xecb964, 0xa4c8d8, 0x9c8fc0], minDist: 6, maxDist: 26, duration: 420 });
+        this.time.delayedCall(420, () => {
+          if (!this.reducedMotion) {
+            this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
+            this.time.delayedCall(500, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
+          }
+          playProjectile(this, castX, castY, tb.x, tb.y, { color: 0xa4c8d8, size: 10 }).then(() => {
+            playImpactRing(this, tb.x, tb.y, { color: 0xa4c8d8, endRadius: 80 });
+            playElementalBurst(this, tb.x, tb.y, { colors: [0xa4c8d8, 0x9c8fc0, 0xecb964] });
             this.hitFlash();
             this.flashEnemy(result, targetIdx);
             this.updateEnemyHp(targetIdx);
             this.shakeCamera(0.022, 500);
             audio.play('battle/hit-enemy');
-          },
+          });
+          // Per-hero flourish runs alongside the guaranteed baseline
+          playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, { onHit: () => {} });
         });
       } else {
-        // FIGHT: class-specific attack animation via the animation system
+        // FIGHT — readable beat: windup pose holds ~320ms BEFORE the
+        // strike choreography fires, so the action can actually be seen.
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
-        // Trigger body-part attack animation based on class
         if (heroSprite.body && heroSprite.body.playAttack) {
           const attackType = cls === 'wizard' ? 'magic' : cls === 'bunny' ? 'punch' : 'slash';
           heroSprite.body.playAttack(attackType);
         }
-        // Camera punch-in for attack impact
-        if (!this.reducedMotion) {
-          this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
-          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
-        }
-        playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
-          onHit: () => {
-            this.hitFlash();
-            this.flashEnemy(result, targetIdx);
-            this.updateEnemyHp(targetIdx);
-            audio.play('battle/hit-enemy');
-          },
+        this.time.delayedCall(320, () => {
+          if (!this.reducedMotion) {
+            this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
+            this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
+          }
+          playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
+            onHit: () => {
+              this.hitFlash();
+              this.flashEnemy(result, targetIdx);
+              this.updateEnemyHp(targetIdx);
+              audio.play('battle/hit-enemy');
+            },
+          });
         });
       }
     } else {

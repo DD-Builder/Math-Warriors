@@ -993,7 +993,7 @@ export class MazeScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '24px', color: color || '#f0d040',
       stroke: '#1a0e04', strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(120);
     this.tweens.add({
       targets: t, alpha: 0, y: t.y - 60,
       duration: 1500, delay: 800,
@@ -1723,7 +1723,7 @@ export class MazeScene extends Phaser.Scene {
       color,
       stroke: '#1f4244',
       strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(120);
     this.tweens.add({
       targets: t,
       y: sy - 60,
