@@ -578,11 +578,14 @@ export class BattleScene extends Phaser.Scene {
     this.heroSprites = this.party.map((hero, i) => {
       const pos = positions[i];
       const x = pos.x;
-      const y = pos.y;
+      // FEET-ANCHOR: pos.y is the ground line. The hero canvas centers
+      // the body with feet ~134px (at scale 1) below center, so lift
+      // the container until the feet touch the line exactly.
       const scale = pos.scale * 0.85; // overall hero scale factor
+      const y = pos.y - 134 * scale;
 
-      // Ground shadow (wider, stronger — sells "standing on ground")
-      drawGroundShadow(shadowGfx, x, y + 10, scale, { rx: 50, alpha: 0.28 });
+      // Contact shadow AT THE FEET on the ground line
+      drawGroundShadow(shadowGfx, x, pos.y - 2, scale, { rx: 52, alpha: 0.3 });
 
       const evoStage = getEvolutionStage(this.save, hero.id);
       const body = createAnimatedHero(this, x, y, hero, {
@@ -597,7 +600,7 @@ export class BattleScene extends Phaser.Scene {
       // depth (bodies use pos.depth ≈ their y), so a neighboring hero
       // can never draw over another hero's nameplate.
       const labelDepth = pos.depth + 4;
-      const labelY = y + 96;
+      const labelY = pos.y + 20; // just under the feet/shadow line
       const name = this.add.text(x, labelY, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '22px',
@@ -663,8 +666,10 @@ export class BattleScene extends Phaser.Scene {
       // Ground shadow under the FEET, squashed wide — sells contact
       drawGroundShadow(monsterShadowGfx, x, feetY - 6, monsterScale, { rx: 58, alpha: 0.30 });
 
-      const nameY = y - displayH * 0.48 - 14;
-      const hpY = nameY + 20;
+      // Labels live UNDER the creature at its feet — stacking three
+      // label clusters in the sky collided into an unreadable pile.
+      const nameY = feetY + 16;
+      const hpY = nameY + 22;
       const hpTextY = hpY + 16;
 
       // Labels sit just above their own sprite's depth so they can
@@ -837,7 +842,7 @@ export class BattleScene extends Phaser.Scene {
 
     const noteW = 345;
     const noteH = 110;
-    const noteCx = area.cx;
+    const noteCx = area.cx + 90; // clear of the hero column + labels
     const noteCy = eqY;
     this.eqCenterY = eqY;
 
@@ -869,11 +874,11 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.stars.setOrigin(1, 0);
 
     // Turn label — above the math panel, full width with larger font
-    const turnY = eqY - noteH / 2 - 24;
-    PaperPanel(this, area.cx, turnY, area.w - 40, 42, {
+    const turnY = eqY - noteH / 2 - 30;
+    PaperPanel(this, area.cx + 90, turnY, 620, 46, {
       color: 0xf5ead0, alpha: 0.92, radius: 14, shadowOff: 3, shadowAlpha: 0.18,
     });
-    this.turnLabel = this.add.text(area.cx, turnY, '', {
+    this.turnLabel = this.add.text(area.cx + 90, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '28px',
       color: '#3a2410',
