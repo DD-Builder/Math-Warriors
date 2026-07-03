@@ -175,7 +175,7 @@ export class CutsceneScene extends Phaser.Scene {
         this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.28, line.speaker, 50);
         this.drawPartyHeroes();
       } else {
-        this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120);
+        this.drawFairySprite(GAME_WIDTH * 0.12, GAME_HEIGHT * 0.24, line.speaker, 74);
       }
     }
 
