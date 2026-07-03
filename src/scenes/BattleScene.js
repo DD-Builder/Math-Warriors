@@ -257,44 +257,10 @@ export class BattleScene extends Phaser.Scene {
 
     this.buildBackground();
 
-    // Draw a subtle ground plane before heroes/monsters for depth illusion
-    const groundGfx = this.add.graphics();
-    groundGfx.setDepth(10);
-    // Ground fills the bottom third with layered terrain — not empty
-    // single-color space. Three bands: far path (where monsters stand),
-    // mid ground, and near ground (where heroes stand + below).
-    const gTop = BATTLE_PERSPECTIVE.groundTopY;
-    const gBot = GAME_HEIGHT;
-    const gMid = BATTLE_PERSPECTIVE.groundBottomY;
-
-    // Far ground band (darker, behind monsters)
-    groundGfx.fillStyle(PAPER.sageD, 0.6);
-    groundGfx.fillRect(0, gTop - 10, GAME_WIDTH, gMid - gTop + 40);
-
-    // Mid ground path strip (lighter, transition zone)
-    groundGfx.fillStyle(PAPER.sand, 0.5);
-    groundGfx.fillRect(0, gMid - 30, GAME_WIDTH, 80);
-
-    // Near ground (below heroes to screen bottom)
-    groundGfx.fillStyle(PAPER.sage, 0.45);
-    groundGfx.fillRect(0, gMid + 30, GAME_WIDTH, gBot - gMid);
-
-    // Grass tufts scattered across the near ground
-    for (let gi = 0; gi < 30; gi++) {
-      const gx = Math.random() * GAME_WIDTH;
-      const gy = gMid + 20 + Math.random() * (gBot - gMid - 40);
-      groundGfx.fillStyle(PAPER.leaf, 0.3 + Math.random() * 0.2);
-      groundGfx.fillCircle(gx, gy, 3 + Math.random() * 5);
-    }
-
-    // Subtle path leading from heroes toward monsters
-    groundGfx.fillStyle(PAPER.creamD, 0.3);
-    groundGfx.fillPoints([
-      { x: 300, y: gMid + 10 }, { x: 500, y: gMid - 20 },
-      { x: 800, y: gTop + 60 }, { x: 900, y: gTop + 40 },
-      { x: 850, y: gTop + 80 }, { x: 550, y: gMid },
-      { x: 350, y: gMid + 30 },
-    ], true);
+    // The parallax diorama already paints an organic layered ground —
+    // the old flat translucent bands here read as a giant stripe across
+    // the scene, and the "subtle path" polygon read as a stray light
+    // beam. Both removed.
 
     this.buildHeroSprites();
     this.buildEnemySprite();
@@ -1021,7 +987,7 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0).setDepth(50);
 
     // --- DEPTH FIX: Set all UI elements above parallax background (depths 0-8) ---
-    const UI_DEPTH = 20;
+    const UI_DEPTH = 850; // interactive UI must beat combatant depths (~500-800)
     const UI_TEXT_DEPTH = 21;
     // Momentum bar
     this.setUIDepth(this.momentumBarObj, UI_DEPTH);
@@ -1145,8 +1111,8 @@ export class BattleScene extends Phaser.Scene {
       });
       btn.cmd = cmd;
       btn._origY = cmdY;
-      this.setUIDepth(btn, 28);
-      if (btn.label?.setDepth) btn.label.setDepth(29);
+      this.setUIDepth(btn, 852);
+      if (btn.label?.setDepth) btn.label.setDepth(853);
       this.commandButtons.push(btn);
     }
     this.setCommandMenuVisible(false);
@@ -1193,8 +1159,8 @@ export class BattleScene extends Phaser.Scene {
       });
       btn.cmd = cmd;
       btn._origY = cmdY;
-      this.setUIDepth(btn, 28);
-      if (btn.label?.setDepth) btn.label.setDepth(29);
+      this.setUIDepth(btn, 852);
+      if (btn.label?.setDepth) btn.label.setDepth(853);
       this.commandButtons.push(btn);
     }
   }

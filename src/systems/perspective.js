@@ -24,9 +24,9 @@ export const BATTLE_PERSPECTIVE = {
   vanishX: 720,
   minScale: 0.66,      // far combatants
   maxScale: 1.02,      // near combatants
-  heroBaseX: 190,
+  heroBaseX: 140,
   heroSpacing: 100,
-  heroStaggerX: 170,
+  heroStaggerX: 145,
   monsterBaseX: 980,
   monsterSpacing: 90,
   monsterStaggerX: 110,
@@ -131,8 +131,8 @@ export function monsterFormation(enemyCount, config = BATTLE_PERSPECTIVE) {
   if (enemyCount === 1) {
     push(config.monsterBaseX, config.groundTopY + 150, 1.0);
   } else if (enemyCount === 2) {
-    push(config.monsterBaseX - 80, config.groundTopY + 90, 0.9);
-    push(config.monsterBaseX + 70, config.groundTopY + 180, 0.9);
+    push(config.monsterBaseX - 190, config.groundTopY + 70, 0.82);
+    push(config.monsterBaseX + 90, config.groundTopY + 200, 0.88);
   } else {
     for (let i = 0; i < enemyCount; i++) {
       const t = i / (enemyCount - 1);
