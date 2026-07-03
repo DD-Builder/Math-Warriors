@@ -1021,7 +1021,43 @@ export class BattleScene extends Phaser.Scene {
 
     // End overlay (hidden by default)
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
-    const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, COLORS.ink, 0.92);
+    const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, COLORS.ink, 0.88);
+
+    // Papercut sunburst behind the verdict — layered warm rays + glow
+    // discs, slowly rotating (light through the cuts).
+    const burst = this.add.graphics();
+    for (let ring = 6; ring >= 1; ring--) {
+      burst.fillStyle(0xf5e2b0, 0.05 * (7 - ring) / 6 + 0.02);
+      burst.fillCircle(0, 0, 90 + ring * 46);
+    }
+    burst.fillStyle(0xf5e2b0, 0.10);
+    for (let rr = 0; rr < 14; rr++) {
+      const a = (rr / 14) * Math.PI * 2;
+      burst.beginPath();
+      burst.moveTo(Math.cos(a - 0.05) * 110, Math.sin(a - 0.05) * 110);
+      burst.lineTo(Math.cos(a - 0.012) * 430, Math.sin(a - 0.012) * 430);
+      burst.lineTo(Math.cos(a + 0.012) * 430, Math.sin(a + 0.012) * 430);
+      burst.lineTo(Math.cos(a + 0.05) * 110, Math.sin(a + 0.05) * 110);
+      burst.closePath(); burst.fillPath();
+    }
+    burst.y = -110;
+    this.tweens.add({ targets: burst, angle: 360, duration: 60000, repeat: -1, ease: 'Linear' });
+    this._endBurst = burst;
+
+    // Deckled ribbon plate behind the title text
+    const ribbon = this.add.graphics();
+    ribbon.fillStyle(COLORS.ink, 0.35);
+    ribbon.fillRoundedRect(-306, -206 + 8, 612, 104, 18);
+    ribbon.fillStyle(0xf5eedd, 0.97);
+    ribbon.fillRoundedRect(-310, -212, 620, 104, 18);
+    ribbon.fillStyle(0xecdcb8, 0.8);
+    ribbon.fillRoundedRect(-298, -204, 596, 88, 14);
+    ribbon.fillStyle(0xf5eedd, 1);
+    // deckle bumps along ribbon edges
+    for (let db = 0; db < 20; db++) {
+      ribbon.fillCircle(-300 + db * 31.5, -212 + (db % 2) * 104, 7 + (db * 7) % 5);
+    }
+
     const endTitle = this.add.text(0, -160, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '72px',
@@ -1063,7 +1099,7 @@ export class BattleScene extends Phaser.Scene {
       this.scene.start(target, data);
     });
 
-    this.endOverlay.add([overlayBg, endTitle, endSub, endRewards, endBtnBg, endBtnLabel]);
+    this.endOverlay.add([overlayBg, burst, ribbon, endTitle, endSub, endRewards, endBtnBg, endBtnLabel]);
     this.endOverlay.titleText = endTitle;
     this.endOverlay.subText = endSub;
     this.endOverlay.rewardsText = endRewards;

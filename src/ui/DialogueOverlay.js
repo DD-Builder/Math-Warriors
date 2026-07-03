@@ -7,7 +7,7 @@
  * All maze input is blocked while dialogue is active.
  */
 
-import { PaperButton, TEXT, safeArea } from './paperUI.js';
+import { PaperButton, paintPaperRect, TEXT, safeArea } from './paperUI.js';
 import { GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 
 export class DialogueOverlay {
@@ -117,11 +117,13 @@ export class DialogueOverlay {
 
     const panelY = area.bottom - panelH / 2 - 10;
 
-    this.panelGfx.clear();
-    this.panelGfx.fillStyle(PAPER.shadow, 0.15);
-    this.panelGfx.fillRoundedRect(area.cx - panelW / 2 + 4, panelY - panelH / 2 + 6, panelW, panelH, 18);
-    this.panelGfx.fillStyle(PAPER.inkTeal, 0.92);
-    this.panelGfx.fillRoundedRect(area.cx - panelW / 2, panelY - panelH / 2, panelW, panelH, 18);
+    // Papercut panel: deckled hand-cut sheet stack (kit does shadow +
+    // cream deckle + color sheet + inset + grain in one call). Repaints
+    // into the SAME two graphics objects so depths/visibility hold.
+    paintPaperRect(this.panelGfx, this.panelGfx, area.cx, panelY, panelW, panelH, PAPER.inkTeal, {
+      organic: true, seed: 4217, shadowOff: 6, shadowAlpha: 0.3, alpha: 0.95,
+      strokeColor: PAPER.sand, strokeAlpha: 0.35, strokeWidth: 2,
+    });
 
     this.nameText.setPosition(area.cx - panelW / 2 + padX, panelY - panelH / 2 + 10);
     this.bodyText.setPosition(area.cx - panelW / 2 + padX, panelY - panelH / 2 + padTop);

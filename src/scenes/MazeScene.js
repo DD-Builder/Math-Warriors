@@ -317,8 +317,12 @@ export class MazeScene extends Phaser.Scene {
     const heroLeader = this.party[0];
     if (heroLeader) {
       setSkipCanvasHero(true);
+      // Contact shadow under the hero's feet — grounds the sprite on
+      // the papercut world instead of floating over it
+      this.heroShadow = this.add.ellipse(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 62, 66, 20, 0x1f3d3f, 0.26);
       this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1 });
       this.heroSprite.setDepth(10);
+      this.heroShadow.setDepth(9);
       this.heroSprite.setIdle();
       this._heroWasMoving = false;
       this._lastPartyX = null;
@@ -1173,6 +1177,7 @@ export class MazeScene extends Phaser.Scene {
       // Depth based on tile row
       const heroDepth = tileDepth(this.playerY, this.playerX, 5);
       this.heroSprite.setDepth(heroDepth);
+      if (this.heroShadow) this.heroShadow.setDepth(heroDepth - 1);
 
       // Foreground wall overlay must always be above the hero
       if (this.fgImage) {

@@ -283,16 +283,50 @@ export function createHeroPartCanvasClipped(w, h, drawFn, topExt, botExt, allowe
 
 // ─── CONVENIENCE: Create monster canvas ─────────────────────────
 export function createMonsterCanvas(size, bgColor, drawFn, t) {
+  // Render the monster to a scratch canvas first so we can apply the
+  // universal PAPERCUT LIFT: a soft offset silhouette shadow behind the
+  // whole creature (paper sheet floating above the page) plus a subtle
+  // top-light sheen. Lifts every monster's presence without touching
+  // any individual draw function.
+  var scratch = document.createElement('canvas');
+  scratch.width = size; scratch.height = size;
+  var R = new Rndr(scratch);
+  R.clear(bgColor || null);
+  var SG = scratch.getContext('2d');
+  var drawScale = size / 160;
+  SG.save(); SG.translate(size / 2, size / 2); SG.scale(drawScale, drawScale);
+  try { drawFn(R, t || 0); } catch (e) { /* ignore */ }
+  SG.restore();
+
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
-  var R = new Rndr(cv);
-  R.clear(bgColor || null);
-  // Translate to center so draw functions work at origin
   var G = cv.getContext('2d');
-  var drawScale = size / 160;
-  G.save(); G.translate(size / 2, size / 2); G.scale(drawScale, drawScale);
-  try { drawFn(R, t || 0); } catch (e) { /* ignore */ }
-  G.restore();
+
+  // 1. silhouette drop shadow: the monster's own alpha, tinted dark
+  var sh = document.createElement('canvas');
+  sh.width = size; sh.height = size;
+  var HG = sh.getContext('2d');
+  HG.drawImage(scratch, 0, 0);
+  HG.globalCompositeOperation = 'source-in';
+  HG.fillStyle = 'rgba(24,36,36,0.35)';
+  HG.fillRect(0, 0, size, size);
+  G.drawImage(sh, size * 0.012, size * 0.02);
+
+  // 2. the creature itself
+  G.drawImage(scratch, 0, 0);
+
+  // 3. top-light sheen: creature alpha masked, soft white gradient
+  HG.globalCompositeOperation = 'source-over';
+  HG.clearRect(0, 0, size, size);
+  HG.drawImage(scratch, 0, 0);
+  HG.globalCompositeOperation = 'source-in';
+  var grad = HG.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, 'rgba(255,250,235,0.14)');
+  grad.addColorStop(0.35, 'rgba(255,250,235,0)');
+  HG.fillStyle = grad;
+  HG.fillRect(0, 0, size, size);
+  G.drawImage(sh, 0, 0);
+
   return cv;
 }
 

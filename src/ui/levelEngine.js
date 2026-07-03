@@ -1585,6 +1585,17 @@ function LV_buildArtLayer() {
   // tonal variation — sparse darker patches melt the flatness
   var toned = floors.filter(function (c) { return mkRng(c[0] * 7 + c[1] * 13 + 31)() < 0.4; });
   artBlobs(g, toned, T, 0.5, 22, P.groundTone, 0, 0);
+  // Sun-dapple pools — large soft warm light patches (the focal light
+  // every reference composition carries)
+  var dappled = floors.filter(function (c) { return mkRng(c[0] * 19 + c[1] * 23 + 77)() < 0.08; });
+  for (var di2 = 0; di2 < dappled.length; di2++) {
+    var dpc = dappled[di2];
+    var dcx = ART_MARGIN + (dpc[0] + 0.5) * T, dcy = ART_MARGIN + (dpc[1] + 0.5) * T;
+    for (var dr2 = 3; dr2 >= 1; dr2--) {
+      g.fillStyle = 'rgba(246,234,186,' + (0.05 * (4 - dr2)).toFixed(3) + ')';
+      g.beginPath(); g.arc(dcx, dcy, T * 0.7 * dr2, 0, Math.PI * 2); g.fill();
+    }
+  }
 
   // 3. Paths — a flowing sand ribbon with hand-laid pebbles
   artBlobs(g, paths, T, 0.58, 31, 'rgba(30,40,30,0.18)', 3, 5);
@@ -1610,6 +1621,20 @@ function LV_buildArtLayer() {
   artBlobs(g, waters, T, 0.34, 54, P.water[2], 0, -3);
   var waterSpark = waters.filter(function (c) { return mkRng(c[0] * 11 + c[1] * 17 + 55)() < 0.5; });
   artBlobs(g, waterSpark, T, 0.10, 56, P.water[3], 0, -4);
+  // Lace highlight along each pond's top edge — thin cream arcs
+  for (var wl = 0; wl < waters.length; wl++) {
+    var wc = waters[wl];
+    var northWater = waters.some(function (o) { return o[0] === wc[0] && o[1] === wc[1] - 1; });
+    if (northWater) continue;
+    var wx0 = ART_MARGIN + wc[0] * T, wy0 = ART_MARGIN + wc[1] * T;
+    var wr2 = mkRng(wc[0] * 3 + wc[1] * 5 + 99);
+    g.strokeStyle = 'rgba(240,250,246,0.5)';
+    g.lineWidth = T * 0.045;
+    g.beginPath();
+    g.moveTo(wx0 + T * 0.12, wy0 + T * 0.3);
+    g.quadraticCurveTo(wx0 + T * 0.5, wy0 + T * (0.16 + wr2() * 0.1), wx0 + T * 0.88, wy0 + T * 0.3);
+    g.stroke();
+  }
 
   // 5. Walls — the big papercut masses.
   //    South faces first (they hang below), then base, inset, crowns.
@@ -1658,6 +1683,25 @@ function LV_buildArtLayer() {
       }
       g.fillStyle = '#f5e6a0';
       g.beginPath(); g.arc(flx, fly, T * 0.022, 0, Math.PI * 2); g.fill();
+    }
+  }
+
+  // 5b. Interior cut-detail — leaf-vein clusters INSIDE the hedge
+  // masses so big walls aren't flat fills (reference: lace-like cut
+  // texture within every large sheet).
+  for (var wi2 = 0; wi2 < walls.length; wi2++) {
+    var wcell = walls[wi2];
+    var wr3 = mkRng(wcell[0] * 41 + wcell[1] * 61 + 121);
+    if (wr3() < 0.55) continue;
+    var lx = ART_MARGIN + wcell[0] * T + T * (0.2 + wr3() * 0.6);
+    var ly = ART_MARGIN + wcell[1] * T + T * (0.3 + wr3() * 0.45);
+    g.fillStyle = 'rgba(18,30,24,0.16)';
+    for (var lv2 = 0; lv2 < 3; lv2++) {
+      var la = wr3() * Math.PI * 2;
+      g.beginPath();
+      g.ellipse(lx + Math.cos(la) * T * 0.13 * lv2, ly + Math.sin(la) * T * 0.1 * lv2,
+        T * 0.09, T * 0.042, la, 0, Math.PI * 2);
+      g.fill();
     }
   }
 

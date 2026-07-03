@@ -312,6 +312,26 @@ function drawPaperLetters(C, W, H) {
     }
   }
 
+  // Focal sun — warm layered glow with paper rays behind the title
+  // (every reference composition has one light source; this is ours)
+  const sunX = W * 0.5, sunY = H * 0.185, sunR = W * 0.24;
+  for (let ring = 7; ring >= 1; ring--) {
+    C.fillStyle = `rgba(245,226,176,${(0.16 * (1 - ring / 8)).toFixed(3)})`;
+    C.beginPath(); C.arc(sunX, sunY, sunR * ring / 7, 0, Math.PI * 2); C.fill();
+  }
+  C.save();
+  C.translate(sunX, sunY);
+  C.fillStyle = 'rgba(240,214,150,0.10)';
+  for (let ray = 0; ray < 12; ray++) {
+    C.rotate(Math.PI / 6);
+    C.beginPath();
+    C.moveTo(0, -sunR * 0.3);
+    C.lineTo(sunR * 0.085, -sunR * 1.18);
+    C.lineTo(-sunR * 0.085, -sunR * 1.18);
+    C.closePath(); C.fill();
+  }
+  C.restore();
+
   drawPaperWord('MATH', W / 2, H * 0.13, 155, 0);
   drawPaperWord('WARRIORS', W / 2, H * 0.27, 112, 4);
 }
@@ -349,6 +369,19 @@ function hillLayer(C, W, H, baseY, amplitude, bumps, color, rng, shadowH) {
   C.lineTo(-30, H + 20);
   C.closePath();
   C.fill();
+
+  // Striation cut-lines inside the sheet (the reference mountains'
+  // internal texture) — contour-following curves at low alpha.
+  C.strokeStyle = 'rgba(31,61,63,0.10)';
+  C.lineWidth = 2;
+  for (let s = 1; s <= 3; s++) {
+    C.beginPath();
+    for (let i = 0; i < pts.length; i += 2) {
+      const px = pts[i][0], py = pts[i][1] + s * (14 + s * 6) + Math.sin(i * 0.35 + s) * 3;
+      if (i === 0) C.moveTo(px, py); else C.lineTo(px, py);
+    }
+    C.stroke();
+  }
 }
 
 function drawTree(C, x, groundY, height, trunkColor, canopyColor, rng, isCream) {
