@@ -24,12 +24,15 @@ export const BATTLE_PERSPECTIVE = {
   vanishX: 720,
   minScale: 0.66,      // far combatants
   maxScale: 1.02,      // near combatants
-  heroBaseX: 140,
+  // GAME_WIDTH is 1440. Heroes own the left ~32% (x 130-460), monsters
+  // own the right ~34% (x 900-1330), leaving a clear ~440px no-man's-
+  // land in the middle so the two sides never bleed together.
+  heroBaseX: 130,
   heroSpacing: 100,
-  heroStaggerX: 195,
-  monsterBaseX: 980,
+  heroStaggerX: 165,
+  monsterBaseX: 1120,
   monsterSpacing: 90,
-  monsterStaggerX: 110,
+  monsterStaggerX: 130,
 };
 
 export const MAZE_PERSPECTIVE = {
@@ -129,19 +132,22 @@ export function monsterFormation(enemyCount, config = BATTLE_PERSPECTIVE) {
     scale: scaleForY(feetY, config) * s,
     depth: Math.floor(feetY),
   });
+  // Monsters stay within the RIGHT zone (x ~900-1330) and the UPPER
+  // band of the ground (feetY 560-720) so their heads/labels never dip
+  // into the command UI and their bodies never reach the hero side.
   if (enemyCount === 1) {
-    push(config.monsterBaseX, config.groundTopY + 150, 0.9);
+    push(config.monsterBaseX, config.groundTopY + 120, 0.9);
   } else if (enemyCount === 2) {
-    push(config.monsterBaseX - 210, config.groundTopY + 70, 0.62);
-    push(config.monsterBaseX + 100, config.groundTopY + 210, 0.68);
+    push(config.monsterBaseX - 150, config.groundTopY + 60, 0.6);
+    push(config.monsterBaseX + 120, config.groundTopY + 170, 0.66);
   } else {
-    // 3+: sizes SHRINK with the crowd and the pack spreads across the
-    // right half — never a single stacked blob with caps in the sky.
-    const s3 = enemyCount === 3 ? 0.58 : 0.5;
-    const spread = 560;
+    // 3+: sizes shrink with the crowd; the pack fans across the right
+    // zone at staggered depth — never a stacked blob.
+    const s3 = enemyCount === 3 ? 0.54 : 0.46;
+    const spread = 380;
     for (let i = 0; i < enemyCount; i++) {
       const t = enemyCount === 1 ? 0.5 : i / (enemyCount - 1);
-      push(config.monsterBaseX - spread / 2 + t * spread + (i % 2 ? 30 : -30),
+      push(config.monsterBaseX - spread / 2 + t * spread + (i % 2 ? 24 : -24),
         config.groundTopY + 60 + t * 160, s3);
     }
   }

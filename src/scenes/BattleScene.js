@@ -666,11 +666,13 @@ export class BattleScene extends Phaser.Scene {
       // Ground shadow under the FEET, squashed wide — sells contact
       drawGroundShadow(monsterShadowGfx, x, feetY - 6, monsterScale, { rx: 58, alpha: 0.30 });
 
-      // Labels live UNDER the creature at its feet — stacking three
-      // label clusters in the sky collided into an unreadable pile.
-      const nameY = feetY + 16;
-      const hpY = nameY + 22;
-      const hpTextY = hpY + 16;
+      // Label ABOVE each creature's head. With monsters now fanned wide
+      // across the right zone, the labels sit in open sky and never
+      // collide with each other or dip into the command UI.
+      const headTop = y - displayH * 0.5;
+      const nameY = Math.max(150, headTop - 30);
+      const hpY = nameY + 20;
+      const hpTextY = hpY + 15;
 
       // Labels sit just above their own sprite's depth so they can
       // never be swallowed by the creature art.
@@ -1487,7 +1489,109 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // FIGHT or MAGIC: generate a rated question and show it
+    // Route FIGHT / bunny-HEAL through a target picker when there is a
+    // meaningful choice, so the player decides WHO — a core RPG expectation.
+    const heroCls = hero.class || 'knight';
+    const isHeal = cmd === COMMANDS.MAGIC && heroCls === 'bunny';
+    if (isHeal) {
+      const woundedAllies = this.party.filter(h => h.hp > 0);
+      if (woundedAllies.length > 1) { this.promptAllySelect(cmd); return; }
+    } else {
+      const aliveEnemies = this.enemies.filter(e => e.hp > 0);
+      if (aliveEnemies.length > 1) { this.promptTargetSelect(cmd); return; }
+      // single enemy: make sure currentTarget points at it
+      const only = this.enemies.findIndex(e => e.hp > 0);
+      if (only >= 0) this.currentTarget = only;
+    }
+    this._beginQuestion(cmd);
+  }
+
+  /**
+   * Let the player TAP an enemy to attack. Shows a bobbing target arrow
+   * over the current pick and makes every living enemy tappable.
+   */
+  promptTargetSelect(cmd) {
+    this.phase = 'selecting';
+    const hero = this.party[this.currentTurn.heroIndex];
+    this.turnLabel.setText(`${hero.name}: tap an enemy!`);
+    this._clearSelectors();
+    this._selectArrows = [];
+    const firstAlive = this.enemies.findIndex(e => e.hp > 0);
+    if (this.currentTarget == null || !this.enemies[this.currentTarget] || this.enemies[this.currentTarget].hp <= 0) {
+      this.currentTarget = firstAlive;
+    }
+    const commit = (idx) => {
+      if (this.phase !== 'selecting') return;
+      this.currentTarget = idx;
+      this._clearSelectors();
+      this._beginQuestion(cmd);
+    };
+    this.enemySprites.forEach((es, idx) => {
+      const enemy = this.enemies[idx];
+      if (!enemy || enemy.hp <= 0 || !es.body) return;
+      const top = es.body.y - (es.body.displayHeight ? es.body.displayHeight * 0.5 : 90);
+      const arrow = this.add.text(es.body.x, top - 22, '▼', {
+        fontFamily: '"Fredoka One", sans-serif', fontSize: '40px',
+        color: '#ffd23f', stroke: '#c04020', strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(880).setVisible(idx === this.currentTarget);
+      this.tweens.add({ targets: arrow, y: top - 10, duration: 480, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const zone = this.add.zone(es.body.x, es.body.y, 200, 220).setOrigin(0.5)
+        .setInteractive({ useHandCursor: true }).setDepth(881);
+      zone.on('pointerover', () => { this._selectArrows.forEach((a, ai) => a.setVisible(ai === idx)); this.currentTarget = idx; });
+      zone.on('pointerdown', () => { this.currentTarget = idx; commit(idx); });
+      this._selectArrows.push(arrow);
+      this._selectZones = this._selectZones || [];
+      this._selectZones.push(zone);
+    });
+  }
+
+  /** Let the player TAP an ally for the bunny's heal. */
+  promptAllySelect(cmd) {
+    this.phase = 'selecting';
+    const hero = this.party[this.currentTurn.heroIndex];
+    this.turnLabel.setText(`${hero.name}: tap who to heal!`);
+    this._clearSelectors();
+    this._selectArrows = [];
+    // default to the most wounded ally
+    const order = this.party.map((h, i) => ({ h, i })).filter(o => o.h.hp > 0)
+      .sort((a, b) => (a.h.hp / a.h.maxHp) - (b.h.hp / b.h.maxHp));
+    this._healTarget = order.length ? order[0].i : this.currentTurn.heroIndex;
+    const commit = (idx) => {
+      if (this.phase !== 'selecting') return;
+      this._healTarget = idx;
+      this._clearSelectors();
+      this._beginQuestion(cmd);
+    };
+    this.heroSprites.forEach((hs, idx) => {
+      const h = this.party[idx];
+      if (!h || h.hp <= 0 || !hs.body) return;
+      const arrow = this.add.text(hs.body.x, hs.body.y - 150, '▼', {
+        fontFamily: '"Fredoka One", sans-serif', fontSize: '38px',
+        color: '#60ff9a', stroke: '#1f4244', strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(880).setVisible(idx === this._healTarget);
+      this.tweens.add({ targets: arrow, y: hs.body.y - 138, duration: 480, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      const zone = this.add.zone(hs.body.x, hs.body.y, 150, 220).setOrigin(0.5)
+        .setInteractive({ useHandCursor: true }).setDepth(881);
+      zone.on('pointerover', () => { this._selectArrows.forEach((a, ai) => a.setVisible(ai === idx)); this._healTarget = idx; });
+      zone.on('pointerdown', () => { this._healTarget = idx; commit(idx); });
+      this._selectArrows.push(arrow);
+      this._selectZones = this._selectZones || [];
+      this._selectZones.push(zone);
+    });
+  }
+
+  _clearSelectors() {
+    (this._selectArrows || []).forEach(a => a.destroy());
+    (this._selectZones || []).forEach(z => z.destroy());
+    this._selectArrows = [];
+    this._selectZones = [];
+  }
+
+  _beginQuestion(cmd) {
+    // Re-derive locals that used to live in selectCommand's scope before
+    // the target/ally-select split (config + hero were lost otherwise).
+    const hero = this.party[this.currentTurn.heroIndex];
+    const config = getCommandConfig(cmd);
     this.currentQuestion = generateRatedQuestion({
       operator: this.operator,
       grade: this.grade,
@@ -2327,7 +2431,11 @@ export class BattleScene extends Phaser.Scene {
         const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
         const healAmt = Math.max(8, Math.round((hero.atk || 10) * getDifficultyMultiplier(stars) * 1.2));
         const alive = this.party.filter(h => h.hp > 0);
-        const target = alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+        // Prefer the player's chosen ally; fall back to most-wounded.
+        const target = (this._healTarget != null && this.party[this._healTarget] && this.party[this._healTarget].hp > 0)
+          ? this.party[this._healTarget]
+          : alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+        this._healTarget = null;
         if (target) {
           const before = target.hp;
           target.hp = Math.min(target.maxHp, target.hp + healAmt);
@@ -2539,6 +2647,10 @@ export class BattleScene extends Phaser.Scene {
         //   3. impact: burst + ring + flash + damage lands
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
+        if (heroSprite.body && heroSprite.body.setTimescale) {
+          heroSprite.body.setTimescale(0.55); // readable slow-mo cast
+          this.time.delayedCall(1500, () => heroSprite.body.setTimescale && heroSprite.body.setTimescale(1));
+        }
         if (heroSprite.body && heroSprite.body.playCast) heroSprite.body.playCast();
         const hb = heroSprite.body, tb = targetSprite.body;
         const castX = hb.x + 40, castY = hb.y - 70;
@@ -2567,6 +2679,10 @@ export class BattleScene extends Phaser.Scene {
         // strike choreography fires, so the action can actually be seen.
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
+        if (heroSprite.body && heroSprite.body.setTimescale) {
+          heroSprite.body.setTimescale(0.55); // readable slow-mo strike
+          this.time.delayedCall(1500, () => heroSprite.body.setTimescale && heroSprite.body.setTimescale(1));
+        }
         if (heroSprite.body && heroSprite.body.playAttack) {
           const attackType = cls === 'wizard' ? 'magic' : cls === 'bunny' ? 'punch' : 'slash';
           heroSprite.body.playAttack(attackType);

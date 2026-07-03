@@ -175,7 +175,8 @@ function makeStub(id, challengeType, bossId) {
       { type: challengeType, x: 2, y: 1 },
       { type: challengeType, x: 10, y: 4 },
       { type: challengeType, x: 3, y: 8 },
-      { type: 'mathdoor', x: 3, y: 3, id: `f${id}door1` },
+      // (no mathdoor here — it would sit on open floor gating nothing;
+      //  the transform bridge is what opens the boss on stub floors)
       { type: 'encounter', x: 6, y: 2 },
       { type: 'encounter', x: 9, y: 9 },
       { type: 'encounter', x: 5, y: 6 },

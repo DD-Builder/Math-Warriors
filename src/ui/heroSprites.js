@@ -300,17 +300,22 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   }
 
   const FRAME_MS = 40; // 25fps
+  container._timescale = 1;
   const timer = scene.time.addEvent({
     delay: FRAME_MS, loop: true,
     callback: () => {
       if (container._destroyed) return;
-      state.elapsed += FRAME_MS;
+      // _timescale < 1 slows playback so battle attacks are readable.
+      state.elapsed += FRAME_MS * (container._timescale || 1);
       if (!state.cycle.loop && cycleDone(state.cycle, state.elapsed)) {
         if (!state.hold) { setState('idle', { view: 'front' }); return; }
       }
       render();
     },
   });
+  // Battle uses this to stretch an attack out (e.g. 0.55 → ~1.8x longer),
+  // then restores to 1 so idle/walk stay at normal speed.
+  container.setTimescale = function (m) { container._timescale = m; };
 
   setState('idle', { view: 'front' });
 
