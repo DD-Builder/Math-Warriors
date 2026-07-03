@@ -15,7 +15,7 @@ import { createHeroCanvas, createHeroPartCanvas, createHeroPartCanvasClipped } f
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
 import { PAPER, PAPER_CSS } from '../config.js';
-import { drawCharacter, characterHeight, HERO_SKINS } from './characterModel.js';
+import { drawSkinnedHero } from './skinnedHero.js';
 import { getCycle, sampleCycle, cycleDone } from '../systems/poseAnimator.js';
 import { getEquipmentOverlay, applyEquipmentOverlays, getTierIndex } from './equipmentOverlays.js';
 import { getEquipmentById } from '../systems/equipment.js';
@@ -247,9 +247,8 @@ const HOLD_STATES = new Set(['guard', 'ko', 'victory']);
 export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const scale = opts.scale ?? 1;
   const heroClass = getHeroClass(hero);
-  const skinId = HERO_SKINS[hero.id] ? hero.id
-    : heroClass === 'wizard' ? 'wizard-stargazer'
-    : heroClass === 'bunny' ? 'bunny-pepper' : 'knight-shadow';
+  const art = ART_LOOKUP[hero.id];
+  if (!art || !art.draw) return drawHeroSprite(scene, x, y, hero, opts);
 
   const container = scene.add.container(x, y);
 
@@ -265,11 +264,9 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   img.setScale(scale);
   container.add(img);
 
-  // Model → canvas fit (same visual density as the old portrait art,
-  // so every scene's existing scale factor keeps working)
-  const modelH = characterHeight(skinId);
-  const sc = (ch - 90) / modelH;
-  const feetY = ch - 58;
+  // Same placement math as the static portraits, so the animated hero
+  // is pixel-compatible with every scene's existing scale factor.
+  const geom = heroArtGeometry(cw, ch, art, 80, 78);
 
   // ── animation state ──
   const state = {
@@ -288,7 +285,7 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     if (container._destroyed || !scene.textures || !scene.textures.exists(texKey)) return;
     ctx.clearRect(0, 0, cw, ch);
     const pose = sampleCycle(state.cycle, state.elapsed);
-    drawCharacter(ctx, skinId, pose, { x: cw / 2, y: feetY, scale: sc, view: state.view });
+    drawSkinnedHero(cv, art, heroClass, pose, geom);
     tex.refresh();
   }
 
