@@ -49,6 +49,7 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
+if (typeof window !== 'undefined') window.game = game; // dev/testing handle
 
 // iPad Safari standalone web apps freeze the canvas on background.
 // On resume, save maze state then reload to get a clean canvas.

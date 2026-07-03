@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Skinned Original Heroes — Proof Sheet</title>
+<style>
+  body { background: #1f4244; margin: 0; font-family: sans-serif; }
+  h2 { color: #f5eedd; margin: 12px 16px 4px; font-size: 15px; }
+  canvas { display: block; margin: 0 16px 8px; background: #2a5658; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h2>ORIGINAL heroes, skinned — [idle breath] [walk ×6 phases] [attack peak] [cast peak] [victory] [KO]</h2>
+<canvas id="sheet" width="1560" height="2000"></canvas>
+<script type="module">
+import { KNIGHTS, WIZARDS, BUNNIES } from '/src/data/heroArt.js';
+import { drawSkinnedHero } from '/src/ui/skinnedHero.js';
+import { getCycle, sampleCycle } from '/src/systems/poseAnimator.js';
+
+const cv = document.getElementById('sheet');
+const ctx = cv.getContext('2d');
+const heroes = [...KNIGHTS, ...WIZARDS, ...BUNNIES];
+const CELL = 130, GROUND = 118, SC = 0.62;
+const clsOf = a => a.id.startsWith('wizard') ? 'wizard' : a.id.startsWith('bunny') ? 'bunny' : 'knight';
+
+// offscreen scratch per cell so the shadow ellipse doesn't smear rows
+const scratch = document.createElement('canvas');
+scratch.width = 150; scratch.height = 190;
+
+function cellDraw(art, cls, pose, x, yBase) {
+  const g = scratch.getContext('2d');
+  g.clearRect(0, 0, 150, 190);
+  drawSkinnedHero(scratch, art, cls, pose, { cx: 75, cy: 92, sc: SC });
+  ctx.drawImage(scratch, x - 75, yBase - 92 - 60);
+}
+
+heroes.forEach((art, row) => {
+  const y0 = row * CELL + GROUND;
+  const cls = clsOf(art);
+  let col = 0;
+  const cx = () => (col++) * 118 + 70;
+  ctx.strokeStyle = 'rgba(245,238,221,0.12)';
+  ctx.beginPath(); ctx.moveTo(0, y0 + 30); ctx.lineTo(cv.width, y0 + 30); ctx.stroke();
+  ctx.fillStyle = '#f5eedd'; ctx.font = '10px sans-serif';
+  ctx.fillText(art.id, 4, y0 - 86);
+
+  const idle = getCycle(cls, 'idle');
+  cellDraw(art, cls, sampleCycle(idle, idle.duration * 0.45), cx(), y0);
+  const walk = getCycle(cls, 'walk');
+  for (let i = 0; i < 6; i++) cellDraw(art, cls, sampleCycle(walk, walk.duration * i / 6), cx(), y0);
+  const atk = getCycle(cls, 'attack');
+  cellDraw(art, cls, sampleCycle(atk, atk.duration * 0.45), cx(), y0);
+  const cast = getCycle(cls, 'cast');
+  cellDraw(art, cls, sampleCycle(cast, cast.duration * 0.5), cx(), y0);
+  const vic = getCycle(cls, 'victory');
+  cellDraw(art, cls, sampleCycle(vic, vic.duration * 0.42), cx(), y0);
+  const ko = getCycle(cls, 'ko');
+  cellDraw(art, cls, sampleCycle(ko, ko.duration), cx(), y0);
+});
+window.__sheetDone = true;
+</script>
+</body>
+</html>

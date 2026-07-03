@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 import { unlockAudio } from '../systems/synthAudio.js';
+import { makeDefaultSave, writeSave } from '../systems/save.js';
 
 /**
  * BootScene
@@ -30,6 +31,26 @@ export class BootScene extends Phaser.Scene {
 
     // Unlock Web Audio on first user gesture (iOS Safari requirement)
     this.input.once('pointerdown', () => unlockAudio());
+
+    // Dev/testing shortcut: ?dev=mazeN boots straight into floor N with
+    // a stock party, skipping all menus. Lets anyone playtest a level
+    // without clicking through onboarding.
+    const dev = new URLSearchParams(window.location.search).get('dev');
+    if (dev && /^maze[1-9]$/.test(dev)) {
+      const floor = Number(dev.slice(-1));
+      const save = makeDefaultSave();
+      save.slotName = 'DEV';
+      save.party = [
+        { id: 'bunny-pepper', name: 'PEPPER', hp: 30, maxHp: 30 },
+        { id: 'knight-shadow', name: 'SHADOW', hp: 30, maxHp: 30 },
+        { id: 'wizard-stargazer', name: 'STARGAZER', hp: 26, maxHp: 26 },
+      ];
+      save.floors.forEach(f => { f.unlocked = f.id <= floor; });
+      writeSave(save, 1);
+      this.registry.set('activeSlot', 1);
+      this.scene.start(SCENES.MAZE, { floor });
+      return;
+    }
 
     this.scene.start(SCENES.TITLE);
   }

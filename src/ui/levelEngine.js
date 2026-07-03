@@ -218,10 +218,18 @@ function LV_tileAt(wx, wy) {
   return _map[ty][tx];
 }
 
+function LV_blocked(t) {
+  // Walls always block. Water/hazard blocks too — in the handcrafted
+  // levels it is the STRUCTURAL barrier (stream/tide/lava/void) that
+  // the floor's challenge transforms into a crossing. If water were
+  // strollable, every boss seal would be decorative.
+  return t === LV_TW || t === LV_TQ;
+}
+
 function LV_walkable(wx, wy) {
   var m = LV_TILE * 0.18;
-  return LV_tileAt(wx - m, wy - m) !== LV_TW && LV_tileAt(wx + m, wy - m) !== LV_TW &&
-         LV_tileAt(wx - m, wy + m) !== LV_TW && LV_tileAt(wx + m, wy + m) !== LV_TW;
+  return !LV_blocked(LV_tileAt(wx - m, wy - m)) && !LV_blocked(LV_tileAt(wx + m, wy - m)) &&
+         !LV_blocked(LV_tileAt(wx - m, wy + m)) && !LV_blocked(LV_tileAt(wx + m, wy + m));
 }
 
 function LV_revealFog(tx, ty, rad) {
@@ -1851,6 +1859,17 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
 
   // Reveal starting area
   LV_revealFog(startX, startY, 3);
+
+  // Dev/testing hook — inspect live engine state from the console when
+  // the page was loaded with ?dev=...
+  if (typeof window !== 'undefined' && window.location && window.location.search.includes('dev=')) {
+    window.__LV = {
+      party: _party,
+      walkable: LV_walkable,
+      tileAt: (tx, ty) => (_map[ty] ? _map[ty][tx] : undefined),
+      rows: _ROWS, cols: _COLS,
+    };
+  }
 }
 
 /**
@@ -1858,6 +1877,10 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
  * @param {Object} keys - Map of pressed keys (e.g. { ArrowLeft: true })
  */
 export function updateLevel(keys) {
+  if (typeof window !== 'undefined' && window.__LV) {
+    window.__LV.calls = (window.__LV.calls || 0) + 1;
+    window.__LV.lastKeys = keys;
+  }
   LV_update(keys);
 }
 

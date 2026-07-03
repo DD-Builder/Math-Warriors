@@ -120,6 +120,6 @@ export const SCENES = {
 export const MARGIN = 40;
 export const BOTTOM_SAFE = 120;
 export const TOP_SAFE = 60;
-export const VERSION = '0.6.0';
+export const VERSION = '0.7.0';
 
 export function mazeStateKey(floorId) { return `mazeState_${floorId}`; }
