@@ -26,7 +26,7 @@ export const BATTLE_PERSPECTIVE = {
   maxScale: 1.02,      // near combatants
   heroBaseX: 140,
   heroSpacing: 100,
-  heroStaggerX: 145,
+  heroStaggerX: 195,
   monsterBaseX: 980,
   monsterSpacing: 90,
   monsterStaggerX: 110,
@@ -100,15 +100,16 @@ export function setDepthByY(objects, depthBase = 10) {
  * Returns [{x, y, scale, depth}] for each hero slot (0 = front/near, 2 = back/far).
  */
 export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
+  // FEET-anchored, WIDE spacing: y is the ground line each hero's feet
+  // stand on. Spread beats stagger — overlapping teammates and colliding
+  // nameplates read as chaos, not depth.
   const positions = [];
-  // Heroes at the BOTTOM of the ground plane (near the camera).
-  // Side-by-side with a slight stagger so the back hero peeks out.
   const baseY = config.groundBottomY - 20;
   for (let i = 0; i < heroCount; i++) {
-    const y = baseY - i * 25;
+    const y = baseY - i * 30;
     const x = config.heroBaseX + i * config.heroStaggerX;
-    const scale = scaleForY(y, config);
-    positions.push({ x, y, scale, depth: Math.floor(y) });
+    const scale = scaleForY(y, config) * 0.9;
+    positions.push({ x, y, feetY: y, scale, depth: Math.floor(y) });
   }
   return positions;
 }
@@ -129,14 +130,19 @@ export function monsterFormation(enemyCount, config = BATTLE_PERSPECTIVE) {
     depth: Math.floor(feetY),
   });
   if (enemyCount === 1) {
-    push(config.monsterBaseX, config.groundTopY + 150, 1.0);
+    push(config.monsterBaseX, config.groundTopY + 150, 0.9);
   } else if (enemyCount === 2) {
-    push(config.monsterBaseX - 190, config.groundTopY + 70, 0.82);
-    push(config.monsterBaseX + 90, config.groundTopY + 200, 0.88);
+    push(config.monsterBaseX - 210, config.groundTopY + 70, 0.62);
+    push(config.monsterBaseX + 100, config.groundTopY + 210, 0.68);
   } else {
+    // 3+: sizes SHRINK with the crowd and the pack spreads across the
+    // right half — never a single stacked blob with caps in the sky.
+    const s3 = enemyCount === 3 ? 0.58 : 0.5;
+    const spread = 560;
     for (let i = 0; i < enemyCount; i++) {
-      const t = i / (enemyCount - 1);
-      push(config.monsterBaseX + (i - 1) * config.monsterStaggerX, config.groundTopY + 70 + t * 140, 0.8);
+      const t = enemyCount === 1 ? 0.5 : i / (enemyCount - 1);
+      push(config.monsterBaseX - spread / 2 + t * spread + (i % 2 ? 30 : -30),
+        config.groundTopY + 60 + t * 160, s3);
     }
   }
   return positions;
