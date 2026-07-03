@@ -15,6 +15,7 @@ import {
   markFloorComplete,
   unlockHeroesForFloor,
   isHeroUnlocked,
+  listSlots,
   __setStorage,
   CURRENT_VERSION,
   STORAGE_KEY,
@@ -370,6 +371,33 @@ describe('save slots', () => {
     assert.equal(loaded.gold, 0); // default, not migrated
     // Legacy key still exists
     assert.ok(storage.getItem(LEGACY_KEY));
+  });
+});
+
+describe('Safari private-browsing storage safety', () => {
+  // A storage whose every method throws, like Safari Private Browsing.
+  function makeThrowingStorage() {
+    const err = () => { throw new Error('SecurityError'); };
+    return { getItem: err, setItem: err, removeItem: err, clear: err };
+  }
+
+  test('listSlots never throws even when storage access throws', () => {
+    __setStorage(makeThrowingStorage());
+    // This is the exact call TitleScene makes on boot; it must not throw.
+    assert.doesNotThrow(() => {
+      const slots = listSlots();
+      assert.equal(slots.length, 3);
+      assert.ok(slots.every(s => s.exists === false));
+    });
+  });
+
+  test('loadSave / writeSave degrade gracefully when storage throws', () => {
+    __setStorage(makeThrowingStorage());
+    assert.doesNotThrow(() => {
+      const save = loadSave(1);       // returns a fresh default
+      assert.ok(save && save.floors);
+      writeSave(save, 1);             // returns false, does not throw
+    });
   });
 });
 

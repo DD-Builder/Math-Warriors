@@ -280,21 +280,55 @@ function normalize(save) {
 
 let _storage = null;
 
+function makeMemoryStorage() {
+  const mem = new Map();
+  return {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => { mem.set(k, String(v)); },
+    removeItem: (k) => { mem.delete(k); },
+    clear: () => mem.clear(),
+    _isMemory: true,
+  };
+}
+
+/**
+ * Return a storage adapter that is GUARANTEED not to throw.
+ *
+ * Safari Private Browsing (and some locked-down WebViews) expose a
+ * `localStorage` object whose methods throw SecurityError / a zero
+ * quota that throws QuotaExceededError on write. `typeof localStorage`
+ * is still "object" there, so the old presence check happily handed
+ * back a booby-trapped store — and the FIRST unguarded read (e.g.
+ * listSlots on the title screen) threw straight through Phaser's boot,
+ * blanking the whole app.
+ *
+ * We instead PROBE once: write, read, and delete a throwaway key inside
+ * a try/catch. If anything throws, we permanently use an in-memory Map
+ * so the game still runs (progress just won't persist that session).
+ */
 function getStorage() {
   if (_storage) return _storage;
-  if (typeof localStorage !== 'undefined') {
-    _storage = localStorage;
-    return _storage;
+  try {
+    if (typeof localStorage === 'undefined' || localStorage === null) {
+      _storage = makeMemoryStorage();
+      return _storage;
+    }
+    const probe = '__mw_probe__';
+    localStorage.setItem(probe, '1');
+    localStorage.getItem(probe);
+    localStorage.removeItem(probe);
+    _storage = localStorage; // real storage works — use it
+  } catch (e) {
+    // Private mode / disabled storage — fall back, never crash boot.
+    console.warn('[save] localStorage unavailable, using in-memory storage:', e?.name || e);
+    _storage = makeMemoryStorage();
   }
-  // In-memory fallback
-  const mem = new Map();
-  _storage = {
-    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
-    setItem: (k, v) => mem.set(k, v),
-    removeItem: (k) => mem.delete(k),
-    clear: () => mem.clear(),
-  };
   return _storage;
+}
+
+/** True when persistence is running on the in-memory fallback. */
+export function isStorageEphemeral() {
+  return !!getStorage()._isMemory;
 }
 
 /** FOR TESTS ONLY: inject a custom storage adapter. */
@@ -487,7 +521,8 @@ export function listSlots() {
   const meta = loadAllMeta();
   for (let i = 0; i < MAX_SLOTS; i++) {
     const key = slotKey(i + 1);
-    const hasData = !!getStorage().getItem(key);
+    let hasData = false;
+    try { hasData = !!getStorage().getItem(key); } catch (e) { /* storage blocked */ }
     if (hasData && !meta[i].lastPlayed) {
       const save = loadSave(i + 1);
       updateSlotMeta(i + 1, save);
