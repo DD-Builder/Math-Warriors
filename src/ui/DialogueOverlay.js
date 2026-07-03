@@ -66,7 +66,11 @@ export class DialogueOverlay {
     // foreground wall overlay sits at depth ~20 and was occluding hint
     // boxes left at the default depth 0.
     this.allObjects.forEach(o => {
+<<<<<<< HEAD
       if (o && o.setDepth) o.setDepth(320);
+=======
+      if (o && o.setDepth) o.setDepth(120);
+>>>>>>> origin/main
       if (o && o.setScrollFactor) o.setScrollFactor(0);
     });
     this.hide();
