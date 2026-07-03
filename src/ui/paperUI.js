@@ -113,6 +113,18 @@ function paperPolygonPoints(w, h, seed = 1) {
  * If opts.organic is false, falls back to the older fillRoundedRect
  * style (still useful for non-button UI panels).
  */
+// blend a 0xRRGGBB color toward white by fraction f
+function _lighten(c, f) {
+  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  return (Math.round(r + (255 - r) * f) << 16) | (Math.round(g + (255 - g) * f) << 8) | Math.round(b + (255 - b) * f);
+}
+
+// tiny deterministic rng for grain stipple
+function _grainRng(seed) {
+  let s = seed >>> 0 || 1;
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+}
+
 export function paperRect(scene, x, y, w, h, color, opts = {}) {
   const bg = scene.add.graphics();
   const shadow = scene.add.graphics();
@@ -140,18 +152,43 @@ export function paintPaperRect(bg, shadow, x, y, w, h, color, opts = {}) {
   shadow.clear();
 
   if (organic) {
-    // Hand-cut paper: polygon with wobbled edges. Use the same seed
-    // every time so the shape stays identical between redraws.
+    // Hand-cut paper v2 — the reference-art stack:
+    //   soft double shadow → cream DECKLE underlay peeking around the
+    //   edge → color sheet → lighter inset sheet → grain stipple.
+    // Same seed every time so the silhouette never changes on repaint.
     const pts = paperPolygonPoints(w, h, seed);
+    const at = (dx2, dy2, set = pts) => set.map((p) => ({ x: p.x + x + dx2, y: p.y + y + dy2 }));
 
+    // Two stacked shadow passes read as a soft blurred drop
+    shadow.fillStyle(PAPER.shadow, shadowAlpha * 0.55);
+    shadow.fillPoints(at(shadowOff + 3, shadowOff + 4), true);
     shadow.fillStyle(PAPER.shadow, shadowAlpha);
-    shadow.fillPoints(pts.map((p) => ({ x: p.x + x + shadowOff, y: p.y + y + shadowOff })), true);
+    shadow.fillPoints(at(shadowOff, shadowOff), true);
 
+    // Deckled cream underlay — slightly larger sheet with its own cut
+    const deckle = paperPolygonPoints(w + 10, h + 10, seed + 7);
+    bg.fillStyle(PAPER.cream, alpha);
+    bg.fillPoints(at(0, 0, deckle), true);
+
+    // Main color sheet
     bg.fillStyle(color, alpha);
-    bg.fillPoints(pts.map((p) => ({ x: p.x + x, y: p.y + y })), true);
+    bg.fillPoints(at(0, 0), true);
+
+    // Inner inset sheet — lighter tint, offset up-left (light source)
+    const inset = paperPolygonPoints(Math.max(10, w - 14), Math.max(8, h - 14), seed + 13);
+    bg.fillStyle(_lighten(color, 0.14), alpha * 0.65);
+    bg.fillPoints(at(-1, -2, inset), true);
+
+    // Grain stipple — a few seeded paper flecks
+    const gr = _grainRng(seed);
+    bg.fillStyle(PAPER.shadow, 0.05);
+    for (let gi = 0; gi < Math.min(16, Math.floor(w * h / 2600)); gi++) {
+      bg.fillCircle(x + (gr() - 0.5) * (w - 18), y + (gr() - 0.5) * (h - 14), 1 + gr() * 1.6);
+    }
+
     if (strokeWidth > 0) {
       bg.lineStyle(strokeWidth, strokeColor, strokeAlpha);
-      bg.strokePoints(pts.map((p) => ({ x: p.x + x, y: p.y + y })), true);
+      bg.strokePoints(at(0, 0), true);
     }
     return;
   }
@@ -270,7 +307,7 @@ export function PaperPanel(scene, x, y, w, h, opts = {}) {
   const color = opts.color ?? PAPER.cream;
   const radius = opts.radius ?? 20;
 
-  return paperRect(scene, x, y, w, h, color, {
+  const out = paperRect(scene, x, y, w, h, color, {
     radius,
     shadowOff: opts.shadowOff ?? 8,
     shadowAlpha: opts.shadowAlpha ?? 0.25,
@@ -278,7 +315,79 @@ export function PaperPanel(scene, x, y, w, h, opts = {}) {
     strokeAlpha: 0.3,
     strokeWidth: 3,
     alpha: opts.alpha ?? 0.95,
+    organic: opts.organic ?? true,
+    seed: opts.seed ?? Math.round(x * 31 + y * 7 + w),
   });
+
+  // Optional paper TAB — a small label sheet sticking off the top-left
+  // (speaker names, panel titles), cut from its own paper chip.
+  if (opts.tab) {
+    const tabW = Math.min(w * 0.5, 34 + opts.tab.length * 13);
+    const tabX = x - w / 2 + tabW / 2 + 18;
+    const tabY = y - h / 2 - 12;
+    const tabRect = paperRect(scene, tabX, tabY, tabW, 40, opts.tabColor ?? PAPER.gold, {
+      organic: true, seed: Math.round(tabX * 13 + tabY), shadowOff: 4, shadowAlpha: 0.3,
+    });
+    const tabText = scene.add.text(tabX, tabY, opts.tab, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '18px', color: PAPER_CSS.inkTeal,
+    }).setOrigin(0.5);
+    out.tabBg = tabRect.bg; out.tabShadow = tabRect.shadow; out.tabText = tabText;
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------
+// PAPER MEDALLION + GLOW
+// ------------------------------------------------------------------
+
+/**
+ * A circular deckle-edged medallion: shadow disc, cream deckle ring,
+ * inner color disc. Returns { shadow, ring, disc } graphics — draw
+ * your diorama/portrait on top, clipped to radius r-6.
+ */
+export function PaperMedallion(scene, x, y, r, opts = {}) {
+  const seed = opts.seed ?? Math.round(x * 17 + y * 29);
+  const gr = _grainRng(seed);
+  const wob = (base) => base + (gr() - 0.5) * base * 0.06;
+
+  const shadow = scene.add.graphics();
+  shadow.fillStyle(PAPER.shadow, 0.28);
+  shadow.fillCircle(x + 5, y + 8, wob(r + 8));
+  shadow.fillStyle(PAPER.shadow, 0.16);
+  shadow.fillCircle(x + 9, y + 12, wob(r + 8));
+
+  const ring = scene.add.graphics();
+  // deckled cream rim: overlapping bumps around the circumference
+  ring.fillStyle(opts.rimColor ?? PAPER.cream, 1);
+  ring.fillCircle(x, y, r + 6);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    ring.fillCircle(x + Math.cos(a) * (r + 4), y + Math.sin(a) * (r + 4), 5 + gr() * 4);
+  }
+
+  const disc = scene.add.graphics();
+  disc.fillStyle(opts.color ?? PAPER.sage, 1);
+  disc.fillCircle(x, y, r - 2);
+  disc.fillStyle(_lighten(opts.color ?? PAPER.sage, 0.12), 0.6);
+  disc.fillCircle(x - r * 0.12, y - r * 0.16, r * 0.82);
+
+  return { shadow, ring, disc };
+}
+
+/**
+ * Layered radial glow — the reference art's "light through the cuts".
+ * Returns the graphics object (pulse it yourself if desired).
+ */
+export function paperGlow(scene, x, y, r, color = 0xf5e2b0, alpha = 0.5) {
+  const g = scene.add.graphics();
+  for (let ring2 = 6; ring2 >= 1; ring2--) {
+    g.fillStyle(color, alpha * (1 - ring2 / 7) * 0.6);
+    g.fillCircle(x, y, r * (ring2 / 6));
+  }
+  g.fillStyle(0xffffff, alpha * 0.35);
+  g.fillCircle(x, y, r * 0.12);
+  return g;
 }
 
 // ------------------------------------------------------------------

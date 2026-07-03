@@ -13,7 +13,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { tileDepth } from '../systems/perspective.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, LV_rebuildArtLayer, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
 
 // Bump whenever the maze save-state shape or level layouts change in an
 // incompatible way — stale device saves are silently discarded instead
@@ -317,8 +317,12 @@ export class MazeScene extends Phaser.Scene {
     const heroLeader = this.party[0];
     if (heroLeader) {
       setSkipCanvasHero(true);
+      // Contact shadow under the hero's feet — grounds the sprite on
+      // the papercut world instead of floating over it
+      this.heroShadow = this.add.ellipse(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 62, 66, 20, 0x1f3d3f, 0.26);
       this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1 });
       this.heroSprite.setDepth(10);
+      this.heroShadow.setDepth(9);
       this.heroSprite.setIdle();
       this._heroWasMoving = false;
       this._lastPartyX = null;
@@ -993,7 +997,7 @@ export class MazeScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '24px', color: color || '#f0d040',
       stroke: '#1a0e04', strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(120);
     this.tweens.add({
       targets: t, alpha: 0, y: t.y - 60,
       duration: 1500, delay: 800,
@@ -1173,6 +1177,7 @@ export class MazeScene extends Phaser.Scene {
       // Depth based on tile row
       const heroDepth = tileDepth(this.playerY, this.playerX, 5);
       this.heroSprite.setDepth(heroDepth);
+      if (this.heroShadow) this.heroShadow.setDepth(heroDepth - 1);
 
       // Foreground wall overlay must always be above the hero
       if (this.fgImage) {
@@ -1196,6 +1201,9 @@ export class MazeScene extends Phaser.Scene {
       LV_setTile(x, y, code);
       if (this.floor.tiles[y]) this.floor.tiles[y][x] = code;
     }
+    // The terrain is pre-painted — repaint it so the transformation
+    // (grown bridge / drained tide / cooled lava) becomes visible.
+    LV_rebuildArtLayer();
   }
 
   tryMove({ dx, dy }) {
@@ -1723,7 +1731,7 @@ export class MazeScene extends Phaser.Scene {
       color,
       stroke: '#1f4244',
       strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(120);
     this.tweens.add({
       targets: t,
       y: sy - 60,

@@ -78,7 +78,38 @@ export class CutsceneScene extends Phaser.Scene {
 
     drawPapercutBackground(this, this.floorId, GAME_WIDTH, GAME_HEIGHT, 555 + this.floorId);
 
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.25);
+    // ── Papercut stage dressing (reference DNA) ──
+    const stage = this.add.graphics().setDepth(1);
+    // Focal glow high center — light through the mountain gap
+    const gx = GAME_WIDTH * 0.52, gy = GAME_HEIGHT * 0.24;
+    for (let ring = 6; ring >= 1; ring--) {
+      stage.fillStyle(0xf5e2b0, 0.05 * (7 - ring) / 6 + 0.015);
+      stage.fillCircle(gx, gy, 70 + ring * 60);
+    }
+    // Crescent paper moon with cut shadow
+    stage.fillStyle(0x1f3d3f, 0.18);
+    stage.fillCircle(gx + 5, gy + 7, 46);
+    stage.fillStyle(0xf5eedd, 0.95);
+    stage.fillCircle(gx, gy, 46);
+    stage.fillStyle(0xe8dcc0, 0.9);
+    stage.fillCircle(gx - 8, gy - 4, 38);
+    // Paper clouds, each with its own drop shadow
+    for (const [cx2, cy2, cw] of [[GAME_WIDTH * 0.18, GAME_HEIGHT * 0.12, 90], [GAME_WIDTH * 0.78, GAME_HEIGHT * 0.09, 110], [GAME_WIDTH * 0.62, GAME_HEIGHT * 0.19, 70]]) {
+      stage.fillStyle(0x1f3d3f, 0.12);
+      stage.fillEllipse(cx2 + 4, cy2 + 6, cw, cw * 0.32);
+      stage.fillStyle(0xf0ead8, 0.9);
+      stage.fillEllipse(cx2, cy2, cw, cw * 0.32);
+      stage.fillEllipse(cx2 - cw * 0.28, cy2 + 4, cw * 0.55, cw * 0.22);
+    }
+    // Dark botanical corner framing (top corners, like the forest arch)
+    stage.fillStyle(0x22403f, 0.20);
+    stage.fillEllipse(30, 20, 340, 150);
+    stage.fillEllipse(GAME_WIDTH - 40, 26, 380, 160);
+    stage.fillStyle(0x22403f, 0.12);
+    stage.fillEllipse(140, 70, 230, 100);
+    stage.fillEllipse(GAME_WIDTH - 150, 80, 250, 110);
+
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.18);
 
     this.artContainer = this.add.container(0, 0);
     this.heroContainer = this.add.container(0, 0).setDepth(5);
@@ -225,16 +256,32 @@ export class CutsceneScene extends Phaser.Scene {
     const color = this.getSpeakerColor(speaker);
     const r = radius || 120;
 
-    for (let ring = 5; ring >= 1; ring--) {
-      gfx.fillStyle(color, 0.08 * ring);
-      gfx.fillCircle(cx, cy, r + 40 + ring * 15);
+    // Soft focal glow (much gentler than the old wall of rings)
+    for (let ring = 3; ring >= 1; ring--) {
+      gfx.fillStyle(color, 0.05 * ring);
+      gfx.fillCircle(cx, cy, r + 24 + ring * 14);
     }
 
-    gfx.fillStyle(PAPER.shadow, 0.2);
-    gfx.fillCircle(cx + 4, cy + 6, r);
-    gfx.fillStyle(color, 0.9);
+    // Paper wings behind the medallion
+    gfx.fillStyle(0xf5eedd, 0.75);
+    gfx.fillEllipse(cx - r * 0.95, cy - r * 0.18, r * 1.1, r * 0.5);
+    gfx.fillEllipse(cx + r * 0.95, cy - r * 0.18, r * 1.1, r * 0.5);
+    gfx.fillStyle(0xe4d8bc, 0.7);
+    gfx.fillEllipse(cx - r * 0.85, cy + r * 0.12, r * 0.7, r * 0.3);
+    gfx.fillEllipse(cx + r * 0.85, cy + r * 0.12, r * 0.7, r * 0.3);
+
+    // Deckled medallion: shadow → cream bumped rim → color disc
+    gfx.fillStyle(PAPER.shadow, 0.25);
+    gfx.fillCircle(cx + 5, cy + 8, r + 8);
+    gfx.fillStyle(0xf5eedd, 1);
+    gfx.fillCircle(cx, cy, r + 7);
+    for (let b = 0; b < 14; b++) {
+      const ba = (b / 14) * Math.PI * 2;
+      gfx.fillCircle(cx + Math.cos(ba) * (r + 5), cy + Math.sin(ba) * (r + 5), 5 + (b * 3) % 4);
+    }
+    gfx.fillStyle(color, 0.95);
     gfx.fillCircle(cx, cy, r);
-    gfx.fillStyle(PAPER.white, 0.4);
+    gfx.fillStyle(PAPER.white, 0.35);
     gfx.fillCircle(cx - r * 0.2, cy - r * 0.25, r * 0.45);
 
     gfx.fillStyle(PAPER.inkTeal, 1);

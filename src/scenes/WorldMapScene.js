@@ -229,11 +229,31 @@ export class WorldMapScene extends Phaser.Scene {
   createFloorNode(x, y, info, locked, complete, saved, isActive) {
     const radius = 100;
 
+    // Warm glow halo behind unlocked nodes — light through the cuts
+    if (!locked) {
+      const halo = this.add.graphics().setDepth(9);
+      for (let ring = 4; ring >= 1; ring--) {
+        halo.fillStyle(0xf5e2b0, 0.05 * (5 - ring));
+        halo.fillCircle(x, y, radius + 6 + ring * 16);
+      }
+      if (isActive) {
+        this.tweens.add({ targets: halo, alpha: 0.55, duration: 1300, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      }
+    }
+
     // Shadow (teal-tinted, not black)
     drawShadowedBlob(this.add.graphics().setDepth(10), x, y, radius, radius,
       locked ? PAPER.sand : info.color, {
         seed: info.id * 7, wobble: 0.06, shadowDy: 6, shadowAlpha: 0.2,
       });
+
+    // Deckled cream rim — bumped paper ring between blob and diorama
+    const rim = this.add.graphics().setDepth(10);
+    rim.fillStyle(0xf5eedd, locked ? 0.55 : 0.95);
+    for (let b = 0; b < 18; b++) {
+      const ba = (b / 18) * Math.PI * 2;
+      rim.fillCircle(x + Math.cos(ba) * (radius - 6), y + Math.sin(ba) * (radius - 6), 6 + (b * 5) % 4);
+    }
 
     // Inner circle
     const inner = this.add.graphics().setDepth(10);
@@ -524,12 +544,19 @@ export class WorldMapScene extends Phaser.Scene {
       const midY = (from.y + to.y) / 2 - 40;
       const pts = this.sampleBezier(from.x, from.y, midX, midY, to.x, to.y, 32);
 
-      pathGfx.lineStyle(8, active ? PAPER.orange : PAPER.creamD, 0.9);
-      this.strokePolyline(pathGfx, pts);
-
-      if (active) {
-        pathGfx.lineStyle(3, PAPER.gold, 0.9);
-        this.strokePolyline(pathGfx, pts);
+      // Hand-cut paper trail: stepping-stone dashes, each a tiny
+      // paper chip with its own drop shadow (no more bare stroke).
+      for (let d = 1; d < pts.length - 1; d += 2) {
+        const p = pts[d];
+        const dw = 16 + (d * 7) % 6, dh = 9 + (d * 5) % 4;
+        pathGfx.fillStyle(PAPER.shadow, 0.18);
+        pathGfx.fillEllipse(p.x + 2, p.y + 4, dw, dh);
+        pathGfx.fillStyle(active ? PAPER.orange : PAPER.creamD, 0.95);
+        pathGfx.fillEllipse(p.x, p.y, dw, dh);
+        if (active) {
+          pathGfx.fillStyle(PAPER.gold, 0.85);
+          pathGfx.fillEllipse(p.x - 1, p.y - 1.5, dw * 0.5, dh * 0.5);
+        }
       }
     }
   }
