@@ -47,7 +47,7 @@ import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
-import { getHint } from '../systems/hints.js';
+import { getHint, getWhy } from '../systems/hints.js';
 import { recordBattle, getBondStatBonuses, getAvailableCombos } from '../systems/bonds.js';
 import { getEvolutionStatBoosts, getEvolutionStage } from '../systems/evolution.js';
 import {
@@ -2588,8 +2588,12 @@ export class BattleScene extends Phaser.Scene {
           markTutorialShown('FIRST_WRONG');
           this.showToast(getTutorialText('FIRST_WRONG'), COLORS_CSS.goldL);
         } else {
-          this.showToast('Try again!', COLORS_CSS.scarletL);
+          // Upgrade 3: the correct choice is already highlighted green;
+          // pair it with a concept-specific strategy tip so a wrong
+          // answer teaches instead of scolding.
+          this.showToast(getWhy(this.currentQuestion), COLORS_CSS.goldL);
         }
+        this.showHintButton(this.currentQuestion);
 
         const wrongTargetEnemy = this.enemies[this.currentTarget] || this.enemy;
         invokeAbility(wrongTargetEnemy.ability, 'onHeroWrong', {
@@ -3158,7 +3162,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   showHintOverlay(question) {
-    const hintText = getHint(question.op, question.a, question.b, question.answer);
+    const hintText = getHint(question);
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     this.locked = true;
 
