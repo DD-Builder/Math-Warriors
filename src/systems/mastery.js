@@ -160,3 +160,54 @@ function labelFor(id) {
   const s = SKILLS.find(x => x.id === id);
   return s ? s.label : id;
 }
+
+// ────────────────────────────────────────────────────────────────
+// MASTERY-DRIVEN PRACTICE LOOP (Upgrade 5)
+//
+// Feeds mastery data back into the game: the skills a child is weakest
+// at get more reps, and a "focus on this" recommendation is surfaced so
+// practice is directed where it helps most.
+// ────────────────────────────────────────────────────────────────
+
+const MASTERY_RANK = { learning: 0, practicing: 1, mastered: 2 };
+
+/**
+ * The skill most in need of practice, restricted to `candidates` (skill
+ * ids) when provided. Prefers skills with attempts and low mastery;
+ * breaks ties by lower accuracy. Returns null if nothing qualifies.
+ */
+export function getWeakestSkill(save, candidates = null) {
+  const pool = SKILLS.filter(s => !candidates || candidates.includes(s.id));
+  let best = null, bestScore = Infinity;
+  for (const s of pool) {
+    const m = getSkillMastery(save, s.id);
+    if (m.total < 3) continue; // not enough signal to call it weak
+    if (m.level === 'mastered') continue; // already solid
+    const score = MASTERY_RANK[m.level] * 10 + m.accuracy; // lower = weaker
+    if (score < bestScore) { bestScore = score; best = { ...s, ...m }; }
+  }
+  return best;
+}
+
+/**
+ * A short "focus on X" recommendation, or null if everything looks
+ * healthy (or there isn't enough data yet).
+ */
+export function getPracticeRecommendation(save) {
+  const weak = getWeakestSkill(save);
+  if (!weak) return null;
+  return { skillId: weak.id, label: weak.label, standard: weak.standard, floor: weak.floor, accuracy: weak.accuracy };
+}
+
+/**
+ * For a floor whose operator is 'mixed', choose which concept to serve:
+ * bias toward the weakest component skill a share of the time, otherwise
+ * random among the components. Returns an operator id.
+ */
+export function biasedMixedOperator(save, components, biasChance = 0.45) {
+  if (Math.random() < biasChance) {
+    const weak = getWeakestSkill(save, components);
+    if (weak) return weak.id;
+  }
+  return components[Math.floor(Math.random() * components.length)];
+}

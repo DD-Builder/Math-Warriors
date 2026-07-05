@@ -4,7 +4,7 @@ import { generateQuestion, generateRatedQuestion, recordAnswer } from '../system
 import { nextReview, buildReviewQuestion, scheduleReview, tickReview } from '../systems/review.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
-import { recordSkillAnswer, getAdaptiveGrade, updateAdaptiveLevel } from '../systems/mastery.js';
+import { recordSkillAnswer, getAdaptiveGrade, updateAdaptiveLevel, biasedMixedOperator } from '../systems/mastery.js';
 import {
   getZone,
   advanceMomentum,
@@ -1236,9 +1236,10 @@ export class BattleScene extends Phaser.Scene {
 
     // Generate a harder question (same as MAGIC — harder difficulty bias)
     const config = getCommandConfig(COMMANDS.MAGIC);
+    const effOp = this._effectiveOperator();
     this.currentQuestion = this._makeQuestion({
-      operator: this.operator,
-      grade: getAdaptiveGrade(this.save, this.operator),
+      operator: effOp,
+      grade: getAdaptiveGrade(this.save, effOp),
       streak: this.streak,
       floor: this.floor,
       targetStars: config.targetStars,
@@ -1446,9 +1447,10 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // FIGHT or MAGIC: generate a rated question and show it
+    const effOp = this._effectiveOperator();
     this.currentQuestion = this._makeQuestion({
-      operator: this.operator,
-      grade: getAdaptiveGrade(this.save, this.operator),
+      operator: effOp,
+      grade: getAdaptiveGrade(this.save, effOp),
       streak: this.streak,
       floor: this.floor,
       targetStars: config.targetStars,
@@ -1864,6 +1866,16 @@ export class BattleScene extends Phaser.Scene {
    * fact is due, re-present it (~40% of the time so it doesn't feel like
    * a drill). Every presented question advances the review clock.
    */
+  /**
+   * Upgrade 5: on 'mixed' floors, bias the served concept toward the
+   * child's weakest core skill ~45% of the time so struggling skills
+   * get extra reps; otherwise use the floor's concept as-is.
+   */
+  _effectiveOperator() {
+    if (this.operator === 'mixed') return biasedMixedOperator(this.save, ['+', '-', '*', '/']);
+    return this.operator;
+  }
+
   _makeQuestion(opts) {
     tickReview(this.save);
     const due = nextReview(this.save);

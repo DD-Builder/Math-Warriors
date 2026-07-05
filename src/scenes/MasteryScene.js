@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
-import { getAllMastery, getMasteryColor, getMasteryLabel } from '../systems/mastery.js';
+import { getAllMastery, getMasteryColor, getMasteryLabel, getPracticeRecommendation } from '../systems/mastery.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
@@ -30,6 +30,14 @@ export class MasteryScene extends Phaser.Scene {
     this.add.text(area.cx, area.top + 100, 'Track your math skills — answer questions to level up!', {
       ...TEXT.body(), fontSize: '18px', color: PAPER_CSS.cream,
     }).setOrigin(0.5);
+
+    // Upgrade 5: point the child at the skill that most needs practice.
+    const rec = getPracticeRecommendation(save);
+    if (rec) {
+      this.add.text(area.cx, area.top + 132, `⭐ Focus on: ${rec.label} — a little practice goes a long way!`, {
+        ...TEXT.body(), fontSize: '18px', color: PAPER_CSS.goldL,
+      }).setOrigin(0.5);
+    }
 
     const cols = 4;
     const cardW = 300;
