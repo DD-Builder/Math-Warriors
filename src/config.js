@@ -106,6 +106,7 @@ export const SCENES = {
   ENDING: 'EndingScene',
   SHOP: 'ShopScene',
   SETTINGS: 'SettingsScene',
+  PROGRESS: 'ProgressScene',
   SAVE_SELECT: 'SaveSlotScene',
   MASTERY: 'MasteryScene',
   BOSS_RUSH: 'BossRushScene',

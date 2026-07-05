@@ -134,7 +134,13 @@ export class SettingsScene extends Phaser.Scene {
       color: PAPER_CSS.inkTeal,
     }).setOrigin(0.5, 0.5);
 
-    this.resetBtn = PaperButton(this, area.cx, statsY + 22, 'RESET ALL PROGRESS', {
+    // Upgrade 6: parent/teacher progress dashboard (gated inside).
+    PaperButton(this, area.cx, statsY + 22, '📊 FOR GROWN-UPS: PROGRESS REPORT', {
+      w: 440, h: 48, color: PAPER.teal, fontSize: 16,
+      onClick: () => transitionTo(this, SCENES.PROGRESS, { returnScene: SCENES.SETTINGS, returnData: { returnScene: this.returnScene, returnData: this.returnData } }, 200),
+    });
+
+    this.resetBtn = PaperButton(this, area.cx, statsY + 78, 'RESET ALL PROGRESS', {
       w: 360, h: 50, color: PAPER.coralD, fontSize: 16,
       onClick: () => this.onResetPressed(),
     });
