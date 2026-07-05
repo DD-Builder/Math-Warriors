@@ -2293,6 +2293,21 @@ export class BattleScene extends Phaser.Scene {
         if (!rm) confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
       }
 
+      // Upgrade 9: celebrate an adaptive/mastery level-up earned this turn.
+      if (this._pendingLevelUp) {
+        const up = this._pendingLevelUp;
+        this._pendingLevelUp = null;
+        this.time.delayedCall(650, () => {
+          if (this._shuttingDown || this.phase === 'end') return;
+          audio.play('world/floor-complete');
+          this.showToast(`⭐ ${up.label.toUpperCase()} LEVEL UP!`, '#ffd54a');
+          if (!rm) {
+            confettiBurst(this, area.cx, area.cy - 40, 24);
+            screenEdgeGlow(this, 0xffd54a, 500);
+          }
+        });
+      }
+
       // Combo attack: intercept before normal damage path
       if (activeCommand === '_COMBO_' && this._comboData) {
         this.applyComboAttack();

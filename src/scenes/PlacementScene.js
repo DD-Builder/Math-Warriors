@@ -8,6 +8,7 @@ import { fadeInScene, transitionTo } from '../ui/sceneHelpers.js';
 import { generateRatedQuestion, opSymbol } from '../systems/math.js';
 import { PLACEMENT_PROBES, scorePlacement, applyPlacement } from '../systems/placement.js';
 import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
+import { confettiBurst } from '../ui/celebrations.js';
 
 /**
  * PlacementScene (Upgrade 4)
@@ -31,6 +32,7 @@ export class PlacementScene extends Phaser.Scene {
 
   create() {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this.area = area;
     fadeInScene(this);
     audio.playMusic('music/title');
     drawPapercutBackground(this, 'menu', GAME_WIDTH, GAME_HEIGHT, 321);
@@ -108,6 +110,7 @@ export class PlacementScene extends Phaser.Scene {
     const gradeNames = ['Kindergarten', '1st', '2nd', '3rd', '4th', '5th'];
     this.subtitle.setText(`Great! Starting you at ${gradeNames[result.grade]} level.`);
     this.qText.setText('★');
+    if (!save.settings?.reducedMotion) confettiBurst(this, this.area.cx, this.area.cy - 20, 26);
     this.answerBtns.forEach(b => { b.bg.setVisible(false); b.shadow.setVisible(false); b.label.setVisible(false); b.zone.setVisible(false); });
 
     this.time.delayedCall(1200, () => {

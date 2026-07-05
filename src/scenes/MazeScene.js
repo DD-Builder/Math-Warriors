@@ -1541,8 +1541,10 @@ export class MazeScene extends Phaser.Scene {
     flash.setDepth(100).setScrollFactor(0);
     this.tweens.add({ targets: flash, alpha: 0, duration: 800, onComplete: () => flash.destroy() });
 
-    // 2. Celebration particles burst from center
-    for (let i = 0; i < 20; i++) {
+    // 2. Celebration particles burst from center (Upgrade 9: honor
+    // reduced-motion — skip the burst for motion-sensitive players).
+    const reduceMotion = !!this.save?.settings?.reducedMotion;
+    for (let i = 0; !reduceMotion && i < 20; i++) {
       const angle = (i / 20) * Math.PI * 2;
       const dist = 100 + Math.random() * 200;
       const color = [0x40c040, 0xf0c040, 0x60a0e0][Math.floor(Math.random() * 3)];
