@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { generateQuestion, generateRatedQuestion, recordAnswer } from '../systems/math.js';
+import { nextReview, buildReviewQuestion, scheduleReview, tickReview } from '../systems/review.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
-import { recordSkillAnswer } from '../systems/mastery.js';
+import { recordSkillAnswer, getAdaptiveGrade, updateAdaptiveLevel } from '../systems/mastery.js';
 import {
   getZone,
   advanceMomentum,
@@ -1235,9 +1236,9 @@ export class BattleScene extends Phaser.Scene {
 
     // Generate a harder question (same as MAGIC — harder difficulty bias)
     const config = getCommandConfig(COMMANDS.MAGIC);
-    this.currentQuestion = generateRatedQuestion({
+    this.currentQuestion = this._makeQuestion({
       operator: this.operator,
-      grade: this.grade,
+      grade: getAdaptiveGrade(this.save, this.operator),
       streak: this.streak,
       floor: this.floor,
       targetStars: config.targetStars,
@@ -1445,9 +1446,9 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // FIGHT or MAGIC: generate a rated question and show it
-    this.currentQuestion = generateRatedQuestion({
+    this.currentQuestion = this._makeQuestion({
       operator: this.operator,
-      grade: this.grade,
+      grade: getAdaptiveGrade(this.save, this.operator),
       streak: this.streak,
       floor: this.floor,
       targetStars: config.targetStars,
@@ -1856,6 +1857,24 @@ export class BattleScene extends Phaser.Scene {
    *   ———
    *   ???
    */
+
+  /**
+   * Produce the next question. Upgrade 2: before generating fresh, check
+   * the persistent spaced-repetition schedule — if a previously-missed
+   * fact is due, re-present it (~40% of the time so it doesn't feel like
+   * a drill). Every presented question advances the review clock.
+   */
+  _makeQuestion(opts) {
+    tickReview(this.save);
+    const due = nextReview(this.save);
+    if (due && Math.random() < 0.4) {
+      const q = buildReviewQuestion(due);
+      q.stars = rateQuestion(q, opts.grade ?? this.grade);
+      return q;
+    }
+    return generateRatedQuestion(opts);
+  }
+
   renderStackedEquation(q) {
     if (!q || !this.eqLines) return;
 
@@ -2214,6 +2233,12 @@ export class BattleScene extends Phaser.Scene {
     // Phase 2.1: Record answer for spaced repetition & adaptive difficulty
     recordAnswer(correct);
     recordSkillAnswer(this.save, this.currentQuestion?.op, correct);
+    // Upgrade 1: adjust the child's per-skill adaptive level; stash an
+    // up-promotion so it can be celebrated (wired to visuals in U9).
+    const levelChange = updateAdaptiveLevel(this.save, this.currentQuestion?.op);
+    if (levelChange.changed && levelChange.direction === 'up') this._pendingLevelUp = levelChange;
+    // Upgrade 2: update the persistent spaced-repetition schedule.
+    scheduleReview(this.save, this.currentQuestion, correct);
 
     if (correct) {
       this.recolorAnswerButton(index, 0x40c040, 1);

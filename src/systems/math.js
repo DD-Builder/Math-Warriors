@@ -557,7 +557,7 @@ function genWord(grade) {
 // We walk the tiers until we have 3 distinct distractors. Tier 3
 // always terminates because there are infinite positive integers.
 
-function generateDistractors(answer) {
+export function generateDistractors(answer) {
   const used = new Set([answer]);
   const distractors = [];
 

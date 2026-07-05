@@ -70,3 +70,93 @@ export function getMasteryLabel(level) {
   if (level === 'practicing') return 'PRACTICING';
   return 'LEARNING';
 }
+
+export { SKILLS };
+
+// ────────────────────────────────────────────────────────────────
+// ADAPTIVE MASTERY ENGINE (Upgrade 1)
+//
+// The static grade pick is only a STARTING estimate. From there, each
+// skill carries its own effective grade band in save.adaptiveLevel,
+// which climbs when the child masters the current level and eases when
+// they persistently struggle. Question generation reads THIS per-skill
+// grade, so difficulty tracks the individual child per concept.
+// ────────────────────────────────────────────────────────────────
+
+const MIN_GRADE = 0;
+const MAX_GRADE = 5;
+
+function clampGrade(g) {
+  const n = Math.round(Number(g));
+  if (Number.isNaN(n)) return 3;
+  return Math.max(MIN_GRADE, Math.min(MAX_GRADE, n));
+}
+
+/** Map any operator/concept token to a tracked skill id ('mixed' or null). */
+function skillIdFor(operator) {
+  if (!operator) return null;
+  if (operator === 'mixed') return 'mixed';
+  return SKILLS.some(s => s.id === operator) ? operator : null;
+}
+
+/** Ensure save.adaptiveLevel exists, seeded from the chosen grade. */
+export function ensureAdaptiveLevel(save) {
+  const base = clampGrade(save.grade ?? 3);
+  if (!save.adaptiveLevel) save.adaptiveLevel = {};
+  for (const s of SKILLS) {
+    if (typeof save.adaptiveLevel[s.id] !== 'number') save.adaptiveLevel[s.id] = base;
+  }
+  return save.adaptiveLevel;
+}
+
+/**
+ * Effective grade for a skill/concept, used to size question difficulty.
+ * 'mixed' averages the component skills; unknown ops fall back to grade.
+ */
+export function getAdaptiveGrade(save, operator) {
+  const levels = ensureAdaptiveLevel(save);
+  const id = skillIdFor(operator);
+  if (id === 'mixed') {
+    const vals = SKILLS.map(s => levels[s.id]);
+    return clampGrade(vals.reduce((a, b) => a + b, 0) / vals.length);
+  }
+  if (id && typeof levels[id] === 'number') return clampGrade(levels[id]);
+  return clampGrade(save.grade ?? 3);
+}
+
+/**
+ * After an answer is recorded, adjust the skill's adaptive level.
+ * Returns { changed, direction:'up'|'down', newLevel, skillId, label }
+ * so callers can celebrate a promotion (Upgrade 9). Promotion/demotion
+ * clears the recent window so the child must re-demonstrate at the new
+ * level (prevents rapid oscillation).
+ */
+export function updateAdaptiveLevel(save, operator) {
+  const id = skillIdFor(operator);
+  if (!id || id === 'mixed') return { changed: false };
+  const levels = ensureAdaptiveLevel(save);
+  const stats = ensureSkillStats(save);
+  const skill = stats[id];
+  if (!skill) return { changed: false };
+  const cur = levels[id];
+  const m = getSkillMastery(save, id);
+
+  // Promote: mastered the current band with room to grow.
+  if (m.level === 'mastered' && cur < MAX_GRADE) {
+    levels[id] = cur + 1;
+    skill.recent = [];
+    return { changed: true, direction: 'up', newLevel: levels[id], skillId: id, label: labelFor(id) };
+  }
+  // Demote: persistently struggling (enough fresh attempts, low accuracy).
+  if (skill.recent.length >= 12 && m.accuracy < 0.45 && cur > MIN_GRADE) {
+    levels[id] = cur - 1;
+    skill.recent = [];
+    return { changed: true, direction: 'down', newLevel: levels[id], skillId: id, label: labelFor(id) };
+  }
+  return { changed: false };
+}
+
+function labelFor(id) {
+  const s = SKILLS.find(x => x.id === id);
+  return s ? s.label : id;
+}

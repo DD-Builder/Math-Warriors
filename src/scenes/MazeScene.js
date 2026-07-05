@@ -20,6 +20,7 @@ import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameStat
 // of resurrecting an old broken layout.
 const MAZE_STATE_SCHEMA = 3;
 import { generateRatedQuestion } from '../systems/math.js';
+import { getAdaptiveGrade } from '../systems/mastery.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
@@ -1058,7 +1059,7 @@ export class MazeScene extends Phaser.Scene {
               const op = FLOOR_OPERATORS[this.floorId] || '+';
               const newQ = generateRatedQuestion({
                 operator: op,
-                grade: this.save.grade || 3,
+                grade: getAdaptiveGrade(this.save, op),
                 streak: 0,
                 floor: this.floorId,
                 targetStars: [2, 3],
@@ -1261,7 +1262,7 @@ export class MazeScene extends Phaser.Scene {
         const operator = FLOOR_OPERATORS[this.floorId] || '+';
         const question = generateRatedQuestion({
           operator,
-          grade: this.save.grade || 3,
+          grade: getAdaptiveGrade(this.save, operator),
           streak: 0,
           floor: this.floorId,
           targetStars: [2, 3],
