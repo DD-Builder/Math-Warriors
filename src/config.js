@@ -97,6 +97,7 @@ export const SCENES = {
   TITLE: 'TitleScene',
   TUTORIAL: 'TutorialScene',
   GRADE_SELECT: 'GradeSelectScene',
+  PLACEMENT: 'PlacementScene',
   PARTY_SELECT: 'PartySelectScene',
   WORLD_MAP: 'WorldMapScene',
   CUTSCENE: 'CutsceneScene',
