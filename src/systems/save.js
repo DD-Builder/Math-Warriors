@@ -65,6 +65,7 @@ export function makeDefaultSave() {
       sfxVolume: 1.0,
       reducedMotion: false,
       colorblindMode: false,
+      ttsEnabled: false,
       sessionTimer: 0,
     },
     problemHistory: [],

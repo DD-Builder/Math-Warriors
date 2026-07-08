@@ -19,6 +19,7 @@ import {
 } from '../systems/combat.js';
 import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
 import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
+import { speakQuestion } from '../systems/a11y.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
@@ -1256,6 +1257,8 @@ export class BattleScene extends Phaser.Scene {
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
     this._renderAnswerChoices();
+    // Upgrade 10: read the question aloud for pre-readers when TTS is on.
+    speakQuestion(this.save, this.currentQuestion);
 
     // Animate equation + answer buttons in
     const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
@@ -1470,6 +1473,8 @@ export class BattleScene extends Phaser.Scene {
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
     this._renderAnswerChoices();
+    // Upgrade 10: read the question aloud for pre-readers when TTS is on.
+    speakQuestion(this.save, this.currentQuestion);
 
     // Animate equation panel + answer buttons sliding/fading in
     const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
