@@ -92,39 +92,40 @@ export const DIALOGUE = {
 
   // ══════════════════════════════════════
   // FLOOR 2: TIDEPOOL RUINS — "The Stuck Tide"
-  // Math: SUBTRACTION. Open 3 drain valves;
-  // each one SUBTRACTS the flood.
+  // Math: SUBTRACTION. Open 4 tide sluices;
+  // each one SUBTRACTS the flood and surfaces
+  // a drowned district of Ebbport.
   // ══════════════════════════════════════
 
   floor2_entry: [
-    { speaker: 'Water Fairy', text: 'Glub! The tide is stuck way too HIGH!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The whole causeway is underwater!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The Chaos King jammed the drain valves.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Open all three to let the water out.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Every valve SUBTRACTS more flood!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Less and less, until the path appears.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'It leads to the Pressure Chamber.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Ready to make this ocean smaller?', side: 'left' },
+    { speaker: 'Marlow', text: 'A hundred years I kept this lantern lit.', side: 'left' },
+    { speaker: 'Marlow', text: 'Welcome to Ebbport. What the sea left of it.', side: 'left' },
+    { speaker: 'Elara', text: 'A whole city... drowned?', side: 'right' },
+    { speaker: 'Marlow', text: 'The Pressure jammed our tide-heart HIGH.', side: 'left' },
+    { speaker: 'Marlow', text: 'Four sluices can walk the sea back down.', side: 'left' },
+    { speaker: 'Marlow', text: 'Each one SUBTRACTS a measure of flood.', side: 'left' },
+    { speaker: 'Marlow', text: 'Less water, less water... until dry land.', side: 'left' },
+    { speaker: 'Marlow', text: 'Open them, and Ebbport breathes again.', side: 'left' },
   ],
   floor2_fairy_talk: [
-    { speaker: 'Elara', text: 'Marina, you know these ruins?' },
-    { speaker: 'Water Fairy', text: 'I learned to swim right here!' },
-    { speaker: 'Water Fairy', text: 'The causeway was my favorite walk.' },
-    { speaker: 'Elara', text: 'Then let us take this water down.' },
+    { speaker: 'Marlow', text: 'Market Row! Surfacing after a hundred years!' },
+    { speaker: 'Marlow', text: 'The stalls, the cobbles... all still here.' },
+    { speaker: 'Elara', text: 'Every answer sinks the tide a little more.' },
+    { speaker: 'Marlow', text: 'Keep subtracting. Drain it street by street.' },
   ],
   floor2_boss: [
-    { speaker: 'Water Fairy', text: 'The Pressure Chamber! And its keeper!', side: 'left' },
-    { speaker: 'The Pressure', text: 'I LOVE a big, deep, drippy flood!', sprite: 'pressure', side: 'right' },
-    { speaker: 'The Pressure', text: 'More water! Never less! NEVER!', sprite: 'pressure', side: 'right' },
-    { speaker: 'Narrator', text: 'Subtract the flood! Take it away!', wide: true },
+    { speaker: 'Marlow', text: 'The Deep Basin! And the thing that jammed it.', side: 'left' },
+    { speaker: 'The Pressure', text: 'Who DARES subtract my beautiful flood?!', sprite: 'pressure', side: 'right' },
+    { speaker: 'The Pressure', text: 'I am the high tide! Endless! RISING!', sprite: 'pressure', side: 'right' },
+    { speaker: 'Narrator', text: 'Take the flood away. Subtract it to nothing!', wide: true },
   ],
   floor2_victory: [
-    { speaker: 'Water Fairy', text: 'You subtracted the whole flood away!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The tide sank with every answer!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The causeway is back in the sun!', side: 'left' },
-    { speaker: 'Elara', text: 'The Tide Harmony hums happily.', side: 'left' },
+    { speaker: 'Marlow', text: 'The tide-heart turns. Feel it breathe!', side: 'left' },
+    { speaker: 'Marlow', text: 'Low tide. Real, honest low tide again!', side: 'left' },
+    { speaker: 'Elara', text: 'Ebbport rises from the water at last.', side: 'left' },
+    { speaker: 'Elara', text: 'The Tide Harmony hums, mended and whole.', side: 'left' },
     { speaker: 'Elara', text: 'Two Harmonies mended! Seven to go.', side: 'left' },
-    { speaker: 'Elara', text: 'Next stop: way, way up in the clouds.', side: 'left' },
+    { speaker: 'Elara', text: 'Next: the sky-maze, where light MULTIPLIES.', side: 'left' },
     { speaker: 'Elara', text: 'I hope you like heights!', side: 'left' },
   ],
 
@@ -468,9 +469,9 @@ export const DIALOGUE = {
     { speaker: 'Elara', text: 'Now wake the sleeping Rune Stones!' },
   ],
   floor2_phase1_done: [
-    { speaker: 'Water Fairy', text: 'All three drain valves are open!' },
-    { speaker: 'Water Fairy', text: 'The flood is subtracting away!' },
-    { speaker: 'Water Fairy', text: 'Now hunt for the Coral Keys!' },
+    { speaker: 'Marlow', text: 'The last sluice! The Deep Basin is draining!' },
+    { speaker: 'Marlow', text: 'A century of flood, pouring out at once!' },
+    { speaker: 'Elara', text: 'Something huge is stirring down there...' },
   ],
   floor3_phase1_done: [
     { speaker: 'Sky Fairy', text: 'All three beacons are blazing!' },
@@ -515,9 +516,9 @@ export const DIALOGUE = {
     { speaker: 'Elara', text: "The Briar King's grove is open. Go!" },
   ],
   floor2_phase2_done: [
-    { speaker: 'Water Fairy', text: 'The Coral Keys turn! Click, click!' },
-    { speaker: 'Water Fairy', text: 'The last water whooshes away!' },
-    { speaker: 'Water Fairy', text: 'The Pressure Chamber is open. Dive in!' },
+    { speaker: 'Marlow', text: 'The Deep Basin is dry! The last water is gone!' },
+    { speaker: 'Marlow', text: 'The Pressure has nowhere left to hide.' },
+    { speaker: 'Elara', text: 'The lair lies open. Go and face it!' },
   ],
   floor3_phase2_done: [
     { speaker: 'Sky Fairy', text: 'The Wind Chimes sing with the light!' },
