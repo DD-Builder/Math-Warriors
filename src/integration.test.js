@@ -537,6 +537,22 @@ describe('cross-system consistency', () => {
     assert.equal(unlocked.size, 15, `only ${unlocked.size}/15 heroes unlockable`);
   });
 
+  it('each new hero is equal or superior to the previous hero of its class', () => {
+    // Rescued heroes must feel like an upgrade: within a class, total base
+    // stats never go DOWN as the unlock floor rises.
+    for (const cls of ['knight', 'wizard', 'bunny']) {
+      const line = ALL_HEROES.filter(h => h.class === cls)
+        .sort((a, b) => a.unlockedAtFloor - b.unlockedAtFloor);
+      for (let i = 1; i < line.length; i++) {
+        const prev = line[i - 1], next = line[i];
+        const prevTotal = prev.maxHp + prev.atk + prev.def;
+        const nextTotal = next.maxHp + next.atk + next.def;
+        assert.ok(nextTotal >= prevTotal,
+          `${next.id} (floor ${next.unlockedAtFloor}, total ${nextTotal}) is weaker than ${prev.id} (floor ${prev.unlockedAtFloor}, total ${prevTotal})`);
+      }
+    }
+  });
+
   it('dialogue lines are graphic-novel short (max 50 chars for cutscene text)', () => {
     const cutsceneKeys = [];
     for (let f = 1; f <= TOTAL_FLOORS; f++) {
