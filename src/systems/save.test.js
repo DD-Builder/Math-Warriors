@@ -14,6 +14,7 @@ import {
   updateSave,
   markFloorComplete,
   unlockHeroesForFloor,
+  unlockHero,
   isHeroUnlocked,
   __setStorage,
   CURRENT_VERSION,
@@ -421,6 +422,28 @@ describe('hero unlock system', () => {
       unlockHeroesForFloor(save, f);
     }
     assert.equal(save.unlockedHeroes.length, 15);
+  });
+
+  test('unlockHero unlocks a single hero, idempotent, rejects unknown ids', () => {
+    const save = makeDefaultSave();
+    assert.equal(unlockHero(save, 'knight-crusader'), true);
+    assert.ok(isHeroUnlocked(save, 'knight-crusader'));
+    assert.equal(unlockHero(save, 'knight-crusader'), false, 'second unlock is a no-op');
+    assert.equal(save.unlockedHeroes.filter(id => id === 'knight-crusader').length, 1);
+    assert.equal(unlockHero(save, 'not-a-hero'), false);
+    assert.ok(!save.unlockedHeroes.includes('not-a-hero'));
+  });
+
+  test('unlockHero does not queue rescue dialogue; safety net skips rescued heroes', () => {
+    const save = makeDefaultSave();
+    unlockHero(save, 'knight-crusader');           // rescued in-maze
+    assert.equal((save.pendingRescueDialogue || []).length, 0,
+      'in-maze rescue must not queue the post-boss cutscene');
+    const unlocked = unlockHeroesForFloor(save, 1); // boss-victory safety net
+    assert.equal(unlocked.length, 1, 'only the missed hero unlocks at the boss');
+    assert.equal(unlocked[0].id, 'wizard-toadstool');
+    assert.deepEqual(save.pendingRescueDialogue, ['wizard-toadstool'],
+      'cutscene queue holds only the hero NOT rescued in-maze');
   });
 
   test('save version is 4', () => {

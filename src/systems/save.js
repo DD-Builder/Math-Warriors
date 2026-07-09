@@ -424,6 +424,21 @@ export function unlockHeroesForFloor(save, floorId) {
 }
 
 /**
+ * Unlock a single hero by id — the in-maze rescue path. Idempotent.
+ * Deliberately does NOT queue pendingRescueDialogue: the maze plays the
+ * rescue live, so the post-boss cutscene must stay silent for this hero
+ * (unlockHeroesForFloor already skips ids present in unlockedHeroes).
+ * Returns true if the hero was newly unlocked.
+ */
+export function unlockHero(save, heroId) {
+  if (!ALL_HEROES.some(h => h.id === heroId)) return false;
+  if (!Array.isArray(save.unlockedHeroes)) save.unlockedHeroes = [];
+  if (save.unlockedHeroes.includes(heroId)) return false;
+  save.unlockedHeroes.push(heroId);
+  return true;
+}
+
+/**
  * Consume and return the pending rescue hero IDs, clearing them from save.
  * Returns an array of hero ID strings, or empty array if none pending.
  */
