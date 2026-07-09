@@ -18,7 +18,7 @@ import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameStat
 // Bump whenever the maze save-state shape or level layouts change in an
 // incompatible way — stale device saves are silently discarded instead
 // of resurrecting an old broken layout.
-const MAZE_STATE_SCHEMA = 3;
+const MAZE_STATE_SCHEMA = 4;
 import { generateRatedQuestion } from '../systems/math.js';
 import { getAdaptiveGrade } from '../systems/mastery.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
@@ -245,6 +245,15 @@ export class MazeScene extends Phaser.Scene {
     // resuming a save), the world must stay transformed — re-apply the
     // level's tile changes on top of the freshly-loaded base layout.
     if (this.mazeTransformed) this.applyLevelTransform();
+
+    // Staged draining (Floor 2 tide): each already-worked sluice/valve
+    // permanently opened its own band of tiles. The `consumed` flags
+    // persist in the saved objects, so re-apply every consumed drainer's
+    // tiles on load — mirrors how mazeTransformed re-applies the final
+    // transform, deterministically re-deriving the drained world.
+    for (const o of this.objects) {
+      if (o.consumed && Array.isArray(o.drain)) this.applyDrain(o.drain);
+    }
 
     if (this.revealedSecrets) {
       for (const s of this.revealedSecrets) {
@@ -1189,10 +1198,19 @@ export class MazeScene extends Phaser.Scene {
    * (movement + rendering) and our floor copy (battle variants).
    */
   applyLevelTransform() {
-    const tf = this.level?.transform;
-    if (!tf) return;
+    this.applyDrain(this.level?.transform?.tiles);
+  }
+
+  /**
+   * Mutate a list of tiles live (engine map + our copy). Used by both the
+   * final world transform and per-sluice STAGED draining (Floor 2 tide):
+   * each entry is [x, y, 'P'|'F'|'W'|'Q'|'S']. Turning Q→P/F drains water
+   * into walkable street; the engine repaints and re-checks collision.
+   */
+  applyDrain(tiles) {
+    if (!Array.isArray(tiles)) return;
     const CODE = { W: 0, F: 1, P: 2, Q: 3, S: 4 };
-    for (const [x, y, t] of tf.tiles) {
+    for (const [x, y, t] of tiles) {
       const code = CODE[t] ?? 2;
       LV_setTile(x, y, code);
       if (this.floor.tiles[y]) this.floor.tiles[y][x] = code;
@@ -1362,6 +1380,14 @@ export class MazeScene extends Phaser.Scene {
         markDead(obj.id);
         audio.play('world/chest');
         this.showChallengeEffect(obj.type);
+        // Staged draining (Floor 2 tide): if this sluice opens its own band
+        // of tiles, drain them NOW so a whole new district surfaces before
+        // the final transform. The final valve still triggers transformFloor.
+        if (Array.isArray(obj.drain)) {
+          this.applyDrain(obj.drain);
+          if (obj.drainMessage) this.showToast(obj.drainMessage, '#60d0e8');
+          audio.play('world/floor-complete');
+        }
         const ch = this.floor.challenge || { count: 3, label: 'ITEM', verb: 'found', allDoneMsg: 'Challenge complete!' };
         const remaining = ch.count - this.challengeProgress;
         if (remaining > 0) {
