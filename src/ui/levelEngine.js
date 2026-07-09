@@ -1427,6 +1427,120 @@ function LV_drawPartyMember(px, py, ts, idx, moving, t) {
   _G.restore();
 }
 
+// ─── TRAPPED HERO (in-maze rescue) ──────────────────────────────
+
+var PRISON_STYLES = {
+  vine:    { bar: '#3a7028', accent: '#78c050', glow: '#a0e070' },
+  coral:   { bar: '#c06a58', accent: '#f0a890', glow: '#80d8e8' },
+  cloud:   { bar: '#b8c8d8', accent: '#f0f4f8', glow: '#d0e8ff' },
+  ember:   { bar: '#402018', accent: '#f08030', glow: '#ffb060' },
+  ice:     { bar: '#a8d0e8', accent: '#e8f6ff', glow: '#c0e8ff' },
+  crystal: { bar: '#7048b8', accent: '#b090e8', glow: '#c8a8ff' },
+  vault:   { bar: '#585048', accent: '#d8b040', glow: '#f0d060' },
+};
+
+/**
+ * A hero trapped in a themed prison, waiting to be rescued. Draws the
+ * hero's real portrait canvas (o.heroCanvas) dimmed inside a papercut
+ * prison whose look is picked by o.prison, with a pulsing gold ring so
+ * kids spot the rescue from across the room.
+ */
+function LV_drawHeroPrison(x, y, ts, o, t) {
+  var style = PRISON_STYLES[o.prison] || PRISON_STYLES.vine;
+  var cx = x + ts * 0.5, cy = y + ts * 0.5;
+  var bob = Math.sin(t * 1.6 + (o.tx || 0)) * ts * 0.02;
+
+  // Beckoning glow ring under everything
+  var pulse = 0.30 + Math.sin(t * 2.4) * 0.15;
+  _G.save();
+  _G.globalAlpha = pulse;
+  _G.fillStyle = style.glow;
+  _G.beginPath(); _G.arc(cx, cy, ts * 0.46, 0, Math.PI * 2); _G.fill();
+  _G.restore();
+
+  // The hero, dimmed and slightly small — present but not yet free
+  if (o.heroCanvas) {
+    var hcv = o.heroCanvas;
+    var hsc = ts * 0.9 / hcv.width, hw = hcv.width * hsc, hh = hcv.height * hsc;
+    _G.save();
+    _G.globalAlpha = 0.85;
+    _G.drawImage(hcv, cx - hw / 2, cy - hh * 0.78 + bob, hw, hh);
+    _G.restore();
+  } else {
+    LV_cut(style.accent, 4, function () { _G.arc(cx, cy - ts * 0.1 + bob, ts * 0.2, 0, Math.PI * 2); });
+  }
+
+  // Prison encasement: ice/crystal read as a translucent block,
+  // everything else as bars with a themed accent.
+  _G.save();
+  if (o.prison === 'ice' || o.prison === 'crystal') {
+    _G.globalAlpha = 0.38;
+    _G.fillStyle = style.accent;
+    _G.beginPath();
+    if (o.prison === 'ice') {
+      var ix = cx - ts * 0.34, iy = cy - ts * 0.44, iw = ts * 0.68, ih = ts * 0.8, ir = ts * 0.12;
+      _G.moveTo(ix + ir, iy);
+      _G.lineTo(ix + iw - ir, iy); _G.quadraticCurveTo(ix + iw, iy, ix + iw, iy + ir);
+      _G.lineTo(ix + iw, iy + ih - ir); _G.quadraticCurveTo(ix + iw, iy + ih, ix + iw - ir, iy + ih);
+      _G.lineTo(ix + ir, iy + ih); _G.quadraticCurveTo(ix, iy + ih, ix, iy + ih - ir);
+      _G.lineTo(ix, iy + ir); _G.quadraticCurveTo(ix, iy, ix + ir, iy);
+      _G.closePath();
+    } else {
+      _G.moveTo(cx, cy - ts * 0.5); _G.lineTo(cx + ts * 0.36, cy - ts * 0.18);
+      _G.lineTo(cx + ts * 0.28, cy + ts * 0.38); _G.lineTo(cx - ts * 0.28, cy + ts * 0.38);
+      _G.lineTo(cx - ts * 0.36, cy - ts * 0.18); _G.closePath();
+    }
+    _G.fill();
+    _G.globalAlpha = 0.8;
+    _G.strokeStyle = style.bar; _G.lineWidth = ts * 0.045; _G.stroke();
+    // glints
+    _G.globalAlpha = 0.7; _G.strokeStyle = '#ffffff'; _G.lineWidth = ts * 0.03;
+    _G.beginPath(); _G.moveTo(cx - ts * 0.18, cy - ts * 0.3); _G.lineTo(cx - ts * 0.06, cy - ts * 0.14); _G.stroke();
+  } else {
+    _G.strokeStyle = style.bar;
+    _G.lineWidth = ts * 0.07;
+    _G.lineCap = 'round';
+    for (var b = -1; b <= 1; b++) {
+      var bx = cx + b * ts * 0.22 + (o.prison === 'vine' ? Math.sin(t * 1.2 + b) * ts * 0.02 : 0);
+      _G.beginPath(); _G.moveTo(bx, cy - ts * 0.42); _G.lineTo(bx, cy + ts * 0.4); _G.stroke();
+    }
+    _G.beginPath(); _G.moveTo(cx - ts * 0.3, cy - ts * 0.42); _G.lineTo(cx + ts * 0.3, cy - ts * 0.42); _G.stroke();
+    // Themed accent on the bars
+    _G.fillStyle = style.accent;
+    if (o.prison === 'vine') {
+      for (var lf = 0; lf < 3; lf++) {
+        var ly = cy - ts * 0.3 + lf * ts * 0.26;
+        _G.beginPath(); _G.ellipse(cx + (lf % 2 ? ts * 0.22 : -ts * 0.22), ly, ts * 0.07, ts * 0.035, 0.6, 0, Math.PI * 2); _G.fill();
+      }
+    } else if (o.prison === 'cloud') {
+      for (var pf = 0; pf < 3; pf++) {
+        _G.beginPath(); _G.arc(cx - ts * 0.24 + pf * ts * 0.24, cy + ts * 0.38, ts * 0.1, 0, Math.PI * 2); _G.fill();
+      }
+    } else if (o.prison === 'vault') {
+      _G.beginPath(); _G.arc(cx, cy, ts * 0.09, 0, Math.PI * 2); _G.fill();
+      _G.fillStyle = style.bar;
+      _G.fillRect(cx - ts * 0.02, cy, ts * 0.04, ts * 0.1);
+    } else if (o.prison === 'coral') {
+      for (var cb = 0; cb < 3; cb++) {
+        _G.beginPath(); _G.arc(cx - ts * 0.22 + cb * ts * 0.22, cy + ts * 0.4, ts * 0.05, 0, Math.PI); _G.fill();
+      }
+    } else if (o.prison === 'ember') {
+      _G.globalAlpha = 0.5 + Math.sin(t * 4) * 0.3;
+      _G.beginPath(); _G.arc(cx, cy + ts * 0.42, ts * 0.08, 0, Math.PI * 2); _G.fill();
+    }
+  }
+  _G.restore();
+
+  // Orbiting sparkles — "something special is here"
+  for (var sp = 0; sp < 3; sp++) {
+    var sa = (sp / 3) * Math.PI * 2 + t * 1.2;
+    var spx = cx + Math.cos(sa) * ts * 0.42, spy = cy + Math.sin(sa) * ts * 0.36;
+    _G.save(); _G.globalAlpha = 0.35 + Math.sin(t * 2.5 + sp) * 0.25;
+    _G.fillStyle = '#ffe870';
+    _G.beginPath(); _G.arc(spx, spy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
+  }
+}
+
 // ─── MINIMAP (1:1 from reference, draws to internal canvas) ─────
 
 function LV_drawMinimap() {
@@ -1713,6 +1827,7 @@ function LV_draw(t) {
     else if (o.type === 'monster' && o.alive && o.hidden) LV_drawEncounterIndicator(osx, osy, ts, o, t);
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
+    else if (o.type === 'hero') LV_drawHeroPrison(osx, osy, ts, o, t);
     else if (o.type === 'doorway') LV_drawDoorway(osx, osy, ts, o, t);
   }
   // Party — draw leader only (skip if external animated hero is used)

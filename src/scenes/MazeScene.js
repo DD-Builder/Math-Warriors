@@ -3,7 +3,7 @@ import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStat
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { generateFloorMaze } from '../data/floors.js';
 import { getLevel } from '../data/levels.js';
-import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
+import { loadSave, writeSave, isHeroUnlocked, unlockHero, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, ALL_HEROES, levelBonuses } from '../data/heroes.js';
 import { FLOOR_OPERATORS } from '../data/enemies.js';
@@ -24,7 +24,7 @@ import { getAdaptiveGrade } from '../systems/mastery.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
-import { DIALOGUE } from '../data/dialogue.js';
+import { DIALOGUE, getRescueDialogue } from '../data/dialogue.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 
 /**
@@ -221,19 +221,32 @@ export class MazeScene extends Phaser.Scene {
       else if (o.type === 'page') engineType = 'page';
       else if (o.type === 'mathdoor') engineType = 'mathdoor';
       else if (o.type === 'fountain') engineType = 'fountain';
+      // Mimics: a disguised encounter renders as its disguise (e.g. a
+      // tempting gold pile) and only reveals itself when touched.
+      if (o.type === 'encounter' && o.disguise) engineType = o.disguise;
       return {
         type: engineType,
         tx: o.x, ty: o.y,
         id: o.id,
         alive: !o.consumed,
         open: o.type === 'mathdoor' ? !!o.open : !!o.consumed,
-        hidden: o.type === 'encounter',
+        hidden: o.type === 'encounter' && !o.disguise,
         visible: true,
         kind: 'sprout',
         respawnAt: 0,
         loot: (o.type === challengeType || o.type === 'fairy') ? 'fairy' : undefined,
         fairyCol: '#88aaff',
         uses: o.uses ?? undefined,
+        // Trapped heroes render as their real portrait inside a themed prison
+        prison: o.prison,
+        heroCanvas: o.type === 'hero'
+          ? (() => {
+              const art = allArt.find(a => a.id === o.heroId);
+              return art && art.draw
+                ? createHeroCanvas(80, 110, null, art.draw, art.topExt, art.botExt)
+                : null;
+            })()
+          : undefined,
       };
     });
 
@@ -965,6 +978,106 @@ export class MazeScene extends Phaser.Scene {
     this.scene.restart({ floor: this.floorId });
   }
 
+  /**
+   * The big "you unlocked someone special" moment: the freed hero pops
+   * in center-screen under a starred banner with a burst of sparks,
+   * then hands off to the party prompt.
+   */
+  showHeroRescueCelebration(heroDef, onDone) {
+    const reduceMotion = !!this.save?.settings?.reducedMotion;
+    const DEPTH = 230;
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2 - 30;
+    const objs = [];
+    audio.play('world/floor-complete');
+
+    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.55)
+      .setScrollFactor(0).setDepth(DEPTH);
+    objs.push(dim);
+
+    const spr = drawHeroSprite(this, cx, cy, heroDef, { scale: 0.9 });
+    spr.setScrollFactor(0).setDepth(DEPTH + 2);
+    objs.push(spr);
+
+    const banner = this.add.text(cx, cy - 130, `★ ${heroDef.name.toUpperCase()} JOINS THE QUEST! ★`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '30px', color: '#f0d040', stroke: '#1a0e04', strokeThickness: 5,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 3);
+    objs.push(banner);
+
+    const traitTx = this.add.text(cx, cy + 105, `${heroDef.trait}`, {
+      fontFamily: '"Baloo 2", sans-serif',
+      fontSize: '18px', color: '#f0e4cc', stroke: '#1a0e04', strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 3);
+    objs.push(traitTx);
+
+    if (!reduceMotion) {
+      spr.setScale(0.2);
+      this.tweens.add({ targets: spr, scale: 0.9, duration: 420, ease: 'Back.out' });
+      banner.setAlpha(0);
+      this.tweens.add({ targets: banner, alpha: 1, y: banner.y + 8, duration: 350, delay: 150 });
+      for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * Math.PI * 2;
+        const p = this.add.circle(cx, cy, 5, 0xf0d040).setScrollFactor(0).setDepth(DEPTH + 1);
+        objs.push(p);
+        this.tweens.add({
+          targets: p,
+          x: cx + Math.cos(ang) * 130,
+          y: cy + Math.sin(ang) * 110,
+          alpha: 0, duration: 700, delay: 120, ease: 'Cubic.out',
+        });
+      }
+    }
+
+    this.time.delayedCall(reduceMotion ? 900 : 1600, () => {
+      objs.forEach(o => o.destroy());
+      if (onDone) onDone();
+    });
+  }
+
+  /** Post-rescue choice: put the new hero in the party now, or later. */
+  showRescuePartyPrompt(heroDef) {
+    const DEPTH = 220;
+    const objs = [];
+    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5)
+      .setScrollFactor(0).setInteractive().setDepth(DEPTH);
+    objs.push(dim);
+
+    const q = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, `Add ${heroDef.name} to your party?`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '26px', color: '#f0e4cc', stroke: '#1a0e04', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+    objs.push(q);
+
+    const destroyAll = () => objs.forEach(o => {
+      if (o.bg) { o.bg.destroy(); o.shadow.destroy(); o.label.destroy(); if (o.zone) o.zone.destroy(); }
+      else o.destroy();
+    });
+
+    const addBtn = PaperButton(this, GAME_WIDTH / 2 - 110, GAME_HEIGHT / 2 + 20, 'ADD TO PARTY', {
+      w: 190, h: 54, color: PAPER.gold, fontSize: 17,
+      onClick: () => {
+        audio.play('ui/confirm');
+        destroyAll();
+        this.showSlotPicker(heroDef, []);
+      },
+    });
+    const laterBtn = PaperButton(this, GAME_WIDTH / 2 + 110, GAME_HEIGHT / 2 + 20, 'LATER', {
+      w: 150, h: 54, color: PAPER.teal, fontSize: 17,
+      onClick: () => {
+        audio.play('ui/back');
+        destroyAll();
+        this.showToast(`${heroDef.name} waits in your roster!`, '#f0d040');
+      },
+    });
+    for (const btn of [addBtn, laterBtn]) {
+      btn.bg.setScrollFactor(0).setDepth(DEPTH + 1);
+      btn.shadow.setScrollFactor(0).setDepth(DEPTH);
+      btn.label.setScrollFactor(0).setDepth(DEPTH + 2);
+      if (btn.zone) btn.zone.setScrollFactor(0).setDepth(DEPTH + 2);
+      objs.push(btn);
+    }
+  }
+
   spawnPhase2Items(phase2) {
     const occupied = new Set();
     occupied.add(`${this.playerX},${this.playerY}`);
@@ -1065,7 +1178,7 @@ export class MazeScene extends Phaser.Scene {
           this._touchDir = null;
           this.time.delayedCall(600, () => {
             if (!doorObj.open) {
-              const op = FLOOR_OPERATORS[this.floorId] || '+';
+              const op = doorObj.operator || FLOOR_OPERATORS[this.floorId] || '+';
               const newQ = generateRatedQuestion({
                 operator: op,
                 grade: getAdaptiveGrade(this.save, op),
@@ -1277,7 +1390,9 @@ export class MazeScene extends Phaser.Scene {
     switch (obj.type) {
       case 'mathdoor': {
         if (obj.open) return;
-        const operator = FLOOR_OPERATORS[this.floorId] || '+';
+        // A door may carry its own operator (op-keyed doors: the Four Keys
+        // of Thaw, the memory-palace wings) — else the floor's operator.
+        const operator = obj.operator || FLOOR_OPERATORS[this.floorId] || '+';
         const question = generateRatedQuestion({
           operator,
           grade: getAdaptiveGrade(this.save, operator),
@@ -1336,6 +1451,40 @@ export class MazeScene extends Phaser.Scene {
         audio.play('world/gold');
         this.showFloatText(obj.x, obj.y, '+1 POTION', COLORS_CSS.plumL);
         this.updateHud();
+        break;
+      }
+      case 'hero': {
+        // In-maze hero rescue — the level's special unlock moment.
+        if (isHeroUnlocked(this.save, obj.heroId)) {
+          // Already granted (boss-victory safety net on a re-entered floor):
+          // dissolve the stale prison silently.
+          obj.consumed = true;
+          markDead(obj.id);
+          this.saveMazeState();
+          break;
+        }
+        const heroDef = spawnHero(obj.heroId);
+        if (!heroDef) { obj.consumed = true; markDead(obj.id); break; }
+        audio.play('world/fairy');
+        const lines = getRescueDialogue(this.floorId, [obj.heroId]);
+        const fallback = [
+          { speaker: heroDef.name, text: 'You... you found me! I am free!' },
+          { speaker: heroDef.name, text: 'My strength is yours. Let me fight beside you!' },
+        ];
+        this.dialogue.show(lines.length ? lines : fallback).then(() => {
+          // Persist the rescue BEFORE any party prompt so a scene restart
+          // (performSwap) or quit can never lose it.
+          obj.consumed = true;
+          markDead(obj.id);
+          unlockHero(this.save, obj.heroId);
+          writeSave(this.save, this.slot);
+          if (Array.isArray(obj.drain)) {
+            this.applyDrain(obj.drain);
+            if (obj.drainMessage) this.showToast(obj.drainMessage, '#ffe070');
+          }
+          this.saveMazeState();
+          this.showHeroRescueCelebration(heroDef, () => this.showRescuePartyPrompt(heroDef));
+        });
         break;
       }
       case 'fairy':
@@ -1459,6 +1608,9 @@ export class MazeScene extends Phaser.Scene {
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/encounter');
+        if (obj.disguise) {
+          this.showToast("Fool's gold — it's a mimic!", '#e08840');
+        }
         this.encountersFought++;
         this.startBattle(false);
         break;

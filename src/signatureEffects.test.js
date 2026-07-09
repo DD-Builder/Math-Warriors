@@ -283,8 +283,9 @@ describe('getEffectiveAtk', () => {
     zerker.hp = zerker.maxHp - 25;
     assert.equal(getEffectiveAtk(zerker, party), zerker.atk + 4);
 
-    zerker.hp = 1; // 49 lost -> 4 steps
-    assert.equal(getEffectiveAtk(zerker, party), zerker.atk + 8);
+    zerker.hp = 1; // one step per full 10 HP lost, whatever his maxHp is
+    const steps = Math.floor((zerker.maxHp - 1) / 10);
+    assert.equal(getEffectiveAtk(zerker, party), zerker.atk + steps * 2);
   });
 
   test('rageAtk is monotone: lower HP never lowers ATK', () => {
