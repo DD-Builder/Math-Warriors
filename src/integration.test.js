@@ -265,7 +265,9 @@ describe('save system (9-floor support)', () => {
 describe('floor operators → math generation', () => {
   const expectedOps = {
     1: '+', 2: '-', 3: '*', 4: '/',
-    5: 'mixed', 6: 'frac', 7: 'geo', 8: 'money', 9: 'word',
+    // Math = theme: geometry in the Crystal Caverns, money in the
+    // Market, fractions in the Library.
+    5: 'mixed', 6: 'geo', 7: 'money', 8: 'frac', 9: 'word',
   };
 
   for (let f = 1; f <= TOTAL_FLOORS; f++) {

@@ -110,6 +110,9 @@ const FLOOR_1 = {
     { type: 'gold', x: 19, y: 13 },
     { type: 'potion', x: 8, y: 13 },
     { type: 'potion', x: 20, y: 4 },
+    // trapped heroes — freed in-maze, they join the quest
+    { type: 'hero', x: 7, y: 14, id: 'hero-wizard-toadstool', heroId: 'wizard-toadstool', prison: 'vine' },  // SE hedge maze
+    { type: 'hero', x: 20, y: 7, id: 'hero-knight-crusader', heroId: 'knight-crusader', prison: 'vine' },    // east grove, past the bridge
     // east grove — reachable only after the bridge grows
     { type: 'boss', x: 18, y: 5, enemyId: 'briarking' },
     { type: 'golden', x: 18, y: 4 },
@@ -221,6 +224,9 @@ const FLOOR_2 = {
     { type: 'potion', x: 28, y: 23 },
     { type: 'encounter', x: 29, y: 17 },
     { type: 'encounter', x: 30, y: 22 },
+    // ── trapped heroes — Ebbport survivors, freed as districts surface ──
+    { type: 'hero', x: 24, y: 7, id: 'hero-wizard-spellblade', heroId: 'wizard-spellblade', prison: 'coral' },  // Market Row
+    { type: 'hero', x: 21, y: 21, id: 'hero-bunny-nova', heroId: 'bunny-nova', prison: 'coral' },               // Temple Terraces
     // ── E Deep Basin (boss lair) ──
     { type: 'mathdoor', x: 30, y: 27, id: 'f2cagelock' },
     { type: 'boss', x: 31, y: 27, enemyId: 'pressure' },
@@ -256,7 +262,7 @@ const FLOOR_STUBS = {}; // populated below by makeStub for any floor not yet han
  * contract (divided map + transform opens boss) so unfinished floors
  * are playable while hand-crafting proceeds. Replaced floor-by-floor.
  */
-function makeStub(id, challengeType, bossId) {
+function makeStub(id, challengeType, bossId, heroes = []) {
   return {
     id,
     tiles: [
@@ -297,6 +303,12 @@ function makeStub(id, challengeType, bossId) {
       { type: 'gold', x: 10, y: 1 },
       { type: 'gold', x: 6, y: 10 },
       { type: 'potion', x: 1, y: 8 },
+      // trapped heroes (this floor's in-maze unlocks) at fixed free tiles
+      ...heroes.map((h, i) => ({
+        type: 'hero',
+        x: i === 0 ? 12 : 8, y: i === 0 ? 1 : 10,
+        id: `hero-${h.heroId}`, heroId: h.heroId, prison: h.prison,
+      })),
       { type: 'boss', x: 17, y: 4, enemyId: bossId },
       { type: 'golden', x: 17, y: 3 },
       { type: 'exit', x: 17, y: 2 },
@@ -304,13 +316,18 @@ function makeStub(id, challengeType, bossId) {
   };
 }
 
-FLOOR_STUBS[3] = makeStub(3, 'beacon', 'skywhale');
-FLOOR_STUBS[4] = makeStub(4, 'vent', 'pyroclast');
-FLOOR_STUBS[5] = makeStub(5, 'crystal', 'absolutezero');
-FLOOR_STUBS[6] = makeStub(6, 'geoshard', 'theprism');
-FLOOR_STUBS[7] = makeStub(7, 'token', 'auctioneer');
-FLOOR_STUBS[8] = makeStub(8, 'page', 'inkwyrm');
-FLOOR_STUBS[9] = makeStub(9, 'fragment', 'chaosking');
+FLOOR_STUBS[3] = makeStub(3, 'beacon', 'skywhale', [
+  { heroId: 'knight-paladin', prison: 'cloud' }, { heroId: 'bunny-boulder', prison: 'cloud' }]);
+FLOOR_STUBS[4] = makeStub(4, 'vent', 'pyroclast', [
+  { heroId: 'knight-berserker', prison: 'ember' }, { heroId: 'wizard-bookworm', prison: 'ember' }]);
+FLOOR_STUBS[5] = makeStub(5, 'crystal', 'absolutezero', [
+  { heroId: 'bunny-blaze', prison: 'ice' }]);
+FLOOR_STUBS[6] = makeStub(6, 'geoshard', 'theprism', [
+  { heroId: 'knight-greathelm', prison: 'crystal' }, { heroId: 'wizard-grandmage', prison: 'crystal' }]);
+FLOOR_STUBS[7] = makeStub(7, 'token', 'counterfeiter', [
+  { heroId: 'bunny-duchess', prison: 'vault' }]);
+FLOOR_STUBS[8] = makeStub(8, 'page', 'theparadox');
+FLOOR_STUBS[9] = makeStub(9, 'fragment', 'theorem');
 
 const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2 };
 

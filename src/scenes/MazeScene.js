@@ -18,7 +18,7 @@ import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameStat
 // Bump whenever the maze save-state shape or level layouts change in an
 // incompatible way — stale device saves are silently discarded instead
 // of resurrecting an old broken layout.
-const MAZE_STATE_SCHEMA = 4;
+const MAZE_STATE_SCHEMA = 5;
 import { generateRatedQuestion } from '../systems/math.js';
 import { getAdaptiveGrade } from '../systems/mastery.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';

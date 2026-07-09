@@ -9,6 +9,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { LEVEL_DEFS, getLevel } from './levels.js';
+import { ALL_HEROES } from './heroes.js';
+import { getRescueDialogue } from './dialogue.js';
 
 const WALKABLE = new Set([1, 2, 4]); // F, P, S
 
@@ -100,17 +102,21 @@ for (const idStr of Object.keys(LEVEL_DEFS)) {
     assert.ok(!before.has(`${boss.x},${boss.y}`), 'boss reachable before anything is done — no structural gate!');
 
     if (staged) {
-      // Progressive draining: greedily work whichever sluice is reachable
+      // Progressive draining: greedily work whichever drainer is reachable
       // now, applying its drain, until all are worked. Greedy is sound
       // because drains only ADD walkable tiles (monotonic) — reachability
-      // never shrinks, so order among currently-reachable sluices is free.
+      // never shrinks, so order among currently-reachable drainers is free.
+      // Trapped heroes can carry drains too (a freed hero opens the map),
+      // so they join the loop; only challenge items are REQUIRED to be
+      // workable for completion.
+      const drainers = [...challengeItems, ...lv.objects.filter(o => o.type === 'hero' && Array.isArray(o.drain))];
       let tiles = lv.tiles.map(r => [...r]);
       const worked = new Set();
       let progressed = true;
-      while (worked.size < challengeItems.length && progressed) {
+      while (worked.size < drainers.length && progressed) {
         progressed = false;
         const reach = bfs(tiles, lv.startX, lv.startY, doors);
-        for (const v of challengeItems) {
+        for (const v of drainers) {
           if (worked.has(v)) continue;
           if (reach.has(`${v.x},${v.y}`)) {
             worked.add(v);
@@ -119,8 +125,9 @@ for (const idStr of Object.keys(LEVEL_DEFS)) {
           }
         }
       }
-      assert.equal(worked.size, challengeItems.length,
-        `only ${worked.size}/${challengeItems.length} sluices are reachable in sequence — the tide dead-locks`);
+      const workedChallenges = challengeItems.filter(v => worked.has(v)).length;
+      assert.equal(workedChallenges, challengeItems.length,
+        `only ${workedChallenges}/${challengeItems.length} sluices are reachable in sequence — the tide dead-locks`);
       // Final transform (last drain) opens the boss basin.
       const after = bfs(applyTiles(tiles, lv.transform.tiles), lv.startX, lv.startY, doors);
       assert.ok(after.has(`${boss.x},${boss.y}`), 'boss unreachable after full drain');
@@ -143,6 +150,30 @@ for (const idStr of Object.keys(LEVEL_DEFS)) {
     for (const [x, y] of allDrainTiles(lv)) {
       assert.ok(x > 0 && x < lv.width - 1 && y > 0 && y < lv.height - 1, `drain tile (${x},${y}) on border`);
       assert.ok(!WALKABLE.has(lv.tiles[y][x]), `drain tile (${x},${y}) was already walkable`);
+    }
+  });
+
+  test(`floor ${id}: trapped heroes match the roster and are rescuable`, () => {
+    // Every hero the roster assigns to this floor must be physically IN
+    // this floor's maze (the in-level unlock contract), with a prison
+    // style, rescue dialogue, and a reachable tile once the map is
+    // fully opened (drains only ever ADD tiles, so post-full-drain
+    // reachability == reachable at some stage of play).
+    const placed = lv.objects.filter(o => o.type === 'hero');
+    const expected = ALL_HEROES.filter(h => h.unlockedAtFloor === id).map(h => h.id).sort();
+    assert.deepEqual(placed.map(o => o.heroId).sort(), expected,
+      `floor ${id} hero placements don't match roster unlockedAtFloor`);
+    for (const o of placed) {
+      assert.ok(o.prison, `hero ${o.heroId} has no prison style`);
+      assert.ok(getRescueDialogue(id, [o.heroId]).length > 0,
+        `hero ${o.heroId} has no rescue dialogue for floor ${id}`);
+    }
+    if (!placed.length) return;
+    const doors = new Set(lv.objects.filter(o => o.type === 'mathdoor').map(o => `${o.x},${o.y}`));
+    const fullyOpen = applyTiles(lv.tiles, allDrainTiles(lv));
+    const reach = bfs(fullyOpen, lv.startX, lv.startY, doors);
+    for (const o of placed) {
+      assert.ok(reach.has(`${o.x},${o.y}`), `hero ${o.heroId} at (${o.x},${o.y}) unreachable even fully drained`);
     }
   });
 }

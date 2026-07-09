@@ -248,15 +248,18 @@ function isLegacyBoss(e) {
   return BOSS_IDS.includes(e.id);
 }
 
-/** Map floor → primary operator. Used to choose math questions. */
+/** Map floor → primary operator. Used to choose math questions.
+ *  The math IS each floor's theme: geometry lives in the Crystal
+ *  Caverns (geo shards, shapes), money in the Market, fractions in
+ *  the Library (torn pages — fractions of a whole story). */
 export const FLOOR_OPERATORS = {
   1: '+',
   2: '-',
   3: '*',
   4: '/',
   5: 'mixed',
-  6: 'frac',
-  7: 'geo',
-  8: 'money',
+  6: 'geo',
+  7: 'money',
+  8: 'frac',
   9: 'word',
 };
