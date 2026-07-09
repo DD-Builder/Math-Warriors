@@ -328,7 +328,7 @@ export const FLOORS = [
     tileset: 'ocean',
     width: 22, height: 29, tiles: FLOOR_2_TILES, startX: 1, startY: 27,
     palette: { wall: 0x0e2040, floor: 0x1a3858, path: 0x3060a0, water: 0x1a4880, decor: 0x184068 },
-    challenge: { type: 'valve', count: 3, label: 'DRAIN VALVE', verb: 'activated', allDoneMsg: 'All valves open!', phase2: { type: 'coralkey', count: 2, label: 'CORAL KEY', verb: 'found', allDoneMsg: 'Coral keys glow! The boss stirs!' } },
+    challenge: { type: 'valve', count: 4, label: 'SLUICE', verb: 'opened', allDoneMsg: 'The Deep Basin drains! The Pressure surfaces!' },
     mazeConfig: {
       width: 18, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 5 }, { w: 7, h: 6 }, { w: 5, h: 7 }],
@@ -339,10 +339,13 @@ export const FLOORS = [
       bossEnemyId: 'pressure',
     },
     objects: [
-      // Valves: one per zone (marsh, beach, water)
+      // Valves — four sluice gates (this floors.js objects list is legacy/
+      // reference; the playable map is levels.js FLOOR_2). Count matches
+      // challenge.count (4) for internal consistency.
       { type: 'valve',     x: 4,  y: 4 },
       { type: 'valve',     x: 7,  y: 14 },
       { type: 'valve',     x: 16, y: 24 },
+      { type: 'valve',     x: 10, y: 20 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 3,  y: 1, enemyId: 'pressure' },
       { type: 'golden',    x: 2,  y: 1 },

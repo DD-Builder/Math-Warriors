@@ -118,7 +118,119 @@ const FLOOR_1 = {
 };
 
 // ════════════════════════════════════════════════════════════════
-// FLOORS 2–9 — same contract, themed transformations:
+// FLOOR 2 — EBBPORT, THE DROWNED TIDE-CITY (Subtraction)
+//
+// Ebbport is stuck at eternal high tide — the leviathan "the Pressure"
+// jammed the Tide-Heart a century ago and drowned the city. The sea can
+// only be lowered by SUBTRACTION: each of four Sluice Gates is a lock
+// ("the basin holds N fathoms — release M — what remains?") that, once
+// worked, drains the tide a STAGE and surfaces a whole new district.
+//
+// This is NOT "collect 3 → boss": the four sluices sit in districts that
+// only EXIST once you've drained the previous one (metroidvania gating).
+// Progress = exploration + subtraction, and every drain re-shapes the map.
+//
+// Map (36×30, ≈3× Floor 1). Everything starts underwater except the NW
+// Harbor. The tx+ty diagonal paints marsh(NW)→beach→deep-water(SE), so
+// the Deep Basin (boss) sits in the deepest SE water.
+//
+//   A Harbor Steps (NW, dry)  → Sluice 1 → drains causeway to
+//   B Market Row (N)          → Sluice 2 → drains cistern channel to
+//   C Temple Terraces (center)→ Sluice 3 → drains floodgate to
+//   D Sunken Boulevard (E)    → Sluice 4 (final) → transform drains
+//   E The Deep Basin (SE)     → cage-lock → Pressure → golden → exit
+//
+// Secrets (S auto-reveal on contact): Harbor cellar, Temple grotto,
+// Boulevard smuggler's cache. A math-vault in B rewards a subtraction
+// detour. Each sluice is gated by a subtraction math-door (the lock).
+// ════════════════════════════════════════════════════════════════
+const P_ = (list) => list.map(([x, y]) => [x, y, 'P']);
+const FLOOR_2 = {
+  id: 2,
+  tiles: [
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQFFFFFFFFFFQQFFFFFFFFFFFFQQQQQQQQQW',
+    'WQFFFFWFFFFFQQFFFFFFFFFFFFQQQQQQQQQW',
+    'WQFSPPPPPFFFQQFFPPPPPPPPFFQQQQQQQQQW',
+    'WQFFPPPPPFFFQQFFFFFFFFFFFFQQQQQQQQQW',
+    'WQFFPPPPPWWFQQFFFFFWFFFFFFQQQQQQQQQW',
+    'WQFFFFFFFFFWQQFWFFFFFFWFFFQQQQQQQQQW',
+    'WQFFWFFFFFFWQQFFFWWWFFFFFFQQQQQQQQQW',
+    'WQFFFFFFFFFFQQFFFWFFWFFFFFQQQQQQQQQW',
+    'WQQQQQQQQQQQQQFFFFFFWFFFFFQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQFWFWFFFQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQFFFFFFFQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQFFPFFFFQW',
+    'WQQQQQQQQQQFFFFFFFFFFFFFFQQFFPFFFFQW',
+    'WQQQQQQQQQQFFFFFFFFFFFFFFQQFFPFWFFQW',
+    'WQQQQQQQQQQFFPPPPPPPPPPFFQQFFPFFFFQW',
+    'WQQQQQQQQQQFWWFFFFFFFFFFFQQFWPFFFFQW',
+    'WQQQQQQQQQQWFFWWFFFFFFFFFQQFFPFFFFQW',
+    'WQQQQQQQQQQWFFWFFFFWFFSSFQQFFPFWSFQW',
+    'WQQQQQQQQQQFFFFFFWFFFFFFFQQFFPFWFFQW',
+    'WQQQQQQQQQQFFFFFFFFFFFFFFQQFFPFWFFQW',
+    'WQQQQQQQQQQFFFFFFFFFFFFFFQQFFPFFWFQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQFFFFFFFQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQFFFFFFQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQFFFFFFQW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+  ],
+  startX: 2, startY: 8,
+  objective: [
+    { key: 'challenge', label: 'Open the four sluices — walk the sea down' },
+    { key: 'transform', label: 'Cross the drained streets to the Deep Basin' },
+    { key: 'boss', label: 'Face the Pressure' },
+  ],
+  transform: {
+    message: 'The Deep Basin drains — the Pressure surfaces!',
+    tiles: [[30, 25, 'P'], [30, 26, 'P']],
+  },
+  objects: [
+    // ── A Harbor Steps ──
+    { type: 'mathdoor', x: 8, y: 7, id: 'f2sluice1lock' },
+    { type: 'valve', x: 10, y: 7, drain: P_([[12, 6], [13, 6]]), drainMessage: 'The Harbor Sluice opens — the sea falls to Market Row!' },
+    { type: 'chest', x: 2, y: 2, loot: { gold: 20 } },   // secret cellar
+    { type: 'potion', x: 3, y: 2 },
+    { type: 'gold', x: 7, y: 9 },
+    { type: 'encounter', x: 6, y: 5 },
+    // ── B Market Row ──
+    { type: 'mathdoor', x: 17, y: 10, id: 'f2sluice2lock' },
+    { type: 'valve', x: 18, y: 10, drain: P_([[18, 11], [18, 12], [18, 13], [18, 14]]), drainMessage: 'The Cistern Sluice opens — the sea falls to the Temple!' },
+    { type: 'mathdoor', x: 16, y: 7, id: 'f2vault' },
+    { type: 'chest', x: 16, y: 9, loot: { gold: 60 } },  // math-vault
+    { type: 'gold', x: 24, y: 3 },
+    { type: 'encounter', x: 21, y: 3 },
+    { type: 'encounter', x: 15, y: 5 },
+    // ── C Temple Terraces ──
+    { type: 'mathdoor', x: 13, y: 20, id: 'f2sluice3lock' },
+    { type: 'valve', x: 12, y: 19, drain: P_([[25, 19], [26, 19]]), drainMessage: 'The Temple Floodgate opens — the sea falls to the Boulevard!' },
+    { type: 'fountain', x: 20, y: 18, id: 'f2fount', uses: 3 },
+    { type: 'chest', x: 23, y: 22, loot: { gold: 40 } },  // secret grotto
+    { type: 'gold', x: 15, y: 22 },
+    { type: 'encounter', x: 18, y: 16 },
+    { type: 'encounter', x: 16, y: 22 },
+    // ── D Sunken Boulevard ──
+    { type: 'mathdoor', x: 30, y: 13, id: 'f2sluice4lock' },
+    { type: 'valve', x: 29, y: 13 },   // FINAL sluice — triggers the Deep Basin transform
+    { type: 'chest', x: 32, y: 22, loot: { gold: 50 } },  // smuggler's cache (secret)
+    { type: 'gold', x: 32, y: 21 },
+    { type: 'potion', x: 28, y: 23 },
+    { type: 'encounter', x: 29, y: 17 },
+    { type: 'encounter', x: 30, y: 22 },
+    // ── E Deep Basin (boss lair) ──
+    { type: 'mathdoor', x: 30, y: 27, id: 'f2cagelock' },
+    { type: 'boss', x: 31, y: 27, enemyId: 'pressure' },
+    { type: 'golden', x: 32, y: 28 },
+    { type: 'exit', x: 33, y: 27 },
+  ],
+};
+
+// ════════════════════════════════════════════════════════════════
+// FLOORS 3–9 — same contract, themed transformations:
 //   2 Tidepool (−): close 3 drain valves → the tide DRAINS, sunken
 //     causeway tiles Q→P reveal the route to the Pressure Chamber.
 //   3 Cloud (×): light 3 beacons → their light MULTIPLIES across the
@@ -192,7 +304,6 @@ function makeStub(id, challengeType, bossId) {
   };
 }
 
-FLOOR_STUBS[2] = makeStub(2, 'valve', 'pressure');
 FLOOR_STUBS[3] = makeStub(3, 'beacon', 'skywhale');
 FLOOR_STUBS[4] = makeStub(4, 'vent', 'pyroclast');
 FLOOR_STUBS[5] = makeStub(5, 'crystal', 'absolutezero');
@@ -201,7 +312,7 @@ FLOOR_STUBS[7] = makeStub(7, 'token', 'auctioneer');
 FLOOR_STUBS[8] = makeStub(8, 'page', 'inkwyrm');
 FLOOR_STUBS[9] = makeStub(9, 'fragment', 'chaosking');
 
-const LEVELS = { 1: FLOOR_1, ...FLOOR_STUBS };
+const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2 };
 
 /** Register/replace a hand-crafted floor (used as floors are finished). */
 export function registerLevel(def) { LEVELS[def.id] = def; }
