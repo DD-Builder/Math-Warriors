@@ -172,36 +172,39 @@ export const DIALOGUE = {
   ],
 
   // ══════════════════════════════════════
-  // FLOOR 4: EMBER CAVES — "The One Big Flow"
-  // Math: DIVISION. Seal 3 vents; the giant lava
-  // flow DIVIDES, starves, and cools into a path.
+  // FLOOR 4: EMBER CAVES — "Divide the Fire"
+  // Math: DIVISION. Seal 4 vents; the ONE giant
+  // lava flow DIVIDES — in two, in four — until
+  // thin streams cool into crossings and the
+  // caldera itself cools. Guide: Cinder, the
+  // last forge-imp.
   // ══════════════════════════════════════
 
   floor4_entry: [
-    { speaker: 'Fire Fairy', text: 'Careful! ONE giant lava flow blocks all!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'The Chaos King broke the cave vents.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'So all the lava squeezes into ONE river.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Seal a vent, and the flow DIVIDES!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Split it again and again into streams.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Small streams cool into walkable rock.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'That rocky path leads to the Forge.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'The Pyroclast guards it. Onward!', side: 'left' },
+    { speaker: 'Cinder', text: 'Watch your boots! ONE giant flow!', side: 'left' },
+    { speaker: 'Cinder', text: 'Pyroclast merged every tame stream.', side: 'left' },
+    { speaker: 'Cinder', text: 'Now NOBODY crosses. Not even imps.', side: 'left' },
+    { speaker: 'Elara', text: 'Then how do we reach the caldera?', side: 'right' },
+    { speaker: 'Cinder', text: 'Division! Seal a vent — the flow SPLITS.', side: 'left' },
+    { speaker: 'Cinder', text: 'Halve it, halve it again: thin streams.', side: 'left' },
+    { speaker: 'Cinder', text: 'Thin streams cool into rock you can walk.', side: 'left' },
+    { speaker: 'Cinder', text: 'What you cannot cross whole... cross in PARTS.', side: 'left' },
   ],
   floor4_boss: [
-    { speaker: 'Fire Fairy', text: 'The Forge! And its fiery keeper!', side: 'left' },
+    { speaker: 'Cinder', text: 'The caldera! And its fiery keeper!', side: 'left' },
     { speaker: 'Pyroclast', text: 'ONE big lava river! My masterpiece!', sprite: 'pyroclast', side: 'right' },
     { speaker: 'Pyroclast', text: 'You DIVIDED it into drizzles?!', sprite: 'pyroclast', side: 'right' },
-    { speaker: 'Narrator', text: 'Divide the flow! Cool it down!', wide: true },
+    { speaker: 'Narrator', text: 'Divide his fire until it cools!', wide: true },
   ],
   floor4_victory: [
-    { speaker: 'Fire Fairy', text: 'You divided that mega-flow to bits!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Split into streams, the lava cooled!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Now the caves have a stone walkway!', side: 'left' },
+    { speaker: 'Cinder', text: 'You divided that mega-flow to bits!', side: 'left' },
+    { speaker: 'Cinder', text: 'Halved, and halved, and halved again!', side: 'left' },
+    { speaker: 'Cinder', text: 'The tame streams sing in the forge!', side: 'left' },
     { speaker: 'Elara', text: 'The Ember Harmony crackles with joy.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Four Harmonies fixed! You rock!', side: 'left' },
+    { speaker: 'Cinder', text: 'Four Harmonies fixed! You rock!', side: 'left' },
     { speaker: 'Elara', text: 'The next peak is the opposite of toasty.', side: 'left' },
     { speaker: 'Elara', text: 'The Frozen Peak. Bring mittens!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'I will keep your toes warm!', side: 'left' },
+    { speaker: 'Cinder', text: 'Take an ember. For your toes.', side: 'left' },
   ],
 
   // ══════════════════════════════════════
@@ -482,9 +485,9 @@ export const DIALOGUE = {
     { speaker: 'Elara', text: 'The Skywhale has nowhere left to hide.' },
   ],
   floor4_phase1_done: [
-    { speaker: 'Fire Fairy', text: 'All three vents are sealed!' },
-    { speaker: 'Fire Fairy', text: 'The lava is dividing into streams!' },
-    { speaker: 'Fire Fairy', text: 'Now build the Lava Bridges!' },
+    { speaker: 'Cinder', text: 'The LAST vent! The fire is divided!' },
+    { speaker: 'Cinder', text: 'The caldera moat cools to stone!' },
+    { speaker: 'Elara', text: 'Pyroclast stands exposed. Go!' },
   ],
   floor5_phase1_done: [
     { speaker: 'Ice Fairy', text: 'All three frozen crystals found!' },
@@ -629,20 +632,20 @@ const HERO_RESCUE = {
   // ── FLOOR 4: EMBER CAVES — cut off by the one giant lava flow ──
   4: {
     'knight-berserker': [
-      { speaker: 'Fire Fairy', text: 'Someone rattles that ember cage!' },
+      { speaker: 'Cinder', text: 'Someone rattles that ember cage!' },
       { speaker: 'Berserker', text: 'FINALLY! The big lava flow' },
       { speaker: 'Berserker', text: 'trapped me in this cage of embers.' },
       { speaker: 'Berserker', text: 'BIG MISTAKE.' },
       { speaker: 'Berserker', text: 'I get STRONGER when I am hurt!' },
-      { speaker: 'Fire Fairy', text: 'Channel that fury. We need it.' },
+      { speaker: 'Cinder', text: 'Channel that fury. We need it.' },
     ],
     'wizard-bookworm': [
-      { speaker: 'Fire Fairy', text: 'A wizard reading in a cage?' },
+      { speaker: 'Cinder', text: 'A wizard in a hidden study!' },
       { speaker: 'Bookworm', text: 'I was calculating my escape.' },
       { speaker: 'Bookworm', text: 'Seventeen possible routes.' },
       { speaker: 'Bookworm', text: 'Glad you tried number one.' },
       { speaker: 'Bookworm', text: 'My research buys us more time.' },
-      { speaker: 'Fire Fairy', text: 'A scholar in flames. Welcome.' },
+      { speaker: 'Cinder', text: 'A scholar in flames. Welcome.' },
     ],
   },
 

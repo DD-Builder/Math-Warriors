@@ -352,7 +352,115 @@ const FLOOR_3 = {
 };
 
 // ════════════════════════════════════════════════════════════════
-// FLOORS 4–9 — same contract, themed transformations:
+// FLOOR 4 — EMBER CAVES, "Divide the Fire" (Division)
+//
+// Pyroclast merged every tame forge-stream into ONE monstrous lava
+// river no one can cross. Cinder the forge-imp knows the answer:
+// what can't be crossed whole can be crossed in PARTS. Each sealed
+// vent DIVIDES the flow — in two, in four — until thin cooled
+// crossings appear, and the final vent cools the caldera moat itself.
+//
+// Map (38×30). The great river (y14-16) halves the cave; two lava
+// falls split the north into three chambers; a moat rings the boss.
+// BRANCHING: West Galleries (vent 1 → west crossing → NW chamber →
+// vent 3 breaches the west fall) and East Forge (vent 2 → east
+// crossing → NE chamber → vent 4, the FINAL seal) — play either
+// wing first; drains interleave. Secrets: magma-tube S passages
+// across both falls, Bookworm's hidden study (SW), a forge cache (E).
+// Berserker charged the fire alone and sits caged in the East Forge.
+// ════════════════════════════════════════════════════════════════
+const FLOOR_4 = {
+  id: 4,
+  tiles: [
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WFFFFFFFQQFFFFFFFFFFFFFFFFFFQQFFFFFFFW',
+    'WFFFFFFFQQFFFFFFFFFFFFFFFFFFQQFFFFFFFW',
+    'WFFFFFFFSSFFFFFFFFFFFFFFFFFFSSFFFFFFFW',
+    'WFFFFFFFQQFFFFFQQQQQQQQFFFFFQQFFFFFFFW',
+    'WFFFFFFFQQFFFFFQFFFFFFQFFFFFQQFFFFFFFW',
+    'WFFFFFFFQQFFFFFQFPPPPFQFFFFFQQFFFFFFFW',
+    'WFFFFFFFQQFFFFFQFPPPPFQFFFFFQQFFFFFFFW',
+    'WFFFFFFFQQFFFFFQFPPPPFQFFFFFQQFFFFFFFW',
+    'WFFFFFFFQQFFWFFQFFFFFFQFFWFFQQFFFFFFFW',
+    'WFFFPFFFQQFFWFFQQQQQQQQFFWFFQQFFFPFFFW',
+    'WFFFPFFFQQFFWFFFFFFFFFFFFWFFQQFFFPFFFW',
+    'WFFFPFFFQQFFWFFFFFFFFFFFFWFFQQFFFPFFFW',
+    'WFFFPFFFQQFFFFFFFFFFFFFFFFFFQQFFFPFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFWFFFFPFFFFFWFFFFFFWFFFFFW',
+    'WFFFFFFFFFFFFWFFFFPFFFFFWFFFFFFWFFFFFW',
+    'WFFFFFFFFFFFFWFFFFPFFFFFWFFFFFFWFFFFFW',
+    'WFFPPPPPPPPPFWFFFFPFFFFFWFPPPPPPPPPPFW',
+    'WFFFFFFFFFFFFFFPPPPPPPPFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFWWSWWFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFWFFWWFFFFFFFFFFFFFFFFFFFFFFFFFFWWWFW',
+    'WFWFFWWFFFFFFFFFFFFFFFFFFFFFFFFFFSFFFW',
+    'WFWWWWWFFFFFFFFFFFFFFFFFFFFFFFFFFWWWFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+  ],
+  startX: 18, startY: 25,
+  objective: [
+    { key: 'challenge', label: 'Seal the four vents — divide the great fire' },
+    { key: 'transform', label: 'Cross the cooled flows to the caldera' },
+    { key: 'boss', label: 'Face Pyroclast' },
+  ],
+  transform: {
+    message: 'The last vent seals — the caldera COOLS! Pyroclast is exposed!',
+    tiles: P_([[17, 10], [18, 10], [19, 10]]),
+  },
+  objects: [
+    // ── Entry hall (south center) ──
+    { type: 'encounter', x: 15, y: 23 },
+    { type: 'fountain', x: 21, y: 24, id: 'f4fount', uses: 3 },
+    { type: 'gold', x: 16, y: 27 },
+    // ── West Galleries: vent 1 + Bookworm's hidden study ──
+    { type: 'mathdoor', x: 7, y: 21, id: 'f4lock1' },
+    { type: 'vent', x: 4, y: 21, drain: P_([[5, 14], [5, 15], [5, 16]]), drainMessage: 'The fire DIVIDES in two — a cooled crossing to the west!' },
+    { type: 'hero', x: 3, y: 26, id: 'hero-wizard-bookworm', heroId: 'wizard-bookworm', prison: 'ember' },
+    { type: 'encounter', x: 4, y: 19 },
+    { type: 'potion', x: 2, y: 18 },
+    { type: 'gold', x: 10, y: 26 },
+    // ── East Forge: vent 2 + Berserker's cage ──
+    { type: 'mathdoor', x: 30, y: 21, id: 'f4lock2' },
+    { type: 'vent', x: 33, y: 21, drain: P_([[32, 14], [32, 15], [32, 16]]), drainMessage: 'Divided AGAIN — four thin flows! A crossing cools east!' },
+    { type: 'hero', x: 27, y: 25, id: 'hero-knight-berserker', heroId: 'knight-berserker', prison: 'ember' },
+    { type: 'encounter', x: 27, y: 20 },
+    { type: 'encounter', x: 32, y: 25 },
+    { type: 'chest', x: 35, y: 26, loot: { gold: 50 } },   // forge cache (secret)
+    { type: 'gold', x: 34, y: 26 },
+    { type: 'potion', x: 35, y: 18 },
+    // ── NW chamber: vent 3 breaches the west fall ──
+    { type: 'mathdoor', x: 4, y: 9, id: 'f4lock3' },
+    { type: 'vent', x: 4, y: 6, drain: P_([[8, 8], [9, 8]]), drainMessage: 'The west fall parts — halved, and halved again!' },
+    { type: 'chest', x: 2, y: 2, loot: { gold: 35 } },
+    { type: 'encounter', x: 3, y: 11 },
+    { type: 'gold', x: 6, y: 3 },
+    // ── NE chamber: vent 4 — the FINAL division ──
+    { type: 'mathdoor', x: 33, y: 9, id: 'f4lock4' },
+    { type: 'vent', x: 33, y: 6 },   // final vent → caldera transform
+    { type: 'encounter', x: 34, y: 11 },
+    { type: 'potion', x: 36, y: 2 },
+    { type: 'gold', x: 31, y: 3 },
+    // ── North center: the Forgeworks around the caldera ──
+    { type: 'chest', x: 26, y: 3, loot: { gold: 40 } },
+    { type: 'encounter', x: 12, y: 6 },
+    { type: 'encounter', x: 24, y: 12 },
+    { type: 'gold', x: 14, y: 3 },
+    // ── The caldera: Pyroclast's island ──
+    { type: 'mathdoor', x: 18, y: 9, id: 'f4cagelock' },
+    { type: 'boss', x: 18, y: 7, enemyId: 'pyroclast' },
+    { type: 'golden', x: 17, y: 6 },
+    { type: 'exit', x: 19, y: 6 },
+  ],
+};
+
+// ════════════════════════════════════════════════════════════════
+// FLOORS 5–9 — same contract, themed transformations:
 //   2 Tidepool (−): close 3 drain valves → the tide DRAINS, sunken
 //     causeway tiles Q→P reveal the route to the Pressure Chamber.
 //   4 Ember (÷): seal 3 vents → the lava flow is SPLIT and starved,
@@ -430,8 +538,6 @@ function makeStub(id, challengeType, bossId, heroes = []) {
   };
 }
 
-FLOOR_STUBS[4] = makeStub(4, 'vent', 'pyroclast', [
-  { heroId: 'knight-berserker', prison: 'ember' }, { heroId: 'wizard-bookworm', prison: 'ember' }]);
 FLOOR_STUBS[5] = makeStub(5, 'crystal', 'absolutezero', [
   { heroId: 'bunny-blaze', prison: 'ice' }]);
 FLOOR_STUBS[6] = makeStub(6, 'geoshard', 'theprism', [
@@ -441,7 +547,7 @@ FLOOR_STUBS[7] = makeStub(7, 'token', 'counterfeiter', [
 FLOOR_STUBS[8] = makeStub(8, 'page', 'theparadox');
 FLOOR_STUBS[9] = makeStub(9, 'fragment', 'theorem');
 
-const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3 };
+const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4 };
 
 /** Register/replace a hand-crafted floor (used as floors are finished). */
 export function registerLevel(def) { LEVELS[def.id] = def; }
