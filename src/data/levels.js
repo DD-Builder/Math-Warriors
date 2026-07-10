@@ -772,7 +772,111 @@ const FLOOR_7 = {
 };
 
 // ════════════════════════════════════════════════════════════════
-// FLOORS 8–9 — same contract, themed transformations:
+// FLOOR 8 — INFINITY LIBRARY, "The Torn Story" (Fractions)
+//
+// The Paradox tore the Great Story to pieces and drowned the shelves
+// in ink: the world's memory is FRACTIONS of itself. Four nested
+// library rings separated by ink moats; each restored Lost Page
+// mends ONE QUARTER of the Story Stair — 1/4, 2/4, 3/4, and the
+// final page makes the Story WHOLE (4/4 = the Sanctum arch opens).
+// Fraction doors guard every page (genFraction, floor 8's math).
+//
+// Densest secrets in the game: false bookshelves, a hidden Reading
+// Room, and the DOUBLE-SECRET Author's Study (an S door behind an S
+// door) holding the best chest — and, whispered in its dust, the
+// truth: the Chaos King is the Story's own discarded first draft.
+// Guide: Folio, the owl librarian.
+// ════════════════════════════════════════════════════════════════
+const FLOOR_8 = {
+  id: 8,
+  tiles: [
+'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFWWWWWWWWWFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFWFPPPPPFWFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFWFPPPPPFWFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFWFFFFFFFWFFFFFFFFFFFFFW',
+    'WFFFPPPPPPPPPPPWWWWWWWWWPPPPPPPPPPFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WFFFFFFFFFFFFFWFFFFFFFWFFFFFFFFFFFFFFW',
+    'WFWWWWWFFFFFFFWFFFFFFFWFFFFFFFFFFFFFFW',
+    'WFFFSFSFFPPPPPWPPPPPPPFPPPPPPPPPPPFFFW',
+    'WFWFWFWFFFFFFFWFFFFFFFWFFFFFFFFFFFFFFW',
+    'WFWWWWWFFFFFFFWFFFFFFFWFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFWWWFWFFFFFWFFFFFWFFFFFWFFFFFWFFFFFFW',
+    'WFWFWSWFFFFFSFFFFFWFFFFFWFFFFFWFFFFFFW',
+    'WFWWWFWFPPPPPPPPPPPPPPPPPPPPPPPPPPPFFW',
+    'WFFFFFWFFFFFWFFFFFWFFFFFWFFFFFWFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFFFWWWWWSWWWWWWFFFFWWWWWFWWWWWWFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+  ],
+  startX: 18, startY: 31,
+  objective: [
+    { key: 'challenge', label: 'Restore the 4 Lost Pages — mend the Story Stair' },
+    { key: 'transform', label: 'Climb the whole Story to the Sanctum' },
+    { key: 'boss', label: 'Face The Paradox' },
+  ],
+  transform: {
+    message: '4/4 — the Story is WHOLE! The Sanctum arch opens!',
+    tiles: P_([[18, 6], [19, 6], [20, 6]]),
+  },
+  objects: [
+    // ── Reading Floor: page 1 ──
+    { type: 'mathdoor', x: 7, y: 31, id: 'f8lock1' },
+    { type: 'page', x: 4, y: 31, drain: P_([[8, 24], [8, 25]]), drainMessage: 'One page home — 1/4 of the Story Stair mends!' },
+    { type: 'encounter', x: 25, y: 29 },
+    { type: 'encounter', x: 12, y: 32 },
+    { type: 'gold', x: 34, y: 32 },
+    { type: 'gold', x: 3, y: 27 },     // behind the false shelf row
+    { type: 'potion', x: 33, y: 27 },
+    // ── Shelf Stacks: page 2 + hidden Reading Room ──
+    { type: 'mathdoor', x: 29, y: 20, id: 'f8lock2' },
+    { type: 'page', x: 32, y: 20, drain: P_([[28, 16], [28, 17]]), drainMessage: 'Two pages — 2/4! HALFWAY up the Story Stair!' },
+    { type: 'chest', x: 3, y: 20, loot: { gold: 45 } },   // hidden Reading Room
+    { type: 'fountain', x: 34, y: 19, id: 'f8fount', uses: 3 },
+    { type: 'encounter', x: 20, y: 22 },
+    { type: 'encounter', x: 8, y: 19 },
+    { type: 'gold', x: 15, y: 22 },
+    // ── The Gallery: page 3 + the AUTHOR'S STUDY ──
+    { type: 'mathdoor', x: 17, y: 12, id: 'f8lock3' },
+    { type: 'page', x: 19, y: 12, drain: P_([[12, 8], [12, 9]]), drainMessage: 'Three pages — 3/4! One quarter to go!' },
+    { type: 'chest', x: 2, y: 12, loot: { gold: 70 } },   // the Author's Study
+    { type: 'potion', x: 3, y: 13 },
+    { type: 'encounter', x: 26, y: 12 },
+    { type: 'encounter', x: 9, y: 14 },
+    { type: 'gold', x: 33, y: 14 },
+    // ── The Archive: page 4 (the FINAL quarter) ──
+    { type: 'mathdoor', x: 28, y: 4, id: 'f8lock4' },
+    { type: 'page', x: 30, y: 4 },   // final page → sanctum transform
+    { type: 'encounter', x: 10, y: 4 },
+    { type: 'chest', x: 4, y: 3, loot: { gold: 40 } },
+    { type: 'gold', x: 12, y: 2 },
+    { type: 'potion', x: 33, y: 3 },
+    // ── THEOREM SANCTUM: The Paradox ──
+    { type: 'mathdoor', x: 19, y: 5, id: 'f8cagelock' },
+    { type: 'boss', x: 19, y: 3, enemyId: 'theparadox' },
+    { type: 'golden', x: 17, y: 4 },
+    { type: 'exit', x: 21, y: 4 },
+  ],
+};
+
+// ════════════════════════════════════════════════════════════════
+// FLOOR 9 — — same contract, themed transformations:
 //   2 Tidepool (−): close 3 drain valves → the tide DRAINS, sunken
 //     causeway tiles Q→P reveal the route to the Pressure Chamber.
 //   4 Ember (÷): seal 3 vents → the lava flow is SPLIT and starved,
@@ -850,10 +954,9 @@ function makeStub(id, challengeType, bossId, heroes = []) {
   };
 }
 
-FLOOR_STUBS[8] = makeStub(8, 'page', 'theparadox');
 FLOOR_STUBS[9] = makeStub(9, 'fragment', 'theorem');
 
-const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5, 6: FLOOR_6, 7: FLOOR_7 };
+const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5, 6: FLOOR_6, 7: FLOOR_7, 8: FLOOR_8 };
 
 /** Register/replace a hand-crafted floor (used as floors are finished). */
 export function registerLevel(def) { LEVELS[def.id] = def; }

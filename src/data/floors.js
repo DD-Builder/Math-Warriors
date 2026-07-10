@@ -590,13 +590,13 @@ export const FLOORS = [
   {
     id: 8, name: 'Infinity Library', tileset: 'library',
     width: 25, height: 33, tiles: FLOOR_8_TILES, startX: 1, startY: 31,
-    challenge: { type: 'page', count: 3, label: 'LOST PAGE', verb: 'restored', allDoneMsg: 'All pages restored!', phase2: { type: 'chapterseal', count: 2, label: 'CHAPTER SEAL', verb: 'bound', allDoneMsg: 'Chapters sealed! The Paradox emerges!' } },
+    challenge: { type: 'page', count: 4, label: 'LOST PAGE', verb: 'restored', allDoneMsg: '4/4 — the Story is whole again!' },
     palette: { wall: 0x2a1808, floor: 0x4a3018, path: 0x6a4828, water: 0x3a2010, decor: 0x3a2010 },
     mazeConfig: {
       width: 19, height: 20,
       roomTemplates: [{ w: 5, h: 7 }, { w: 5, h: 8 }, { w: 5, h: 9 }, { w: 6, h: 5 }],
       challengeType: 'page',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'theparadox',
@@ -605,6 +605,7 @@ export const FLOORS = [
       { type: 'page',      x: 5,  y: 5 },
       { type: 'page',      x: 20, y: 16 },
       { type: 'page',      x: 10, y: 26 },
+      { type: 'page',      x: 15, y: 20 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'theparadox' },
       { type: 'golden',    x: 12, y: 2 },
