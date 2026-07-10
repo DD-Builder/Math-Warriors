@@ -130,41 +130,44 @@ export const DIALOGUE = {
   ],
 
   // ══════════════════════════════════════
-  // FLOOR 3: CLOUD MAZE — "The Dark Beacons"
-  // Math: MULTIPLICATION. Light 3 beacons; their
-  // light MULTIPLIES and extends the cloud bridges.
+  // FLOOR 3: THE SHATTERED SKY — "The Doubling Light"
+  // Math: MULTIPLICATION. Each of 4 beacons DOUBLES
+  // the light: bridges of 2, 4, 8 tiles — then 16 at
+  // once flood the Eye of the Storm. Guide: Zephyr,
+  // the sky-shepherd who lost his cloud-sheep.
   // ══════════════════════════════════════
 
   floor3_entry: [
-    { speaker: 'Sky Fairy', text: 'Welcome to the Cloud Maze! Mind the gap!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'The sky beacons all went dark.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'No light means no cloud bridges.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Light one beacon: a little glow.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Light three: the light MULTIPLIES!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Times and times and times as bright!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Bright enough to stretch cloud bridges', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'all the way to the Eye of the Storm!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Mind the gap! The sky is in PIECES.', side: 'left' },
+    { speaker: 'Zephyr', text: 'The Skywhale swallowed the Sun-Seed.', side: 'left' },
+    { speaker: 'Zephyr', text: 'No light, no bridges. My sheep scattered!', side: 'left' },
+    { speaker: 'Elara', text: 'Then we relight the beacons.', side: 'right' },
+    { speaker: 'Zephyr', text: 'One beacon makes a LITTLE bridge.', side: 'left' },
+    { speaker: 'Zephyr', text: 'But light MULTIPLIES: two, four, eight!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Four beacons — SIXTEEN bridges at once!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Enough to reach the Eye of the Storm.', side: 'left' },
   ],
   floor3_mid_explore: [
-    { speaker: 'Sky Fairy', text: 'Feel that? The wind is grumpy.' },
-    { speaker: 'Sky Fairy', text: 'The Skywhale circles the Eye.' },
+    { speaker: 'Zephyr', text: 'Feel that? The wind is grumpy.' },
+    { speaker: 'Zephyr', text: 'The Skywhale circles the Eye below us.' },
     { speaker: 'Elara', text: 'Is it dangerous, Zephyr?' },
-    { speaker: 'Sky Fairy', text: 'Only until we relight the sky!' },
-    { speaker: 'Sky Fairy', text: 'Keep multiplying that glow!' },
+    { speaker: 'Zephyr', text: 'Only until we relight the sky!' },
+    { speaker: 'Zephyr', text: 'Keep doubling that glow. And heroes —' },
+    { speaker: 'Zephyr', text: 'if you spot my sheep, give them a pat.' },
   ],
   floor3_boss: [
-    { speaker: 'Sky Fairy', text: 'The Eye of the Storm! Hold on tight!', side: 'left' },
-    { speaker: 'Skywhale', text: 'WHO lit up my nice dark clouds?', sprite: 'skywhale', side: 'right' },
-    { speaker: 'Skywhale', text: 'I nap best in the gloom! Shoo!', sprite: 'skywhale', side: 'right' },
-    { speaker: 'Narrator', text: 'Multiply your light! Shine on!', wide: true },
+    { speaker: 'Zephyr', text: 'The Eye of the Storm! Hold on tight!', side: 'left' },
+    { speaker: 'Skywhale', text: 'WHO multiplied all this LIGHT?!', sprite: 'skywhale', side: 'right' },
+    { speaker: 'Skywhale', text: 'I ate the sun to nap in the dark!', sprite: 'skywhale', side: 'right' },
+    { speaker: 'Narrator', text: 'Double your light until it bursts free!', wide: true },
   ],
   floor3_victory: [
-    { speaker: 'Sky Fairy', text: 'You multiplied light across the sky!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Three beacons, times and times again!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Cloud bridges reach every island now!', side: 'left' },
+    { speaker: 'Zephyr', text: 'The Skywhale coughed up the Sun-Seed!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Two, four, eight, SIXTEEN bridges!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Light reaches every island again.', side: 'left' },
     { speaker: 'Elara', text: 'The Sky Harmony shines once more.', side: 'left' },
     { speaker: 'Elara', text: 'Three mended! You are on a roll.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'The next realm is toasty. VERY toasty.', side: 'left' },
+    { speaker: 'Zephyr', text: 'The next realm is toasty. VERY toasty.', side: 'left' },
     { speaker: 'Elara', text: 'The Ember Caves. Pack a fan!', side: 'left' },
   ],
 
@@ -474,9 +477,9 @@ export const DIALOGUE = {
     { speaker: 'Elara', text: 'Something huge is stirring down there...' },
   ],
   floor3_phase1_done: [
-    { speaker: 'Sky Fairy', text: 'All three beacons are blazing!' },
-    { speaker: 'Sky Fairy', text: 'Their light multiplies across the sky!' },
-    { speaker: 'Sky Fairy', text: 'Now ring the Wind Chimes!' },
+    { speaker: 'Zephyr', text: 'FOUR beacons! Sixteen bridges of light!' },
+    { speaker: 'Zephyr', text: 'They flood the Eye from every side!' },
+    { speaker: 'Elara', text: 'The Skywhale has nowhere left to hide.' },
   ],
   floor4_phase1_done: [
     { speaker: 'Fire Fairy', text: 'All three vents are sealed!' },
@@ -607,19 +610,19 @@ const HERO_RESCUE = {
   // ── FLOOR 3: CLOUD MAZE — stranded when the beacons went dark ──
   3: {
     'knight-paladin': [
-      { speaker: 'Sky Fairy', text: 'A knight stranded on a cloud!' },
-      { speaker: 'Paladin', text: 'When the beacons went dark,' },
-      { speaker: 'Paladin', text: 'my cloud bridge shrank away.' },
-      { speaker: 'Paladin', text: 'I have waited here ever since.' },
-      { speaker: 'Paladin', text: 'I will shield this party.' },
-      { speaker: 'Sky Fairy', text: 'Your heart makes you strong.' },
+      { speaker: 'Zephyr', text: 'A knight marooned on the storm isle!' },
+      { speaker: 'Paladin', text: 'I held this beacon when the sky broke.' },
+      { speaker: 'Paladin', text: 'I pushed. I pulled. It stayed dark.' },
+      { speaker: 'Paladin', text: 'Strength alone does not multiply.' },
+      { speaker: 'Paladin', text: 'But YOUR light reached me. I am yours.' },
+      { speaker: 'Zephyr', text: 'Told you. Light finds everyone.' },
     ],
     'bunny-boulder': [
-      { speaker: 'Sky Fairy', text: 'A boulder bunny stuck in the sky?' },
-      { speaker: 'Boulder', text: 'Yep. Bridge vanished. I stayed.' },
-      { speaker: 'Boulder', text: 'Pretty patient though.' },
+      { speaker: 'Zephyr', text: 'A boulder bunny on the sunset isle?' },
+      { speaker: 'Boulder', text: 'Yep. Bridge vanished. I stayed put.' },
+      { speaker: 'Boulder', text: 'Guarded the sheep treasure for you.' },
       { speaker: 'Boulder', text: 'Ready to bonk things. With rocks.' },
-      { speaker: 'Sky Fairy', text: 'Glad to have you, Boulder.' },
+      { speaker: 'Zephyr', text: 'Glad to have you, Boulder.' },
     ],
   },
 

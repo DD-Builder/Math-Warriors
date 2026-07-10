@@ -373,25 +373,26 @@ export const FLOORS = [
   },
   {
     id: 3,
-    name: 'Cloud Maze',
+    name: 'The Shattered Sky',
     tileset: 'sky',
     width: 25, height: 33, tiles: FLOOR_3_TILES, startX: 1, startY: 31,
     palette: { wall: 0x1a2838, floor: 0x5a6878, path: 0x7898b8, water: 0xb0c8e0, decor: 0x4a5868 },
-    challenge: { type: 'beacon', count: 3, label: 'SKY BEACON', verb: 'lit', allDoneMsg: 'All beacons lit!', phase2: { type: 'windchime', count: 2, label: 'WIND CHIME', verb: 'rung', allDoneMsg: 'Wind chimes ring! The storm parts!' } },
+    challenge: { type: 'beacon', count: 4, label: 'SKY BEACON', verb: 'lit', allDoneMsg: 'FOUR beacons — the light floods the Eye!' },
     mazeConfig: {
       width: 19, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 6 }, { w: 7, h: 5 }, { w: 5, h: 8 }],
       challengeType: 'beacon',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'skywhale',
     },
     objects: [
-      // Beacons: one per zone (calm d<16, storm 16<=d<36, sunset d>=36)
+      // Beacons: one per island — the light doubles with each
       { type: 'beacon',    x: 5,  y: 5 },
       { type: 'beacon',    x: 10, y: 16 },
       { type: 'beacon',    x: 20, y: 26 },
+      { type: 'beacon',    x: 20, y: 5 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 3,  y: 1, enemyId: 'skywhale' },
       { type: 'golden',    x: 2,  y: 1 },

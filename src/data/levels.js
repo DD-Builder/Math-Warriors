@@ -236,11 +236,125 @@ const FLOOR_2 = {
 };
 
 // ════════════════════════════════════════════════════════════════
-// FLOORS 3–9 — same contract, themed transformations:
+// FLOOR 3 — THE SHATTERED SKY, "The Doubling Light" (Multiplication)
+//
+// The Skywhale swallowed the Sun-Seed; the light-bridges between the
+// sky islands faded and Zephyr the sky-shepherd's cloud-sheep
+// scattered. Each Sky Beacon lit DOUBLES the light: bridges of
+// 2 → 4 → 8 tiles grow, and the fourth beacon floods the sky with
+// SIXTEEN tiles of light at once — a quad-bridge into the Eye of the
+// Storm from all four sides. Multiplication made visible.
+//
+// Map (30×34). Zone = tx+ty: <16 calm blue, <36 storm dark, else
+// sunset gold. The EYE (boss island) sits dead-center in the storm
+// band, sealed by sky on every side; the island chain orbits it:
+//
+//   A start isle (calm NW)  → beacon 1 → bridge east (×2 = 2 tiles)
+//   B north isle            → beacon 2 → the light SPLITS south + east
+//                                        (×2 = 4 tiles, pick a branch!)
+//   C south isle            → beacon 3 → sunset stair (×2 = 8 tiles)
+//   D east isle             → beacon 4 → THE TRANSFORM (×2 = 16 tiles)
+//   E sunset treasure isle  — riches + Boulder, via the sunset stair
+//
+// Secrets: three walled "cloud-sheep pens" (S doors) hide Zephyr's
+// lost flock with treasure. Paladin is marooned on D — he held the
+// beacon but strength alone doesn't multiply.
+// ════════════════════════════════════════════════════════════════
+const FLOOR_3 = {
+  id: 3,
+  tiles: [
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQFFWFFFFFQQFFFFFFWFFQQQQQQQQW',
+    'WQWSWFFFFFQQFFFFFFWSWQQQQQQQQW',
+    'WQFFFFFFFFQQFFFFFFFFFQQQQQQQQW',
+    'WQFPPPPPPFQQFPPPPPPPFQQQQQQQQW',
+    'WQFFFFFFFFQQFFFFFFFFFQQQQQQQQW',
+    'WQFFFFFFFFQQFFFFFFFFFQQQQQQQQW',
+    'WQFFFFFFFFQQFFFFFFFFFQQFFFFFQW',
+    'WQFFFFFFFFQQQQQQQQQQQQQFPFFFQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQFPFFFQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQFPFFFQW',
+    'WQQFFFFFFQQQQQQQQQQQQQQFPFFFQW',
+    'WQQFFPFFFQQQQFFFFFFQQQQFPFFFQW',
+    'WQQFFPFFFQQQQFFFFFFQQQQFFFFFQW',
+    'WQQFFPFFFQQQQFPPPPFQQQQQQQQQQW',
+    'WQQFFPFFFQQQQFPPPPFQQQQQQQQQQW',
+    'WQQFFPFFFQQQQFFFFFFQQQQQQQQQQW',
+    'WQQFFFFFFQQQQFFFFFFQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQFFFFFFFFFFFFFFFQQQQW',
+    'WQQQQQQQQQFFFFFFFFFFFFFFFQQQQW',
+    'WQQQQQQQQQFPPPPPPPPPPPPPFQQQQW',
+    'WQQQQQQQQQFFFFFFFFFFFFFFFQQQQW',
+    'WQQQQQQQQQFFFFFFFFFFFFWSWQQQQW',
+    'WQQQQQQQQQFFFFFFFFFFFFWFFQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+  ],
+  startX: 3, startY: 6,
+  objective: [
+    { key: 'challenge', label: 'Light the four Sky Beacons — the light doubles' },
+    { key: 'transform', label: 'Cross the great light-bridge into the Eye' },
+    { key: 'boss', label: 'Face the Skywhale' },
+  ],
+  transform: {
+    message: 'FOUR beacons — SIXTEEN bridges of light! The Eye opens!',
+    tiles: P_([[15, 9], [15, 10], [15, 11], [15, 12], [9, 15], [10, 15], [11, 15], [12, 15], [19, 16], [20, 16], [21, 16], [22, 16], [16, 19], [16, 20], [16, 21], [16, 22]]),
+  },
+  objects: [
+    // ── A: start isle (calm) ──
+    { type: 'mathdoor', x: 6, y: 5, id: 'f3lock1' },
+    { type: 'beacon', x: 8, y: 5, drain: P_([[10, 5], [11, 5]]), drainMessage: 'One beacon — the light DOUBLES! A sky-bridge grows east!' },
+    { type: 'encounter', x: 4, y: 8 },
+    { type: 'gold', x: 2, y: 2 },            // sheep pen 1
+    { type: 'potion', x: 8, y: 8 },
+    // ── B: north isle ──
+    { type: 'mathdoor', x: 14, y: 5, id: 'f3lock2' },
+    { type: 'beacon', x: 16, y: 5, drain: P_([[5, 10], [5, 11], [21, 8], [22, 8]]), drainMessage: 'TWO beacons — the light SPLITS! Bridges south AND east!' },
+    { type: 'chest', x: 13, y: 3, loot: { gold: 30 } },
+    { type: 'gold', x: 19, y: 2 },           // sheep pen 2
+    { type: 'encounter', x: 18, y: 7 },
+    { type: 'encounter', x: 13, y: 7 },
+    // ── C: south isle ──
+    { type: 'mathdoor', x: 5, y: 14, id: 'f3lock3' },
+    { type: 'beacon', x: 5, y: 16, drain: P_([[6, 19], [7, 19], [7, 20], [8, 20], [8, 21], [9, 21], [9, 22], [10, 22]]), drainMessage: 'THREE beacons — EIGHT stairs of light climb to the sunset isle!' },
+    { type: 'fountain', x: 4, y: 12, id: 'f3fount', uses: 3 },
+    { type: 'encounter', x: 7, y: 17 },
+    { type: 'gold', x: 3, y: 18 },
+    // ── D: east isle — Paladin marooned with the final beacon ──
+    { type: 'mathdoor', x: 24, y: 10, id: 'f3lock4' },
+    { type: 'beacon', x: 24, y: 12 },        // FINAL beacon → quad-bridge transform
+    { type: 'hero', x: 26, y: 9, id: 'hero-knight-paladin', heroId: 'knight-paladin', prison: 'cloud' },
+    { type: 'encounter', x: 26, y: 13 },
+    { type: 'potion', x: 27, y: 8 },
+    // ── E: sunset treasure isle — Boulder and the flock's riches ──
+    { type: 'hero', x: 20, y: 26, id: 'hero-bunny-boulder', heroId: 'bunny-boulder', prison: 'cloud' },
+    { type: 'chest', x: 12, y: 27, loot: { gold: 45 } },
+    { type: 'chest', x: 24, y: 28, loot: { gold: 40 } },  // sheep pen 3
+    { type: 'gold', x: 23, y: 28 },
+    { type: 'gold', x: 15, y: 27 },
+    { type: 'potion', x: 11, y: 24 },
+    { type: 'encounter', x: 17, y: 24 },
+    { type: 'encounter', x: 22, y: 26 },
+    // ── THE EYE: the Skywhale's storm-heart ──
+    { type: 'mathdoor', x: 15, y: 14, id: 'f3cagelock' },
+    { type: 'boss', x: 16, y: 15, enemyId: 'skywhale' },
+    { type: 'golden', x: 15, y: 16 },
+    { type: 'exit', x: 17, y: 16 },
+  ],
+};
+
+// ════════════════════════════════════════════════════════════════
+// FLOORS 4–9 — same contract, themed transformations:
 //   2 Tidepool (−): close 3 drain valves → the tide DRAINS, sunken
 //     causeway tiles Q→P reveal the route to the Pressure Chamber.
-//   3 Cloud (×): light 3 beacons → their light MULTIPLIES across the
-//     gap, cloud-bridge tiles Q→P extend to the Storm's Eye.
 //   4 Ember (÷): seal 3 vents → the lava flow is SPLIT and starved,
 //     cooled-rock tiles Q→P cross the flow to the Forge.
 //   5 Frozen (mixed): kindle 3 thaw-crystals → the frozen falls MELT,
@@ -316,8 +430,6 @@ function makeStub(id, challengeType, bossId, heroes = []) {
   };
 }
 
-FLOOR_STUBS[3] = makeStub(3, 'beacon', 'skywhale', [
-  { heroId: 'knight-paladin', prison: 'cloud' }, { heroId: 'bunny-boulder', prison: 'cloud' }]);
 FLOOR_STUBS[4] = makeStub(4, 'vent', 'pyroclast', [
   { heroId: 'knight-berserker', prison: 'ember' }, { heroId: 'wizard-bookworm', prison: 'ember' }]);
 FLOOR_STUBS[5] = makeStub(5, 'crystal', 'absolutezero', [
@@ -329,7 +441,7 @@ FLOOR_STUBS[7] = makeStub(7, 'token', 'counterfeiter', [
 FLOOR_STUBS[8] = makeStub(8, 'page', 'theparadox');
 FLOOR_STUBS[9] = makeStub(9, 'fragment', 'theorem');
 
-const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2 };
+const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3 };
 
 /** Register/replace a hand-crafted floor (used as floors are finished). */
 export function registerLevel(def) { LEVELS[def.id] = def; }
