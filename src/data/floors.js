@@ -631,13 +631,13 @@ export const FLOORS = [
   {
     id: 9, name: 'The Mending Room', tileset: 'arcane',
     width: 33, height: 43, tiles: FLOOR_9_TILES, startX: 1, startY: 41,
-    challenge: { type: 'fragment', count: 3, label: 'EQUATION FRAGMENT', verb: 'placed', allDoneMsg: 'All fragments aligned!', phase2: { type: 'eqanchor', count: 2, label: 'EQUATION ANCHOR', verb: 'set', allDoneMsg: 'Anchors set! Face The Theorem!' } },
+    challenge: { type: 'fragment', count: 4, label: 'EQUATION FRAGMENT', verb: 'placed', allDoneMsg: 'The Grand Equation solves — the void drains!' },
     palette: { wall: 0x140828, floor: 0x301850, path: 0x5830a0, water: 0x4018a0, decor: 0x281040 },
     mazeConfig: {
       width: 20, height: 20,
       roomTemplates: [{ w: 6, h: 6 }, { w: 7, h: 7 }, { w: 8, h: 6 }, { w: 5, h: 5 }],
       challengeType: 'fragment',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'theorem',
@@ -646,6 +646,7 @@ export const FLOORS = [
       { type: 'fragment',  x: 5,  y: 5 },
       { type: 'fragment',  x: 27, y: 11 },
       { type: 'fragment',  x: 16, y: 33 },
+      { type: 'fragment',  x: 16, y: 20 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 16, y: 3, enemyId: 'theorem' },
       { type: 'golden',    x: 16, y: 2 },

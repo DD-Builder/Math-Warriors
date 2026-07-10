@@ -876,87 +876,133 @@ const FLOOR_8 = {
 };
 
 // ════════════════════════════════════════════════════════════════
-// FLOOR 9 — — same contract, themed transformations:
-//   2 Tidepool (−): close 3 drain valves → the tide DRAINS, sunken
-//     causeway tiles Q→P reveal the route to the Pressure Chamber.
-//   4 Ember (÷): seal 3 vents → the lava flow is SPLIT and starved,
-//     cooled-rock tiles Q→P cross the flow to the Forge.
-//   5 Frozen (mixed): kindle 3 thaw-crystals → the frozen falls MELT,
-//     Q→P steps climb to the Ice Throne.
-//   6 Crystal (facts): tune 3 geodes → resonance SHATTERS the crystal
-//     wall, W→F opening the Prism Chamber.
-//   7 Market (money): return 3 stolen ledgers → the drawbridge LOWERS,
-//     Q→P over the canal to the Auction Hall.
-//   8 Library (fractions): restore 3 torn pages → the story STAIRS
-//     assemble, Q→P up the shelf canyon to the Archive.
-//   9 Castle (all): light 3 harmony sigils → the void SEALS, Q→P
-//     across the breach to the Chaos King's throne.
+// FLOOR 9 — THE MENDING ROOM, "The Proof of Everything" (All math)
+//
+// The finale. The Mending Room is where the nine Harmonies were
+// first written — now a broken memory-palace. Four walled wings,
+// each a corrupted echo of realms already saved, each guarded by
+// THAT realm's math (op-keyed doors: + −, × ÷, geo money, frac
+// word) and holding one Equation Fragment. Wings in any order;
+// every placed fragment SIMPLIFIES the proof, melting a shortcut
+// arch open in its wing. With all four placed the Grand Equation
+// solves: the void ring drains from the central dais (transform),
+// and a three-door gauntlet of everything guards the last steps.
+//
+// The Chaos King is revealed as The Theorem — the Great Story's
+// discarded first draft, a proof that concluded the world "doesn't
+// add up." The victory is not destroying him but COMPLETING him.
+// Every hero rescued along the way stands with you (entry cutscene).
+// Biggest map in the game (42×36). Secrets: two memory pockets.
 // ════════════════════════════════════════════════════════════════
+const FLOOR_9 = {
+  id: 9,
+  tiles: [
+'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFWWWWWWWWWWWWFFFFFFFFFFFFFFWWWWWWWWWWWWFW',
+    'WFWQQFFFFFFFFWFFFFFFFFFFFFFFWFFFFFFFFQQWFW',
+    'WFWQQFFFFFFFFWFFFFFFFFFFFFFFWFFFFFFFFQQWFW',
+    'WFWFFFFFFFFFFWFFFFFFFFFFFFFFWFFFFFFFFFFWFW',
+    'WFWFFFFFFFFFFWFFFFFFFFFFFFFFWFFFFFFFFFFWFW',
+    'WFWFFFFFFFFFFWFFFFFFFFFFFFFFWFFFFFFFFFFWFW',
+    'WFWFFFFFFFFFFWFFFFFFFFFFFFFFWFFFFFFFFFFWFW',
+    'WFWWWWWWFWWWWWFFFFFFFFFFFFFFWWWWWFWWWWWWFW',
+    'WFFFFFFFFFFFFFFFFFFFPPFFFFFFFFFFFFFFFFFFFW',
+    'WFFFPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPFFFW',
+    'WFFFFFFFFFFFFFFQQQQQQQQQQQQFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFQQQQQQQQQQQQFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFQQFFFFFFFFQQFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFQQFPPPPPPFQQFFFFFFFFFFFFFFW',
+    'WWWWWFFFFFFFFFFQQFPPPPPPFQQFFFFFFFFFFWWWWW',
+    'WWFFWSFFFFFFFFFQQFPPPPPPFQQFFFFFFFFFSWFFWW',
+    'WWFFWFFFFFFFFFFQQFPPPPPPFQQFFFFFFFFFFWFFWW',
+    'WWWWWFFFFFFFFFFQQFPPPPPPFQQFFFFFFFFFFWWWWW',
+    'WFFFFFFFFFFFFFFQQFPPPPPPFQQFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFQQFFFFFFFFQQFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFQQQQQQQQQQQQFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFQQQQQQQQQQQQFFFFFFFFFFFFFFW',
+    'WFFFPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPFFFW',
+    'WFFFFFFFFFFFFFFFFFFFPPFFFFFFFFFFFFFFFFFFFW',
+    'WFWWWWWWFWWWWWFFFFFFPPFFFFFFWWWWWFWWWWWWFW',
+    'WFWFFFFFFFFFFWFFFFFFPPFFFFFFWFFFFFFFFFFWFW',
+    'WFWFFFFFFFFFFWFFFFFFPPFFFFFFWFFFFFFFFFFWFW',
+    'WFWFFFFFFFFFFWFFFFFFPPFFFFFFWFFFFFFFFFFWFW',
+    'WFWFFFFFFFFFFWFFFFFFPPFFFFFFWFFFFFFFFFFWFW',
+    'WFWFFFFFFFFFFWFFFFFFPPFFFFFFWFFFFFFFFQQWFW',
+    'WFWFFFFFFFFFFWFFFFFFPPFFFFFFWFFFFFFFFQQWFW',
+    'WFWWWWWWWWWWWWFFFFFFPPFFFFFFWWWWWWWWWWWWFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+  ],
+  startX: 20, startY: 33,
+  objective: [
+    { key: 'challenge', label: 'Place the 4 Equation Fragments — every math you know' },
+    { key: 'transform', label: 'The Grand Equation solves — cross the void' },
+    { key: 'boss', label: 'Complete The Theorem' },
+  ],
+  transform: {
+    message: 'The Grand Equation SOLVES — the void drains from the dais!',
+    tiles: P_([[20, 22], [20, 23], [21, 22], [21, 23]]),
+  },
+  objects: [
+    // ── Entrance hall ──
+    { type: 'fountain', x: 17, y: 32, id: 'f9fount', uses: 3 },
+    { type: 'encounter', x: 24, y: 31 },
+    { type: 'gold', x: 16, y: 29 },
+    // ── NW wing: Garden & Tide memory (+ then −) ──
+    { type: 'mathdoor', x: 8, y: 8, id: 'f9nw1', operator: '+' },
+    { type: 'mathdoor', x: 6, y: 5, id: 'f9nw2', operator: '-' },
+    { type: 'fragment', x: 3, y: 7, drain: P_([[13, 5]]), drainMessage: 'The garden memory rests — the proof SIMPLIFIES! A shortcut opens.' },
+    { type: 'encounter', x: 10, y: 4 },
+    { type: 'chest', x: 11, y: 7, loot: { gold: 40 } },
+    // ── NE wing: Sky & Ember memory (× then ÷) ──
+    { type: 'mathdoor', x: 33, y: 8, id: 'f9ne1', operator: '*' },
+    { type: 'mathdoor', x: 35, y: 5, id: 'f9ne2', operator: '/' },
+    { type: 'fragment', x: 33, y: 3, drain: P_([[28, 5]]), drainMessage: 'The sky memory rests — another shortcut melts open!' },
+    { type: 'encounter', x: 31, y: 4 },
+    { type: 'chest', x: 30, y: 7, loot: { gold: 45 } },
+    // ── SW wing: Crystal & Market memory (geo then money) ──
+    { type: 'mathdoor', x: 8, y: 27, id: 'f9sw1', operator: 'geo' },
+    { type: 'mathdoor', x: 6, y: 30, id: 'f9sw2', operator: 'money' },
+    { type: 'fragment', x: 3, y: 28, drain: P_([[13, 30]]), drainMessage: 'The crystal memory rests — the walls remember doors!' },
+    { type: 'encounter', x: 10, y: 31 },
+    { type: 'chest', x: 11, y: 28, loot: { gold: 50 } },
+    // ── SE wing: Library memory (frac then word) ──
+    { type: 'mathdoor', x: 33, y: 27, id: 'f9se1', operator: 'frac' },
+    { type: 'mathdoor', x: 35, y: 30, id: 'f9se2', operator: 'word' },
+    { type: 'fragment', x: 30, y: 28 },   // FINAL fragment → the Grand Equation
+    { type: 'encounter', x: 31, y: 31 },
+    { type: 'chest', x: 34, y: 32, loot: { gold: 55 } },
+    // ── Promenade dangers + riches ──
+    { type: 'encounter', x: 6, y: 11 },
+    { type: 'encounter', x: 35, y: 11 },
+    { type: 'encounter', x: 6, y: 24 },
+    { type: 'encounter', x: 35, y: 24 },
+    { type: 'encounter', x: 20, y: 11 },
+    { type: 'gold', x: 2, y: 12 },
+    { type: 'gold', x: 39, y: 12 },
+    { type: 'gold', x: 39, y: 23 },
+    { type: 'potion', x: 2, y: 23 },
+    { type: 'potion', x: 39, y: 34 },
+    { type: 'potion', x: 2, y: 34 },
+    // ── Memory pockets (secrets) ──
+    { type: 'chest', x: 2, y: 17, loot: { gold: 60 } },
+    { type: 'chest', x: 39, y: 17, loot: { gold: 60 } },
+    { type: 'gold', x: 3, y: 18 },
+    { type: 'gold', x: 38, y: 18 },
+    // ── The final gauntlet: three doors of everything ──
+    { type: 'mathdoor', x: 20, y: 27, id: 'f9gate1', operator: 'mixed' },
+    { type: 'mathdoor', x: 20, y: 26, id: 'f9gate2', operator: 'word' },
+    { type: 'mathdoor', x: 20, y: 25, id: 'f9gate3' },
+    // ── The dais: The Theorem ──
+    { type: 'mathdoor', x: 20, y: 20, id: 'f9cagelock', operator: 'mixed' },
+    { type: 'boss', x: 20, y: 17, enemyId: 'theorem' },
+    { type: 'golden', x: 19, y: 16 },
+    { type: 'exit', x: 22, y: 16 },
+  ],
+};
 
-const FLOOR_STUBS = {}; // populated below by makeStub for any floor not yet hand-crafted
-
-/**
- * Temporary stub generator — a compact but REAL level obeying the
- * contract (divided map + transform opens boss) so unfinished floors
- * are playable while hand-crafting proceeds. Replaced floor-by-floor.
- */
-function makeStub(id, challengeType, bossId, heroes = []) {
-  return {
-    id,
-    tiles: [
-      'WWWWWWWWWWWWWWWWWWWW',
-      'WFFFFFFFPFFFFQQFFFFW',
-      'WFPPPPFFPFFFFQQFFFFW',
-      'WFPFFPFFPPPFFQQWWFWW',
-      'WFPFFPFFFFPFFQQFFFFW',
-      'WFPPFPWWFFPFFQQFFFFW', // ← bridge row 5 (x13,14)
-      'WFFPFPFWFFPFFQQFFFFW', // ← bridge row 6 (x13,14)
-      'WWFPFPFWFFPFFQQWFWWW',
-      'WFFPFFFFFFPFFQQWFFFW',
-      'WFPPPPPPPPPFFQQWFFFW',
-      'WFPFFFFFFFFFFQQFFFFW',
-      'WWWWWWWWWWWWWWWWWWWW',
-    ],
-    startX: 2, startY: 10,
-    objective: [
-      { key: 'challenge', label: 'Complete the 3 challenges' },
-      { key: 'transform', label: 'Cross to the far side' },
-      { key: 'boss', label: 'Defeat the boss' },
-    ],
-    transform: {
-      message: 'The way across is open!',
-      tiles: [[13, 5, 'P'], [14, 5, 'P'], [13, 6, 'P'], [14, 6, 'P']],
-    },
-    objects: [
-      { type: challengeType, x: 2, y: 1 },
-      { type: challengeType, x: 10, y: 4 },
-      { type: challengeType, x: 3, y: 8 },
-      { type: 'mathdoor', x: 3, y: 3, id: `f${id}door1` },
-      { type: 'encounter', x: 6, y: 2 },
-      { type: 'encounter', x: 9, y: 9 },
-      { type: 'encounter', x: 5, y: 6 },
-      { type: 'encounter', x: 17, y: 8 },
-      { type: 'chest', x: 17, y: 1, loot: { gold: 25 } },
-      { type: 'fountain', x: 1, y: 1, id: `f${id}fountain1`, uses: 3 },
-      { type: 'gold', x: 10, y: 1 },
-      { type: 'gold', x: 6, y: 10 },
-      { type: 'potion', x: 1, y: 8 },
-      // trapped heroes (this floor's in-maze unlocks) at fixed free tiles
-      ...heroes.map((h, i) => ({
-        type: 'hero',
-        x: i === 0 ? 12 : 8, y: i === 0 ? 1 : 10,
-        id: `hero-${h.heroId}`, heroId: h.heroId, prison: h.prison,
-      })),
-      { type: 'boss', x: 17, y: 4, enemyId: bossId },
-      { type: 'golden', x: 17, y: 3 },
-      { type: 'exit', x: 17, y: 2 },
-    ],
-  };
-}
-
-FLOOR_STUBS[9] = makeStub(9, 'fragment', 'theorem');
-
-const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5, 6: FLOOR_6, 7: FLOOR_7, 8: FLOOR_8 };
+const LEVELS = { 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5, 6: FLOOR_6, 7: FLOOR_7, 8: FLOOR_8, 9: FLOOR_9 };
 
 /** Register/replace a hand-crafted floor (used as floors are finished). */
 export function registerLevel(def) { LEVELS[def.id] = def; }

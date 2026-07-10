@@ -373,50 +373,53 @@ export const DIALOGUE = {
   ],
 
   // ══════════════════════════════════════
-  // FLOOR 9: CASTLE OF CHAOS — "The Void Breach"
-  // Math: EVERYTHING. Light 3 harmony sigils (one
-  // per mastered skill) to SEAL the breach; the
-  // final bridge forms to the Chaos King's throne.
+  // FLOOR 9: THE MENDING ROOM — "The Proof of Everything"
+  // Math: EVERYTHING. Four memory-wings, each guarded
+  // by a saved realm's math, hold the four Equation
+  // Fragments. Placed together, the Grand Equation
+  // solves and the void drains from the Theorem's
+  // dais. The Chaos King is the Story's discarded
+  // first draft — the ending COMPLETES him.
   // ══════════════════════════════════════
 
   floor9_entry: [
-    { speaker: 'All Fairies', text: 'The Castle of Chaos. Gulp.', side: 'left' },
-    { speaker: 'Elara', text: 'Steady, friends. See that great crack?', side: 'left' },
-    { speaker: 'Elara', text: 'A void breach splits the whole castle.', side: 'left' },
-    { speaker: 'Elara', text: 'The Chaos King made it, hero.', side: 'left' },
-    { speaker: 'Elara', text: 'Light the three harmony sigils.', side: 'left' },
-    { speaker: 'Elara', text: 'One for each math skill you mastered.', side: 'left' },
-    { speaker: 'Elara', text: 'Their light will SEAL the breach.', side: 'left' },
-    { speaker: 'Elara', text: 'Then a bridge will form to his throne.', side: 'left' },
-    { speaker: 'All Fairies', text: 'Every Harmony is cheering for you!', side: 'left' },
+    { speaker: 'Narrator', text: 'The Mending Room. Where it all began.', wide: true },
+    { speaker: 'Elara', text: 'Look behind you, heroes.', side: 'left' },
+    { speaker: 'Narrator', text: 'Every hero you freed stands with you.', wide: true },
+    { speaker: 'All Heroes', text: 'For Numeria. TOGETHER!', side: 'left' },
+    { speaker: 'Elara', text: 'Four wings. Four memories of realms saved.', side: 'left' },
+    { speaker: 'Elara', text: 'Each guarded by the math that saved it.', side: 'left' },
+    { speaker: 'Elara', text: 'Place the four Equation Fragments.', side: 'left' },
+    { speaker: 'Elara', text: 'Solve the proof he never could finish.', side: 'left' },
+    { speaker: 'Elara', text: 'Not to beat him. To COMPLETE him.', side: 'left' },
   ],
   floor9_mid_explore: [
-    { speaker: 'Chaos King', text: 'Heroes? In MY splendidly messy castle?' },
-    { speaker: 'Chaos King', text: 'I like my numbers scrambled!' },
-    { speaker: 'Chaos King', text: 'Seven plus banana equals Tuesday!' },
-    { speaker: 'Elara', text: 'Oh dear. He really needs our help.' },
-    { speaker: 'Elara', text: 'Light those sigils, quick!' },
+    { speaker: 'The Theorem', text: 'Heroes? In MY unfinished proof?' },
+    { speaker: 'The Theorem', text: 'The Story threw me away, you know.' },
+    { speaker: 'The Theorem', text: 'Draft one. Crossed out. WRONG.' },
+    { speaker: 'Elara', text: 'No one is wrong forever.' },
+    { speaker: 'Elara', text: 'Place those fragments, heroes.' },
   ],
   floor9_boss: [
-    { speaker: 'Elara', text: 'The Chaos King! Called The Theorem!', side: 'left' },
-    { speaker: 'Chaos King', text: 'I smashed all nine Harmonies! ME!', sprite: 'theorem', side: 'right' },
-    { speaker: 'Chaos King', text: 'Chaos forever! No more neat answers!', sprite: 'theorem', side: 'right' },
-    { speaker: 'All Fairies', text: 'Use EVERYTHING you have learned!', side: 'left' },
-    { speaker: 'Narrator', text: 'The final challenge begins!', wide: true },
+    { speaker: 'Elara', text: 'The Chaos King. The Theorem himself.', side: 'left' },
+    { speaker: 'The Theorem', text: 'I proved it! The world does NOT add up!', sprite: 'theorem', side: 'right' },
+    { speaker: 'The Theorem', text: 'So I made it true. Harmony by Harmony.', sprite: 'theorem', side: 'right' },
+    { speaker: 'Elara', text: 'Then watch us finish your proof.', side: 'left' },
+    { speaker: 'Narrator', text: 'Use EVERYTHING you have learned!', wide: true },
   ],
   floor9_victory: [
-    { speaker: 'Chaos King', text: 'My breach! It is... sealed?', sprite: 'theorem', side: 'right' },
-    { speaker: 'Chaos King', text: 'Your answers fit together so neatly.', sprite: 'theorem', side: 'right' },
-    { speaker: 'Chaos King', text: 'Adding, sharing, halves, coins...', sprite: 'theorem', side: 'right' },
-    { speaker: 'Chaos King', text: 'Maybe order is not so boring after all.', sprite: 'theorem', side: 'right' },
-    { speaker: 'Elara', text: 'All nine Harmonies are singing!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The tide rolls just right!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'The beacons blaze bright!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'The lava naps in its streams!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'The falls splash and sparkle!', side: 'left' },
+    { speaker: 'The Theorem', text: 'My proof... you did not erase it.', sprite: 'theorem', side: 'right' },
+    { speaker: 'The Theorem', text: 'You FINISHED it. It adds up.', sprite: 'theorem', side: 'right' },
+    { speaker: 'The Theorem', text: 'I add up.', sprite: 'theorem', side: 'right' },
+    { speaker: 'Elara', text: 'Every draft belongs in the Story.', side: 'left' },
+    { speaker: 'Narrator', text: 'All nine Harmonies sing at once.', wide: true },
+    { speaker: 'Marlow', text: 'The tide rolls just right!', side: 'left' },
+    { speaker: 'Zephyr', text: 'The beacons blaze bright!', side: 'left' },
+    { speaker: 'Cinder', text: 'The lava naps in its streams!', side: 'left' },
+    { speaker: 'Penny', text: 'And every coin counts true!', side: 'left' },
     { speaker: 'Elara', text: 'You mended a whole kingdom with math.', side: 'left' },
-    { speaker: 'Elara', text: 'Adding, subtracting, sharing, solving!', side: 'left' },
-    { speaker: 'Elara', text: 'Numeria will sing your name forever.', side: 'left' },
+    { speaker: 'Elara', text: 'And freed every hero who fell trying.', side: 'left' },
+    { speaker: 'Elara', text: 'Numeria will sing your names forever.', side: 'left' },
     { speaker: 'Elara', text: 'True heroes. Every one of you.', side: 'left' },
   ],
 
@@ -515,9 +518,9 @@ export const DIALOGUE = {
     { speaker: 'Elara', text: 'The Paradox owes us some answers.' },
   ],
   floor9_phase1_done: [
-    { speaker: 'Elara', text: 'All three harmony sigils are lit!' },
-    { speaker: 'Elara', text: 'One for every skill you mastered!' },
-    { speaker: 'Elara', text: 'Now set the two bridge anchors!' },
+    { speaker: 'Elara', text: 'The fourth fragment — the proof SOLVES!' },
+    { speaker: 'Elara', text: 'The void drains from the dais!' },
+    { speaker: 'All Heroes', text: 'Together. One last problem.' },
   ],
 
   // ── PER-FLOOR PHASE 2 COMPLETION ──
