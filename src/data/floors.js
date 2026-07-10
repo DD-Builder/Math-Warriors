@@ -547,9 +547,9 @@ export const FLOORS = [
     ],
   },
   {
-    id: 7, name: 'Market Square', tileset: 'market',
+    id: 7, name: 'Coinford Market', tileset: 'market',
     width: 25, height: 33, tiles: FLOOR_7_TILES, startX: 1, startY: 31,
-    challenge: { type: 'token', count: 3, label: 'GOLD TOKEN', verb: 'recovered', allDoneMsg: 'All tokens recovered!', phase2: { type: 'vaultseal', count: 2, label: 'VAULT SEAL', verb: 'cracked', allDoneMsg: 'Vault seals crack! The Counterfeiter revealed!' } },
+    challenge: { type: 'token', count: 3, label: 'GOLD TOKEN', verb: 'recovered', allDoneMsg: 'Three real tokens — the drawbridge falls!' },
     palette: { wall: 0x6a5020, floor: 0xa08040, path: 0xc8a858, water: 0x806830, decor: 0x887038 },
     mazeConfig: {
       width: 19, height: 20,

@@ -667,7 +667,112 @@ const FLOOR_6 = {
 };
 
 // ════════════════════════════════════════════════════════════════
-// FLOORS 7–9 — same contract, themed transformations:
+// FLOOR 7 — COINFORD MARKET, "The Counterfeit Carnival" (Money)
+//
+// The Counterfeiter flooded Coinford with fake gold: the mint is
+// locked, honest shops shuttered, the drawbridge to the Grand Bazaar
+// raised. Recover the 3 REAL Gold Tokens — each reopens a mint lock
+// and drains a canal crossing (south market → north quarter → bazaar
+// strip → the drawbridge falls). DECEPTION mechanic: mimic gold
+// piles (encounters disguised as gold) sit right next to real ones —
+// verify before you trust. Richest loot floor in the game.
+//
+// Duchess, the royal auditor the Counterfeiter framed, is locked in
+// the mint vault behind the biggest money-door — rescuing royalty is
+// the floor's crown moment. Guide: Penny, the mint-keeper's daughter.
+// Secrets: a smuggler alley across the great canal, a stall pocket.
+// ════════════════════════════════════════════════════════════════
+const FLOOR_7 = {
+  id: 7,
+  tiles: [
+'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFQQFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFQQFFFFFFW',
+    'WFFPPPPPPPPPPPPPPPPPPPPPPPFQQFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFQQFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFQQFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFQQQQQQQQW',
+    'WFFWWWWWWWFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFWFFFFFWFFFWWFFFWWFFFFFFFFFFFFFFFW',
+    'WFFWFFFFFWFFFWWFFFWWFFFFFFFFFFFFFFFW',
+    'WFFWFFFFFFFPPPPPPPPPPPPPPPFFFFFFFFFW',
+    'WFFWFFFFFWFFFWWFFFWWFFFFFFFFFFFFFFFW',
+    'WFFWWWWWWWFFFWWFFFWWFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQSQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQSQQQQQQQQQQQQQQQQW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFPFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFPFFFFFFFFFFFFFFFFFW',
+    'WFFFFWWFFFFWWFFFFPFFFWWFFFFWWFFFFFFW',
+    'WFFFFWWFFFFWWFFFFPFFFWWFFFFWWFFFFFFW',
+    'WFFPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPFFW',
+    'WFFFFFFFFFFFFFFFFPFFFFFFFFFFFFFFFFFW',
+    'WFFFFWWFFFFWWFFFFPFFFWWFFFWSWWFFFFFW',
+    'WFFFFWWFFFFWWFFFFPFFFWWFFFWFFWFFFFFW',
+    'WFFFFFFFFFFFFFFFFPFFFFFFFFWWWWFFFFFW',
+    'WFFFFFFFFFFFFFFFFPFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+  ],
+  startX: 17, startY: 26,
+  objective: [
+    { key: 'challenge', label: 'Recover the 3 REAL Gold Tokens — beware fake gold' },
+    { key: 'transform', label: 'Lower the drawbridge to the Grand Bazaar' },
+    { key: 'boss', label: 'Face The Counterfeiter' },
+  ],
+  transform: {
+    message: 'The mint sings — the drawbridge falls! To the Grand Bazaar!',
+    tiles: P_([[27, 3], [28, 3], [27, 4], [28, 4]]),
+  },
+  objects: [
+    // ── South market: token 1 + mimics among real gold ──
+    { type: 'mathdoor', x: 8, y: 22, id: 'f7lock1' },
+    { type: 'token', x: 8, y: 21, drain: P_([[12, 17], [12, 18]]), drainMessage: 'A REAL token! A canal crossing drains to the north quarter!' },
+    { type: 'encounter', x: 22, y: 25, disguise: 'gold' },   // mimic!
+    { type: 'gold', x: 23, y: 26 },                          // ...next to real gold
+    { type: 'encounter', x: 5, y: 21 },
+    { type: 'encounter', x: 28, y: 25 },
+    { type: 'gold', x: 3, y: 28 },
+    { type: 'gold', x: 13, y: 21 },
+    { type: 'potion', x: 32, y: 28 },
+    { type: 'fountain', x: 30, y: 21, id: 'f7fount', uses: 3 },
+    { type: 'chest', x: 28, y: 27, loot: { gold: 50 } },     // stall pocket (secret)
+    // ── North quarter: token 2, the MINT, more mimics ──
+    { type: 'mathdoor', x: 23, y: 12, id: 'f7lock2' },
+    { type: 'token', x: 25, y: 12, drain: P_([[20, 5], [20, 6]]), drainMessage: 'Two of three! A crossing drains to the bazaar strip!' },
+    { type: 'encounter', x: 15, y: 12, disguise: 'gold' },   // mimic!
+    { type: 'gold', x: 16, y: 14 },
+    { type: 'encounter', x: 31, y: 12 },
+    { type: 'gold', x: 33, y: 15 },
+    { type: 'potion', x: 2, y: 16 },
+    // the mint vault: Duchess + the royal treasury
+    { type: 'mathdoor', x: 9, y: 12, id: 'f7vault' },
+    { type: 'hero', x: 5, y: 11, id: 'hero-bunny-duchess', heroId: 'bunny-duchess', prison: 'vault' },
+    { type: 'chest', x: 7, y: 10, loot: { gold: 60 } },
+    { type: 'gold', x: 4, y: 13 },
+    { type: 'gold', x: 7, y: 13 },
+    // ── Bazaar strip: token 3 (the FINAL) ──
+    { type: 'mathdoor', x: 24, y: 3, id: 'f7lock3' },
+    { type: 'token', x: 26, y: 3 },   // final token → drawbridge transform
+    { type: 'encounter', x: 16, y: 3, disguise: 'gold' },    // mimic!
+    { type: 'encounter', x: 10, y: 3 },
+    { type: 'chest', x: 4, y: 2, loot: { gold: 45 } },
+    { type: 'potion', x: 12, y: 2 },
+    // ── Grand Bazaar: The Counterfeiter ──
+    { type: 'mathdoor', x: 29, y: 4, id: 'f7cagelock' },
+    { type: 'encounter', x: 30, y: 6 },
+    { type: 'boss', x: 31, y: 4, enemyId: 'counterfeiter' },
+    { type: 'golden', x: 30, y: 3 },
+    { type: 'exit', x: 32, y: 3 },
+  ],
+};
+
+// ════════════════════════════════════════════════════════════════
+// FLOORS 8–9 — same contract, themed transformations:
 //   2 Tidepool (−): close 3 drain valves → the tide DRAINS, sunken
 //     causeway tiles Q→P reveal the route to the Pressure Chamber.
 //   4 Ember (÷): seal 3 vents → the lava flow is SPLIT and starved,
@@ -745,12 +850,10 @@ function makeStub(id, challengeType, bossId, heroes = []) {
   };
 }
 
-FLOOR_STUBS[7] = makeStub(7, 'token', 'counterfeiter', [
-  { heroId: 'bunny-duchess', prison: 'vault' }]);
 FLOOR_STUBS[8] = makeStub(8, 'page', 'theparadox');
 FLOOR_STUBS[9] = makeStub(9, 'fragment', 'theorem');
 
-const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5, 6: FLOOR_6 };
+const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5, 6: FLOOR_6, 7: FLOOR_7 };
 
 /** Register/replace a hand-crafted floor (used as floors are finished). */
 export function registerLevel(def) { LEVELS[def.id] = def; }
