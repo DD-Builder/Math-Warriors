@@ -460,7 +460,111 @@ const FLOOR_4 = {
 };
 
 // ════════════════════════════════════════════════════════════════
-// FLOORS 5–9 — same contract, themed transformations:
+// FLOOR 5 — FROZEN PEAK, "The Four Keys of Thaw" (Mixed operations)
+//
+// Absolute Zero froze the spring that feeds every river in Numeria.
+// The mountain is a switchback ASCENT of five terraces, each sealed
+// behind a wall of ice. Four Thaw Crystals hold the spring's warmth —
+// the Crystals of SUMS, DIFFERENCES, PRODUCTS and QUOTIENTS — and
+// each answers only to its own operation (op-keyed math doors).
+// Mixed review made literal: every kind of math melts its own wall.
+//
+// Map (30×36, climbed bottom-to-top). Mid-mountain, BLAZE the fire
+// bunny sits frozen in the ice (the irony is not lost on him);
+// freeing him melts a second hidden pass — the rescued hero opens
+// the world. Secrets: a crevasse cache and an echo cave.
+// ════════════════════════════════════════════════════════════════
+const FLOOR_5 = {
+  id: 5,
+  tiles: [
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFPPPPPPFFFFFFFFFFW',
+    'WFFFFFFFFFFFFPPPPPPFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFPPPPFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFPPPPFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFPPPPFFFFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFFFFFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WFWWWWFFFFFFFFFFWFFFFFFFFFFFFW',
+    'WFFFSWFFFWFFFFFFWFFFFFFFFFFFFW',
+    'WFFFPPPPPPPPPPPPPPPPPPPPPPFFFW',
+    'WFFFFFFFFWFFFFFFWFFFFFFFFFFFFW',
+    'WFFFFFFFFWFFFFFFFFFFFFFFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WFFFFFFFFFFFWFFFFFFFFFFFFFFFFW',
+    'WFFFFFFFFFFFWFFFFFFFWFFFFFFFFW',
+    'WFFFPPPPPPPPPPPPPPPPPPPPPPPFFW',
+    'WFFFFFFFFFFFWFFFFFFFWFFFFFFFFW',
+    'WFFFFFFFFFFFFFFFFFFFWFFFFFFFFW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WFFFFFFFWFFFFFFFFFFFFFFWFFFFFW',
+    'WFFFPPPPPPPPPPPPPPPPPPPPPPPFFW',
+    'WFFFFFFFWFFFFFFFWFFFFFFFFWSWWW',
+    'WFFFFFFFFFFFFFFFWFFFFFFFFWFFWW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WQQQQQQQQQQQQQQQQQQQQQQQQQQQQW',
+    'WFFFFFFFFFFFFFFFFFFFFFWFFFFFFW',
+    'WFFFFFFFFFWFFFFFFFFFFFWFFFFFFW',
+    'WFFPPPPPPPPPPPPPPPPPPFWFFFFFFW',
+    'WFFFFFFFFFWFFFFFFFFFFFWFFFFFFW',
+    'WFFFFFFFFFWFFFFFFFFFFFFFFFFFFW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+  ],
+  startX: 15, startY: 32,
+  objective: [
+    { key: 'challenge', label: 'Wake the four Thaw Crystals — one for each operation' },
+    { key: 'transform', label: 'Climb the thawed switchbacks to the summit' },
+    { key: 'boss', label: 'Face Absolute Zero' },
+  ],
+  transform: {
+    message: 'The Crystal of Quotients sings — the summit gate THAWS!',
+    tiles: P_([[15, 8], [15, 9], [16, 8], [16, 9]]),
+  },
+  objects: [
+    // ── T0 base camp: the Crystal of Sums (+) ──
+    { type: 'mathdoor', x: 8, y: 32, id: 'f5lock1', operator: '+' },
+    { type: 'crystal', x: 5, y: 32, drain: P_([[14, 28], [14, 29], [15, 28], [15, 29]]), drainMessage: 'The Crystal of SUMS wakes — the first ice wall melts!' },
+    { type: 'encounter', x: 20, y: 31 },
+    { type: 'gold', x: 3, y: 34 },
+    { type: 'potion', x: 26, y: 33 },
+    // ── T1: the Crystal of Differences (−) + crevasse cache ──
+    { type: 'mathdoor', x: 6, y: 25, id: 'f5lock2', operator: '-' },
+    { type: 'crystal', x: 4, y: 26, drain: P_([[22, 22], [22, 23], [23, 22], [23, 23]]), drainMessage: 'The Crystal of DIFFERENCES hums — another wall falls!' },
+    { type: 'encounter', x: 12, y: 26 },
+    { type: 'encounter', x: 25, y: 24 },
+    { type: 'chest', x: 27, y: 27, loot: { gold: 35 } },   // crevasse cache (secret)
+    { type: 'gold', x: 2, y: 24 },
+    // ── T2: the Crystal of Products (×) + BLAZE frozen in the ice ──
+    { type: 'mathdoor', x: 7, y: 19, id: 'f5lock3', operator: '*' },
+    { type: 'crystal', x: 5, y: 18, drain: P_([[8, 15], [8, 16], [9, 15], [9, 16]]), drainMessage: 'The Crystal of PRODUCTS blazes — the high pass opens!' },
+    { type: 'hero', x: 25, y: 18, id: 'hero-bunny-blaze', heroId: 'bunny-blaze', prison: 'ice', drain: P_([[24, 15], [24, 16], [25, 15], [25, 16]]), drainMessage: 'Blaze bursts free — his flame melts a hidden pass!' },
+    { type: 'fountain', x: 17, y: 20, id: 'f5fount', uses: 3 },
+    { type: 'encounter', x: 14, y: 18 },
+    { type: 'encounter', x: 27, y: 20 },
+    { type: 'potion', x: 2, y: 20 },
+    // ── T3: the Crystal of Quotients (÷, the FINAL key) + echo cave ──
+    { type: 'mathdoor', x: 20, y: 12, id: 'f5lock4', operator: '/' },
+    { type: 'crystal', x: 23, y: 12 },   // final crystal → summit transform
+    { type: 'chest', x: 2, y: 11, loot: { gold: 45 } },    // echo cave (secret)
+    { type: 'gold', x: 3, y: 13 },
+    { type: 'encounter', x: 6, y: 12 },
+    { type: 'encounter', x: 26, y: 11 },
+    // ── SUMMIT: Absolute Zero's frozen throne ──
+    { type: 'mathdoor', x: 15, y: 6, id: 'f5cagelock' },
+    { type: 'boss', x: 15, y: 4, enemyId: 'absolutezero' },
+    { type: 'golden', x: 14, y: 3 },
+    { type: 'exit', x: 17, y: 3 },
+    { type: 'chest', x: 12, y: 3, loot: { gold: 50 } },
+  ],
+};
+
+
+// ════════════════════════════════════════════════════════════════
+// FLOORS 6–9 — same contract, themed transformations:
 //   2 Tidepool (−): close 3 drain valves → the tide DRAINS, sunken
 //     causeway tiles Q→P reveal the route to the Pressure Chamber.
 //   4 Ember (÷): seal 3 vents → the lava flow is SPLIT and starved,
@@ -538,8 +642,6 @@ function makeStub(id, challengeType, bossId, heroes = []) {
   };
 }
 
-FLOOR_STUBS[5] = makeStub(5, 'crystal', 'absolutezero', [
-  { heroId: 'bunny-blaze', prison: 'ice' }]);
 FLOOR_STUBS[6] = makeStub(6, 'geoshard', 'theprism', [
   { heroId: 'knight-greathelm', prison: 'crystal' }, { heroId: 'wizard-grandmage', prison: 'crystal' }]);
 FLOOR_STUBS[7] = makeStub(7, 'token', 'counterfeiter', [
@@ -547,7 +649,7 @@ FLOOR_STUBS[7] = makeStub(7, 'token', 'counterfeiter', [
 FLOOR_STUBS[8] = makeStub(8, 'page', 'theparadox');
 FLOOR_STUBS[9] = makeStub(9, 'fragment', 'theorem');
 
-const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4 };
+const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5 };
 
 /** Register/replace a hand-crafted floor (used as floors are finished). */
 export function registerLevel(def) { LEVELS[def.id] = def; }

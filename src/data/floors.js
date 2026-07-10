@@ -468,13 +468,13 @@ export const FLOORS = [
   {
     id: 5, name: 'Frozen Peak', tileset: 'ice',
     width: 25, height: 33, tiles: FLOOR_3_TILES, startX: 1, startY: 31,
-    challenge: { type: 'crystal', count: 3, label: 'FROZEN CRYSTAL', verb: 'found', allDoneMsg: 'All crystals found!', phase2: { type: 'thawcrystal', count: 2, label: 'THAW CRYSTAL', verb: 'melted', allDoneMsg: 'The ice throne cracks!' } },
+    challenge: { type: 'crystal', count: 4, label: 'THAW CRYSTAL', verb: 'woken', allDoneMsg: 'All four keys turn — the summit thaws!' },
     palette: { wall: 0x4080b0, floor: 0x90b8d8, path: 0xb0d0e8, water: 0x60a0c8, decor: 0x7098b8 },
     mazeConfig: {
       width: 19, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 7 }, { w: 8, h: 6 }, { w: 7, h: 5 }],
       challengeType: 'crystal',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 3,
       bossEnemyId: 'absolutezero',
@@ -483,6 +483,7 @@ export const FLOORS = [
       { type: 'crystal',   x: 5,  y: 5 },
       { type: 'crystal',   x: 20, y: 16 },
       { type: 'crystal',   x: 10, y: 26 },
+      { type: 'crystal',   x: 15, y: 10 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'absolutezero' },
       { type: 'golden',    x: 12, y: 2 },
