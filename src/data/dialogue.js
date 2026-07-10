@@ -252,41 +252,44 @@ export const DIALOGUE = {
   ],
 
   // ══════════════════════════════════════
-  // FLOOR 6: CRYSTAL CAVERNS — "The Humming Wall"
-  // Math: MATH FACTS. Tune 3 geodes to the right
-  // numbers to SHATTER the resonant crystal wall.
+  // FLOOR 6: CRYSTAL CAVERNS — "The Shape of Light"
+  // Math: GEOMETRY. The Prism shattered the Great
+  // Geode; each restored geo-shard fires a BEAM
+  // that cuts a shaped passage through solid rock:
+  // triangle, square, hexagon... to the Octagon.
+  // Guide: Faceta, the geode-keeper.
   // ══════════════════════════════════════
 
   floor6_entry: [
-    { speaker: 'Crystal Fairy', text: 'Shh! Hear that hum? That is the wall.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'A crystal wall seals the Prism Chamber.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Only a perfect chord can crack it.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Tune three geodes to the right numbers!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Like singing, but with math facts!', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Exactly! Quick facts, true notes.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'I call the loudest geode!', side: 'left' },
-    { speaker: 'Elara', text: 'Fast facts and steady hands, heroes.', side: 'left' },
-    { speaker: 'Elara', text: 'Let us tune this cave!', side: 'left' },
+    { speaker: 'Faceta', text: 'Mind the dark. Light broke down here.', side: 'left' },
+    { speaker: 'Faceta', text: 'The Prism shattered the Great Geode.', side: 'left' },
+    { speaker: 'Faceta', text: 'Now every deep hall is sealed in rock.', side: 'left' },
+    { speaker: 'Elara', text: 'How do we pass solid crystal?', side: 'right' },
+    { speaker: 'Faceta', text: 'Light cuts crystal — if it has SHAPE.', side: 'left' },
+    { speaker: 'Faceta', text: 'Restore a geo-shard: a beam fires true.', side: 'left' },
+    { speaker: 'Faceta', text: 'Triangle, square, hexagon... learn them.', side: 'left' },
+    { speaker: 'Faceta', text: 'Every hall down here IS a shape.', side: 'left' },
+    { speaker: 'Elara', text: 'Then we carve our way with geometry.', side: 'left' },
   ],
   floor6_fairy_talk: [
-    { speaker: 'Crystal Fairy', text: 'Each geode hums a number.' },
-    { speaker: 'Water Fairy', text: 'This one hums a seven. I think.' },
-    { speaker: 'Fire Fairy', text: 'Mine hums OFF-KEY. Rude.' },
-    { speaker: 'Elara', text: 'Then tune it true, quick as a wink!' },
+    { speaker: 'Faceta', text: 'Two beams! See how straight they cut?' },
+    { speaker: 'Elara', text: 'The halls really are shapes...' },
+    { speaker: 'Faceta', text: 'Count the corners as you walk them.' },
+    { speaker: 'Faceta', text: 'Three, four, six... then EIGHT.' },
   ],
   floor6_boss: [
-    { speaker: 'The Prism', text: 'Who is tapping on my lovely wall?', sprite: 'theprism', side: 'right' },
-    { speaker: 'The Prism', text: 'It took AGES to hum it shut!', sprite: 'theprism', side: 'right' },
-    { speaker: 'Elara', text: 'Your math facts are the true notes!', side: 'left' },
-    { speaker: 'Narrator', text: 'Answer fast! Shatter the wall!', wide: true },
+    { speaker: 'The Prism', text: 'Who CUT holes in my perfect dark?', sprite: 'theprism', side: 'right' },
+    { speaker: 'The Prism', text: 'I bent every beam to a wrong angle!', sprite: 'theprism', side: 'right' },
+    { speaker: 'Faceta', text: 'Shapes never lie. Show it true angles!', side: 'left' },
+    { speaker: 'Narrator', text: 'Measure, count corners, cut it down!', wide: true },
   ],
   floor6_victory: [
-    { speaker: 'Crystal Fairy', text: 'The chord rang true, and CRASH!', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'You tuned every geode perfectly!', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Your fast facts shattered the wall!', side: 'left' },
+    { speaker: 'Faceta', text: 'The Great Geode glows whole again!', side: 'left' },
+    { speaker: 'Faceta', text: 'Triangles, squares, hexagons of light!', side: 'left' },
+    { speaker: 'Faceta', text: 'You gave the light its shapes back.', side: 'left' },
     { speaker: 'Elara', text: 'The Crystal Harmony glitters again.', side: 'left' },
     { speaker: 'Elara', text: 'Six Harmonies mended! Three left.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Next is the Market Square!', side: 'left' },
+    { speaker: 'Faceta', text: 'Next is Coinford Market. Watch your gold!', side: 'left' },
     { speaker: 'Elara', text: 'Bring your counting coins, hero.', side: 'left' },
   ],
 
@@ -497,9 +500,9 @@ export const DIALOGUE = {
     { speaker: 'Elara', text: 'Up we go. Bring the warm math.' },
   ],
   floor6_phase1_done: [
-    { speaker: 'Crystal Fairy', text: 'All three geodes hum the right numbers!' },
-    { speaker: 'Crystal Fairy', text: 'What a chord! The wall is wobbling!' },
-    { speaker: 'Crystal Fairy', text: 'Now align the Prism Shards!' },
+    { speaker: 'Faceta', text: 'The FOURTH beam fires — eight sides!' },
+    { speaker: 'Faceta', text: 'An octagon of light opens the vault!' },
+    { speaker: 'Elara', text: 'The Prism waits inside. Go!' },
   ],
   floor7_phase1_done: [
     { speaker: 'Market Fairy', text: 'All three real gold tokens found!' },
@@ -667,15 +670,15 @@ const HERO_RESCUE = {
   // ── FLOOR 6: CRYSTAL CAVERNS — sealed inside the humming crystal ──
   6: {
     'knight-greathelm': [
-      { speaker: 'Crystal Fairy', text: 'A legendary knight in crystal!' },
-      { speaker: 'Great Helm', text: 'The humming wall sang me to sleep' },
-      { speaker: 'Great Helm', text: 'and sealed me in a geode.' },
+      { speaker: 'Faceta', text: 'A legendary knight in crystal!' },
+      { speaker: 'Great Helm', text: 'The Prism sealed me as a trophy —' },
+      { speaker: 'Great Helm', text: 'its brightest catch, it said.' },
       { speaker: 'Great Helm', text: 'A grave error.' },
       { speaker: 'Great Helm', text: 'I am Unbreakable. You have my sword.' },
       { speaker: 'Elara', text: 'A legendary hero returns!' },
     ],
     'wizard-grandmage': [
-      { speaker: 'Crystal Fairy', text: 'Ancient magic pulses in there!' },
+      { speaker: 'Faceta', text: 'Ancient magic pulses in there!' },
       { speaker: 'Grand Mage', text: 'Do you know how LONG I waited?' },
       { speaker: 'Grand Mage', text: 'Sealed in crystal. Insufferable.' },
       { speaker: 'Grand Mage', text: 'Hard questions fuel my wrath.' },

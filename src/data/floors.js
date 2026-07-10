@@ -508,13 +508,13 @@ export const FLOORS = [
   {
     id: 6, name: 'Crystal Caverns', tileset: 'crystal',
     width: 25, height: 33, tiles: FLOOR_6_TILES, startX: 1, startY: 31,
-    challenge: { type: 'geoshard', count: 3, label: 'GEO SHARD', verb: 'collected', allDoneMsg: 'All shards collected!', phase2: { type: 'prismshard', count: 2, label: 'PRISM SHARD', verb: 'aligned', allDoneMsg: 'Prisms align! The Prism awakens!' } },
+    challenge: { type: 'geoshard', count: 4, label: 'GEO SHARD', verb: 'restored', allDoneMsg: 'Four beams — the Octagon opens!' },
     palette: { wall: 0x5030a0, floor: 0x7850c0, path: 0xa080e0, water: 0x6040b0, decor: 0x6840b0 },
     mazeConfig: {
       width: 19, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 7, h: 7 }, { w: 6, h: 6 }, { w: 9, h: 5 }],
       challengeType: 'geoshard',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'theprism',
@@ -523,6 +523,7 @@ export const FLOORS = [
       { type: 'geoshard',  x: 5,  y: 5 },
       { type: 'geoshard',  x: 20, y: 16 },
       { type: 'geoshard',  x: 10, y: 26 },
+      { type: 'geoshard',  x: 15, y: 20 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'theprism' },
       { type: 'golden',    x: 12, y: 2 },

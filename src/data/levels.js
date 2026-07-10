@@ -564,7 +564,110 @@ const FLOOR_5 = {
 
 
 // ════════════════════════════════════════════════════════════════
-// FLOORS 6–9 — same contract, themed transformations:
+// FLOOR 6 — CRYSTAL CAVERNS, "The Shape of Light" (Geometry)
+//
+// The Prism shattered the Great Geode, and the caverns' light bends
+// at wrong angles: every deep hall sealed behind solid crystal. The
+// caverns are GEOMETRY — each carved chamber IS a shape (rectangle
+// entry, Triangle Hall, Square Gallery, Hexagon Vault, and the
+// Prism's Octagon), and each restored geo-shard fires a straight
+// BEAM of light that cuts the next passage through solid rock.
+// Darkest floor in the game: the fog of war is the antagonist.
+//
+// Great Helm and Grand Mage hang sealed in crystal — the Prism
+// collects strong warriors as trophies. Secrets: the Geode Heart
+// and the Diamond Nook. Guide: Faceta, the geode-keeper.
+// ════════════════════════════════════════════════════════════════
+const FLOOR_6 = {
+  id: 6,
+  tiles: [
+'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWFFFFFFFFWWWWWWWWWWFFFFFWWWWWWW',
+    'WWWWWWFFFFFFFFWWWWWWWWWFFFFFFFWWWWWW',
+    'WWWWWWFFPPPPFFWWWWWWWWFFFFFFFFFWWWWW',
+    'WWFFFWFFPPPPFFWWWWWWWWFFFFFFFFFWWWWW',
+    'WWFFFSFFPPPPFFWWWWWWWWFFFFFFFFFWWWWW',
+    'WWFFFWFFPPPPFFWWWWWWWWFFFFFFFFFWWWWW',
+    'WWWWWWFFFFFFFFWWWWWWWWFFFFFFFFFWWWWW',
+    'WWWWWWFFFFFFFFWWWWWWWWWFFFFFFFWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWFFFFFWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'WWWWWWWWFWWWWWWWWWWWWWWWFFFFFWWWWWWW',
+    'WWWWWWWFFFWWWWWWWWWWWWWFFFFFFFWWWWWW',
+    'WWWWWWWFFFWWWWWWWWWWWWFFFFFFFFFWWWWW',
+    'WWWWWWFFFFFWWWWWWWWWWWFFFPPPFFFWWWWW',
+    'WWWWWFFFFFFFWWWWWWWWWWFFFPPPFFFWWWWW',
+    'WWWWWFFFFFFFWWWWWWWWWWFFFPPPFFFWWWWW',
+    'WWWWFFFFFFFFFWFFFFFFFWFFFFFFFFFWWWWW',
+    'WWWWFFFFFFFFFWFFFFFFFWWFFFFFFFWWWWWW',
+    'WWWFFFFFFFFFFWFFPPPPFWWWFFFFFWWWWWWW',
+    'WWWWWWWWWWWWWWFFPPPPFWWWWWWWWWWWWWWW',
+    'WWWWWWWWWWWWWWFFFFFFFSFFFFWWWWWWWWWW',
+    'WWWWWWWWWWWWWWFFFFFFFWFFFFWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWFFFFWWWWWWWWWW',
+    'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+  ],
+  startX: 17, startY: 28,
+  objective: [
+    { key: 'challenge', label: 'Restore the four geo-shards — light takes shape' },
+    { key: 'transform', label: 'Follow the beams to the Octagon' },
+    { key: 'boss', label: 'Face The Prism' },
+  ],
+  transform: {
+    message: 'The fourth beam fires — an octagon of light opens the vault!',
+    tiles: P_([[26, 15], [26, 16], [26, 17]]),
+  },
+  objects: [
+    // ── Entry hall (rectangle) ──
+    { type: 'mathdoor', x: 14, y: 26, id: 'f6lock1' },
+    { type: 'geoshard', x: 16, y: 25, drain: P_([[13, 26]]), drainMessage: 'A beam of light cuts WEST — into the Triangle Hall!' },
+    { type: 'encounter', x: 15, y: 28 },
+    { type: 'gold', x: 20, y: 29 },
+    // ── Geode Heart (secret) ──
+    { type: 'chest', x: 23, y: 29, loot: { gold: 55 } },
+    { type: 'gold', x: 24, y: 30 },
+    // ── TRIANGLE hall: Great Helm sealed in crystal ──
+    { type: 'mathdoor', x: 8, y: 19, id: 'f6lock2' },
+    { type: 'geoshard', x: 8, y: 18, drain: P_([[8, 17], [8, 16], [8, 15], [8, 14]]), drainMessage: 'A beam fires NORTH through the rock — to the Square Gallery!' },
+    { type: 'hero', x: 4, y: 26, id: 'hero-knight-greathelm', heroId: 'knight-greathelm', prison: 'crystal' },
+    { type: 'encounter', x: 6, y: 24 },
+    { type: 'encounter', x: 10, y: 22 },
+    { type: 'chest', x: 12, y: 26, loot: { gold: 35 } },
+    { type: 'potion', x: 3, y: 26 },
+    // ── SQUARE gallery: Grand Mage sealed in crystal + Diamond Nook ──
+    { type: 'mathdoor', x: 12, y: 10, id: 'f6lock3' },
+    { type: 'geoshard', x: 9, y: 9, drain: P_([[14, 10], [15, 10], [16, 10], [17, 10], [18, 10], [19, 10], [20, 10], [21, 10]]), drainMessage: 'A LONG beam fires EAST — eight tiles to the Hexagon Vault!' },
+    { type: 'hero', x: 7, y: 12, id: 'hero-wizard-grandmage', heroId: 'wizard-grandmage', prison: 'crystal' },
+    { type: 'fountain', x: 7, y: 7, id: 'f6fount', uses: 3 },
+    { type: 'encounter', x: 11, y: 12 },
+    { type: 'chest', x: 3, y: 10, loot: { gold: 40 } },   // Diamond Nook (secret)
+    { type: 'gold', x: 2, y: 9 },
+    // ── HEXAGON vault: the final shard ──
+    { type: 'mathdoor', x: 26, y: 13, id: 'f6lock4' },
+    { type: 'geoshard', x: 26, y: 9 },   // FINAL shard → octagon transform
+    { type: 'encounter', x: 24, y: 8 },
+    { type: 'encounter', x: 28, y: 12 },
+    { type: 'chest', x: 29, y: 9, loot: { gold: 45 } },
+    { type: 'potion', x: 23, y: 12 },
+    { type: 'gold', x: 24, y: 14 },
+    // ── OCTAGON: The Prism ──
+    { type: 'mathdoor', x: 26, y: 19, id: 'f6cagelock' },
+    { type: 'encounter', x: 24, y: 24 },
+    { type: 'boss', x: 26, y: 22, enemyId: 'theprism' },
+    { type: 'golden', x: 25, y: 23 },
+    { type: 'exit', x: 27, y: 23 },
+  ],
+};
+
+// ════════════════════════════════════════════════════════════════
+// FLOORS 7–9 — same contract, themed transformations:
 //   2 Tidepool (−): close 3 drain valves → the tide DRAINS, sunken
 //     causeway tiles Q→P reveal the route to the Pressure Chamber.
 //   4 Ember (÷): seal 3 vents → the lava flow is SPLIT and starved,
@@ -642,14 +745,12 @@ function makeStub(id, challengeType, bossId, heroes = []) {
   };
 }
 
-FLOOR_STUBS[6] = makeStub(6, 'geoshard', 'theprism', [
-  { heroId: 'knight-greathelm', prison: 'crystal' }, { heroId: 'wizard-grandmage', prison: 'crystal' }]);
 FLOOR_STUBS[7] = makeStub(7, 'token', 'counterfeiter', [
   { heroId: 'bunny-duchess', prison: 'vault' }]);
 FLOOR_STUBS[8] = makeStub(8, 'page', 'theparadox');
 FLOOR_STUBS[9] = makeStub(9, 'fragment', 'theorem');
 
-const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5 };
+const LEVELS = { ...FLOOR_STUBS, 1: FLOOR_1, 2: FLOOR_2, 3: FLOOR_3, 4: FLOOR_4, 5: FLOOR_5, 6: FLOOR_6 };
 
 /** Register/replace a hand-crafted floor (used as floors are finished). */
 export function registerLevel(def) { LEVELS[def.id] = def; }
