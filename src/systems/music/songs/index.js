@@ -10,6 +10,8 @@
 import { TITLE_SONG } from './title.js';
 import { WORLD_SONG } from './world.js';
 import { BATTLE_SONG, VICTORY_STINGER, DEFEAT_STINGER } from './battle.js';
+import { FLOOR_SONGS } from './floors.js';
+import { BOSS_SONGS } from './bosses.js';
 
 const SONGS = {
   'music/title': TITLE_SONG,
@@ -19,14 +21,12 @@ const SONGS = {
   'stinger/defeat': DEFEAT_STINGER,
 };
 
-// Until per-floor themes land (M5), floors share the meadow at map
-// tempo and bosses share the battle theme — real music everywhere
-// from day one, unique pieces arriving floor by floor.
+// One composed theme per floor and one unique score per boss.
 for (let f = 1; f <= 9; f++) {
-  SONGS[`music/floor-${f}`] = SONGS[`music/floor-${f}`] || WORLD_SONG;
-  SONGS[`music/boss-${f}`] = SONGS[`music/boss-${f}`] || BATTLE_SONG;
+  SONGS[`music/floor-${f}`] = FLOOR_SONGS[f - 1];
+  SONGS[`music/boss-${f}`] = BOSS_SONGS[f - 1];
 }
-SONGS['music/boss'] = SONGS['music/boss'] || BATTLE_SONG;
+SONGS['music/boss'] = BOSS_SONGS[8];
 
 export function getSong(key) { return SONGS[key] || null; }
 export function hasSong(key) { return !!SONGS[key]; }
