@@ -74,6 +74,11 @@ const SOUNDS = {
 // `audio` export that's lazy-initialized.
 
 import { playSynth, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic } from './synthAudio.js';
+import {
+  setMusicVolume as setMusicBusVolume,
+  setSfxVolume as setSfxBusVolume,
+  setMuted as setBusMuted,
+} from './music/audioGraph.js';
 
 class AudioManager {
   constructor() {
@@ -205,11 +210,14 @@ class AudioManager {
 
   setMuted(muted) {
     this.muted = !!muted;
-    if (this.muted) this.stopMusic();
+    // Mute the master bus instead of killing the track: unmute resumes
+    // instantly where the music left off.
+    setBusMuted(this.muted);
   }
 
   setMusicVolume(v) {
     this.musicVolume = Math.max(0, Math.min(1, v));
+    setMusicBusVolume(this.musicVolume);
     if (this._currentMusicObj) {
       try { this._currentMusicObj.setVolume(this.musicVolume); } catch { /* ignore */ }
     }
@@ -217,6 +225,7 @@ class AudioManager {
 
   setSfxVolume(v) {
     this.sfxVolume = Math.max(0, Math.min(1, v));
+    setSfxBusVolume(this.sfxVolume);
   }
 }
 

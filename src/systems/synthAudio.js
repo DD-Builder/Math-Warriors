@@ -11,16 +11,10 @@
 // CORE HELPERS
 // ------------------------------------------------------------------
 
-let _ctx = null;
-function getCtx() {
-  if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
-  return _ctx;
-}
+import { getCtx, unlockAudio, getSfxBus, getMusicBus } from './music/audioGraph.js';
 
-export function unlockAudio() {
-  const ctx = getCtx();
-  if (ctx.state === 'suspended') ctx.resume();
-}
+// Back-compat: existing call sites import these from synthAudio.
+export { unlockAudio };
 
 function playTone(freq, dur, type, vol, endFreq) {
   const ctx = getCtx();
@@ -31,22 +25,32 @@ function playTone(freq, dur, type, vol, endFreq) {
   if (endFreq) osc.frequency.linearRampToValueAtTime(endFreq, ctx.currentTime + dur);
   gain.gain.setValueAtTime(vol || 0.3, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-  osc.connect(gain); gain.connect(ctx.destination);
+  osc.connect(gain); gain.connect(getSfxBus());
   osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur);
+}
+
+// One shared 1s noise buffer — v1 allocated and filled a fresh
+// AudioBuffer for every single hit/chest sound.
+let _noiseBuf = null;
+function getNoiseBuffer() {
+  if (!_noiseBuf) {
+    const ctx = getCtx();
+    _noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const data = _noiseBuf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+  }
+  return _noiseBuf;
 }
 
 function playNoise(dur, vol) {
   const ctx = getCtx();
-  const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = getNoiseBuffer();
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(vol || 0.3, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-  src.connect(gain); gain.connect(ctx.destination);
-  src.start();
+  src.connect(gain); gain.connect(getSfxBus());
+  src.start(ctx.currentTime, 0, dur);
 }
 
 // ------------------------------------------------------------------
@@ -186,7 +190,7 @@ export function playSynthMusic(key) {
     osc.frequency.setValueAtTime(layer.freq, ctx.currentTime);
     gain.gain.setValueAtTime(layer.volume || 0.03, ctx.currentTime);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(getMusicBus());
     osc.start(ctx.currentTime);
     oscillators.push(osc);
     gains.push(gain);
