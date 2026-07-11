@@ -909,6 +909,49 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
     _G.globalAlpha = 1;
   }
   else fns.floor(sx, sy, ts, tx, ty);
+  _applyTileDepth(tt, sx, sy, ts, tx, ty);
+}
+
+// ─── SHARED DEPTH PASS ──────────────────────────────────────────
+// Turns "flat construction paper" into a layered diorama, for EVERY
+// theme at once: walls cast soft paper shadows onto the walkable
+// tiles beside them, and water gets a bright shoreline wherever it
+// meets land. Stacked solid fills (no gradients) keep the papercut
+// look and cost two fillRects per edge at most.
+
+function _tileAt(tx, ty) {
+  if (ty < 0 || ty >= _ROWS || tx < 0 || tx >= _COLS) return LV_TW;
+  return _map[ty][tx];
+}
+function _isWalk(tt) { return tt === LV_TF || tt === LV_TP || tt === LV_TS; }
+
+function _applyTileDepth(tt, sx, sy, ts, tx, ty) {
+  if (tt === LV_TF || tt === LV_TP) {
+    // Wall above casts down into the scene (3/4 top-down light)
+    if (_tileAt(tx, ty - 1) === LV_TW) {
+      _G.fillStyle = 'rgba(12,7,3,0.20)';
+      _G.fillRect(sx, sy, ts + 1, ts * 0.20);
+      _G.fillStyle = 'rgba(12,7,3,0.10)';
+      _G.fillRect(sx, sy, ts + 1, ts * 0.42);
+    }
+    // Softer sideways occlusion from a wall on the left
+    if (_tileAt(tx - 1, ty) === LV_TW) {
+      _G.fillStyle = 'rgba(12,7,3,0.12)';
+      _G.fillRect(sx, sy, ts * 0.16, ts + 1);
+    }
+    // Bank line where land meets water below — grounds the shoreline
+    if (_tileAt(tx, ty + 1) === LV_TQ) {
+      _G.fillStyle = 'rgba(12,7,3,0.14)';
+      _G.fillRect(sx, sy + ts - ts * 0.08, ts + 1, ts * 0.08);
+    }
+  } else if (tt === LV_TQ) {
+    // Shoreline: a light rim inside every water edge that touches land
+    _G.fillStyle = 'rgba(255,255,255,0.16)';
+    if (_isWalk(_tileAt(tx, ty - 1))) _G.fillRect(sx, sy, ts + 1, ts * 0.10);
+    if (_isWalk(_tileAt(tx, ty + 1))) _G.fillRect(sx, sy + ts - ts * 0.10, ts + 1, ts * 0.10);
+    if (_isWalk(_tileAt(tx - 1, ty))) _G.fillRect(sx, sy, ts * 0.10, ts + 1);
+    if (_isWalk(_tileAt(tx + 1, ty))) _G.fillRect(sx + ts - ts * 0.10, sy, ts * 0.10, ts + 1);
+  }
 }
 
 // ─── OBJECT DRAWING (1:1 from reference) ────────────────────────
@@ -1840,7 +1883,7 @@ function LV_draw(t) {
     if (_fog[fy2][fx2]) continue;
     var fsx = camX + fx2 * ts, fsy = camY + fy2 * ts;
     if (fsx + ts < 0 || fsx > _W || fsy + ts < 0 || fsy > _H) continue;
-    _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.94)'; _G.fillRect(fsx, fsy, ts + 1, ts + 1);
+    _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.86)'; _G.fillRect(fsx, fsy, ts + 1, ts + 1);
   }
   // Fog edge softening — two-pass for smooth transition
   var fogEdgeCol = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.30)';
@@ -1861,14 +1904,14 @@ function LV_draw(t) {
   }
   // Vignette (theme-tinted)
   var vigR = Math.min(_W, _H);
-  var vig = _G.createRadialGradient(_W / 2, _H / 2, vigR * 0.22, _W / 2, _H / 2, vigR * 0.68);
+  var vig = _G.createRadialGradient(_W / 2, _H / 2, vigR * 0.34, _W / 2, _H / 2, vigR * 0.82);
   var _vigTint = {
     1: 'rgba(6,18,4,', 2: 'rgba(4,12,20,', 3: 'rgba(12,16,24,',
     4: 'rgba(16,4,0,', 5: 'rgba(4,12,18,', 6: 'rgba(10,4,18,',
     7: 'rgba(12,10,4,', 8: 'rgba(6,4,2,', 9: 'rgba(4,2,8,',
   };
   var vigBase = _vigTint[_floorTheme] || 'rgba(0,0,0,';
-  vig.addColorStop(0, vigBase + '0)'); vig.addColorStop(0.7, vigBase + '0.15)'); vig.addColorStop(1, vigBase + '0.55)');
+  vig.addColorStop(0, vigBase + '0)'); vig.addColorStop(0.75, vigBase + '0.08)'); vig.addColorStop(1, vigBase + '0.30)');
   _G.fillStyle = vig; _G.fillRect(0, 0, _W, _H);
   // Flash
   if (_gs.flash > 0) { _G.fillStyle = 'rgba(156,32,32,' + (_gs.flash / 10 * 0.45) + ')'; _G.fillRect(0, 0, _W, _H); _gs.flash--; }
@@ -1908,7 +1951,7 @@ function LV_update(keys) {
     else _party.facing = dy > 0 ? 'down' : 'up';
   }
   _party.vx = dx; _party.vy = dy;
-  LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 3);
+  LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 5);
   _party.animT++;
 }
 
@@ -1930,7 +1973,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   _H = height;
   _ROWS = map.length;
   _COLS = map[0].length;
-  _SCALE = _W / (LV_TILE * 13.5);
+  _SCALE = _W / (LV_TILE * 16);   // ~16 visible columns — v1's 13.5 felt cramped
   _map = map;
   _objs = objects;
   _heroCanvases = heroCanvases || [];
@@ -1973,7 +2016,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   };
 
   // Reveal starting area
-  LV_revealFog(startX, startY, 3);
+  LV_revealFog(startX, startY, 5);
 
   // Dev/testing hook — inspect live engine state from the console when
   // the page was loaded with ?dev=...
