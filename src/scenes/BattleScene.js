@@ -40,6 +40,8 @@ import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero, HERO_FEET_OFFSET } from '../ui/heroSprites.js';
 import { BATTLE_DEPTH } from '../ui/depths.js';
 import { getQuestionTimer, SOFT_TIMER_BONUS } from '../systems/battleTimer.js';
+import { canTriggerSpecial, specialOperator, resolveSpecial, specialTimerMs } from '../systems/specialRules.js';
+import { createNumpad } from '../ui/numpad.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { createFractionDisplay } from '../ui/fractionDisplay.js';
@@ -950,7 +952,15 @@ export class BattleScene extends Phaser.Scene {
 
     this.teamBtn = PaperButton(this, area.right - 85, ansY, 'TEAM!', {
       w: 150, h: 44, color: 0xe04040, fontSize: 15,
-      onClick: () => this.executeTeamAttack(),
+      onClick: () => {
+        // Full momentum: grades 2+ spend it on the typed-answer
+        // SPECIAL; K-1 keep the tap-to-fire team attack.
+        if (canTriggerSpecial({ momentum: this.momentum, grade: this.grade })) {
+          this.startFillInSpecial();
+        } else {
+          this.executeTeamAttack();
+        }
+      },
     });
     this.setSuperVisible(this.teamBtn, false);
 
@@ -3811,6 +3821,129 @@ export class BattleScene extends Phaser.Scene {
       this.superBtn.label.setText(best ? best.name : 'SUPER!');
     }
     this.setSuperVisible(this.teamBtn, this.momentum >= 1.0);
+    if (this.momentum >= 1.0 && this.teamBtn?.label) {
+      this.teamBtn.label.setText(this.grade >= 2 ? 'SPECIAL!' : 'TEAM!');
+      // Pulse so the charged moment is unmissable
+      if (!this._teamPulse) {
+        this._teamPulse = this.tweens.add({
+          targets: [this.teamBtn.bg, this.teamBtn.label],
+          scaleX: 1.08, scaleY: 1.08,
+          duration: 350, yoyo: true, repeat: -1, ease: 'Sine.inOut',
+        });
+      }
+    } else if (this._teamPulse) {
+      this._teamPulse.stop();
+      this._teamPulse = null;
+      if (this.teamBtn?.bg) { this.teamBtn.bg.setScale(1); this.teamBtn.label.setScale(1); }
+    }
+  }
+
+  /**
+   * The momentum SPECIAL: the four answer buttons swap for a numpad
+   * and the player must TYPE the answer. Correct → the hero's super
+   * spectacle at triple damage with splash. Wrong or out of time →
+   * forgiving fizzle: the answer is shown, the hero still lands a
+   * normal-strength strike, momentum reseats at neutral.
+   */
+  startFillInSpecial() {
+    if (this.phase !== 'question' || this.locked || this._specialActive) return;
+    if (this.momentum < 1.0) return;
+    this._specialActive = true;
+    this.locked = true;
+    this.clearBossTimer();
+
+    const op = specialOperator({ floorOperator: FLOOR_OPERATORS[this.floor] || '+', grade: this.grade });
+    const q = generateRatedQuestion({
+      operator: op,
+      grade: getAdaptiveGrade(this.save, op),
+      streak: 0,
+      floor: this.floor,
+      targetStars: [2, 3],
+    });
+    this._specialQuestion = q;
+    this.renderStackedEquation(q);
+    this.setAnswerButtonsVisible(false);
+    this.setSuperVisible(this.superBtn, false);
+    this.setSuperVisible(this.teamBtn, false);
+    this.setSuperVisible(this.abilityBtn, false);
+    this.showToast('TYPE the answer to unleash it!', '#f0c040');
+
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this._specialNumpad = createNumpad(this, {
+      x: area.cx, y: area.bottom - 250,
+      depth: BATTLE_DEPTH.COMMAND,
+      onSubmit: (v) => this.resolveSpecialAnswer(v),
+    });
+
+    // Generous hard window: 1.5x the boss clock for this grade/format
+    const bossSpec = getQuestionTimer({ grade: this.grade, format: op, isBoss: true });
+    const ms = specialTimerMs(bossSpec.ms);
+    this._specialTimer = this.time.delayedCall(ms, () => this.resolveSpecialAnswer(null));
+  }
+
+  resolveSpecialAnswer(value) {
+    if (!this._specialActive) return;
+    this._specialActive = false;
+    if (this._specialTimer) { this._specialTimer.remove(); this._specialTimer = null; }
+    if (this._specialNumpad) { this._specialNumpad.destroy(); this._specialNumpad = null; }
+
+    const q = this._specialQuestion;
+    const correct = value != null && value === q.answer;
+    const rules = resolveSpecial({ correct });
+    this.momentum = rules.momentumAfter;
+    this.updateMomentumBar();
+
+    const heroIdx = this.currentTurn?.heroIndex ?? 0;
+    const hero = this.party[heroIdx];
+    const heroSprite = this.heroSprites[heroIdx];
+    const targetIdx = this.currentTarget || 0;
+    const targetEnemy = this.enemies[targetIdx] || this.enemy;
+    const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
+    const baseDmg = 5 + ((hero?.atk || 10) * 0.5);
+    const dmg = Math.round(baseDmg * rules.damageMult);
+
+    if (correct) {
+      recordAnswer(true);
+      audio.play('battle/correct');
+      this.showToast(`SPECIAL! ${dmg} DMG!`, '#f0c040');
+      this.showBattleCry(hero, 'superMove');
+      const cls = hero?.class || 'knight';
+      const superResult = { modifiedDamage: dmg };
+      const superCb = {
+        onHit: () => {
+          targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+          this.updateEnemyHp(targetIdx);
+          // Splash: the overflow arcs into every other living enemy
+          if (rules.splashMult > 0) {
+            const splash = Math.round(dmg * rules.splashMult);
+            this.enemies.forEach((e, i) => {
+              if (i === targetIdx || e.hp <= 0) return;
+              e.hp = Math.max(0, e.hp - splash);
+              this.updateEnemyHp(i);
+              const es = this.enemySprites[i];
+              if (es?.body) this.burstParticles(es.body.x, es.body.y, 0xf0c040);
+            });
+          }
+        },
+        onComplete: () => this.afterSuperDamage(targetIdx, targetSprite),
+      };
+      const tx = targetSprite.x, ty = targetSprite.y;
+      if (cls === 'knight') playKnightSuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
+      else if (cls === 'wizard') playWizardSuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
+      else playBunnySuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
+    } else {
+      recordAnswer(false);
+      audio.play('battle/wrong');
+      // Show the answer — the miss should still teach
+      this.showToast(`It was ${q.answer}! The spark fizzles into a strike…`, '#8ac0e8');
+      playFightAnimation(this, heroSprite, targetSprite, hero?.class || 'knight', '+', { modifiedDamage: dmg }, {
+        onHit: () => {
+          targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+          this.updateEnemyHp(targetIdx);
+        },
+        onComplete: () => this.afterSuperDamage(targetIdx, targetSprite),
+      });
+    }
   }
 
   executeSuperMove() {
