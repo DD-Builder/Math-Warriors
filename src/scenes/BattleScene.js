@@ -39,6 +39,7 @@ import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnight
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero, HERO_FEET_OFFSET } from '../ui/heroSprites.js';
 import { BATTLE_DEPTH } from '../ui/depths.js';
+import { getQuestionTimer, SOFT_TIMER_BONUS } from '../systems/battleTimer.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { createFractionDisplay } from '../ui/fractionDisplay.js';
@@ -931,21 +932,24 @@ export class BattleScene extends Phaser.Scene {
       this.drawColorblindMomentumPatterns(barX, topY, barW);
     }
 
-    const abilityBtnY = ansY + ansH / 2 + 32;
-    this.abilityBtn = PaperButton(this, area.cx, abilityBtnY, 'ABILITY', {
-      w: 220, h: 42, color: 0x9050c8, fontSize: 16,
+    // Ability/Super/Special live in the SIDE GUTTERS beside the answer
+    // row (the row spans x 216-1224, leaving ~176px each side) — the
+    // old row at ansY+72 sat inside BOTTOM_SAFE (y>960) where the iPad
+    // Safari toolbar can swallow taps.
+    this.abilityBtn = PaperButton(this, area.left + 85, ansY - 64, 'ABILITY', {
+      w: 150, h: 42, color: 0x9050c8, fontSize: 14,
       onClick: () => this.useAbility(),
     });
     this.setSuperVisible(this.abilityBtn, false);
 
-    this.superBtn = PaperButton(this, area.cx - 220, abilityBtnY, 'SUPER!', {
-      w: 180, h: 44, color: 0xe8a030, fontSize: 17,
+    this.superBtn = PaperButton(this, area.left + 85, ansY, 'SUPER!', {
+      w: 150, h: 44, color: 0xe8a030, fontSize: 15,
       onClick: () => this.executeSuperMove(),
     });
     this.setSuperVisible(this.superBtn, false);
 
-    this.teamBtn = PaperButton(this, area.cx + 220, abilityBtnY, 'TEAM ATTACK!', {
-      w: 200, h: 44, color: 0xe04040, fontSize: 15,
+    this.teamBtn = PaperButton(this, area.right - 85, ansY, 'TEAM!', {
+      w: 150, h: 44, color: 0xe04040, fontSize: 15,
       onClick: () => this.executeTeamAttack(),
     });
     this.setSuperVisible(this.teamBtn, false);
@@ -1535,16 +1539,23 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    // Boss timer starts AFTER command selection
-    if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
-    if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
-    if (this.isBoss) {
-      const gradeTimers = [12000, 11000, 10000, 8000, 9000, 10000];
-      let timerDuration = gradeTimers[this.grade] || 8000;
-      // --- Bookworm signature: add extra seconds to boss timer ---
+    // Question timer starts NOW — after the player commits to a
+    // command, never while they read the menu. Duration comes from
+    // grade + question format (battleTimer.js); boss = hard timer,
+    // grades 2-5 normal battles = soft bonus timer, K-1 = none.
+    this.clearBossTimer();
+    const timerSpec = getQuestionTimer({
+      grade: this.grade,
+      format: this.currentQuestion?.op || FLOOR_OPERATORS[this.floor] || '+',
+      isBoss: this.isBoss,
+    });
+    if (timerSpec) {
+      let timerDuration = timerSpec.ms;
+      this._timerHard = timerSpec.hard;
+      this._softTimerExpired = false;
+      // --- Bookworm signature: add extra seconds to the timer ---
       if (this.signatureState.timerBonusSeconds > 0) {
         timerDuration += this.signatureState.timerBonusSeconds * 1000;
-        // Show +Ns indicator near the timer bar
         const area2 = safeArea(GAME_WIDTH, GAME_HEIGHT);
         const bonusLabel = this.add.text(area2.cx + 210, this.turnLabel.y - 30, `+${this.signatureState.timerBonusSeconds}s`, {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -1552,7 +1563,7 @@ export class BattleScene extends Phaser.Scene {
           color: '#4080e0',
           stroke: PAPER_CSS.shadow,
           strokeThickness: 2,
-        }).setOrigin(0, 0.5).setDepth(30);
+        }).setOrigin(0, 0.5).setDepth(BATTLE_DEPTH.TIMER);
         this._timerBonusLabel = bonusLabel;
       }
       this.bossTimerStart = this.time.now;
@@ -1565,6 +1576,10 @@ export class BattleScene extends Phaser.Scene {
       this.bossTimerBar.setScrollFactor(0);
       this.bossTimerBar.setDepth(BATTLE_DEPTH.TIMER);
       this.updateBossTimerBar(barW, barY, 1);
+      // Clock glyph: makes "the clock starts when you commit" visible
+      this._timerClockGlyph = this.add.text(area.cx - barW / 2 - 26, barY + 5, timerSpec.hard ? '⏱' : '✨', {
+        fontSize: '22px',
+      }).setOrigin(0.5).setDepth(BATTLE_DEPTH.TIMER);
 
       this.bossTimerUpdate = this.time.addEvent({
         delay: 50, loop: true,
@@ -1577,9 +1592,15 @@ export class BattleScene extends Phaser.Scene {
 
       this.bossTimer = this.time.delayedCall(timerDuration, () => {
         if (this.phase !== 'question' || this.locked) return;
-        this.showToast('TIME UP!', COLORS_CSS.scarletL);
-        const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
-        this.onAnswer(wrongIdx);
+        if (timerSpec.hard) {
+          this.showToast('TIME UP!', COLORS_CSS.scarletL);
+          const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
+          this.onAnswer(wrongIdx);
+        } else {
+          // Soft timer: no punishment — the sparkle bonus just lapses.
+          this._softTimerExpired = true;
+          this.showToast('Take your time!', '#8ac0e8');
+        }
       });
     }
 
@@ -1769,6 +1790,8 @@ export class BattleScene extends Phaser.Scene {
     if (this.bossTimerUpdate) { this.bossTimerUpdate.remove(); this.bossTimerUpdate = null; }
     if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
     if (this._bossTimerUrgencyGlow) { this._bossTimerUrgencyGlow.destroy(); this._bossTimerUrgencyGlow = null; }
+    if (this._timerClockGlyph) { this._timerClockGlyph.destroy(); this._timerClockGlyph = null; }
+    if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
   }
 
   /**
@@ -2282,6 +2305,11 @@ export class BattleScene extends Phaser.Scene {
       this.streak++;
       this.battleCorrect++;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
+      // Beating a soft (bonus) timer earns a sparkle of extra momentum
+      if (this.bossTimerBar && !this._timerHard && !this._softTimerExpired) {
+        this.momentum = Math.min(1, this.momentum + SOFT_TIMER_BONUS);
+        this.showFloatTextAt?.(GAME_WIDTH / 2, 140, 'QUICK!', '#8ae0f8');
+      }
       this.updateMomentumBar();
 
       const heroIdx = this.currentTurn.heroIndex;
