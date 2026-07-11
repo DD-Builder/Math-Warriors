@@ -1080,10 +1080,10 @@ export class WorldMapScene extends Phaser.Scene {
         lines,
         floorId,
         nextScene: SCENES.MAZE,
-        nextData: { floor: floorId },
+        nextData: { floor: floorId, fromWorldMap: true },
       }, 300, 'circle');
     } else {
-      transitionTo(this, SCENES.MAZE, { floor: floorId }, 300, 'circle');
+      transitionTo(this, SCENES.MAZE, { floor: floorId, fromWorldMap: true }, 300, 'circle');
     }
   }
 

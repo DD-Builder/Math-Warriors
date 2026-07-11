@@ -129,6 +129,16 @@ export class MazeScene extends Phaser.Scene {
       this.fairyTalkShown = mazeState.fairyTalkShown || false;
       this.mazeTransformed = mazeState.mazeTransformed || false;
       this.revealedSecrets = mazeState.revealedSecrets || [];
+
+      // Re-entering the floor from the world map (not returning from a
+      // battle) repopulates fought encounters while the boss still
+      // rules the floor — floors stay alive on revisits. Boss victory
+      // still sweeps every encounter for good.
+      if (data?.fromWorldMap && !this.bossDefeated) {
+        for (const o of this.objects) {
+          if (o.type === 'encounter' && o.consumed) o.consumed = false;
+        }
+      }
     } else {
       // Fresh entry — every object is HAND-PLACED by the level design.
       // No randomization: the layout, the gates, and the rewards are

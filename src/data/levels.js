@@ -100,7 +100,10 @@ const FLOOR_1 = {
     { type: 'encounter', x: 11, y: 7 },
     { type: 'encounter', x: 8, y: 11 },
     { type: 'encounter', x: 12, y: 13 },
-    { type: 'encounter', x: 18, y: 8 },   // east grove guard
+    { type: 'encounter', x: 18, y: 8 },
+    { type: 'encounter', x: 1, y: 7 },
+    { type: 'encounter', x: 5, y: 5 },
+    { type: 'encounter', x: 13, y: 10 },   // east grove guard
     // rewards worth exploring for
     { type: 'chest', x: 18, y: 1, loot: { gold: 25 } },   // NE grove pocket
     { type: 'chest', x: 1, y: 8, loot: { gold: 20 } },
@@ -224,6 +227,8 @@ const FLOOR_2 = {
     { type: 'potion', x: 28, y: 23 },
     { type: 'encounter', x: 29, y: 17 },
     { type: 'encounter', x: 30, y: 22 },
+    { type: 'encounter', x: 24, y: 15 },
+    { type: 'encounter', x: 10, y: 2 },
     // ── trapped heroes — Ebbport survivors, freed as districts surface ──
     { type: 'hero', x: 24, y: 7, id: 'hero-wizard-spellblade', heroId: 'wizard-spellblade', prison: 'coral' },  // Market Row
     { type: 'hero', x: 21, y: 21, id: 'hero-bunny-nova', heroId: 'bunny-nova', prison: 'coral' },               // Temple Terraces
@@ -343,6 +348,8 @@ const FLOOR_3 = {
     { type: 'potion', x: 11, y: 24 },
     { type: 'encounter', x: 17, y: 24 },
     { type: 'encounter', x: 22, y: 26 },
+    { type: 'encounter', x: 10, y: 28 },
+    { type: 'encounter', x: 12, y: 2 },
     // ── THE EYE: the Skywhale's storm-heart ──
     { type: 'mathdoor', x: 15, y: 14, id: 'f3cagelock' },
     { type: 'boss', x: 16, y: 15, enemyId: 'skywhale' },
@@ -450,6 +457,8 @@ const FLOOR_4 = {
     { type: 'chest', x: 26, y: 3, loot: { gold: 40 } },
     { type: 'encounter', x: 12, y: 6 },
     { type: 'encounter', x: 24, y: 12 },
+    { type: 'encounter', x: 10, y: 13 },
+    { type: 'encounter', x: 19, y: 17 },
     { type: 'gold', x: 14, y: 3 },
     // ── The caldera: Pyroclast's island ──
     { type: 'mathdoor', x: 18, y: 9, id: 'f4cagelock' },
@@ -553,6 +562,9 @@ const FLOOR_5 = {
     { type: 'gold', x: 3, y: 13 },
     { type: 'encounter', x: 6, y: 12 },
     { type: 'encounter', x: 26, y: 11 },
+    { type: 'encounter', x: 1, y: 1 },
+    { type: 'encounter', x: 28, y: 1 },
+    { type: 'encounter', x: 7, y: 5 },
     // ── SUMMIT: Absolute Zero's frozen throne ──
     { type: 'mathdoor', x: 15, y: 6, id: 'f5cagelock' },
     { type: 'boss', x: 15, y: 4, enemyId: 'absolutezero' },
@@ -660,6 +672,10 @@ const FLOOR_6 = {
     // ── OCTAGON: The Prism ──
     { type: 'mathdoor', x: 26, y: 19, id: 'f6cagelock' },
     { type: 'encounter', x: 24, y: 24 },
+    { type: 'encounter', x: 30, y: 20 },
+    { type: 'encounter', x: 13, y: 6 },
+    { type: 'encounter', x: 22, y: 20 },
+    { type: 'encounter', x: 30, y: 8 },
     { type: 'boss', x: 26, y: 22, enemyId: 'theprism' },
     { type: 'golden', x: 25, y: 23 },
     { type: 'exit', x: 27, y: 23 },
@@ -765,6 +781,9 @@ const FLOOR_7 = {
     // ── Grand Bazaar: The Counterfeiter ──
     { type: 'mathdoor', x: 29, y: 4, id: 'f7cagelock' },
     { type: 'encounter', x: 30, y: 6 },
+    { type: 'encounter', x: 1, y: 1 },
+    { type: 'encounter', x: 14, y: 30 },
+    { type: 'encounter', x: 20, y: 19 },
     { type: 'boss', x: 31, y: 4, enemyId: 'counterfeiter' },
     { type: 'golden', x: 30, y: 3 },
     { type: 'exit', x: 32, y: 3 },
@@ -864,6 +883,10 @@ const FLOOR_8 = {
     { type: 'mathdoor', x: 28, y: 4, id: 'f8lock4' },
     { type: 'page', x: 30, y: 4 },   // final page → sanctum transform
     { type: 'encounter', x: 10, y: 4 },
+    { type: 'encounter', x: 1, y: 1 },
+    { type: 'encounter', x: 1, y: 20 },
+    { type: 'encounter', x: 10, y: 26 },
+    { type: 'encounter', x: 2, y: 7 },
     { type: 'chest', x: 4, y: 3, loot: { gold: 40 } },
     { type: 'gold', x: 12, y: 2 },
     { type: 'potion', x: 33, y: 3 },
@@ -979,6 +1002,8 @@ const FLOOR_9 = {
     { type: 'encounter', x: 6, y: 24 },
     { type: 'encounter', x: 35, y: 24 },
     { type: 'encounter', x: 20, y: 11 },
+    { type: 'encounter', x: 21, y: 1 },
+    { type: 'encounter', x: 30, y: 18 },
     { type: 'gold', x: 2, y: 12 },
     { type: 'gold', x: 39, y: 12 },
     { type: 'gold', x: 39, y: 23 },
