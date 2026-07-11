@@ -41,6 +41,7 @@ import { drawHeroSprite, createAnimatedHero, HERO_FEET_OFFSET } from '../ui/hero
 import { BATTLE_DEPTH } from '../ui/depths.js';
 import { getQuestionTimer, SOFT_TIMER_BONUS } from '../systems/battleTimer.js';
 import { canTriggerSpecial, specialOperator, resolveSpecial, specialTimerMs } from '../systems/specialRules.js';
+import { playBossEntrance, showIntentBadge, playBossTelegraph, getBossMove, isSpecialTurn, isTelegraphTurn, specialDamagePerHero } from '../systems/bossPresentation.js';
 import { createNumpad } from '../ui/numpad.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
@@ -335,12 +336,17 @@ export class BattleScene extends Phaser.Scene {
     // Fade in
     fadeInScene(this);
 
-    // --- Battle cry: boss encounter ---
-    if (this.isBoss && this.party[0]) {
-      this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
+    // --- Boss battles open with an entrance + name card; the turn
+    // loop waits for the curtain. Normal battles start immediately. ---
+    this.bossTurnCount = 0;
+    if (this.isBoss && this.enemySprites[0]) {
+      if (this.party[0]) {
+        this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
+      }
+      playBossEntrance(this, this.enemySprites[0], this.enemies[0], () => this.nextTurn());
+    } else {
+      this.time.delayedCall(400, () => this.nextTurn());
     }
-
-    this.time.delayedCall(400, () => this.nextTurn());
 
     // --- Idle camera breathing: subtle slow drift for depth ---
     this.tweens.add({
@@ -1713,6 +1719,16 @@ export class BattleScene extends Phaser.Scene {
     this.refreshAbilityButton();
     this.updateSuperButton();
 
+    // Warn the player when the boss's NEXT turn is its special: a
+    // pulsing intent badge over the boss + a named callout, so kids
+    // can guard or heal on purpose instead of being ambushed.
+    if (this._intentBadge) { this._intentBadge.destroy(); this._intentBadge = null; }
+    if (this.isBoss && isTelegraphTurn(this.bossTurnCount || 0) && this.enemies[0]?.hp > 0) {
+      this._intentBadge = showIntentBadge(this, this.enemySprites[0], this.enemies[0]);
+      const move = getBossMove(this.enemies[0].id);
+      this.showToast(`${this.enemies[0].name} is preparing ${move.name}!`, '#e8a030');
+    }
+
     if (shouldShowTutorial('FIRST_BATTLE')) {
       markTutorialShown('FIRST_BATTLE');
       this.showToast(getTutorialText('FIRST_BATTLE'), COLORS_CSS.goldL);
@@ -2113,6 +2129,19 @@ export class BattleScene extends Phaser.Scene {
     const livingHeroes = this.party.filter(h => h && h.hp > 0);
     if (livingHeroes.length === 0) return this.showDefeat();
 
+    // The warning served its purpose — clear it as the blow lands.
+    if (this._intentBadge) { this._intentBadge.destroy(); this._intentBadge = null; }
+
+    // Boss special cadence: every 3rd boss turn is the telegraphed
+    // signature move, hitting the whole party at reduced power —
+    // spectacle over punishment.
+    if (this.isBoss && aliveEnemies[0]) {
+      this.bossTurnCount = (this.bossTurnCount || 0) + 1;
+      if (isSpecialTurn(this.bossTurnCount)) {
+        return this._doBossSpecial(aliveEnemies[0]);
+      }
+    }
+
     const doEnemyAttack = (enemyIdx) => {
       if (enemyIdx >= aliveEnemies.length) {
         this.time.delayedCall(250, () => this.nextTurn());
@@ -2269,6 +2298,35 @@ export class BattleScene extends Phaser.Scene {
    * and (b) is force-fired after `timeoutMs` if the animation never
    * calls it. The single defense against turn-loop freezes.
    */
+  /**
+   * The boss's telegraphed signature move: wind-up, then the whole
+   * party takes a reduced hit at once. Guard still halves it; the
+   * defeat check runs after.
+   */
+  _doBossSpecial(boss) {
+    const bossIdx = this.enemies.indexOf(boss);
+    const bossSprite = this.enemySprites[bossIdx];
+    const move = getBossMove(boss.id);
+    this.showToast(`${boss.name} unleashes ${move.name}!`, '#e86040');
+    playBossTelegraph(this, bossSprite, boss, () => {
+      const living = this.party.filter(h => h && h.hp > 0);
+      for (const hero of living) {
+        const heroIdx = this.party.indexOf(hero);
+        const result = computeEnemyDamage(boss, hero, { momentum: this.momentum });
+        let dmg = specialDamagePerHero(result.modifiedDamage);
+        if (heroIdx >= 0 && this.guardActive[heroIdx]) dmg = Math.max(1, Math.ceil(dmg / 2));
+        hero.hp = Math.max(0, hero.hp - dmg);
+        this.flashHero(hero, { modifiedDamage: dmg, newHp: hero.hp });
+        this.updateHeroHp(hero);
+      }
+      audio.play('battle/hit-hero');
+      this.cameras.main.shake(260, 0.012);
+      this.battleDamageTaken = true;
+      if (this.party.every(h => !h || h.hp <= 0)) return this.showDefeat();
+      this.time.delayedCall(600, () => this.nextTurn());
+    });
+  }
+
   _onceWithWatchdog(fn, timeoutMs = 2500) {
     let fired = false;
     const fire = () => {

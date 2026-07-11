@@ -155,7 +155,7 @@ export function getEnemiesForFloor(floor) {
 }
 
 /** Pick a random NON-BOSS enemy for the given floor. */
-const BOSS_IDS = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'absolutezero', 'theprism', 'counterfeiter', 'theparadox', 'theorem'];
+export const BOSS_IDS = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'absolutezero', 'theprism', 'counterfeiter', 'theparadox', 'theorem'];
 export function pickEnemyForFloor(floor, rng = Math.random) {
   const pool = getEnemiesForFloor(floor).filter(e => !BOSS_IDS.includes(e.id));
   if (pool.length === 0) return null;
