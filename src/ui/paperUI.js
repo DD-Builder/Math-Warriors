@@ -114,8 +114,11 @@ function paperPolygonPoints(w, h, seed = 1) {
  * style (still useful for non-button UI panels).
  */
 export function paperRect(scene, x, y, w, h, color, opts = {}) {
-  const bg = scene.add.graphics();
+  // Shadow FIRST: at equal depth Phaser renders by display-list order,
+  // and creating bg before shadow made every button's drop shadow paint
+  // on top of its own face (a systemic v1 defect across all scenes).
   const shadow = scene.add.graphics();
+  const bg = scene.add.graphics();
   paintPaperRect(bg, shadow, x, y, w, h, color, opts);
   return { bg, shadow };
 }
