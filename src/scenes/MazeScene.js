@@ -1858,6 +1858,11 @@ export class MazeScene extends Phaser.Scene {
       3: { colors: [0xd0dce8, 0xe8f0f8, 0xffffff], size: [4, 8], speed: 0.15, name: 'wisp' },
       4: { colors: [0xf08020, 0xe04808, 0xf0c040], size: [2, 4], speed: 0.6, name: 'ember' },
       5: { colors: [0xc8e0f0, 0xe0f0ff, 0xffffff], size: [2, 4], speed: 0.2, name: 'snow' },
+      // v1 stopped at floor 5 — floors 6-9 drifted in silence
+      6: { colors: [0xb090e8, 0xd0b8ff, 0xffffff], size: [2, 4], speed: 0.12, name: 'glint' },
+      7: { colors: [0xf0d060, 0xffe890, 0xe8a840], size: [2, 3], speed: 0.35, name: 'sparkle' },
+      8: { colors: [0xe8d8b0, 0xd0c098, 0xf8ecd0], size: [2, 5], speed: 0.08, name: 'mote' },
+      9: { colors: [0x9070d8, 0xc0a8f8, 0xffffff], size: [3, 5], speed: 0.1, name: 'ripple' },
     };
     const config = particleConfig[this.floorId] || particleConfig[1];
 

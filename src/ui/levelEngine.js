@@ -912,6 +912,21 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
   _applyTileDepth(tt, sx, sy, ts, tx, ty);
 }
 
+// Objects that emit light onto the scene (r,g,b strings for gradients)
+var LV_LIGHT_COLORS = {
+  fairy: '255,220,120',
+  beacon: '255,230,140',
+  vent: '255,140,60',
+  crystal: '150,220,255',
+  thawcrystal: '170,230,255',
+  geoshard: '190,150,255',
+  fragment: '200,160,255',
+  token: '255,215,100',
+  page: '255,240,200',
+  exit: '160,255,180',
+  hero: '255,225,140',
+};
+
 // ─── SHARED DEPTH PASS ──────────────────────────────────────────
 // Turns "flat construction paper" into a layered diorama, for EVERY
 // theme at once: walls cast soft paper shadows onto the walkable
@@ -1813,6 +1828,26 @@ function LV_draw(t) {
       _G.restore();
     }
   }
+  // Light pass: glowing objects softly light the tiles around them,
+  // so beacons/crystals/vents read as actual light sources in the
+  // scene instead of stickers on it. Few lights are ever on screen,
+  // so one radial gradient each is cheap.
+  for (var li = 0; li < _objs.length; li++) {
+    var lo = _objs[li];
+    if (_gs.dead[lo.id] || !lo.alive) continue;
+    var lightCol = LV_LIGHT_COLORS[lo.type];
+    if (!lightCol) continue;
+    if (!_fog[lo.ty] || !_fog[lo.ty][lo.tx]) continue;
+    var lsx = camX + lo.tx * ts + ts * 0.5, lsy = camY + lo.ty * ts + ts * 0.5;
+    var lr = ts * 2.1;
+    if (lsx + lr < 0 || lsx - lr > _W || lsy + lr < 0 || lsy - lr > _H) continue;
+    var pulse = 0.16 + Math.sin(t * 1.8 + lo.tx * 1.3) * 0.04;
+    var lg = _G.createRadialGradient(lsx, lsy, ts * 0.2, lsx, lsy, lr);
+    lg.addColorStop(0, 'rgba(' + lightCol + ',' + pulse + ')');
+    lg.addColorStop(1, 'rgba(' + lightCol + ',0)');
+    _G.fillStyle = lg;
+    _G.fillRect(lsx - lr, lsy - lr, lr * 2, lr * 2);
+  }
   // Objects
   for (var oi = 0; oi < _objs.length; oi++) {
     var o = _objs[oi];
@@ -1949,6 +1984,18 @@ function LV_update(keys) {
     if (LV_walkable(_party.x, ny)) _party.y = ny;
     if (Math.abs(dx) > Math.abs(dy)) _party.facing = dx > 0 ? 'right' : 'left';
     else _party.facing = dy > 0 ? 'down' : 'up';
+    // Footfall dust: a soft puff kicked back from the feet on a walk
+    // rhythm — movement should stir the world.
+    if (_party.animT % 14 === 0) {
+      _deathParticles.push({
+        x: _party.x - dx * LV_TILE * 0.2 + (Math.random() - 0.5) * 6,
+        y: _party.y + LV_TILE * 0.28,
+        vx: -dx * 0.4 + (Math.random() - 0.5) * 0.5,
+        vy: -0.3 - Math.random() * 0.3,
+        col: 'rgba(210,195,170,0.55)',
+        t: 0, maxT: 16,
+      });
+    }
   }
   _party.vx = dx; _party.vy = dy;
   LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 5);
