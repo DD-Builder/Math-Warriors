@@ -225,9 +225,13 @@ export function computeEnemyHp(def, grade, isBoss) {
   // Relative difficulty within floor: use the original maxHp as a
   // weight against the floor's median original maxHp. Gives variety
   // (tanks vs glass cannons) without letting absolute values drift.
+  // Bosses escalate by floor instead — the Theorem must feel bigger
+  // than the Briar King, not identical (floor 1 ×1.0 → floor 9 ×1.4).
   const floorPool = ALL_ENEMIES.filter((e) => e.floor === def.floor && !isLegacyBoss(e));
   const medianOriginalHp = median(floorPool.map((e) => e.maxHp)) || def.maxHp;
-  const weight = isBoss ? 1 : clamp(def.maxHp / medianOriginalHp, 0.75, 1.4);
+  const weight = isBoss
+    ? 1 + ((def.floor || 1) - 1) * 0.05
+    : clamp(def.maxHp / medianOriginalHp, 0.75, 1.4);
 
   const hp = Math.round(avgHit * problemsTarget * weight);
   const minMob = isBoss ? Math.max(80, 40 + grade * 15) : 12;

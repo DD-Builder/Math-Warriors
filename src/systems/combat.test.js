@@ -370,7 +370,9 @@ describe('pickEnemyTarget', () => {
 //   ZONE momentum (0.5), streak 0, difficulty 1.0, FIGHT command 1.0.
 //
 //   minions: 2-8 correct answers to defeat
-//   bosses:  8-22 correct answers to defeat
+//   bosses:  8-26 correct answers to defeat (streak-free worst case;
+//            late bosses carry a floor-scaled HP weight, and real play
+//            ramps streak — combatSim.test.js asserts the played length)
 
 describe('damage matrix: hits-to-kill stays in design bands', () => {
   const GRADES = [0, 1, 2, 3, 4, 5];
@@ -392,7 +394,7 @@ describe('damage matrix: hits-to-kill stays in design bands', () => {
 
   for (const { id, isBoss, label } of CASES) {
     const enemyDef = getEnemyById(id);
-    const [lo, hi] = isBoss ? [8, 22] : [2, 8];
+    const [lo, hi] = isBoss ? [8, 26] : [2, 8];
 
     test(`${label}: ${lo}-${hi} hits across grades 0-5 at typical ATK`, () => {
       assert.ok(enemyDef, `enemy ${id} should exist in the roster`);

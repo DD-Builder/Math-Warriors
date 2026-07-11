@@ -643,32 +643,35 @@ export class BattleScene extends Phaser.Scene {
       });
       body.setDepth(pos.depth);
 
-      // Name + HP BELOW the hero's feet so they never overlap the sprite
-      const labelY = y + 80;
+      // Name + HP ABOVE the hero's head — below the feet they collide
+      // with the full-width turn band, and on the legs they collide
+      // with the sprite. Above-head matches the boss nameplate.
+      const headTopY = y - (384 / 2) * scale;
+      const labelY = headTopY - 44;
       const name = this.add.text(x, labelY, hero.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '22px',
+        fontSize: '20px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
         strokeThickness: 3,
         resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
-      const hpBarY = labelY + 18;
-      const hpBarBg = this.add.rectangle(x, hpBarY, 150, 14, COLORS.ink)
+      const hpBarY = labelY + 20;
+      const hpBarBg = this.add.rectangle(x, hpBarY, 150, 16, COLORS.ink)
         .setStrokeStyle(2, COLORS.paperD).setDepth(13);
-      const hpBarFill = this.add.rectangle(x - 73, hpBarY, 146, 10, 0x40c040)
+      const hpBarFill = this.add.rectangle(x - 73, hpBarY, 146, 12, 0x40c040)
         .setOrigin(0, 0.5).setDepth(13);
-      const hpStroke = this.add.rectangle(x, hpBarY, 150, 14)
+      const hpStroke = this.add.rectangle(x, hpBarY, 150, 16)
         .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
-      const hpText = this.add.text(x, hpBarY + 14, `${hero.hp}/${hero.maxHp}`, {
+      const hpText = this.add.text(x, hpBarY, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '16px',
+        fontSize: '13px',
         color: COLORS_CSS.paper,
         resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
-      const indicator = this.add.triangle(x, y - 100, 0, 0, 20, 0, 10, 20, COLORS.goldL)
+      const indicator = this.add.triangle(x, labelY - 28, 0, 0, 20, 0, 10, 20, COLORS.goldL)
         .setVisible(false).setDepth(15);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, hpStroke, indicator, x, y };
