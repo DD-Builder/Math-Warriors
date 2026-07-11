@@ -7,11 +7,12 @@ import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { EQUIPMENT_TIERS } from '../systems/equipment.js';
+import { drawHeroSprite } from '../ui/heroSprites.js';
 
 const SHOP_ITEMS = [
   { id: 'potion',   name: 'POTION',      cost: 20,  desc: '+1 potion',               icon: PAPER.lavender },
-  { id: 'atkBoost', name: 'ATK BOOST',   cost: 50,  desc: '+2 ATK (one hero)',        icon: PAPER.coralD },
-  { id: 'defBoost', name: 'DEF BOOST',   cost: 50,  desc: '+2 DEF (one hero)',        icon: PAPER.teal },
+  { id: 'atkBoost', name: 'ATK BOOST',   cost: 50,  desc: '+2 ATK (chosen hero)',        icon: PAPER.coralD },
+  { id: 'defBoost', name: 'DEF BOOST',   cost: 50,  desc: '+2 DEF (chosen hero)',        icon: PAPER.teal },
   { id: 'maxHpUp',  name: 'MAX HP UP',   cost: 80,  desc: '+5 max HP (permanent)',    icon: PAPER.forest },
   { id: 'revive',   name: 'REVIVE SCROLL', cost: 100, desc: 'Auto-revive at 50% HP', icon: PAPER.gold },
 ];
@@ -26,6 +27,9 @@ export class ShopScene extends Phaser.Scene {
     this.save = loadSave(this.slot);
     this.activeTab = data?.tab || 'items';
     this.pendingFlash = data?.flash || null;
+    this.selectedHeroIdx = data?.heroIdx ?? 0;
+    const party = this.save.party || [];
+    if (!party[this.selectedHeroIdx]) this.selectedHeroIdx = 0;
   }
 
   create() {
@@ -65,6 +69,10 @@ export class ShopScene extends Phaser.Scene {
       onClick: () => this.switchTab('skins'),
     });
 
+    // Who are we shopping for? A tappable hero row — gear and boosts
+    // apply to the SELECTED hero, and each card previews them.
+    if (this.activeTab !== 'skins') this.buildHeroSelector(area);
+
     // Container for tab-specific content; destroyed on tab switch
     this._tabContainer = this.add.container(0, 0);
 
@@ -85,6 +93,38 @@ export class ShopScene extends Phaser.Scene {
       this.showFlash(this.pendingFlash);
       this.pendingFlash = null;
     }
+  }
+
+  selectedHero() {
+    return (this.save.party || [])[this.selectedHeroIdx] || null;
+  }
+
+  buildHeroSelector(area) {
+    const party = this.save.party || [];
+    const y = area.top + 196;
+    this.add.text(area.cx - 260, y, 'FOR:', {
+      ...TEXT.heading(), fontSize: '20px', color: PAPER_CSS.inkTeal,
+    }).setOrigin(0.5);
+    party.forEach((hero, i) => {
+      if (!hero) return;
+      const x = area.cx - 160 + i * 160;
+      const sel = i === this.selectedHeroIdx;
+      const ring = this.add.circle(x, y, 34, sel ? PAPER.gold : PAPER.sand, sel ? 0.9 : 0.4);
+      ring.setStrokeStyle(3, sel ? PAPER.orange : PAPER.inkTeal, sel ? 1 : 0.3);
+      const heroDef = getHeroById(hero.id) || hero;
+      drawHeroSprite(this, x, y - 6, heroDef, { scale: 0.28, equipment: this.save.equipment?.[hero.id] });
+      this.add.text(x, y + 42, `${hero.name} Lv${hero.level || 1}`, {
+        ...TEXT.stat(), fontSize: '14px',
+        color: sel ? PAPER_CSS.orange : PAPER_CSS.inkTeal,
+      }).setOrigin(0.5);
+      const zone = this.add.zone(x, y, 90, 100).setInteractive({ useHandCursor: true });
+      zone.on('pointerdown', () => {
+        if (i === this.selectedHeroIdx) return;
+        audio.play('ui/click');
+        writeSave(this.save, this.slot);
+        this.scene.restart({ tab: this.activeTab, heroIdx: i });
+      });
+    });
   }
 
   buildItemCards(area) {
@@ -130,26 +170,27 @@ export class ShopScene extends Phaser.Scene {
 
   buildGearCards(area) {
     const cardW = 220;
-    const cardH = 280;
+    const cardH = 330;
     const gap = 20;
     const totalW = EQUIPMENT_TIERS.length * cardW + (EQUIPMENT_TIERS.length - 1) * gap;
     const startX = area.cx - totalW / 2 + cardW / 2;
-    const cardY = area.cy + 20;
+    const cardY = area.cy + 60;
 
-    const lead = (this.save.party || [])[0];
-    const leadEquip = this.save.equipment?.hero0 || {};
+    const hero = this.selectedHero();
+    const heroDef = hero ? (getHeroById(hero.id) || hero) : null;
+    const heroEquip = hero ? (this.save.equipment?.[hero.id] || {}) : {};
 
     EQUIPMENT_TIERS.forEach((tier, i) => {
       const x = startX + i * (cardW + gap);
       const floorData = (this.save.floors || []).find(f => f && f.id === tier.floor);
       const unlocked = !!(floorData && floorData.unlocked);
-      const owned = leadEquip.weapon === tier.weapon.id
-        && leadEquip.armor === tier.armor.id
-        && leadEquip.accessory === tier.accessory.id;
+      const equipped = heroEquip.weapon === tier.weapon.id
+        && heroEquip.armor === tier.armor.id
+        && heroEquip.accessory === tier.accessory.id;
 
       PaperCard(this, x, cardY, cardW, cardH, unlocked ? 0x8a98b8 : 0x8a8070, {});
 
-      this.add.text(x, cardY - cardH / 2 + 26, tier.tier.toUpperCase(), {
+      this.add.text(x, cardY - cardH / 2 + 24, tier.tier.toUpperCase(), {
         ...TEXT.heading(), fontSize: '18px', color: PAPER_CSS.cream,
         stroke: PAPER_CSS.inkTeal, strokeThickness: 2,
       }).setOrigin(0.5);
@@ -161,30 +202,42 @@ export class ShopScene extends Phaser.Scene {
         return;
       }
 
+      // Live preview: the selected hero WEARING this tier
+      if (heroDef) {
+        drawHeroSprite(this, x, cardY - cardH / 2 + 88, heroDef, {
+          scale: 0.42,
+          equipment: {
+            weapon: { id: tier.weapon.id, tier: tier.tier },
+            armor: { id: tier.armor.id, tier: tier.tier },
+            accessory: { id: tier.accessory.id, tier: tier.tier },
+          },
+        });
+      }
+
       const lines = [
-        `⚔ ${tier.weapon.name}  +${tier.weapon.atk} ATK`,
-        `\u{1F6E1} ${tier.armor.name}  +${tier.armor.def} DEF`,
-        `❤ ${tier.accessory.name}  +${tier.accessory.hp} HP`,
+        `⚔ +${tier.weapon.atk} ATK`,
+        `\u{1F6E1} +${tier.armor.def} DEF`,
+        `❤ +${tier.accessory.hp} HP`,
       ];
-      this.add.text(x, cardY - 40, lines.join('\n'), {
-        ...TEXT.body(), fontSize: '16px', color: PAPER_CSS.cream, align: 'left',
-        lineSpacing: 8, wordWrap: { width: cardW - 20 },
+      this.add.text(x, cardY + 34, lines.join('   '), {
+        ...TEXT.body(), fontSize: '15px', color: PAPER_CSS.cream, align: 'center',
+        wordWrap: { width: cardW - 16 },
       }).setOrigin(0.5);
 
-      if (owned) {
-        this.add.text(x, cardY + 60, 'EQUIPPED', {
-          ...TEXT.heading(), fontSize: '16px', color: '#7d9f6d',
+      if (equipped) {
+        this.add.text(x, cardY + 80, `ON ${hero.name.toUpperCase()}`, {
+          ...TEXT.heading(), fontSize: '15px', color: '#7d9f6d',
         }).setOrigin(0.5);
         return;
       }
 
-      this.add.text(x, cardY + 40, `${tier.setCost} GOLD`, {
-        ...TEXT.heading(), fontSize: '18px', color: PAPER_CSS.gold,
+      this.add.text(x, cardY + 66, `${tier.setCost} GOLD`, {
+        ...TEXT.heading(), fontSize: '17px', color: PAPER_CSS.gold,
       }).setOrigin(0.5);
 
-      const canAfford = this.save.gold >= tier.setCost && !!lead;
-      PaperButton(this, x, cardY + 86, canAfford ? 'BUY SET' : 'NEED GOLD', {
-        w: 140, h: 44, fontSize: canAfford ? 16 : 14,
+      const canAfford = this.save.gold >= tier.setCost && !!hero;
+      PaperButton(this, x, cardY + 110, canAfford ? 'BUY SET' : 'NEED GOLD', {
+        w: 150, h: 42, fontSize: canAfford ? 15 : 13,
         color: canAfford ? PAPER.coralD : PAPER.sand,
         textColor: canAfford ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
         onClick: () => this.buyGearTier(tier),
@@ -193,8 +246,8 @@ export class ShopScene extends Phaser.Scene {
   }
 
   buyGearTier(tier) {
-    const lead = (this.save.party || [])[0];
-    if (!lead) {
+    const hero = this.selectedHero();
+    if (!hero) {
       this.showFlash('No party to equip!');
       return;
     }
@@ -205,7 +258,7 @@ export class ShopScene extends Phaser.Scene {
 
     this.save.gold -= tier.setCost;
     if (!this.save.equipment) this.save.equipment = {};
-    this.save.equipment.hero0 = {
+    this.save.equipment[hero.id] = {
       weapon: tier.weapon.id,
       armor: tier.armor.id,
       accessory: tier.accessory.id,
@@ -213,7 +266,7 @@ export class ShopScene extends Phaser.Scene {
     writeSave(this.save, this.slot);
     audio.play('ui/confirm');
     // Restart to refresh card states; flash shows after the restart.
-    this.scene.restart({ tab: 'gear', flash: `Equipped to ${lead.name}!` });
+    this.scene.restart({ tab: 'gear', heroIdx: this.selectedHeroIdx, flash: `Equipped to ${hero.name}!` });
   }
 
   buyItem(item, index) {
@@ -256,7 +309,7 @@ export class ShopScene extends Phaser.Scene {
       this.showFlash('No party to boost!');
       return;
     }
-    const target = this.save.party[0];
+    const target = this.selectedHero() || this.save.party[0];
     const heroDef = getHeroById(target.id);
     if (stat === 'maxHp') {
       target.maxHp = (target.maxHp || heroDef?.maxHp || 50) + amount;

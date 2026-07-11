@@ -69,13 +69,13 @@ function drawShoulderGuard(ctx, cx, cy, sc, side, colors, size) {
   const x = cx + side * 22 * sc;
   const y = cy - 14 * sc;
   ctx.save();
-  ctx.globalAlpha = 0.7;
+  ctx.globalAlpha = 0.92;
   ctx.fillStyle = colors.primary;
   ctx.beginPath();
   ctx.ellipse(x, y, size * sc, (size * 0.6) * sc, side * 0.3, 0, Math.PI * 2);
   ctx.fill();
   // Highlight edge
-  ctx.globalAlpha = 0.4;
+  ctx.globalAlpha = 0.6;
   ctx.fillStyle = colors.accent;
   ctx.beginPath();
   ctx.ellipse(x, y - 2 * sc, (size * 0.7) * sc, (size * 0.3) * sc, side * 0.3, 0, Math.PI * 2);
@@ -104,9 +104,9 @@ function drawWeaponSheen(ctx, cx, cy, sc, colors) {
   const wx = cx + 30 * sc;
   const wy = cy - 50 * sc;
   ctx.save();
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.6;
   ctx.strokeStyle = colors.accent;
-  ctx.lineWidth = 2 * sc;
+  ctx.lineWidth = 3 * sc;
   ctx.beginPath();
   ctx.moveTo(wx, wy);
   ctx.lineTo(wx + 2 * sc, wy + 60 * sc);
@@ -117,7 +117,7 @@ function drawWeaponSheen(ctx, cx, cy, sc, colors) {
 function drawLeatherStraps(ctx, cx, cy, sc, colors) {
   // Two horizontal straps across torso
   ctx.save();
-  ctx.globalAlpha = 0.5;
+  ctx.globalAlpha = 0.85;
   ctx.fillStyle = colors.primary;
   ctx.fillRect(cx - 16 * sc, cy - 4 * sc, 32 * sc, 3 * sc);
   ctx.fillRect(cx - 14 * sc, cy + 6 * sc, 28 * sc, 3 * sc);
@@ -131,7 +131,7 @@ function drawArmGuards(ctx, cx, cy, sc, side, colors) {
   const x = cx + side * 28 * sc;
   const y = cy + 4 * sc;
   ctx.save();
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = 0.85;
   ctx.fillStyle = colors.primary;
   ctx.fillRect(x - 4 * sc, y - 12 * sc, 8 * sc, 24 * sc);
   ctx.fillStyle = colors.accent;
@@ -193,6 +193,50 @@ function drawGoldParticleTrail(ctx, cx, cy, sc, colors) {
   ctx.restore();
 }
 
+function drawChestPlate(ctx, cx, cy, sc, colors) {
+  ctx.save();
+  ctx.globalAlpha = 0.8;
+  ctx.fillStyle = colors.primary;
+  ctx.beginPath();
+  ctx.moveTo(cx - 14 * sc, cy - 10 * sc);
+  ctx.lineTo(cx + 14 * sc, cy - 10 * sc);
+  ctx.lineTo(cx + 11 * sc, cy + 12 * sc);
+  ctx.lineTo(cx - 11 * sc, cy + 12 * sc);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = colors.accent;
+  ctx.fillRect(cx - 9 * sc, cy - 7 * sc, 18 * sc, 3 * sc);
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = colors.secondary;
+  ctx.beginPath();
+  ctx.arc(cx, cy + 2 * sc, 4 * sc, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawNeckPendant(ctx, cx, cy, sc, colors, size) {
+  const y = cy - 26 * sc;
+  ctx.save();
+  ctx.globalAlpha = 0.8;
+  ctx.strokeStyle = colors.secondary;
+  ctx.lineWidth = 1.5 * sc;
+  ctx.beginPath();
+  ctx.arc(cx, y - 4 * sc, 8 * sc, 0.3, Math.PI - 0.3);
+  ctx.stroke();
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = colors.glow || colors.accent;
+  ctx.beginPath();
+  ctx.arc(cx, y + 4 * sc, size * sc, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx - size * 0.3 * sc, y + (4 - size * 0.3) * sc, size * 0.35 * sc, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 // ---- Weapon handle glow (tier 1) ----
 
 function drawWeaponHandleGlow(ctx, cx, cy, sc, colors) {
@@ -230,7 +274,7 @@ export function getEquipmentOverlay(equipmentId, tier, slot) {
   const ti = getTierIndex(tier);
   if (ti < 1 || ti > 5) return null;
   if (slot !== 'weapon' && slot !== 'armor' && slot !== 'accessory') return null;
-  if (slot === 'accessory' && ti < 5) return null;
+  if (slot === 'accessory' && ti < 2) return null;
   const colors = TIER_COLORS[ti];
 
   return {
@@ -263,18 +307,19 @@ export function getEquipmentOverlay(equipmentId, tier, slot) {
           drawShoulderGuard(ctx, cx, cy, sc, -1, colors, 8);
           drawShoulderGuard(ctx, cx, cy, sc, 1, colors, 8);
         } else if (ti === 3) {
-          drawLeatherStraps(ctx, cx, cy, sc, colors);
           drawShoulderGuard(ctx, cx, cy, sc, -1, colors, 12);
           drawShoulderGuard(ctx, cx, cy, sc, 1, colors, 12);
+          drawChestPlate(ctx, cx, cy, sc, colors);
         } else if (ti === 4) {
-          drawLeatherStraps(ctx, cx, cy, sc, colors);
           drawShoulderGuard(ctx, cx, cy, sc, -1, colors, 14);
           drawShoulderGuard(ctx, cx, cy, sc, 1, colors, 14);
+          drawChestPlate(ctx, cx, cy, sc, colors);
           drawArmGuards(ctx, cx, cy, sc, -1, colors);
           drawArmGuards(ctx, cx, cy, sc, 1, colors);
         } else if (ti === 5) {
           drawShoulderGuard(ctx, cx, cy, sc, -1, colors, 16);
           drawShoulderGuard(ctx, cx, cy, sc, 1, colors, 16);
+          drawChestPlate(ctx, cx, cy, sc, colors);
           drawArmGuards(ctx, cx, cy, sc, -1, colors);
           drawArmGuards(ctx, cx, cy, sc, 1, colors);
           drawArmorGlowOutline(ctx, cx, cy, sc, colors);
@@ -284,6 +329,9 @@ export function getEquipmentOverlay(equipmentId, tier, slot) {
       if (slot === 'accessory') {
         if (ti >= 5) {
           drawHeadCirclet(ctx, cx, cy, sc, colors);
+        }
+        if (ti >= 2) {
+          drawNeckPendant(ctx, cx, cy, sc, colors, 2 + ti * 0.8);
         }
       }
 

@@ -577,7 +577,7 @@ export class WorldMapScene extends Phaser.Scene {
       : null;
 
     if (leadHero) {
-      this.mapHero = drawHeroSprite(this, heroX, heroY, leadHero, { scale: 0.4 });
+      this.mapHero = drawHeroSprite(this, heroX, heroY, leadHero, { scale: 0.4, equipment: this.save.equipment?.[leadHero.id] });
     } else {
       this.mapHero = this.add.circle(heroX, heroY, 12, PAPER.gold);
     }
@@ -741,8 +741,12 @@ export class WorldMapScene extends Phaser.Scene {
           const heroDef = getHeroById(slot.id);
           if (heroDef) {
             const wmEvoStage = getEvolutionStage(this.save, heroDef.id);
-            const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35, evolutionStage: wmEvoStage });
+            const img = drawHeroSprite(this, hx, stripY - 4, heroDef, { scale: 0.35, evolutionStage: wmEvoStage, equipment: this.save.equipment?.[heroDef.id] });
             img.setScrollFactor(0);
+            const lvlChip = this.add.text(hx, stripY + 30, `Lv${slot.level || 1}`, {
+              fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+              fontSize: '13px', color: '#f0d060', stroke: '#1f4244', strokeThickness: 3,
+            }).setOrigin(0.5).setScrollFactor(0);
           }
         }
       }
@@ -1105,7 +1109,7 @@ export class WorldMapScene extends Phaser.Scene {
     elements.push(panel);
 
     const wmDetailEvoStage = getEvolutionStage(this.save, hero.id);
-    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1, evolutionStage: wmDetailEvoStage });
+    const portrait = drawHeroSprite(this, cx, cy - 180, hero, { scale: 1.1, evolutionStage: wmDetailEvoStage, equipment: this.save.equipment?.[hero.id] });
     portrait.setScrollFactor(0).setDepth(952);
     elements.push(portrait);
 

@@ -182,7 +182,7 @@ export class BattleScene extends Phaser.Scene {
 
     // Apply equipment bonuses from save to each hero
     for (let i = 0; i < this.party.length && i < 3; i++) {
-      const heroEquip = this.save.equipment?.[`hero${i}`];
+      const heroEquip = this.save.equipment?.[this.party[i].id];
       if (heroEquip) {
         if (heroEquip.weapon) {
           const wpn = getEquipmentById(heroEquip.weapon);
@@ -639,7 +639,7 @@ export class BattleScene extends Phaser.Scene {
         scale,
         floorId: this.floor,
         evolutionStage: evoStage,
-        equipment: this.save.equipment?.[`hero${i}`],
+        equipment: this.save.equipment?.[hero.id],
       });
       body.setDepth(pos.depth);
 
@@ -648,7 +648,7 @@ export class BattleScene extends Phaser.Scene {
       // with the sprite. Above-head matches the boss nameplate.
       const headTopY = y - (384 / 2) * scale;
       const labelY = headTopY - 44;
-      const name = this.add.text(x, labelY, hero.name.toUpperCase(), {
+      const name = this.add.text(x, labelY, `${hero.name.toUpperCase()} · L${hero.level || 1}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '20px',
         color: COLORS_CSS.paper,
@@ -3688,6 +3688,22 @@ export class BattleScene extends Phaser.Scene {
       rewardText += `\n+${goldEarned} GOLD  •  +${xpEarned} XP`;
       if (leveledUp.length > 0) {
         rewardText += `\nLEVELED UP: ${leveledUp.join(' & ')}`;
+        // The moment: a burst and flying stat gains over each leveler
+        this.party.forEach((h, i) => {
+          if (!leveledUp.includes(h.name)) return;
+          const hs = this.heroSprites[i];
+          if (!hs) return;
+          this.time.delayedCall(400 + i * 250, () => {
+            const up = this.add.text(hs.x, hs.y - 120, `LEVEL UP!\n+5 HP  +2 ATK  +2 DEF`, {
+              fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+              fontSize: '26px', color: '#f0d060', align: 'center',
+              stroke: '#3a2410', strokeThickness: 5,
+            }).setOrigin(0.5).setDepth(BATTLE_DEPTH.END);
+            this.tweens.add({ targets: up, y: hs.y - 210, alpha: 0, duration: 1600, ease: 'Quad.out', onComplete: () => up.destroy() });
+            hs.body?.playVictory?.();
+            audio.play('battle/level-up');
+          });
+        });
       }
       if (dailyGold > 0) {
         rewardText += `\nDAILY CHALLENGE: +${dailyGold} GOLD`;

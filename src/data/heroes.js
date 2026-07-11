@@ -1030,6 +1030,7 @@ export function spawnHero(idOrHero) {
     signature: def.signature ?? null,
     personality: def.personality ?? null,
     affinity: def.affinity ?? null,
+    skin: def.skin ?? null,
   };
 }
 
@@ -1038,14 +1039,15 @@ export const LEVEL_THRESHOLDS = [0, 0, 80, 180, 320, 500, 750, 1050, 1200, 1500,
 
 /**
  * Compute the stat bonuses for a given level.
- * Each level above 1 grants +3 maxHp, +1 atk, +1 def.
+ * Each level above 1 grants +5 maxHp, +2 atk, +2 def — big enough
+ * that a level-up FEELS like one (v1's +3/+1/+1 was invisible).
  */
 export function levelBonuses(level) {
   const lvl = Math.max(1, level || 1);
   return {
-    maxHp: (lvl - 1) * 3,
-    atk: (lvl - 1),
-    def: (lvl - 1),
+    maxHp: (lvl - 1) * 5,
+    atk: (lvl - 1) * 2,
+    def: (lvl - 1) * 2,
   };
 }
 

@@ -340,7 +340,7 @@ export class MazeScene extends Phaser.Scene {
     const heroLeader = this.party[0];
     if (heroLeader) {
       setSkipCanvasHero(true);
-      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1 });
+      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1, equipment: this.save.equipment?.[heroLeader.id] });
       this.heroSprite.setDepth(10);
       this.heroSprite.setIdle();
       this._heroWasMoving = false;
@@ -707,8 +707,8 @@ export class MazeScene extends Phaser.Scene {
       const hero = this.party[i];
       const x = partyCx - 120 + i * 110;
       const spriteScale = 0.35;
-      drawHeroSprite(this, x, partyY - 18, hero, { scale: spriteScale });
-      this.add.text(x, partyY + 26, hero.name, {
+      drawHeroSprite(this, x, partyY - 18, hero, { scale: spriteScale, equipment: this.save.equipment?.[hero.id] });
+      this.add.text(x, partyY + 26, `${hero.name}  Lv${hero.level || 1}`, {
         ...TEXT.stat(), fontSize: '16px', color: '#3a2410',
       }).setOrigin(0.5);
       const pct = hero.hp / hero.maxHp;

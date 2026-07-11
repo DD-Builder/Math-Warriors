@@ -446,8 +446,35 @@ describe('hero unlock system', () => {
       'cutscene queue holds only the hero NOT rescued in-maze');
   });
 
-  test('save version is 4', () => {
-    assert.equal(CURRENT_VERSION, 4);
+  test('save version is 5', () => {
+    assert.equal(CURRENT_VERSION, 5);
+  });
+
+  test('v4 slot-keyed equipment migrates to hero-id keys', () => {
+    const v4 = {
+      version: 4,
+      grade: 3,
+      party: [
+        { id: 'bunny-pepper', name: 'PEPPER', hp: 30, maxHp: 30 },
+        { id: 'knight-shadow', name: 'SHADOW', hp: 30, maxHp: 30 },
+      ],
+      gold: 0,
+      equipment: {
+        hero0: { weapon: 'iron_sword', armor: null, accessory: null },
+        hero1: { weapon: null, armor: 'wooden_shield', accessory: null },
+        hero2: { weapon: null, armor: null, accessory: null },
+      },
+      floors: [],
+      settings: {},
+      stats: {},
+    };
+    storage.setItem(STORAGE_KEY, JSON.stringify(v4));
+    const loaded = loadSave();
+    assert.equal(loaded.version, 5);
+    assert.equal(loaded.equipment['bunny-pepper'].weapon, 'iron_sword');
+    assert.equal(loaded.equipment['knight-shadow'].armor, 'wooden_shield');
+    assert.equal(loaded.equipment.hero0, undefined);
+    assert.equal(loaded.equipment.hero2, undefined);
   });
 
   test('v2 save migrates to v3 with unlockedHeroes', () => {
@@ -474,7 +501,7 @@ describe('hero unlock system', () => {
     };
     storage.setItem(STORAGE_KEY, JSON.stringify(v2));
     const loaded = loadSave();
-    assert.equal(loaded.version, 4);
+    assert.equal(loaded.version, 5);
     assert.ok(Array.isArray(loaded.unlockedHeroes));
     // Starters + floor 1 unlocks + floor 2 unlocks
     assert.ok(loaded.unlockedHeroes.includes('knight-shadow'));

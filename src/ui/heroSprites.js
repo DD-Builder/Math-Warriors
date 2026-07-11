@@ -251,9 +251,14 @@ const HOLD_STATES = new Set(['guard', 'ko', 'victory']);
 export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const scale = opts.scale ?? 1;
   const heroClass = getHeroClass(hero);
-  const skinId = HERO_SKINS[hero.id] ? hero.id
+  const baseSkinId = HERO_SKINS[hero.id] ? hero.id
     : heroClass === 'wizard' ? 'wizard-stargazer'
     : heroClass === 'bunny' ? 'bunny-pepper' : 'knight-shadow';
+  // Purchased skins render through variant palettes ('id:skinId').
+  const skinVariant = hero.skin && hero.skin !== 'default' ? `${baseSkinId}:${hero.skin}` : null;
+  const skinId = skinVariant && HERO_SKINS[skinVariant] ? skinVariant : baseSkinId;
+  // Worn gear draws as overlays on every animation frame.
+  const wornEquipment = resolveEquipment(opts.equipment);
 
   const container = scene.add.container(x, y);
 
@@ -293,6 +298,16 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     ctx.clearRect(0, 0, cw, ch);
     const pose = sampleCycle(state.cycle, state.elapsed);
     drawCharacter(ctx, skinId, pose, { x: cw / 2, y: feetY, scale: sc, view: state.view });
+    if (wornEquipment) {
+      // Overlay space is torso-anchored (~110-unit hero): map it onto
+      // the drawn model so plates/glows land on the body.
+      const bodyH = modelH * sc;
+      applyEquipmentOverlays(cv, wornEquipment, heroClass, {
+        cx: cw / 2,
+        cy: feetY - bodyH * 0.52,
+        sc: bodyH / 110,
+      });
+    }
     tex.refresh();
   }
 

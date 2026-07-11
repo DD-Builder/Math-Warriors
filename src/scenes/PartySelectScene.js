@@ -312,7 +312,7 @@ export class PartySelectScene extends Phaser.Scene {
     // Portrait takes top 60% of card, centered
     const portraitY = y - h * 0.15;
     const stage = getEvolutionStage(this.save, hero.id);
-    const portrait = createAnimatedHero(this, x, portraitY, hero, { scale: 0.35, evolutionStage: stage });
+    const portrait = createAnimatedHero(this, x, portraitY, hero, { scale: 0.35, evolutionStage: stage, equipment: this.save.equipment?.[hero.id] });
     if (portrait.setSelectionSway) portrait.setSelectionSway();
 
     // Hero name in bold below the portrait (16px)
@@ -497,7 +497,7 @@ export class PartySelectScene extends Phaser.Scene {
         const hero = this.classes[sel.class][sel.index];
         slot.portrait.setFillStyle(PAPER.creamD, 0.3);
         const slotEvoStage = getEvolutionStage(this.save, hero.id);
-        slot.heroSprite = createAnimatedHero(this, slot.sx, slot.sy - 12, hero, { scale: 0.22, evolutionStage: slotEvoStage });
+        slot.heroSprite = createAnimatedHero(this, slot.sx, slot.sy - 12, hero, { scale: 0.22, evolutionStage: slotEvoStage, equipment: this.save.equipment?.[hero.id] });
         if (slot.heroSprite.setSelectionSway) slot.heroSprite.setSelectionSway();
         const evoName = getEvolvedName(this.save, hero.id);
         slot.nameTxt.setText(evoName.toUpperCase());
@@ -650,7 +650,7 @@ export class PartySelectScene extends Phaser.Scene {
 
     // --- HEADER (always visible) ---
     const detailEvoStage = getEvolutionStage(this.save, hero.id);
-    const portrait = drawHeroSprite(this, cx - pw / 2 + 70, cy - ph / 2 + 80, hero, { scale: 0.7, evolutionStage: detailEvoStage });
+    const portrait = drawHeroSprite(this, cx - pw / 2 + 70, cy - ph / 2 + 80, hero, { scale: 0.7, evolutionStage: detailEvoStage, equipment: this.save.equipment?.[hero.id] });
     portrait.setDepth(952);
     elements.push(portrait);
 
@@ -845,10 +845,9 @@ export class PartySelectScene extends Phaser.Scene {
       sy += 20;
     }
 
-    // --- Equipped gear (save.equipment.heroN, keyed by party slot) ---
-    const partyIdx = (this.save.party || []).findIndex(p => p && p.id === hero.id);
-    if (partyIdx >= 0 && partyIdx < 3) {
-      const equip = this.save.equipment?.[`hero${partyIdx}`] || {};
+    // --- Equipped gear (save.equipment, keyed by hero id) ---
+    {
+      const equip = this.save.equipment?.[hero.id] || {};
       const wpn = equip.weapon ? getEquipmentById(equip.weapon) : null;
       const arm = equip.armor ? getEquipmentById(equip.armor) : null;
       const acc = equip.accessory ? getEquipmentById(equip.accessory) : null;

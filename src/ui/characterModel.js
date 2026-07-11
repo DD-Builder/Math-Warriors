@@ -96,6 +96,37 @@ export const HERO_SKINS = {
   'bunny-duchess':  { body: '#f5eedd', bodyD: '#e8dec6', bodyL: '#f5eedd', accent: '#3c6b4f', gold: '#e39a4a', goldL: '#ecb964', skin: '#f5eedd', gear: { earInner: '#e8a09a', dress: '#3c6b4f', crown: true } },
 };
 
+// ────────────────────────────────────────────────────────────────
+// Purchased skin variants — palette overrides keyed 'heroId:skinId'.
+// The shop sells these (heroes.js HERO_SKINS list); this is their
+// render path: same rig, recolored papercut.
+// ────────────────────────────────────────────────────────────────
+const SKIN_VARIANTS = {
+  'knight-shadow:golden':    { body: '#e0a83a', bodyD: '#b8842a', bodyL: '#f0d060', accent: '#8a5a10' },
+  'knight-shadow:crimson':   { body: '#c04838', bodyD: '#8a2c20', bodyL: '#e07860', accent: '#f0d060' },
+  'wizard-stargazer:nebula': { body: '#4a3a78', bodyD: '#332858', bodyL: '#7a68b0', accent: '#5dc4b4' },
+  'wizard-stargazer:eclipse':{ body: '#2c2c38', bodyD: '#1c1c26', bodyL: '#565668', accent: '#ecb964' },
+  'bunny-pepper:frost':      { body: '#e8f4fa', bodyD: '#a5d2e6', bodyL: '#ffffff', accent: '#5aa8cc', gold: '#8fc4dd', goldL: '#c8e6f2' },
+  'bunny-pepper:blaze':      { body: '#f6d8c0', bodyD: '#e78f6c', bodyL: '#fdeee0', accent: '#d84818', gold: '#e39a4a', goldL: '#ecb964' },
+  'knight-crusader:dark':    { body: '#3a4048', bodyD: '#262b32', bodyL: '#5c646e', accent: '#c04838' },
+  'wizard-toadstool:toxic':  { body: '#7ab048', bodyD: '#568030', bodyL: '#a0d068', accent: '#c060f0' },
+  'bunny-nova:stellar':      { body: '#f5eedd', bodyD: '#e0b8f0', bodyL: '#ffffff', accent: '#9040d0', gold: '#e0b8f0', goldL: '#f0d8f8' },
+  'knight-paladin:radiant':  { body: '#f0e0b0', bodyD: '#d8b868', bodyL: '#faf0d0', accent: '#e39a4a' },
+  'bunny-boulder:crystal':   { body: '#d8ccf0', bodyD: '#b8a8e0', bodyL: '#eee8fa', accent: '#7a5ec0' },
+  'knight-berserker:bloodrage': { body: '#a82818', bodyD: '#781808', bodyL: '#d05840', accent: '#f0d060' },
+  'wizard-bookworm:arcane':  { body: '#6858a8', bodyD: '#4a3c80', bodyL: '#9080c8', accent: '#f0d060' },
+  'bunny-blaze:inferno':     { body: '#e05818', bodyD: '#a83808', bodyL: '#f08848', accent: '#f0d060' },
+  'knight-greathelm:titan':  { body: '#788088', bodyD: '#565c64', bodyL: '#a8b0b8', accent: '#e39a4a' },
+  'wizard-grandmage:archmage': { body: '#f5eedd', bodyD: '#d9cfb2', bodyL: '#ffffff', accent: '#7c6fa8' },
+  'bunny-duchess:empress':   { body: '#f5eedd', bodyD: '#e8dec6', bodyL: '#ffffff', accent: '#a82848' },
+  'wizard-spellblade:void':  { body: '#38304a', bodyD: '#241e34', bodyL: '#5c5276', accent: '#5dc4b4' },
+};
+for (const [key, override] of Object.entries(SKIN_VARIANTS)) {
+  const baseId = key.split(':')[0];
+  const base = HERO_SKINS[baseId];
+  if (base) HERO_SKINS[key] = { ...base, ...override, gear: base.gear };
+}
+
 const CLASS_OF = (id) => id.startsWith('wizard') ? 'wizard' : id.startsWith('bunny') ? 'bunny' : 'knight';
 
 // ────────────────────────────────────────────────────────────────
