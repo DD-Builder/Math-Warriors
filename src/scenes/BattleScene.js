@@ -778,7 +778,9 @@ export class BattleScene extends Phaser.Scene {
         tweenCfg.y = y - 6;
         tweenCfg.duration = anim.dur * 1.2;
       }
-      this.tweens.add(tweenCfg);
+      // Kept so attack animations can pause the idle instead of
+      // fighting it over the same body x/y/scale.
+      spriteData.idleTween = this.tweens.add(tweenCfg);
     }
 
     // Backward compat: this.enemySprite points to first enemy sprite
@@ -2228,8 +2230,12 @@ export class BattleScene extends Phaser.Scene {
       // freeze-bug history — never trust an animation to unblock the
       // turn loop. A once-guard prevents double-advance and a watchdog
       // force-advances if the animation drops its callback.
-      const guardedDone = this._onceWithWatchdog(monsterAttackDone, 2500);
+      // Pause the attacker's idle so the lunge and the idle never fight
+      // over the same body; the watchdog-guarded done always resumes it.
+      const resumeIdle = () => { try { attackerSprite?.idleTween?.resume(); } catch { /* gone */ } };
+      const guardedDone = this._onceWithWatchdog(() => { resumeIdle(); monsterAttackDone(); }, 2500);
       if (attackerSprite && targetHeroSprite) {
+        attackerSprite.idleTween?.pause();
         try {
           playMonsterAttack(this, attackerSprite, targetHeroSprite, attacker.id, 0, {
             onHit: () => {},
@@ -3441,7 +3447,7 @@ export class BattleScene extends Phaser.Scene {
     this.hideAbilityButton();
 
     audio.stopMusic();
-    audio.play('battle/victory');
+    audio.playStinger('victory');
 
     // Compute rewards
     const goldEarned = 10 + this.floor * 5;
@@ -3721,7 +3727,7 @@ export class BattleScene extends Phaser.Scene {
     this.hideAbilityButton();
 
     audio.stopMusic();
-    audio.play('battle/defeat');
+    audio.playStinger('defeat');
 
     // --- Battle cry: defeat (show for first hero) ---
     if (this.party[0]) this.showBattleCry(this.party[0], 'defeat');
