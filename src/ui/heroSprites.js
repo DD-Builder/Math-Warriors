@@ -34,6 +34,10 @@ const PART_HAS_CONTENT = {};
 // Default canvas dimensions for hero portraits
 const HERO_W = 296;
 const HERO_H = 384;
+// Feet position relative to the sprite's 0.5,0.5 origin: characters are
+// drawn with feet at canvas y = HERO_H - 58, i.e. this many unscaled px
+// below center. Scenes use it to place ground shadows AT the feet.
+export const HERO_FEET_OFFSET = (HERO_H - 58) - HERO_H / 2;
 
 // Equipment slot → body part the overlay is drawn on, and key codes
 const PART_TO_SLOT = { weapon: 'weapon', torso: 'armor', head: 'accessory' };

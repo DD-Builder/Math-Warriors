@@ -16,6 +16,7 @@ import {
   advanceTurn,
   isPartyDefeated,
   pickRandomLivingHero,
+  pickEnemyTarget,
 } from '../systems/combat.js';
 import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
 import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
@@ -36,7 +37,8 @@ import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePap
 import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
 import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnightSuper, playBunnySuper, playWizardSuper } from '../systems/attackAnimations.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero, HERO_FEET_OFFSET } from '../ui/heroSprites.js';
+import { BATTLE_DEPTH } from '../ui/depths.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { createFractionDisplay } from '../ui/fractionDisplay.js';
@@ -302,7 +304,9 @@ export class BattleScene extends Phaser.Scene {
     this.buildUI();
     this.buildCommandMenu();
 
-    audio.playMusic('music/battle');
+    // Bosses get their own score (music/boss-N); the director falls back
+    // to the generic battle theme until a floor's boss piece exists.
+    audio.playMusic(this.isBoss ? `music/boss-${this.floor}` : 'music/battle');
 
     // Fire each enemy's onBattleStart hook so any ability state can
     // initialize
@@ -616,8 +620,10 @@ export class BattleScene extends Phaser.Scene {
       const y = pos.y;
       const scale = pos.scale * 0.85; // overall hero scale factor
 
-      // Ground shadow (wider, stronger — sells "standing on ground")
-      drawGroundShadow(shadowGfx, x, y + 10, scale, { rx: 50, alpha: 0.28 });
+      // Ground shadow at the FEET (canvas feet sit HERO_FEET_OFFSET px
+      // below the sprite's center-origin), so heroes stand on it
+      // instead of floating above it.
+      drawGroundShadow(shadowGfx, x, y + HERO_FEET_OFFSET * scale, scale, { rx: 50, alpha: 0.28 });
 
       const evoStage = getEvolutionStage(this.save, hero.id);
       const body = createAnimatedHero(this, x, y, hero, {
@@ -682,17 +688,19 @@ export class BattleScene extends Phaser.Scene {
       const y = pos.y;
       const monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.02) : pos.scale;
 
-      // Draw ground shadow beneath this monster
-      drawGroundShadow(monsterShadowGfx, x, y, monsterScale, { rx: 40 });
-
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
       body.setDepth(pos.depth);
 
-      // Name/HP bars anchored above the sprite's actual rendered bounds
-      // (640 is the base monster canvas size — scaled by the formation scale
-      // and the 0.5 origin means top is y - displayHalfH).
+      // Ground shadow at the monster's FEET (center origin → base is
+      // half the display height below y), tucked up slightly so the
+      // creature reads as standing on it.
       const displayH = body.displayHeight ?? (640 * monsterScale);
-      const nameY = y - displayH * 0.48 - 14;
+      drawGroundShadow(monsterShadowGfx, x, y + displayH * 0.5 - 8, monsterScale, { rx: 40 });
+
+      // Name/HP bars anchored above the sprite's actual rendered bounds,
+      // clamped below the top momentum panel (which reaches ~y=107) so a
+      // tall single enemy's plate is never hidden behind it.
+      const nameY = Math.max(y - displayH * 0.48 - 14, 140);
       const hpY = nameY + 20;
       const hpTextY = hpY + 16;
 
@@ -780,7 +788,9 @@ export class BattleScene extends Phaser.Scene {
 
   setUIDepth(obj, depth) {
     if (!obj) return;
-    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track']) {
+    // barBg/barFill are PaperBar's graphics — omitting them left the
+    // momentum bar at depth 0, invisible behind the depth-20 top panel.
+    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track', 'barBg', 'barFill']) {
       if (obj[key] && obj[key].setDepth) obj[key].setDepth(depth);
     }
     if (obj.setDepth) obj.setDepth(depth);
@@ -817,8 +827,10 @@ export class BattleScene extends Phaser.Scene {
     this.momentumBarObj = PaperBar(this, barX, topY, barW, 16, this.momentum, 0x4aa848, {
       bgColor: 0xc8b898,
     });
+    this.setUIDepth(this.momentumBarObj, BATTLE_DEPTH.UI);
     for (const t of [0.33, 0.66]) {
-      this.add.rectangle(barX + barW * t, topY, 2, 16, 0x3a2410, 0.5);
+      this.add.rectangle(barX + barW * t, topY, 2, 16, 0x3a2410, 0.5)
+        .setDepth(BATTLE_DEPTH.UI + 1);
     }
     this.momentumLabel = this.add.text(barX + barW + 10, topY, 'ZONE', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -1551,6 +1563,7 @@ export class BattleScene extends Phaser.Scene {
       const barY = this.turnLabel.y - 30;
       this.bossTimerBar = this.add.graphics();
       this.bossTimerBar.setScrollFactor(0);
+      this.bossTimerBar.setDepth(BATTLE_DEPTH.TIMER);
       this.updateBossTimerBar(barW, barY, 1);
 
       this.bossTimerUpdate = this.time.addEvent({
@@ -2065,7 +2078,6 @@ export class BattleScene extends Phaser.Scene {
     const livingHeroes = this.party.filter(h => h && h.hp > 0);
     if (livingHeroes.length === 0) return this.showDefeat();
 
-    let attackIndex = 0;
     const doEnemyAttack = (enemyIdx) => {
       if (enemyIdx >= aliveEnemies.length) {
         this.time.delayedCall(250, () => this.nextTurn());
@@ -2076,11 +2088,16 @@ export class BattleScene extends Phaser.Scene {
       const attackerSpriteIdx = this.enemies.indexOf(attacker);
       const attackerSprite = this.enemySprites[attackerSpriteIdx];
 
-      // Pick target hero: spread attacks (enemy 0 → hero 0, enemy 1 → hero 1, etc)
+      // Pick target hero: random with an anti-streak reroll, tracked
+      // across the whole battle (the old round-robin reset to index 0
+      // every phase, so single enemies and bosses hammered hero 0
+      // forever).
       const currentLiving = this.party.filter(h => h && h.hp > 0);
       if (currentLiving.length === 0) return this.showDefeat();
-      const target = currentLiving[attackIndex % currentLiving.length];
-      attackIndex++;
+      if (!this._recentTargets) this._recentTargets = [];
+      const target = pickEnemyTarget(this.party, this._recentTargets);
+      this._recentTargets.push(target);
+      if (this._recentTargets.length > 2) this._recentTargets.shift();
 
       // Monster attack animation (uses per-monster themed VFX)
       const targetHeroSpriteIdx = this.party.indexOf(target);
