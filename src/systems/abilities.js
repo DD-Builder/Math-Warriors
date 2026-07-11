@@ -29,6 +29,8 @@
  * in future passes.
  */
 
+import { playAbilityVfx } from './abilityVfx.js';
+
 // ------------------------------------------------------------------
 // INDIVIDUAL ABILITY IMPLEMENTATIONS
 // ------------------------------------------------------------------
@@ -615,15 +617,33 @@ export function getAbility(name) {
 /**
  * Invoke a hook by name. Safely no-ops for abilities that don't
  * implement that hook or don't exist.
+ *
+ * Every hook announces the moment it visibly fires with
+ * ctx.scene.showToast — so this is the one choke point where the
+ * ability's category VFX plays. showToast is patched for the
+ * (synchronous) duration of the hook and always restored.
  */
 export function invokeAbility(name, hook, ctx) {
   const ability = getAbility(name);
   const fn = ability[hook];
-  if (typeof fn === 'function') {
-    try {
-      fn(ctx);
-    } catch (err) {
-      console.warn(`[ability] ${name}.${hook} threw:`, err);
-    }
+  if (typeof fn !== 'function') return;
+  const scene = ctx?.scene;
+  const origToast = scene && typeof scene.showToast === 'function' ? scene.showToast : null;
+  if (origToast) {
+    let fired = false;
+    scene.showToast = (msg, color) => {
+      if (!fired) {
+        fired = true;
+        try { playAbilityVfx(scene, name, ctx.enemy, ctx.activeHero); } catch { /* vfx never blocks */ }
+      }
+      return origToast.call(scene, msg, color);
+    };
+  }
+  try {
+    fn(ctx);
+  } catch (err) {
+    console.warn(`[ability] ${name}.${hook} threw:`, err);
+  } finally {
+    if (origToast) scene.showToast = origToast;
   }
 }
