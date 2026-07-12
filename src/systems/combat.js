@@ -299,3 +299,22 @@ export function pickRandomLivingHero(party, rng = Math.random) {
   if (living.length === 0) return null;
   return living[Math.floor(rng() * living.length)];
 }
+
+/**
+ * Enemy target selection: uniform random over living heroes, with one
+ * anti-streak reroll — if the pick would be the same hero as BOTH of
+ * the last two attacks, roll again once. Deliberately NOT weighted
+ * toward low HP: an AI that hunts the dying hero feels cruel to kids
+ * and produces defeat spirals. Pass `recentTargets` (last two picks,
+ * hero refs) persisted across the whole battle.
+ */
+export function pickEnemyTarget(party, recentTargets = [], rng = Math.random) {
+  const living = party.filter((h) => h && h.hp > 0);
+  if (living.length === 0) return null;
+  let pick = living[Math.floor(rng() * living.length)];
+  const [a, b] = recentTargets.slice(-2);
+  if (living.length > 1 && pick === a && pick === b) {
+    pick = living[Math.floor(rng() * living.length)];
+  }
+  return pick;
+}

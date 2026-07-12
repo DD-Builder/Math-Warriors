@@ -10,10 +10,23 @@ import { ALL_HEROES } from '../data/heroes.js';
 const LEGACY_KEY = 'mathwarriors.save';
 const SLOT_PREFIX = 'mathwarriors.save.';
 const META_KEY = 'mathwarriors.slots';
-const CURRENT_VERSION = 4;
+const CURRENT_VERSION = 5;
 const MAX_SLOTS = 3;
 
 const STARTER_HEROES = ['knight-shadow', 'wizard-stargazer', 'bunny-pepper'];
+
+/**
+ * The gear a specific hero is wearing: always a well-formed
+ * {weapon, armor, accessory} record (nulls when bare).
+ */
+export function heroEquipment(save, heroId) {
+  const g = save?.equipment?.[heroId];
+  return {
+    weapon: g?.weapon ?? null,
+    armor: g?.armor ?? null,
+    accessory: g?.accessory ?? null,
+  };
+}
 
 /** Build the storage key for a given slot number (default 1). */
 function slotKey(slot = 1) {
@@ -39,11 +52,9 @@ export function makeDefaultSave() {
     potions: 2,
     inventory: [],
     unlockedHeroes: [...STARTER_HEROES],
-    equipment: {
-      hero0: { weapon: null, armor: null, accessory: null },
-      hero1: { weapon: null, armor: null, accessory: null },
-      hero2: { weapon: null, armor: null, accessory: null },
-    },
+    // Keyed by HERO ID (v5+) — gear belongs to the hero who wears it,
+    // not to a party slot, so reordering the party never swaps armor.
+    equipment: {},
     floors: [
       { id: 1, unlocked: true,  complete: false, bestStreak: 0, bestAccuracy: 0 },
       { id: 2, unlocked: false, complete: false, bestStreak: 0, bestAccuracy: 0 },
@@ -65,6 +76,7 @@ export function makeDefaultSave() {
       sfxVolume: 1.0,
       reducedMotion: false,
       colorblindMode: false,
+      ttsEnabled: false,
       sessionTimer: 0,
     },
     problemHistory: [],
@@ -134,6 +146,26 @@ const MIGRATIONS = [
         heroEvolution: save.heroEvolution || {},
         heroBonds: save.heroBonds || {},
       };
+    },
+  },
+  {
+    from: 4, to: 5,
+    // Equipment was keyed by party SLOT (hero0..hero2), so reordering
+    // the party silently handed one hero's armor to another. Re-key by
+    // the hero id that occupied each slot at migration time.
+    migrate: (save) => {
+      const old = save.equipment || {};
+      const party = save.party || [];
+      const equipment = {};
+      for (let i = 0; i < 3; i++) {
+        const slotGear = old[`hero${i}`];
+        const heroId = party[i]?.id;
+        if (!heroId || !slotGear) continue;
+        if (slotGear.weapon || slotGear.armor || slotGear.accessory) {
+          equipment[heroId] = { ...slotGear };
+        }
+      }
+      return { ...save, equipment };
     },
   },
 ];
@@ -209,17 +241,19 @@ function normalize(save) {
     out.problemHistory = [];
   }
 
-  // Ensure equipment object is well-formed
-  const defEquip = def.equipment;
+  // Ensure equipment object is well-formed: hero-id keys, each a
+  // {weapon, armor, accessory} record.
   if (!out.equipment || typeof out.equipment !== 'object') {
-    out.equipment = { ...defEquip };
+    out.equipment = {};
   } else {
-    for (const key of ['hero0', 'hero1', 'hero2']) {
-      if (!out.equipment[key] || typeof out.equipment[key] !== 'object') {
-        out.equipment[key] = { ...defEquip[key] };
-      } else {
-        out.equipment[key] = { ...defEquip[key], ...out.equipment[key] };
-      }
+    for (const key of Object.keys(out.equipment)) {
+      const g = out.equipment[key];
+      if (!g || typeof g !== 'object') { delete out.equipment[key]; continue; }
+      out.equipment[key] = {
+        weapon: g.weapon ?? null,
+        armor: g.armor ?? null,
+        accessory: g.accessory ?? null,
+      };
     }
   }
 
@@ -454,6 +488,21 @@ export function unlockHeroesForFloor(save, floorId) {
     save.pendingRescueDialogue.push(...newlyUnlocked.map(h => h.id));
   }
   return newlyUnlocked;
+}
+
+/**
+ * Unlock a single hero by id — the in-maze rescue path. Idempotent.
+ * Deliberately does NOT queue pendingRescueDialogue: the maze plays the
+ * rescue live, so the post-boss cutscene must stay silent for this hero
+ * (unlockHeroesForFloor already skips ids present in unlockedHeroes).
+ * Returns true if the hero was newly unlocked.
+ */
+export function unlockHero(save, heroId) {
+  if (!ALL_HEROES.some(h => h.id === heroId)) return false;
+  if (!Array.isArray(save.unlockedHeroes)) save.unlockedHeroes = [];
+  if (save.unlockedHeroes.includes(heroId)) return false;
+  save.unlockedHeroes.push(heroId);
+  return true;
 }
 
 /**

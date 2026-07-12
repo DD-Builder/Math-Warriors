@@ -74,6 +74,12 @@ const SOUNDS = {
 // `audio` export that's lazy-initialized.
 
 import { playSynth, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic } from './synthAudio.js';
+import {
+  setMusicVolume as setMusicBusVolume,
+  setSfxVolume as setSfxBusVolume,
+  setMuted as setBusMuted,
+} from './music/audioGraph.js';
+import { playSong, stopSong, playStinger, musicHasSong } from './music/director.js';
 
 class AudioManager {
   constructor() {
@@ -178,7 +184,20 @@ class AudioManager {
       }
     }
 
-    // Fall back to synth ambient drone
+    // Composed music engine (v2): real sequenced pieces with crossfade
+    if (this.musicVolume > 0 && musicHasSong(key)) {
+      if (this._currentMusicObj) {
+        try { this._currentMusicObj.stop(); } catch { /* ignore */ }
+        this._currentMusicObj = null;
+      }
+      stopSynthMusic();
+      unlockAudio();
+      playSong(key);
+      this.currentMusic = key;
+      return;
+    }
+
+    // Legacy synth drones (kept only until every key has a song)
     if (this.musicVolume > 0 && hasSynthMusic(key)) {
       if (this._currentMusicObj) {
         try { this._currentMusicObj.stop(); } catch { /* ignore */ }
@@ -194,22 +213,33 @@ class AudioManager {
     this.currentMusic = key;
   }
 
+  /** Duck the score and play a one-shot musical phrase over it. */
+  playStinger(name) {
+    if (this.muted || this.sfxVolume <= 0) return;
+    unlockAudio();
+    playStinger(`stinger/${name}`);
+  }
+
   stopMusic() {
     if (this._currentMusicObj) {
       try { this._currentMusicObj.stop(); } catch { /* ignore */ }
       this._currentMusicObj = null;
     }
     stopSynthMusic();
+    stopSong();
     this.currentMusic = null;
   }
 
   setMuted(muted) {
     this.muted = !!muted;
-    if (this.muted) this.stopMusic();
+    // Mute the master bus instead of killing the track: unmute resumes
+    // instantly where the music left off.
+    setBusMuted(this.muted);
   }
 
   setMusicVolume(v) {
     this.musicVolume = Math.max(0, Math.min(1, v));
+    setMusicBusVolume(this.musicVolume);
     if (this._currentMusicObj) {
       try { this._currentMusicObj.setVolume(this.musicVolume); } catch { /* ignore */ }
     }
@@ -217,6 +247,7 @@ class AudioManager {
 
   setSfxVolume(v) {
     this.sfxVolume = Math.max(0, Math.min(1, v));
+    setSfxBusVolume(this.sfxVolume);
   }
 }
 

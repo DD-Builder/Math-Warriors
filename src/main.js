@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS, PAPER, PAPER_CSS, SCENES } from './con
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { GradeSelectScene } from './scenes/GradeSelectScene.js';
+import { PlacementScene } from './scenes/PlacementScene.js';
 import { PartySelectScene } from './scenes/PartySelectScene.js';
 import { WorldMapScene } from './scenes/WorldMapScene.js';
 import { MazeScene } from './scenes/MazeScene.js';
@@ -17,6 +18,7 @@ import { MasteryScene } from './scenes/MasteryScene.js';
 import { BossRushScene } from './scenes/BossRushScene.js';
 import { EvolutionScene } from './scenes/EvolutionScene.js';
 import { GalleryScene } from './scenes/GalleryScene.js';
+import { ProgressScene } from './scenes/ProgressScene.js';
 import { audio } from './systems/audio.js';
 import { loadSave } from './systems/save.js';
 
@@ -45,7 +47,7 @@ const config = {
   input: {
     activePointers: 3,
   },
-  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene, EvolutionScene, GalleryScene],
+  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PlacementScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene, EvolutionScene, GalleryScene, ProgressScene],
 };
 
 const game = new Phaser.Game(config);

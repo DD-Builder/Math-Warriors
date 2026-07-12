@@ -15,6 +15,7 @@ import {
   advanceTurn,
   isPartyDefeated,
   pickRandomLivingHero,
+  pickEnemyTarget,
   computeCommandDamage,
 } from './combat.js';
 import { computeEnemyHp, getEnemyById } from '../data/enemies.js';
@@ -307,6 +308,58 @@ describe('pickRandomLivingHero', () => {
   });
 });
 
+describe('pickEnemyTarget', () => {
+  test('never picks a dead hero', () => {
+    const party = [{ hp: 0, id: 'dead' }, { hp: 30, id: 'alive' }];
+    for (let i = 0; i < 100; i++) {
+      assert.equal(pickEnemyTarget(party).id, 'alive');
+    }
+  });
+
+  test('returns null when all dead', () => {
+    assert.equal(pickEnemyTarget([{ hp: 0 }]), null);
+  });
+
+  test('spreads attacks roughly uniformly across 3 heroes', () => {
+    const party = [{ hp: 30, id: 'a' }, { hp: 30, id: 'b' }, { hp: 30, id: 'c' }];
+    const counts = { a: 0, b: 0, c: 0 };
+    const recent = [];
+    let seed = 12345;
+    const rng = () => {
+      // Deterministic LCG so the test can't flake
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    for (let i = 0; i < 3000; i++) {
+      const pick = pickEnemyTarget(party, recent, rng);
+      counts[pick.id]++;
+      recent.push(pick);
+      if (recent.length > 2) recent.shift();
+    }
+    for (const id of ['a', 'b', 'c']) {
+      const share = counts[id] / 3000;
+      assert.ok(share > 0.25 && share < 0.42,
+        `hero ${id} share ${share.toFixed(3)} outside 0.25-0.42 — targeting is skewed`);
+    }
+  });
+
+  test('rerolls a third consecutive pick of the same hero', () => {
+    const party = [{ hp: 30, id: 'a' }, { hp: 30, id: 'b' }];
+    const a = party[0];
+    // RNG sequence: first call would pick 'a' again (0.0), reroll picks 'b' (0.9)
+    const seq = [0.0, 0.9];
+    let i = 0;
+    const pick = pickEnemyTarget(party, [a, a], () => seq[i++]);
+    assert.equal(pick.id, 'b', 'anti-streak reroll should move off the hammered hero');
+  });
+
+  test('single survivor is always the target (no reroll dodge)', () => {
+    const party = [{ hp: 30, id: 'a' }];
+    const a = party[0];
+    assert.equal(pickEnemyTarget(party, [a, a]).id, 'a');
+  });
+});
+
 // ------------------------------------------------------------------
 // DAMAGE MATRIX — design-band regression for hits-to-kill
 // ------------------------------------------------------------------
@@ -317,7 +370,9 @@ describe('pickRandomLivingHero', () => {
 //   ZONE momentum (0.5), streak 0, difficulty 1.0, FIGHT command 1.0.
 //
 //   minions: 2-8 correct answers to defeat
-//   bosses:  8-22 correct answers to defeat
+//   bosses:  8-26 correct answers to defeat (streak-free worst case;
+//            late bosses carry a floor-scaled HP weight, and real play
+//            ramps streak — combatSim.test.js asserts the played length)
 
 describe('damage matrix: hits-to-kill stays in design bands', () => {
   const GRADES = [0, 1, 2, 3, 4, 5];
@@ -339,7 +394,7 @@ describe('damage matrix: hits-to-kill stays in design bands', () => {
 
   for (const { id, isBoss, label } of CASES) {
     const enemyDef = getEnemyById(id);
-    const [lo, hi] = isBoss ? [8, 22] : [2, 8];
+    const [lo, hi] = isBoss ? [8, 26] : [2, 8];
 
     test(`${label}: ${lo}-${hi} hits across grades 0-5 at typical ATK`, () => {
       assert.ok(enemyDef, `enemy ${id} should exist in the roster`);

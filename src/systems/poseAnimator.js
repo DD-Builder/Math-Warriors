@@ -64,19 +64,16 @@ function walkCycle(dur, stride, kneeLift, armSwing, bob, spineLean, earAmp = 0) 
   };
 }
 
-// Bunny bounding hop — gather, launch, airborne tuck, land.
-// Arms stay TUCKED (small shoulder/elbow values): big arm splay in the
-// air read as "falling ragdoll", not hopping.
+// Bunny bounding hop — gather, launch, airborne tuck, land
 function hopCycle(dur) {
   return {
     duration: dur, loop: true,
     keyframes: [
-      { t: 0.0,  pose: { thighL: -0.28, kneeL: 0.75, thighR: -0.28, kneeR: 0.75, hipY: 6, squash: 0.90, spine: 0.14, earFlop: 0.30, shoulderL: -0.12, shoulderR: -0.12, elbowL: 0.55, elbowR: 0.55, head: -0.04 } }, // crouch/gather
-      { t: 0.28, pose: { thighL: 0.24, kneeL: 0.10, thighR: 0.24, kneeR: 0.10, hipY: -12, squash: 1.06, spine: -0.05, earFlop: -0.38, shoulderL: 0.14, shoulderR: 0.14, elbowL: 0.45, elbowR: 0.45, head: 0.04 } },  // launch/extend
-      { t: 0.52, pose: { thighL: 0.06, kneeL: 0.50, thighR: 0.06, kneeR: 0.50, hipY: -16, squash: 1.00, spine: 0.02, earFlop: -0.18, shoulderL: 0.05, shoulderR: 0.05, elbowL: 0.50, elbowR: 0.50, head: 0.01 } },   // airborne tuck
-      { t: 0.72, pose: { thighL: -0.14, kneeL: 0.42, thighR: -0.14, kneeR: 0.42, hipY: 1, squash: 0.88, spine: 0.10, earFlop: 0.42, shoulderL: -0.08, shoulderR: -0.08, elbowL: 0.52, elbowR: 0.52, head: -0.03 } }, // landing squash
-      { t: 0.84, pose: { thighL: -0.22, kneeL: 0.6, thighR: -0.22, kneeR: 0.6, hipY: 4, squash: 0.96, spine: 0.12, earFlop: 0.15, shoulderL: -0.10, shoulderR: -0.10, elbowL: 0.54, elbowR: 0.54, head: -0.03 } },   // settle
-      { t: 1.0,  pose: { thighL: -0.28, kneeL: 0.75, thighR: -0.28, kneeR: 0.75, hipY: 6, squash: 0.90, spine: 0.14, earFlop: 0.30, shoulderL: -0.12, shoulderR: -0.12, elbowL: 0.55, elbowR: 0.55, head: -0.04 } },
+      { t: 0.0,  pose: { thighL: -0.35, kneeL: 0.9, thighR: -0.35, kneeR: 0.9, hipY: 7, squash: 0.9, spine: 0.18, earFlop: 0.35, shoulderL: -0.3, shoulderR: -0.3, elbowL: 0.6, elbowR: 0.6, head: -0.06 } },      // crouch/gather
+      { t: 0.28, pose: { thighL: 0.35, kneeL: 0.05, thighR: 0.35, kneeR: 0.05, hipY: -14, squash: 1.08, spine: -0.08, earFlop: -0.45, shoulderL: 0.5, shoulderR: 0.5, elbowL: 0.2, elbowR: 0.2, head: 0.06 } },      // launch/extend
+      { t: 0.52, pose: { thighL: 0.1, kneeL: 0.55, thighR: 0.1, kneeR: 0.55, hipY: -18, squash: 1.0, spine: 0, earFlop: -0.2, shoulderL: 0.15, shoulderR: 0.15, elbowL: 0.4, elbowR: 0.4, head: 0.02 } },            // airborne tuck
+      { t: 0.75, pose: { thighL: -0.2, kneeL: 0.5, thighR: -0.2, kneeR: 0.5, hipY: 2, squash: 0.94, spine: 0.12, earFlop: 0.5, shoulderL: -0.15, shoulderR: -0.15, elbowL: 0.5, elbowR: 0.5, head: -0.04 } },        // landing absorb
+      { t: 1.0,  pose: { thighL: -0.35, kneeL: 0.9, thighR: -0.35, kneeR: 0.9, hipY: 7, squash: 0.9, spine: 0.18, earFlop: 0.35, shoulderL: -0.3, shoulderR: -0.3, elbowL: 0.6, elbowR: 0.6, head: -0.06 } },
     ],
   };
 }

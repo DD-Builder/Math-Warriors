@@ -92,112 +92,119 @@ export const DIALOGUE = {
 
   // ══════════════════════════════════════
   // FLOOR 2: TIDEPOOL RUINS — "The Stuck Tide"
-  // Math: SUBTRACTION. Open 3 drain valves;
-  // each one SUBTRACTS the flood.
+  // Math: SUBTRACTION. Open 4 tide sluices;
+  // each one SUBTRACTS the flood and surfaces
+  // a drowned district of Ebbport.
   // ══════════════════════════════════════
 
   floor2_entry: [
-    { speaker: 'Water Fairy', text: 'Glub! The tide is stuck way too HIGH!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The whole causeway is underwater!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The Chaos King jammed the drain valves.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Open all three to let the water out.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Every valve SUBTRACTS more flood!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Less and less, until the path appears.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'It leads to the Pressure Chamber.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Ready to make this ocean smaller?', side: 'left' },
+    { speaker: 'Marlow', text: 'A hundred years I kept this lantern lit.', side: 'left' },
+    { speaker: 'Marlow', text: 'Welcome to Ebbport. What the sea left of it.', side: 'left' },
+    { speaker: 'Elara', text: 'A whole city... drowned?', side: 'right' },
+    { speaker: 'Marlow', text: 'The Pressure jammed our tide-heart HIGH.', side: 'left' },
+    { speaker: 'Marlow', text: 'Four sluices can walk the sea back down.', side: 'left' },
+    { speaker: 'Marlow', text: 'Each one SUBTRACTS a measure of flood.', side: 'left' },
+    { speaker: 'Marlow', text: 'Less water, less water... until dry land.', side: 'left' },
+    { speaker: 'Marlow', text: 'Open them, and Ebbport breathes again.', side: 'left' },
   ],
   floor2_fairy_talk: [
-    { speaker: 'Elara', text: 'Marina, you know these ruins?' },
-    { speaker: 'Water Fairy', text: 'I learned to swim right here!' },
-    { speaker: 'Water Fairy', text: 'The causeway was my favorite walk.' },
-    { speaker: 'Elara', text: 'Then let us take this water down.' },
+    { speaker: 'Marlow', text: 'Market Row! Surfacing after a hundred years!' },
+    { speaker: 'Marlow', text: 'The stalls, the cobbles... all still here.' },
+    { speaker: 'Elara', text: 'Every answer sinks the tide a little more.' },
+    { speaker: 'Marlow', text: 'Keep subtracting. Drain it street by street.' },
   ],
   floor2_boss: [
-    { speaker: 'Water Fairy', text: 'The Pressure Chamber! And its keeper!', side: 'left' },
-    { speaker: 'The Pressure', text: 'I LOVE a big, deep, drippy flood!', sprite: 'pressure', side: 'right' },
-    { speaker: 'The Pressure', text: 'More water! Never less! NEVER!', sprite: 'pressure', side: 'right' },
-    { speaker: 'Narrator', text: 'Subtract the flood! Take it away!', wide: true },
+    { speaker: 'Marlow', text: 'The Deep Basin! And the thing that jammed it.', side: 'left' },
+    { speaker: 'The Pressure', text: 'Who DARES subtract my beautiful flood?!', sprite: 'pressure', side: 'right' },
+    { speaker: 'The Pressure', text: 'I am the high tide! Endless! RISING!', sprite: 'pressure', side: 'right' },
+    { speaker: 'Narrator', text: 'Take the flood away. Subtract it to nothing!', wide: true },
   ],
   floor2_victory: [
-    { speaker: 'Water Fairy', text: 'You subtracted the whole flood away!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The tide sank with every answer!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The causeway is back in the sun!', side: 'left' },
-    { speaker: 'Elara', text: 'The Tide Harmony hums happily.', side: 'left' },
+    { speaker: 'Marlow', text: 'The tide-heart turns. Feel it breathe!', side: 'left' },
+    { speaker: 'Marlow', text: 'Low tide. Real, honest low tide again!', side: 'left' },
+    { speaker: 'Elara', text: 'Ebbport rises from the water at last.', side: 'left' },
+    { speaker: 'Elara', text: 'The Tide Harmony hums, mended and whole.', side: 'left' },
     { speaker: 'Elara', text: 'Two Harmonies mended! Seven to go.', side: 'left' },
-    { speaker: 'Elara', text: 'Next stop: way, way up in the clouds.', side: 'left' },
+    { speaker: 'Elara', text: 'Next: the sky-maze, where light MULTIPLIES.', side: 'left' },
     { speaker: 'Elara', text: 'I hope you like heights!', side: 'left' },
   ],
 
   // ══════════════════════════════════════
-  // FLOOR 3: CLOUD MAZE — "The Dark Beacons"
-  // Math: MULTIPLICATION. Light 3 beacons; their
-  // light MULTIPLIES and extends the cloud bridges.
+  // FLOOR 3: THE SHATTERED SKY — "The Doubling Light"
+  // Math: MULTIPLICATION. Each of 4 beacons DOUBLES
+  // the light: bridges of 2, 4, 8 tiles — then 16 at
+  // once flood the Eye of the Storm. Guide: Zephyr,
+  // the sky-shepherd who lost his cloud-sheep.
   // ══════════════════════════════════════
 
   floor3_entry: [
-    { speaker: 'Sky Fairy', text: 'Welcome to the Cloud Maze! Mind the gap!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'The sky beacons all went dark.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'No light means no cloud bridges.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Light one beacon: a little glow.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Light three: the light MULTIPLIES!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Times and times and times as bright!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Bright enough to stretch cloud bridges', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'all the way to the Eye of the Storm!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Mind the gap! The sky is in PIECES.', side: 'left' },
+    { speaker: 'Zephyr', text: 'The Skywhale swallowed the Sun-Seed.', side: 'left' },
+    { speaker: 'Zephyr', text: 'No light, no bridges. My sheep scattered!', side: 'left' },
+    { speaker: 'Elara', text: 'Then we relight the beacons.', side: 'right' },
+    { speaker: 'Zephyr', text: 'One beacon makes a LITTLE bridge.', side: 'left' },
+    { speaker: 'Zephyr', text: 'But light MULTIPLIES: two, four, eight!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Four beacons — SIXTEEN bridges at once!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Enough to reach the Eye of the Storm.', side: 'left' },
   ],
   floor3_mid_explore: [
-    { speaker: 'Sky Fairy', text: 'Feel that? The wind is grumpy.' },
-    { speaker: 'Sky Fairy', text: 'The Skywhale circles the Eye.' },
+    { speaker: 'Zephyr', text: 'Feel that? The wind is grumpy.' },
+    { speaker: 'Zephyr', text: 'The Skywhale circles the Eye below us.' },
     { speaker: 'Elara', text: 'Is it dangerous, Zephyr?' },
-    { speaker: 'Sky Fairy', text: 'Only until we relight the sky!' },
-    { speaker: 'Sky Fairy', text: 'Keep multiplying that glow!' },
+    { speaker: 'Zephyr', text: 'Only until we relight the sky!' },
+    { speaker: 'Zephyr', text: 'Keep doubling that glow. And heroes —' },
+    { speaker: 'Zephyr', text: 'if you spot my sheep, give them a pat.' },
   ],
   floor3_boss: [
-    { speaker: 'Sky Fairy', text: 'The Eye of the Storm! Hold on tight!', side: 'left' },
-    { speaker: 'Skywhale', text: 'WHO lit up my nice dark clouds?', sprite: 'skywhale', side: 'right' },
-    { speaker: 'Skywhale', text: 'I nap best in the gloom! Shoo!', sprite: 'skywhale', side: 'right' },
-    { speaker: 'Narrator', text: 'Multiply your light! Shine on!', wide: true },
+    { speaker: 'Zephyr', text: 'The Eye of the Storm! Hold on tight!', side: 'left' },
+    { speaker: 'Skywhale', text: 'WHO multiplied all this LIGHT?!', sprite: 'skywhale', side: 'right' },
+    { speaker: 'Skywhale', text: 'I ate the sun to nap in the dark!', sprite: 'skywhale', side: 'right' },
+    { speaker: 'Narrator', text: 'Double your light until it bursts free!', wide: true },
   ],
   floor3_victory: [
-    { speaker: 'Sky Fairy', text: 'You multiplied light across the sky!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Three beacons, times and times again!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'Cloud bridges reach every island now!', side: 'left' },
+    { speaker: 'Zephyr', text: 'The Skywhale coughed up the Sun-Seed!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Two, four, eight, SIXTEEN bridges!', side: 'left' },
+    { speaker: 'Zephyr', text: 'Light reaches every island again.', side: 'left' },
     { speaker: 'Elara', text: 'The Sky Harmony shines once more.', side: 'left' },
     { speaker: 'Elara', text: 'Three mended! You are on a roll.', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'The next realm is toasty. VERY toasty.', side: 'left' },
+    { speaker: 'Zephyr', text: 'The next realm is toasty. VERY toasty.', side: 'left' },
     { speaker: 'Elara', text: 'The Ember Caves. Pack a fan!', side: 'left' },
   ],
 
   // ══════════════════════════════════════
-  // FLOOR 4: EMBER CAVES — "The One Big Flow"
-  // Math: DIVISION. Seal 3 vents; the giant lava
-  // flow DIVIDES, starves, and cools into a path.
+  // FLOOR 4: EMBER CAVES — "Divide the Fire"
+  // Math: DIVISION. Seal 4 vents; the ONE giant
+  // lava flow DIVIDES — in two, in four — until
+  // thin streams cool into crossings and the
+  // caldera itself cools. Guide: Cinder, the
+  // last forge-imp.
   // ══════════════════════════════════════
 
   floor4_entry: [
-    { speaker: 'Fire Fairy', text: 'Careful! ONE giant lava flow blocks all!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'The Chaos King broke the cave vents.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'So all the lava squeezes into ONE river.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Seal a vent, and the flow DIVIDES!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Split it again and again into streams.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Small streams cool into walkable rock.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'That rocky path leads to the Forge.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'The Pyroclast guards it. Onward!', side: 'left' },
+    { speaker: 'Cinder', text: 'Watch your boots! ONE giant flow!', side: 'left' },
+    { speaker: 'Cinder', text: 'Pyroclast merged every tame stream.', side: 'left' },
+    { speaker: 'Cinder', text: 'Now NOBODY crosses. Not even imps.', side: 'left' },
+    { speaker: 'Elara', text: 'Then how do we reach the caldera?', side: 'right' },
+    { speaker: 'Cinder', text: 'Division! Seal a vent — the flow SPLITS.', side: 'left' },
+    { speaker: 'Cinder', text: 'Halve it, halve it again: thin streams.', side: 'left' },
+    { speaker: 'Cinder', text: 'Thin streams cool into rock you can walk.', side: 'left' },
+    { speaker: 'Cinder', text: 'What you cannot cross whole... cross in PARTS.', side: 'left' },
   ],
   floor4_boss: [
-    { speaker: 'Fire Fairy', text: 'The Forge! And its fiery keeper!', side: 'left' },
+    { speaker: 'Cinder', text: 'The caldera! And its fiery keeper!', side: 'left' },
     { speaker: 'Pyroclast', text: 'ONE big lava river! My masterpiece!', sprite: 'pyroclast', side: 'right' },
     { speaker: 'Pyroclast', text: 'You DIVIDED it into drizzles?!', sprite: 'pyroclast', side: 'right' },
-    { speaker: 'Narrator', text: 'Divide the flow! Cool it down!', wide: true },
+    { speaker: 'Narrator', text: 'Divide his fire until it cools!', wide: true },
   ],
   floor4_victory: [
-    { speaker: 'Fire Fairy', text: 'You divided that mega-flow to bits!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Split into streams, the lava cooled!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Now the caves have a stone walkway!', side: 'left' },
+    { speaker: 'Cinder', text: 'You divided that mega-flow to bits!', side: 'left' },
+    { speaker: 'Cinder', text: 'Halved, and halved, and halved again!', side: 'left' },
+    { speaker: 'Cinder', text: 'The tame streams sing in the forge!', side: 'left' },
     { speaker: 'Elara', text: 'The Ember Harmony crackles with joy.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'Four Harmonies fixed! You rock!', side: 'left' },
+    { speaker: 'Cinder', text: 'Four Harmonies fixed! You rock!', side: 'left' },
     { speaker: 'Elara', text: 'The next peak is the opposite of toasty.', side: 'left' },
     { speaker: 'Elara', text: 'The Frozen Peak. Bring mittens!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'I will keep your toes warm!', side: 'left' },
+    { speaker: 'Cinder', text: 'Take an ember. For your toes.', side: 'left' },
   ],
 
   // ══════════════════════════════════════
@@ -208,76 +215,81 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor5_entry: [
-    { speaker: 'Ice Fairy', text: 'B-brrr! Welcome to the Frozen Peak!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'The great waterfall froze mid-fall!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'It hangs there like a giant icicle.', side: 'left' },
-    { speaker: 'Elara', text: 'How do we climb it, Frost?', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Kindle the thaw-crystals!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Each one needs a different operation.', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Add, subtract, times, divide. Mix it up!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Warm math melts the coldest ice.', side: 'left' },
+    { speaker: 'Frost', text: 'B-brrr! Welcome to the Frozen Peak!', side: 'left' },
+    { speaker: 'Frost', text: 'Absolute Zero froze the Great Spring.', side: 'left' },
+    { speaker: 'Frost', text: 'Every river in Numeria starts up there.', side: 'left' },
+    { speaker: 'Elara', text: 'How do we climb, Frost?', side: 'left' },
+    { speaker: 'Frost', text: 'The Four Keys of Thaw! Four crystals:', side: 'left' },
+    { speaker: 'Frost', text: 'Sums, Differences, Products, Quotients.', side: 'left' },
+    { speaker: 'Frost', text: 'Each answers ONLY to its own math.', side: 'left' },
+    { speaker: 'Frost', text: 'Wake one, and one wall of ice melts.', side: 'left' },
     { speaker: 'Elara', text: 'Then let us warm this mountain up!', side: 'left' },
   ],
   floor5_mid_explore: [
-    { speaker: 'Ice Fairy', text: 'Br-r-r. The wind has icicles in it.' },
+    { speaker: 'Frost', text: 'Br-r-r. The wind has icicles in it.' },
     { speaker: 'Elara', text: 'Every right answer warms the air.' },
-    { speaker: 'Ice Fairy', text: 'Then answer LOTS! I want a scarf.' },
+    { speaker: 'Frost', text: 'Then answer LOTS! I want a scarf.' },
+    { speaker: 'Frost', text: 'Psst — something WARM is up there.' },
+    { speaker: 'Frost', text: 'Frozen mid-hop, poor thing.' },
   ],
   floor5_boss: [
     { speaker: 'Absolute Zero', text: 'Welcome to my perfectly frozen falls.', sprite: 'absolutezero', side: 'right' },
     { speaker: 'Absolute Zero', text: 'Not one drip. Not one drop. Lovely.', sprite: 'absolutezero', side: 'right' },
-    { speaker: 'Ice Fairy', text: 'Water is meant to MOVE, you ice cube!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Melt it, hero! Mix up your math!', side: 'left' },
-    { speaker: 'Narrator', text: 'Use every operation to thaw the falls!', wide: true },
+    { speaker: 'Frost', text: 'Water is meant to MOVE, you ice cube!', side: 'left' },
+    { speaker: 'Frost', text: 'Melt him, heroes! Mix up your math!', side: 'left' },
+    { speaker: 'Narrator', text: 'Use every operation to thaw the spring!', wide: true },
   ],
   floor5_victory: [
     { speaker: 'Absolute Zero', text: 'My falls! They are... flowing.', sprite: 'absolutezero', side: 'right' },
     { speaker: 'Absolute Zero', text: 'Drip. Drop. Hmm. It IS a nice sound.', sprite: 'absolutezero', side: 'right' },
-    { speaker: 'Ice Fairy', text: 'You mixed ALL your math to melt it!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'Adding, times, take-away, sharing!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'The waterfall is now splashy stairs!', side: 'left' },
+    { speaker: 'Frost', text: 'All four Keys of Thaw, turned true!', side: 'left' },
+    { speaker: 'Frost', text: 'Adding, times, take-away, sharing!', side: 'left' },
+    { speaker: 'Frost', text: 'The Great Spring flows down the peak!', side: 'left' },
     { speaker: 'Elara', text: 'The Frost Harmony twinkles again.', side: 'left' },
     { speaker: 'Elara', text: 'Five mended! More than halfway!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'The Ice Throne is open to climb.', side: 'left' },
-    { speaker: 'Elara', text: 'Next: caves full of singing crystals!', side: 'left' },
+    { speaker: 'Frost', text: 'Blaze says thanks for the defrost.', side: 'left' },
+    { speaker: 'Elara', text: 'Next: caverns where light has SHAPES.', side: 'left' },
   ],
 
   // ══════════════════════════════════════
-  // FLOOR 6: CRYSTAL CAVERNS — "The Humming Wall"
-  // Math: MATH FACTS. Tune 3 geodes to the right
-  // numbers to SHATTER the resonant crystal wall.
+  // FLOOR 6: CRYSTAL CAVERNS — "The Shape of Light"
+  // Math: GEOMETRY. The Prism shattered the Great
+  // Geode; each restored geo-shard fires a BEAM
+  // that cuts a shaped passage through solid rock:
+  // triangle, square, hexagon... to the Octagon.
+  // Guide: Faceta, the geode-keeper.
   // ══════════════════════════════════════
 
   floor6_entry: [
-    { speaker: 'Crystal Fairy', text: 'Shh! Hear that hum? That is the wall.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'A crystal wall seals the Prism Chamber.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Only a perfect chord can crack it.', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Tune three geodes to the right numbers!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Like singing, but with math facts!', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Exactly! Quick facts, true notes.', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'I call the loudest geode!', side: 'left' },
-    { speaker: 'Elara', text: 'Fast facts and steady hands, heroes.', side: 'left' },
-    { speaker: 'Elara', text: 'Let us tune this cave!', side: 'left' },
+    { speaker: 'Faceta', text: 'Mind the dark. Light broke down here.', side: 'left' },
+    { speaker: 'Faceta', text: 'The Prism shattered the Great Geode.', side: 'left' },
+    { speaker: 'Faceta', text: 'Now every deep hall is sealed in rock.', side: 'left' },
+    { speaker: 'Elara', text: 'How do we pass solid crystal?', side: 'right' },
+    { speaker: 'Faceta', text: 'Light cuts crystal — if it has SHAPE.', side: 'left' },
+    { speaker: 'Faceta', text: 'Restore a geo-shard: a beam fires true.', side: 'left' },
+    { speaker: 'Faceta', text: 'Triangle, square, hexagon... learn them.', side: 'left' },
+    { speaker: 'Faceta', text: 'Every hall down here IS a shape.', side: 'left' },
+    { speaker: 'Elara', text: 'Then we carve our way with geometry.', side: 'left' },
   ],
   floor6_fairy_talk: [
-    { speaker: 'Crystal Fairy', text: 'Each geode hums a number.' },
-    { speaker: 'Water Fairy', text: 'This one hums a seven. I think.' },
-    { speaker: 'Fire Fairy', text: 'Mine hums OFF-KEY. Rude.' },
-    { speaker: 'Elara', text: 'Then tune it true, quick as a wink!' },
+    { speaker: 'Faceta', text: 'Two beams! See how straight they cut?' },
+    { speaker: 'Elara', text: 'The halls really are shapes...' },
+    { speaker: 'Faceta', text: 'Count the corners as you walk them.' },
+    { speaker: 'Faceta', text: 'Three, four, six... then EIGHT.' },
   ],
   floor6_boss: [
-    { speaker: 'The Prism', text: 'Who is tapping on my lovely wall?', sprite: 'theprism', side: 'right' },
-    { speaker: 'The Prism', text: 'It took AGES to hum it shut!', sprite: 'theprism', side: 'right' },
-    { speaker: 'Elara', text: 'Your math facts are the true notes!', side: 'left' },
-    { speaker: 'Narrator', text: 'Answer fast! Shatter the wall!', wide: true },
+    { speaker: 'The Prism', text: 'Who CUT holes in my perfect dark?', sprite: 'theprism', side: 'right' },
+    { speaker: 'The Prism', text: 'I bent every beam to a wrong angle!', sprite: 'theprism', side: 'right' },
+    { speaker: 'Faceta', text: 'Shapes never lie. Show it true angles!', side: 'left' },
+    { speaker: 'Narrator', text: 'Measure, count corners, cut it down!', wide: true },
   ],
   floor6_victory: [
-    { speaker: 'Crystal Fairy', text: 'The chord rang true, and CRASH!', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'You tuned every geode perfectly!', side: 'left' },
-    { speaker: 'Crystal Fairy', text: 'Your fast facts shattered the wall!', side: 'left' },
+    { speaker: 'Faceta', text: 'The Great Geode glows whole again!', side: 'left' },
+    { speaker: 'Faceta', text: 'Triangles, squares, hexagons of light!', side: 'left' },
+    { speaker: 'Faceta', text: 'You gave the light its shapes back.', side: 'left' },
     { speaker: 'Elara', text: 'The Crystal Harmony glitters again.', side: 'left' },
     { speaker: 'Elara', text: 'Six Harmonies mended! Three left.', side: 'left' },
-    { speaker: 'Water Fairy', text: 'Next is the Market Square!', side: 'left' },
+    { speaker: 'Faceta', text: 'Next is Coinford Market. Watch your gold!', side: 'left' },
     { speaker: 'Elara', text: 'Bring your counting coins, hero.', side: 'left' },
   ],
 
@@ -289,31 +301,31 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor7_entry: [
-    { speaker: 'Market Fairy', text: 'Oh no, oh no! The books are GONE!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'The Counterfeiter swiped our ledgers!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'He locked them in his big brass vault', side: 'left' },
-    { speaker: 'Market Fairy', text: 'and flooded the square with fake coins!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'Now the drawbridge is stuck straight UP!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'It will not budge till the books balance.', side: 'left' },
-    { speaker: 'Market Fairy', text: 'Find the three REAL gold tokens first.', side: 'left' },
+    { speaker: 'Penny', text: 'Welcome to Coinford. Trust NOTHING.', side: 'left' },
+    { speaker: 'Penny', text: 'The Counterfeiter flooded us with fakes.', side: 'left' },
+    { speaker: 'Penny', text: 'He locked my papa\u2019s mint and framed', side: 'left' },
+    { speaker: 'Penny', text: 'the royal auditor for HIS crime!', side: 'left' },
+    { speaker: 'Penny', text: 'Only three REAL gold tokens are left.', side: 'left' },
+    { speaker: 'Penny', text: 'Each one reopens a lock of the mint.', side: 'left' },
+    { speaker: 'Penny', text: 'But fake gold BITES. Count before you grab!', side: 'left' },
     { speaker: 'Elara', text: 'Money math to the rescue!', side: 'left' },
-    { speaker: 'Elara', text: 'Count carefully, hero. Off we go!', side: 'left' },
+    { speaker: 'Elara', text: 'Count carefully, heroes. Off we go!', side: 'left' },
   ],
   floor7_boss: [
     { speaker: 'The Counterfeiter', text: 'Going once! Going twice! All FAKE!', sprite: 'counterfeiter', side: 'right' },
     { speaker: 'The Counterfeiter', text: 'Your precious ledgers? MINE now!', sprite: 'counterfeiter', side: 'right' },
-    { speaker: 'Market Fairy', text: 'Give back our books, you swindler!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'Count him down, hero!', side: 'left' },
-    { speaker: 'Narrator', text: 'Count every coin to win!', wide: true },
+    { speaker: 'Penny', text: 'Give back our mint, you swindler!', side: 'left' },
+    { speaker: 'Penny', text: 'Count him down, heroes!', side: 'left' },
+    { speaker: 'Narrator', text: 'Real math beats fake gold. Count!', wide: true },
   ],
   floor7_victory: [
-    { speaker: 'Market Fairy', text: 'The ledgers are back! Every page!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'You counted every coin just right!', side: 'left' },
-    { speaker: 'Market Fairy', text: 'The books balance to the last penny!', side: 'left' },
+    { speaker: 'Penny', text: 'The mint sings! Real coins again!', side: 'left' },
+    { speaker: 'Penny', text: 'You told true from fake every time!', side: 'left' },
+    { speaker: 'Penny', text: 'The books balance to the last penny!', side: 'left' },
     { speaker: 'Narrator', text: 'CREEEAK... the drawbridge lowers!', wide: true },
     { speaker: 'Elara', text: 'The Market Harmony rings like a till.', side: 'left' },
     { speaker: 'Elara', text: 'Seven mended! Two Harmonies left.', side: 'left' },
-    { speaker: 'Market Fairy', text: 'Across the bridge is the great Library.', side: 'left' },
+    { speaker: 'Penny', text: 'Across the bridge is the great Library.', side: 'left' },
     { speaker: 'Elara', text: 'I hear its story got torn apart...', side: 'left' },
   ],
 
@@ -324,87 +336,90 @@ export const DIALOGUE = {
   // ══════════════════════════════════════
 
   floor8_entry: [
-    { speaker: 'Book Fairy', text: 'The great story! It is torn to bits!', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Halves and thirds and quarters, everywhere!', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Pages flutter around like snow.', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Each piece is a fraction of the tale.', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Match the fractions to mend each page.', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Whole pages rebuild the story stairs!', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Up the shelf canyon to the Archive!', side: 'left' },
-    { speaker: 'Elara', text: 'Piece by piece, part by part.', side: 'left' },
-    { speaker: 'Elara', text: 'Let us put this tale back together!', side: 'left' },
+    { speaker: 'Folio', text: 'Hoo. Mind the ink. It DROWNS shelves.', side: 'left' },
+    { speaker: 'Folio', text: 'The Paradox tore the Great Story.', side: 'left' },
+    { speaker: 'Folio', text: 'The world\u2019s whole memory — in pieces.', side: 'left' },
+    { speaker: 'Folio', text: 'Four Lost Pages. Each is one QUARTER.', side: 'left' },
+    { speaker: 'Folio', text: 'Mend one: 1/4 of the Story Stair returns.', side: 'left' },
+    { speaker: 'Folio', text: 'Two: 2/4. Halfway. You see the pattern.', side: 'left' },
+    { speaker: 'Elara', text: 'Fractions, until the Story is whole.', side: 'left' },
+    { speaker: 'Folio', text: 'And hoo... watch the shelves closely.', side: 'left' },
+    { speaker: 'Folio', text: 'Not every book here is a book.', side: 'left' },
   ],
   floor8_mid_explore: [
-    { speaker: 'Book Fairy', text: 'Look! Half a page over here!' },
-    { speaker: 'Book Fairy', text: 'And a quarter stuck to a shelf!' },
-    { speaker: 'Elara', text: 'A half plus two quarters makes...' },
-    { speaker: 'Book Fairy', text: 'A whole page! You are getting it!' },
+    { speaker: 'Folio', text: 'Legend says the Author kept a study.' },
+    { speaker: 'Folio', text: 'Hidden behind a shelf... behind a shelf.' },
+    { speaker: 'Elara', text: 'A secret inside a secret?' },
+    { speaker: 'Folio', text: 'Hoo knows what truth sleeps there.' },
     { speaker: 'Elara', text: 'Fractions make wholes. On we go!' },
   ],
   floor8_boss: [
     { speaker: 'The Paradox', text: 'I tore the tale into tiny pieces!', sprite: 'theparadox', side: 'right' },
     { speaker: 'The Paradox', text: 'Half of a half of a half! Ha!', sprite: 'theparadox', side: 'right' },
-    { speaker: 'Book Fairy', text: 'Stories want to be WHOLE!', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Show it your fractions, hero!', side: 'left' },
+    { speaker: 'Folio', text: 'Stories want to be WHOLE!', side: 'left' },
+    { speaker: 'Folio', text: 'Show it your fractions, heroes!', side: 'left' },
     { speaker: 'Narrator', text: 'Make the pieces whole to win!', wide: true },
   ],
   floor8_victory: [
-    { speaker: 'Book Fairy', text: 'Every torn page is whole again!', side: 'left' },
-    { speaker: 'Book Fairy', text: 'You matched every fraction perfectly!', side: 'left' },
-    { speaker: 'Book Fairy', text: 'Halves and quarters, back to wholes!', side: 'left' },
-    { speaker: 'Narrator', text: 'The story stairs stack themselves up!', wide: true },
+    { speaker: 'Folio', text: 'Every torn page is whole again!', side: 'left' },
+    { speaker: 'Folio', text: '4/4. A complete Story. Hoo-ray.', side: 'left' },
     { speaker: 'Elara', text: 'The Story Harmony whispers its thanks.', side: 'left' },
-    { speaker: 'Elara', text: 'Eight mended. One Harmony left.', side: 'left' },
-    { speaker: 'Book Fairy', text: 'The last page shows a dark castle.', side: 'left' },
-    { speaker: 'All Fairies', text: 'The Castle of Chaos!', side: 'left' },
-    { speaker: 'Elara', text: 'Time to meet the Chaos King.', side: 'left' },
+    { speaker: 'Folio', text: 'But the Study told a darker truth...', side: 'left' },
+    { speaker: 'Folio', text: 'The Chaos King is the Story\u2019s own', side: 'left' },
+    { speaker: 'Folio', text: 'FIRST DRAFT — torn out and thrown away.', side: 'left' },
+    { speaker: 'Elara', text: 'A proof that thinks it doesn\u2019t add up.', side: 'left' },
+    { speaker: 'Elara', text: 'Eight mended. One page left to write.', side: 'left' },
+    { speaker: 'Elara', text: 'To the Mending Room. All of us.', side: 'left' },
   ],
 
   // ══════════════════════════════════════
-  // FLOOR 9: CASTLE OF CHAOS — "The Void Breach"
-  // Math: EVERYTHING. Light 3 harmony sigils (one
-  // per mastered skill) to SEAL the breach; the
-  // final bridge forms to the Chaos King's throne.
+  // FLOOR 9: THE MENDING ROOM — "The Proof of Everything"
+  // Math: EVERYTHING. Four memory-wings, each guarded
+  // by a saved realm's math, hold the four Equation
+  // Fragments. Placed together, the Grand Equation
+  // solves and the void drains from the Theorem's
+  // dais. The Chaos King is the Story's discarded
+  // first draft — the ending COMPLETES him.
   // ══════════════════════════════════════
 
   floor9_entry: [
-    { speaker: 'All Fairies', text: 'The Castle of Chaos. Gulp.', side: 'left' },
-    { speaker: 'Elara', text: 'Steady, friends. See that great crack?', side: 'left' },
-    { speaker: 'Elara', text: 'A void breach splits the whole castle.', side: 'left' },
-    { speaker: 'Elara', text: 'The Chaos King made it, hero.', side: 'left' },
-    { speaker: 'Elara', text: 'Light the three harmony sigils.', side: 'left' },
-    { speaker: 'Elara', text: 'One for each math skill you mastered.', side: 'left' },
-    { speaker: 'Elara', text: 'Their light will SEAL the breach.', side: 'left' },
-    { speaker: 'Elara', text: 'Then a bridge will form to his throne.', side: 'left' },
-    { speaker: 'All Fairies', text: 'Every Harmony is cheering for you!', side: 'left' },
+    { speaker: 'Narrator', text: 'The Mending Room. Where it all began.', wide: true },
+    { speaker: 'Elara', text: 'Look behind you, heroes.', side: 'left' },
+    { speaker: 'Narrator', text: 'Every hero you freed stands with you.', wide: true },
+    { speaker: 'All Heroes', text: 'For Numeria. TOGETHER!', side: 'left' },
+    { speaker: 'Elara', text: 'Four wings. Four memories of realms saved.', side: 'left' },
+    { speaker: 'Elara', text: 'Each guarded by the math that saved it.', side: 'left' },
+    { speaker: 'Elara', text: 'Place the four Equation Fragments.', side: 'left' },
+    { speaker: 'Elara', text: 'Solve the proof he never could finish.', side: 'left' },
+    { speaker: 'Elara', text: 'Not to beat him. To COMPLETE him.', side: 'left' },
   ],
   floor9_mid_explore: [
-    { speaker: 'Chaos King', text: 'Heroes? In MY splendidly messy castle?' },
-    { speaker: 'Chaos King', text: 'I like my numbers scrambled!' },
-    { speaker: 'Chaos King', text: 'Seven plus banana equals Tuesday!' },
-    { speaker: 'Elara', text: 'Oh dear. He really needs our help.' },
-    { speaker: 'Elara', text: 'Light those sigils, quick!' },
+    { speaker: 'The Theorem', text: 'Heroes? In MY unfinished proof?' },
+    { speaker: 'The Theorem', text: 'The Story threw me away, you know.' },
+    { speaker: 'The Theorem', text: 'Draft one. Crossed out. WRONG.' },
+    { speaker: 'Elara', text: 'No one is wrong forever.' },
+    { speaker: 'Elara', text: 'Place those fragments, heroes.' },
   ],
   floor9_boss: [
-    { speaker: 'Elara', text: 'The Chaos King! Called The Theorem!', side: 'left' },
-    { speaker: 'Chaos King', text: 'I smashed all nine Harmonies! ME!', sprite: 'theorem', side: 'right' },
-    { speaker: 'Chaos King', text: 'Chaos forever! No more neat answers!', sprite: 'theorem', side: 'right' },
-    { speaker: 'All Fairies', text: 'Use EVERYTHING you have learned!', side: 'left' },
-    { speaker: 'Narrator', text: 'The final challenge begins!', wide: true },
+    { speaker: 'Elara', text: 'The Chaos King. The Theorem himself.', side: 'left' },
+    { speaker: 'The Theorem', text: 'I proved it! The world does NOT add up!', sprite: 'theorem', side: 'right' },
+    { speaker: 'The Theorem', text: 'So I made it true. Harmony by Harmony.', sprite: 'theorem', side: 'right' },
+    { speaker: 'Elara', text: 'Then watch us finish your proof.', side: 'left' },
+    { speaker: 'Narrator', text: 'Use EVERYTHING you have learned!', wide: true },
   ],
   floor9_victory: [
-    { speaker: 'Chaos King', text: 'My breach! It is... sealed?', sprite: 'theorem', side: 'right' },
-    { speaker: 'Chaos King', text: 'Your answers fit together so neatly.', sprite: 'theorem', side: 'right' },
-    { speaker: 'Chaos King', text: 'Adding, sharing, halves, coins...', sprite: 'theorem', side: 'right' },
-    { speaker: 'Chaos King', text: 'Maybe order is not so boring after all.', sprite: 'theorem', side: 'right' },
-    { speaker: 'Elara', text: 'All nine Harmonies are singing!', side: 'left' },
-    { speaker: 'Water Fairy', text: 'The tide rolls just right!', side: 'left' },
-    { speaker: 'Sky Fairy', text: 'The beacons blaze bright!', side: 'left' },
-    { speaker: 'Fire Fairy', text: 'The lava naps in its streams!', side: 'left' },
-    { speaker: 'Ice Fairy', text: 'The falls splash and sparkle!', side: 'left' },
+    { speaker: 'The Theorem', text: 'My proof... you did not erase it.', sprite: 'theorem', side: 'right' },
+    { speaker: 'The Theorem', text: 'You FINISHED it. It adds up.', sprite: 'theorem', side: 'right' },
+    { speaker: 'The Theorem', text: 'I add up.', sprite: 'theorem', side: 'right' },
+    { speaker: 'Elara', text: 'Every draft belongs in the Story.', side: 'left' },
+    { speaker: 'Narrator', text: 'All nine Harmonies sing at once.', wide: true },
+    { speaker: 'Marlow', text: 'The tide rolls just right!', side: 'left' },
+    { speaker: 'Zephyr', text: 'The beacons blaze bright!', side: 'left' },
+    { speaker: 'Cinder', text: 'The lava naps in its streams!', side: 'left' },
+    { speaker: 'Penny', text: 'And every coin counts true!', side: 'left' },
     { speaker: 'Elara', text: 'You mended a whole kingdom with math.', side: 'left' },
-    { speaker: 'Elara', text: 'Adding, subtracting, sharing, solving!', side: 'left' },
-    { speaker: 'Elara', text: 'Numeria will sing your name forever.', side: 'left' },
+    { speaker: 'Elara', text: 'And freed every hero who fell trying.', side: 'left' },
+    { speaker: 'Elara', text: 'Numeria will sing your names forever.', side: 'left' },
     { speaker: 'Elara', text: 'True heroes. Every one of you.', side: 'left' },
   ],
 
@@ -468,44 +483,44 @@ export const DIALOGUE = {
     { speaker: 'Elara', text: 'Now wake the sleeping Rune Stones!' },
   ],
   floor2_phase1_done: [
-    { speaker: 'Water Fairy', text: 'All three drain valves are open!' },
-    { speaker: 'Water Fairy', text: 'The flood is subtracting away!' },
-    { speaker: 'Water Fairy', text: 'Now hunt for the Coral Keys!' },
+    { speaker: 'Marlow', text: 'The last sluice! The Deep Basin is draining!' },
+    { speaker: 'Marlow', text: 'A century of flood, pouring out at once!' },
+    { speaker: 'Elara', text: 'Something huge is stirring down there...' },
   ],
   floor3_phase1_done: [
-    { speaker: 'Sky Fairy', text: 'All three beacons are blazing!' },
-    { speaker: 'Sky Fairy', text: 'Their light multiplies across the sky!' },
-    { speaker: 'Sky Fairy', text: 'Now ring the Wind Chimes!' },
+    { speaker: 'Zephyr', text: 'FOUR beacons! Sixteen bridges of light!' },
+    { speaker: 'Zephyr', text: 'They flood the Eye from every side!' },
+    { speaker: 'Elara', text: 'The Skywhale has nowhere left to hide.' },
   ],
   floor4_phase1_done: [
-    { speaker: 'Fire Fairy', text: 'All three vents are sealed!' },
-    { speaker: 'Fire Fairy', text: 'The lava is dividing into streams!' },
-    { speaker: 'Fire Fairy', text: 'Now build the Lava Bridges!' },
+    { speaker: 'Cinder', text: 'The LAST vent! The fire is divided!' },
+    { speaker: 'Cinder', text: 'The caldera moat cools to stone!' },
+    { speaker: 'Elara', text: 'Pyroclast stands exposed. Go!' },
   ],
   floor5_phase1_done: [
-    { speaker: 'Ice Fairy', text: 'All three frozen crystals found!' },
-    { speaker: 'Ice Fairy', text: 'I feel them tingle with warm math!' },
-    { speaker: 'Ice Fairy', text: 'Now kindle the Thaw Crystals!' },
+    { speaker: 'Frost', text: 'The fourth Key turns — QUOTIENTS!' },
+    { speaker: 'Frost', text: 'The summit gate is melting away!' },
+    { speaker: 'Elara', text: 'Up we go. Bring the warm math.' },
   ],
   floor6_phase1_done: [
-    { speaker: 'Crystal Fairy', text: 'All three geodes hum the right numbers!' },
-    { speaker: 'Crystal Fairy', text: 'What a chord! The wall is wobbling!' },
-    { speaker: 'Crystal Fairy', text: 'Now align the Prism Shards!' },
+    { speaker: 'Faceta', text: 'The FOURTH beam fires — eight sides!' },
+    { speaker: 'Faceta', text: 'An octagon of light opens the vault!' },
+    { speaker: 'Elara', text: 'The Prism waits inside. Go!' },
   ],
   floor7_phase1_done: [
-    { speaker: 'Market Fairy', text: 'All three real gold tokens found!' },
-    { speaker: 'Market Fairy', text: 'The fakes crumble next to real gold!' },
-    { speaker: 'Market Fairy', text: 'Now crack the Vault Seals!' },
+    { speaker: 'Penny', text: 'All three real tokens! The mint sings!' },
+    { speaker: 'Penny', text: 'The fakes crumble next to real gold!' },
+    { speaker: 'Elara', text: 'The drawbridge falls. To the Bazaar!' },
   ],
   floor8_phase1_done: [
-    { speaker: 'Book Fairy', text: 'All three torn pages are whole!' },
-    { speaker: 'Book Fairy', text: 'Your fractions fit them perfectly!' },
-    { speaker: 'Book Fairy', text: 'Now bind the Chapter Seals!' },
+    { speaker: 'Folio', text: 'The fourth page! 4/4 — a WHOLE story!' },
+    { speaker: 'Folio', text: 'The Sanctum arch grinds open...' },
+    { speaker: 'Elara', text: 'The Paradox owes us some answers.' },
   ],
   floor9_phase1_done: [
-    { speaker: 'Elara', text: 'All three harmony sigils are lit!' },
-    { speaker: 'Elara', text: 'One for every skill you mastered!' },
-    { speaker: 'Elara', text: 'Now set the two bridge anchors!' },
+    { speaker: 'Elara', text: 'The fourth fragment — the proof SOLVES!' },
+    { speaker: 'Elara', text: 'The void drains from the dais!' },
+    { speaker: 'All Heroes', text: 'Together. One last problem.' },
   ],
 
   // ── PER-FLOOR PHASE 2 COMPLETION ──
@@ -515,9 +530,9 @@ export const DIALOGUE = {
     { speaker: 'Elara', text: "The Briar King's grove is open. Go!" },
   ],
   floor2_phase2_done: [
-    { speaker: 'Water Fairy', text: 'The Coral Keys turn! Click, click!' },
-    { speaker: 'Water Fairy', text: 'The last water whooshes away!' },
-    { speaker: 'Water Fairy', text: 'The Pressure Chamber is open. Dive in!' },
+    { speaker: 'Marlow', text: 'The Deep Basin is dry! The last water is gone!' },
+    { speaker: 'Marlow', text: 'The Pressure has nowhere left to hide.' },
+    { speaker: 'Elara', text: 'The lair lies open. Go and face it!' },
   ],
   floor3_phase2_done: [
     { speaker: 'Sky Fairy', text: 'The Wind Chimes sing with the light!' },
@@ -606,67 +621,67 @@ const HERO_RESCUE = {
   // ── FLOOR 3: CLOUD MAZE — stranded when the beacons went dark ──
   3: {
     'knight-paladin': [
-      { speaker: 'Sky Fairy', text: 'A knight stranded on a cloud!' },
-      { speaker: 'Paladin', text: 'When the beacons went dark,' },
-      { speaker: 'Paladin', text: 'my cloud bridge shrank away.' },
-      { speaker: 'Paladin', text: 'I have waited here ever since.' },
-      { speaker: 'Paladin', text: 'I will shield this party.' },
-      { speaker: 'Sky Fairy', text: 'Your heart makes you strong.' },
+      { speaker: 'Zephyr', text: 'A knight marooned on the storm isle!' },
+      { speaker: 'Paladin', text: 'I held this beacon when the sky broke.' },
+      { speaker: 'Paladin', text: 'I pushed. I pulled. It stayed dark.' },
+      { speaker: 'Paladin', text: 'Strength alone does not multiply.' },
+      { speaker: 'Paladin', text: 'But YOUR light reached me. I am yours.' },
+      { speaker: 'Zephyr', text: 'Told you. Light finds everyone.' },
     ],
     'bunny-boulder': [
-      { speaker: 'Sky Fairy', text: 'A boulder bunny stuck in the sky?' },
-      { speaker: 'Boulder', text: 'Yep. Bridge vanished. I stayed.' },
-      { speaker: 'Boulder', text: 'Pretty patient though.' },
+      { speaker: 'Zephyr', text: 'A boulder bunny on the sunset isle?' },
+      { speaker: 'Boulder', text: 'Yep. Bridge vanished. I stayed put.' },
+      { speaker: 'Boulder', text: 'Guarded the sheep treasure for you.' },
       { speaker: 'Boulder', text: 'Ready to bonk things. With rocks.' },
-      { speaker: 'Sky Fairy', text: 'Glad to have you, Boulder.' },
+      { speaker: 'Zephyr', text: 'Glad to have you, Boulder.' },
     ],
   },
 
   // ── FLOOR 4: EMBER CAVES — cut off by the one giant lava flow ──
   4: {
     'knight-berserker': [
-      { speaker: 'Fire Fairy', text: 'Someone rattles that ember cage!' },
+      { speaker: 'Cinder', text: 'Someone rattles that ember cage!' },
       { speaker: 'Berserker', text: 'FINALLY! The big lava flow' },
       { speaker: 'Berserker', text: 'trapped me in this cage of embers.' },
       { speaker: 'Berserker', text: 'BIG MISTAKE.' },
       { speaker: 'Berserker', text: 'I get STRONGER when I am hurt!' },
-      { speaker: 'Fire Fairy', text: 'Channel that fury. We need it.' },
+      { speaker: 'Cinder', text: 'Channel that fury. We need it.' },
     ],
     'wizard-bookworm': [
-      { speaker: 'Fire Fairy', text: 'A wizard reading in a cage?' },
+      { speaker: 'Cinder', text: 'A wizard in a hidden study!' },
       { speaker: 'Bookworm', text: 'I was calculating my escape.' },
       { speaker: 'Bookworm', text: 'Seventeen possible routes.' },
       { speaker: 'Bookworm', text: 'Glad you tried number one.' },
       { speaker: 'Bookworm', text: 'My research buys us more time.' },
-      { speaker: 'Fire Fairy', text: 'A scholar in flames. Welcome.' },
+      { speaker: 'Cinder', text: 'A scholar in flames. Welcome.' },
     ],
   },
 
   // ── FLOOR 5: FROZEN PEAK — frozen in ice (fire bunny in ice, ironic) ──
   5: {
     'bunny-blaze': [
-      { speaker: 'Ice Fairy', text: 'A fire bunny frozen in ice?' },
-      { speaker: 'Ice Fairy', text: 'That is just plain mean.' },
-      { speaker: 'Blaze', text: 'The Chaos King froze me mid-hop!' },
+      { speaker: 'Frost', text: 'A fire bunny frozen in ice?' },
+      { speaker: 'Frost', text: 'That is just plain mean.' },
+      { speaker: 'Blaze', text: 'I tried to melt the peak ALONE.' },
       { speaker: 'Blaze', text: 'Me! The warmest bunny alive!' },
       { speaker: 'Blaze', text: 'Well GUESS WHAT. I am BACK.' },
       { speaker: 'Blaze', text: 'FEEL THE HEAT!' },
-      { speaker: 'Ice Fairy', text: 'Your fire will light our way.' },
+      { speaker: 'Frost', text: 'Look — his flame melts the pass!' },
     ],
   },
 
   // ── FLOOR 6: CRYSTAL CAVERNS — sealed inside the humming crystal ──
   6: {
     'knight-greathelm': [
-      { speaker: 'Crystal Fairy', text: 'A legendary knight in crystal!' },
-      { speaker: 'Great Helm', text: 'The humming wall sang me to sleep' },
-      { speaker: 'Great Helm', text: 'and sealed me in a geode.' },
+      { speaker: 'Faceta', text: 'A legendary knight in crystal!' },
+      { speaker: 'Great Helm', text: 'The Prism sealed me as a trophy —' },
+      { speaker: 'Great Helm', text: 'its brightest catch, it said.' },
       { speaker: 'Great Helm', text: 'A grave error.' },
       { speaker: 'Great Helm', text: 'I am Unbreakable. You have my sword.' },
       { speaker: 'Elara', text: 'A legendary hero returns!' },
     ],
     'wizard-grandmage': [
-      { speaker: 'Crystal Fairy', text: 'Ancient magic pulses in there!' },
+      { speaker: 'Faceta', text: 'Ancient magic pulses in there!' },
       { speaker: 'Grand Mage', text: 'Do you know how LONG I waited?' },
       { speaker: 'Grand Mage', text: 'Sealed in crystal. Insufferable.' },
       { speaker: 'Grand Mage', text: 'Hard questions fuel my wrath.' },
@@ -678,13 +693,13 @@ const HERO_RESCUE = {
   // ── FLOOR 7: MARKET SQUARE — put up for auction with the fakes ──
   7: {
     'bunny-duchess': [
-      { speaker: 'Market Fairy', text: 'That bunny is royalty!' },
-      { speaker: 'Duchess', text: 'The indignity. AUCTIONED off' },
-      { speaker: 'Duchess', text: 'like a used teapot.' },
-      { speaker: 'Duchess', text: 'Someone will PAY for this.' },
-      { speaker: 'Duchess', text: 'My command strengthens allies.' },
-      { speaker: 'Duchess', text: 'The crown joins your cause.' },
-      { speaker: 'Market Fairy', text: 'Forgive us, Duchess.' },
+      { speaker: 'Penny', text: 'The royal auditor! In the vault!' },
+      { speaker: 'Duchess', text: 'I came to audit his fake books.' },
+      { speaker: 'Duchess', text: 'He framed ME for the forgery' },
+      { speaker: 'Duchess', text: 'and locked me in my own vault.' },
+      { speaker: 'Duchess', text: 'Someone will PAY for this. Exactly.' },
+      { speaker: 'Duchess', text: 'To the penny. The crown joins you.' },
+      { speaker: 'Penny', text: 'Long live the Duchess!' },
     ],
   },
 };

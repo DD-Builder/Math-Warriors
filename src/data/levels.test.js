@@ -9,6 +9,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { LEVEL_DEFS, getLevel } from './levels.js';
+import { ALL_HEROES } from './heroes.js';
+import { getRescueDialogue } from './dialogue.js';
 
 const WALKABLE = new Set([1, 2, 4]); // F, P, S
 
@@ -30,11 +32,22 @@ function bfs(tiles, sx, sy, passObjects = new Set()) {
   return seen;
 }
 
-function applyTransform(tiles, transform) {
-  const CODE = { W: 0, F: 1, P: 2, Q: 3, S: 4 };
+const CODE = { W: 0, F: 1, P: 2, Q: 3, S: 4 };
+const CHALLENGE_TYPES = ['fairy', 'valve', 'beacon', 'vent', 'crystal', 'geoshard', 'token', 'page', 'fragment'];
+
+function applyTiles(tiles, list) {
   const copy = tiles.map(r => [...r]);
-  for (const [x, y, t] of transform.tiles) copy[y][x] = CODE[t] ?? 2;
+  for (const [x, y, t] of list || []) copy[y][x] = CODE[t] ?? 2;
   return copy;
+}
+function applyTransform(tiles, transform) {
+  return applyTiles(tiles, transform.tiles);
+}
+/** Every tile that any drainer/transform opens (staged Floor-2 sluices + final drain). */
+function allDrainTiles(lv) {
+  const out = [...(lv.transform?.tiles || [])];
+  for (const o of lv.objects) if (Array.isArray(o.drain)) out.push(...o.drain);
+  return out;
 }
 
 for (const idStr of Object.keys(LEVEL_DEFS)) {
@@ -75,35 +88,92 @@ for (const idStr of Object.keys(LEVEL_DEFS)) {
     assert.ok(lv.transform && lv.transform.tiles.length > 0, 'no transform');
   });
 
-  test(`floor ${id}: challenge items reachable BEFORE transform (doors count as passable)`, () => {
-    const doors = new Set(lv.objects.filter(o => o.type === 'mathdoor').map(o => `${o.x},${o.y}`));
-    const reach = bfs(lv.tiles, lv.startX, lv.startY, doors);
-    for (const o of lv.objects) {
-      if (['fairy', 'valve', 'beacon', 'vent', 'crystal', 'geoshard', 'token', 'page', 'fragment'].includes(o.type)) {
-        assert.ok(reach.has(`${o.x},${o.y}`), `challenge item at (${o.x},${o.y}) unreachable pre-transform`);
-      }
-    }
-  });
+  const staged = lv.objects.some(o => Array.isArray(o.drain));
 
-  test(`floor ${id}: boss sealed BEFORE transform, open AFTER`, () => {
+  test(`floor ${id}: level is COMPLETABLE and the boss is sealed until it is`, () => {
     const doors = new Set(lv.objects.filter(o => o.type === 'mathdoor').map(o => `${o.x},${o.y}`));
     const boss = lv.objects.find(o => o.type === 'boss');
     const golden = lv.objects.find(o => o.type === 'golden');
     const exit = lv.objects.find(o => o.type === 'exit');
+    const challengeItems = lv.objects.filter(o => CHALLENGE_TYPES.includes(o.type));
 
+    // The boss must be unreachable from the start (no drains applied).
     const before = bfs(lv.tiles, lv.startX, lv.startY, doors);
-    assert.ok(!before.has(`${boss.x},${boss.y}`), 'boss reachable before transform — no structural gate!');
+    assert.ok(!before.has(`${boss.x},${boss.y}`), 'boss reachable before anything is done — no structural gate!');
 
-    const after = bfs(applyTransform(lv.tiles, lv.transform), lv.startX, lv.startY, doors);
-    assert.ok(after.has(`${boss.x},${boss.y}`), 'boss unreachable after transform');
-    assert.ok(after.has(`${golden.x},${golden.y}`), 'golden chest unreachable after transform');
-    assert.ok(after.has(`${exit.x},${exit.y}`), 'exit unreachable after transform');
+    if (staged) {
+      // Progressive draining: greedily work whichever drainer is reachable
+      // now, applying its drain, until all are worked. Greedy is sound
+      // because drains only ADD walkable tiles (monotonic) — reachability
+      // never shrinks, so order among currently-reachable drainers is free.
+      // Trapped heroes can carry drains too (a freed hero opens the map),
+      // so they join the loop; only challenge items are REQUIRED to be
+      // workable for completion.
+      const drainers = [...challengeItems, ...lv.objects.filter(o => o.type === 'hero' && Array.isArray(o.drain))];
+      let tiles = lv.tiles.map(r => [...r]);
+      const worked = new Set();
+      let progressed = true;
+      while (worked.size < drainers.length && progressed) {
+        progressed = false;
+        const reach = bfs(tiles, lv.startX, lv.startY, doors);
+        for (const v of drainers) {
+          if (worked.has(v)) continue;
+          if (reach.has(`${v.x},${v.y}`)) {
+            worked.add(v);
+            tiles = applyTiles(tiles, v.drain);
+            progressed = true;
+          }
+        }
+      }
+      const workedChallenges = challengeItems.filter(v => worked.has(v)).length;
+      assert.equal(workedChallenges, challengeItems.length,
+        `only ${workedChallenges}/${challengeItems.length} sluices are reachable in sequence — the tide dead-locks`);
+      // Final transform (last drain) opens the boss basin.
+      const after = bfs(applyTiles(tiles, lv.transform.tiles), lv.startX, lv.startY, doors);
+      assert.ok(after.has(`${boss.x},${boss.y}`), 'boss unreachable after full drain');
+      assert.ok(after.has(`${golden.x},${golden.y}`), 'golden unreachable after full drain');
+      assert.ok(after.has(`${exit.x},${exit.y}`), 'exit unreachable after full drain');
+    } else {
+      // Non-staged floors: every challenge item reachable up front; the
+      // single transform opens the boss.
+      for (const v of challengeItems) {
+        assert.ok(before.has(`${v.x},${v.y}`), `challenge item at (${v.x},${v.y}) unreachable`);
+      }
+      const after = bfs(applyTransform(lv.tiles, lv.transform), lv.startX, lv.startY, doors);
+      assert.ok(after.has(`${boss.x},${boss.y}`), 'boss unreachable after transform');
+      assert.ok(after.has(`${golden.x},${golden.y}`), 'golden unreachable after transform');
+      assert.ok(after.has(`${exit.x},${exit.y}`), 'exit unreachable after transform');
+    }
   });
 
-  test(`floor ${id}: transform tiles are in bounds and change hazard/wall to walkable`, () => {
-    for (const [x, y] of lv.transform.tiles) {
-      assert.ok(x > 0 && x < lv.width - 1 && y > 0 && y < lv.height - 1, 'transform tile on border');
-      assert.ok(!WALKABLE.has(lv.tiles[y][x]), `transform tile (${x},${y}) was already walkable`);
+  test(`floor ${id}: every drained/transform tile is interior and starts as wall or water`, () => {
+    for (const [x, y] of allDrainTiles(lv)) {
+      assert.ok(x > 0 && x < lv.width - 1 && y > 0 && y < lv.height - 1, `drain tile (${x},${y}) on border`);
+      assert.ok(!WALKABLE.has(lv.tiles[y][x]), `drain tile (${x},${y}) was already walkable`);
+    }
+  });
+
+  test(`floor ${id}: trapped heroes match the roster and are rescuable`, () => {
+    // Every hero the roster assigns to this floor must be physically IN
+    // this floor's maze (the in-level unlock contract), with a prison
+    // style, rescue dialogue, and a reachable tile once the map is
+    // fully opened (drains only ever ADD tiles, so post-full-drain
+    // reachability == reachable at some stage of play).
+    const placed = lv.objects.filter(o => o.type === 'hero');
+    const expected = ALL_HEROES.filter(h => h.unlockedAtFloor === id).map(h => h.id).sort();
+    assert.deepEqual(placed.map(o => o.heroId).sort(), expected,
+      `floor ${id} hero placements don't match roster unlockedAtFloor`);
+    for (const o of placed) {
+      assert.ok(o.prison, `hero ${o.heroId} has no prison style`);
+      assert.ok(getRescueDialogue(id, [o.heroId]).length > 0,
+        `hero ${o.heroId} has no rescue dialogue for floor ${id}`);
+    }
+    if (!placed.length) return;
+    const doors = new Set(lv.objects.filter(o => o.type === 'mathdoor').map(o => `${o.x},${o.y}`));
+    const fullyOpen = applyTiles(lv.tiles, allDrainTiles(lv));
+    const reach = bfs(fullyOpen, lv.startX, lv.startY, doors);
+    for (const o of placed) {
+      assert.ok(reach.has(`${o.x},${o.y}`), `hero ${o.heroId} at (${o.x},${o.y}) unreachable even fully drained`);
     }
   });
 }

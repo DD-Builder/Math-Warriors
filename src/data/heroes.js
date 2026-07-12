@@ -117,7 +117,7 @@ export const KNIGHTS = [
     },
   }, 9),
 
-  make('knight-crusader', 'Crusader', 'knight', 'Holy. Righteous. Relentless.', { def: 2, maxHp: -3 }, 1, [
+  make('knight-crusader', 'Crusader', 'knight', 'Holy. Righteous. Relentless.', { def: 3, maxHp: -1 }, 1, [
     { name: 'Holy Slam',       type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Radiant Smash',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Divine Judgment',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -178,7 +178,7 @@ export const KNIGHTS = [
     },
   }, 1),
 
-  make('knight-paladin', 'Paladin', 'knight', 'Light in darkness. Grace in battle.', { maxHp: 3 }, 3, [
+  make('knight-paladin', 'Paladin', 'knight', 'Light in darkness. Grace in battle.', { maxHp: 3, def: 1 }, 3, [
     { name: 'Shield Bash',   type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Guardian Rush',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Light Nova',     type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -239,7 +239,7 @@ export const KNIGHTS = [
     },
   }, 6),
 
-  make('knight-berserker', 'Berserker', 'knight', 'Pure fury. Zero chill.', { atk: 3, def: -3 }, 4, [
+  make('knight-berserker', 'Berserker', 'knight', 'Pure fury. Zero chill.', { atk: 6, maxHp: 2, def: -3 }, 4, [
     { name: 'Rage Blow',   type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Fury Storm',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Chaos Rend',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -300,7 +300,7 @@ export const KNIGHTS = [
     },
   }, 4),
 
-  make('knight-greathelm', 'Great Helm', 'knight', 'Noble. Steadfast. Legendary.', { def: 3 }, 6, [
+  make('knight-greathelm', 'Great Helm', 'knight', 'Noble. Steadfast. Legendary.', { def: 5, maxHp: 2 }, 6, [
     { name: 'Iron Wall',     type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Steel Crush',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Titan Strike',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -428,7 +428,7 @@ export const WIZARDS = [
     },
   }, 3),
 
-  make('wizard-toadstool', 'Toadstool', 'wizard', 'Brews chaos. Serves it hot.', { atk: 1, def: 1 }, 1, [
+  make('wizard-toadstool', 'Toadstool', 'wizard', 'Brews chaos. Serves it hot.', { atk: 2, def: 1 }, 1, [
     { name: 'Spore Cloud',    type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Mushroom Bomb',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Toxic Nova',     type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -489,7 +489,7 @@ export const WIZARDS = [
     },
   }, 1),
 
-  make('wizard-spellblade', 'Spellblade', 'wizard', 'Magic fists. Still counts.', { def: 3, atk: -1 }, 2, [
+  make('wizard-spellblade', 'Spellblade', 'wizard', 'Magic fists. Still counts.', { def: 4, atk: -1, maxHp: 1 }, 2, [
     { name: 'Magic Fist',    type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Arcane Slash',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Ether Blade',    type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -550,7 +550,7 @@ export const WIZARDS = [
     },
   }, 2),
 
-  make('wizard-bookworm', 'Bookworm', 'wizard', 'Knows every spell. Uses them all.', { maxHp: 3 }, 4, [
+  make('wizard-bookworm', 'Bookworm', 'wizard', 'Knows every spell. Uses them all.', { maxHp: 4, atk: 1 }, 4, [
     { name: 'Ink Splash',      type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Page Storm',      type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Knowledge Blast',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -611,7 +611,7 @@ export const WIZARDS = [
     },
   }, 8),
 
-  make('wizard-grandmage', 'Grand Mage', 'wizard', 'Ancient power. Zero patience.', { atk: 3, maxHp: -3 }, 6, [
+  make('wizard-grandmage', 'Grand Mage', 'wizard', 'Ancient power. Zero patience.', { atk: 8, maxHp: -1 }, 6, [
     { name: 'Fire Bolt',      type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Thunder Wave',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Meteor Rain',    type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -739,7 +739,7 @@ export const BUNNIES = [
     },
   }, 4),
 
-  make('bunny-nova', 'Nova', 'bunny', 'She sparkles. Then she wins.', { atk: 2, maxHp: -2 }, 2, [
+  make('bunny-nova', 'Nova', 'bunny', 'She sparkles. Then she wins.', { atk: 4, maxHp: -1 }, 2, [
     { name: 'Spark Jump',  type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Flash Leap',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Nova Burst',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -800,7 +800,7 @@ export const BUNNIES = [
     },
   }, 3),
 
-  make('bunny-boulder', 'Boulder', 'bunny', 'Heaviest punch in the kingdom.', { atk: -1, def: 3, maxHp: 3 }, 3, [
+  make('bunny-boulder', 'Boulder', 'bunny', 'Heaviest punch in the kingdom.', { atk: -1, def: 4, maxHp: 3 }, 3, [
     { name: 'Rock Toss',      type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Quake Slam',     type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Mountain Drop',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -861,7 +861,7 @@ export const BUNNIES = [
     },
   }, 5),
 
-  make('bunny-blaze', 'Blaze', 'bunny', 'Fire magic. Fire attitude.', { atk: 2 }, 5, [
+  make('bunny-blaze', 'Blaze', 'bunny', 'Fire magic. Fire attitude.', { atk: 6, maxHp: 1 }, 5, [
     { name: 'Flame Hop',      type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Fire Dance',     type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Blaze Tornado',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -922,7 +922,7 @@ export const BUNNIES = [
     },
   }, 4),
 
-  make('bunny-duchess', 'Duchess', 'bunny', 'Royal blood. Royal fury.', { def: 2, maxHp: 2 }, 7, [
+  make('bunny-duchess', 'Duchess', 'bunny', 'Royal blood. Royal fury.', { def: 5, maxHp: 4, atk: 1 }, 7, [
     { name: 'Royal Strike',    type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Crown Slam',      type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Sovereign Fury',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -1030,6 +1030,7 @@ export function spawnHero(idOrHero) {
     signature: def.signature ?? null,
     personality: def.personality ?? null,
     affinity: def.affinity ?? null,
+    skin: def.skin ?? null,
   };
 }
 
@@ -1038,14 +1039,15 @@ export const LEVEL_THRESHOLDS = [0, 0, 80, 180, 320, 500, 750, 1050, 1200, 1500,
 
 /**
  * Compute the stat bonuses for a given level.
- * Each level above 1 grants +3 maxHp, +1 atk, +1 def.
+ * Each level above 1 grants +5 maxHp, +2 atk, +2 def — big enough
+ * that a level-up FEELS like one (v1's +3/+1/+1 was invisible).
  */
 export function levelBonuses(level) {
   const lvl = Math.max(1, level || 1);
   return {
-    maxHp: (lvl - 1) * 3,
-    atk: (lvl - 1),
-    def: (lvl - 1),
+    maxHp: (lvl - 1) * 5,
+    atk: (lvl - 1) * 2,
+    def: (lvl - 1) * 2,
   };
 }
 

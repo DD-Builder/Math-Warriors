@@ -50,6 +50,12 @@ export class GradeSelectScene extends Phaser.Scene {
       color: PAPER_CSS.inkTeal,
     }).setOrigin(0.5);
 
+    // Upgrade 4: offer the diagnostic warm-up instead of guessing a grade.
+    PaperButton(this, area.cx, area.top + 158, '✨ Not sure? Take a quick warm-up', {
+      w: 420, h: 44, color: PAPER.gold, fontSize: 18, textColor: PAPER_CSS.inkTeal,
+      onClick: () => { audio.play('ui/click'); transitionTo(this, SCENES.PLACEMENT); },
+    });
+
     // RAINBOW distinct colors — 6 truly different hues
     const grades = [
       { id: 0, label: 'K', name: 'Kindergarten', hint: 'Count the flowers in the\nmagical garden!',           color: PAPER.coralD },

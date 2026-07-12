@@ -328,7 +328,7 @@ export const FLOORS = [
     tileset: 'ocean',
     width: 22, height: 29, tiles: FLOOR_2_TILES, startX: 1, startY: 27,
     palette: { wall: 0x0e2040, floor: 0x1a3858, path: 0x3060a0, water: 0x1a4880, decor: 0x184068 },
-    challenge: { type: 'valve', count: 3, label: 'DRAIN VALVE', verb: 'activated', allDoneMsg: 'All valves open!', phase2: { type: 'coralkey', count: 2, label: 'CORAL KEY', verb: 'found', allDoneMsg: 'Coral keys glow! The boss stirs!' } },
+    challenge: { type: 'valve', count: 4, label: 'SLUICE', verb: 'opened', allDoneMsg: 'The Deep Basin drains! The Pressure surfaces!' },
     mazeConfig: {
       width: 18, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 5 }, { w: 7, h: 6 }, { w: 5, h: 7 }],
@@ -339,10 +339,13 @@ export const FLOORS = [
       bossEnemyId: 'pressure',
     },
     objects: [
-      // Valves: one per zone (marsh, beach, water)
+      // Valves — four sluice gates (this floors.js objects list is legacy/
+      // reference; the playable map is levels.js FLOOR_2). Count matches
+      // challenge.count (4) for internal consistency.
       { type: 'valve',     x: 4,  y: 4 },
       { type: 'valve',     x: 7,  y: 14 },
       { type: 'valve',     x: 16, y: 24 },
+      { type: 'valve',     x: 10, y: 20 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 3,  y: 1, enemyId: 'pressure' },
       { type: 'golden',    x: 2,  y: 1 },
@@ -370,25 +373,26 @@ export const FLOORS = [
   },
   {
     id: 3,
-    name: 'Cloud Maze',
+    name: 'The Shattered Sky',
     tileset: 'sky',
     width: 25, height: 33, tiles: FLOOR_3_TILES, startX: 1, startY: 31,
     palette: { wall: 0x1a2838, floor: 0x5a6878, path: 0x7898b8, water: 0xb0c8e0, decor: 0x4a5868 },
-    challenge: { type: 'beacon', count: 3, label: 'SKY BEACON', verb: 'lit', allDoneMsg: 'All beacons lit!', phase2: { type: 'windchime', count: 2, label: 'WIND CHIME', verb: 'rung', allDoneMsg: 'Wind chimes ring! The storm parts!' } },
+    challenge: { type: 'beacon', count: 4, label: 'SKY BEACON', verb: 'lit', allDoneMsg: 'FOUR beacons — the light floods the Eye!' },
     mazeConfig: {
       width: 19, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 6 }, { w: 7, h: 5 }, { w: 5, h: 8 }],
       challengeType: 'beacon',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'skywhale',
     },
     objects: [
-      // Beacons: one per zone (calm d<16, storm 16<=d<36, sunset d>=36)
+      // Beacons: one per island — the light doubles with each
       { type: 'beacon',    x: 5,  y: 5 },
       { type: 'beacon',    x: 10, y: 16 },
       { type: 'beacon',    x: 20, y: 26 },
+      { type: 'beacon',    x: 20, y: 5 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 3,  y: 1, enemyId: 'skywhale' },
       { type: 'golden',    x: 2,  y: 1 },
@@ -421,12 +425,12 @@ export const FLOORS = [
     tileset: 'lava',
     width: 29, height: 38, tiles: FLOOR_4_TILES, startX: 1, startY: 36,
     palette: { wall: 0x1a0808, floor: 0x4a2810, path: 0x8a2010, water: 0xa03008, decor: 0x3a1808 },
-    challenge: { type: 'vent', count: 3, label: 'LAVA VENT', verb: 'sealed', allDoneMsg: 'All vents sealed!', phase2: { type: 'lavabridge', count: 2, label: 'LAVA BRIDGE', verb: 'built', allDoneMsg: 'Bridges hold! The boss awaits!' } },
+    challenge: { type: 'vent', count: 4, label: 'LAVA VENT', verb: 'sealed', allDoneMsg: 'The fire is divided — the caldera cools!' },
     mazeConfig: {
       width: 20, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 5 }, { w: 5, h: 6 }, { w: 7, h: 7 }],
       challengeType: 'vent',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'pyroclast',
@@ -435,6 +439,7 @@ export const FLOORS = [
       { type: 'vent',      x: 3,  y: 3 },
       { type: 'vent',      x: 25, y: 11 },
       { type: 'vent',      x: 14, y: 29 },
+      { type: 'vent',      x: 21, y: 21 },
       { type: 'chest',     x: 5,  y: 13, loot: { gold: 30 } },
       { type: 'chest',     x: 23, y: 25, loot: { gold: 30 } },
       { type: 'potion',    x: 14, y: 17 },
@@ -463,13 +468,13 @@ export const FLOORS = [
   {
     id: 5, name: 'Frozen Peak', tileset: 'ice',
     width: 25, height: 33, tiles: FLOOR_3_TILES, startX: 1, startY: 31,
-    challenge: { type: 'crystal', count: 3, label: 'FROZEN CRYSTAL', verb: 'found', allDoneMsg: 'All crystals found!', phase2: { type: 'thawcrystal', count: 2, label: 'THAW CRYSTAL', verb: 'melted', allDoneMsg: 'The ice throne cracks!' } },
+    challenge: { type: 'crystal', count: 4, label: 'THAW CRYSTAL', verb: 'woken', allDoneMsg: 'All four keys turn — the summit thaws!' },
     palette: { wall: 0x4080b0, floor: 0x90b8d8, path: 0xb0d0e8, water: 0x60a0c8, decor: 0x7098b8 },
     mazeConfig: {
       width: 19, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 6, h: 7 }, { w: 8, h: 6 }, { w: 7, h: 5 }],
       challengeType: 'crystal',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 3,
       bossEnemyId: 'absolutezero',
@@ -478,6 +483,7 @@ export const FLOORS = [
       { type: 'crystal',   x: 5,  y: 5 },
       { type: 'crystal',   x: 20, y: 16 },
       { type: 'crystal',   x: 10, y: 26 },
+      { type: 'crystal',   x: 15, y: 10 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'absolutezero' },
       { type: 'golden',    x: 12, y: 2 },
@@ -502,13 +508,13 @@ export const FLOORS = [
   {
     id: 6, name: 'Crystal Caverns', tileset: 'crystal',
     width: 25, height: 33, tiles: FLOOR_6_TILES, startX: 1, startY: 31,
-    challenge: { type: 'geoshard', count: 3, label: 'GEO SHARD', verb: 'collected', allDoneMsg: 'All shards collected!', phase2: { type: 'prismshard', count: 2, label: 'PRISM SHARD', verb: 'aligned', allDoneMsg: 'Prisms align! The Prism awakens!' } },
+    challenge: { type: 'geoshard', count: 4, label: 'GEO SHARD', verb: 'restored', allDoneMsg: 'Four beams — the Octagon opens!' },
     palette: { wall: 0x5030a0, floor: 0x7850c0, path: 0xa080e0, water: 0x6040b0, decor: 0x6840b0 },
     mazeConfig: {
       width: 19, height: 20,
       roomTemplates: [{ w: 5, h: 5 }, { w: 7, h: 7 }, { w: 6, h: 6 }, { w: 9, h: 5 }],
       challengeType: 'geoshard',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'theprism',
@@ -517,6 +523,7 @@ export const FLOORS = [
       { type: 'geoshard',  x: 5,  y: 5 },
       { type: 'geoshard',  x: 20, y: 16 },
       { type: 'geoshard',  x: 10, y: 26 },
+      { type: 'geoshard',  x: 15, y: 20 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'theprism' },
       { type: 'golden',    x: 12, y: 2 },
@@ -540,9 +547,9 @@ export const FLOORS = [
     ],
   },
   {
-    id: 7, name: 'Market Square', tileset: 'market',
+    id: 7, name: 'Coinford Market', tileset: 'market',
     width: 25, height: 33, tiles: FLOOR_7_TILES, startX: 1, startY: 31,
-    challenge: { type: 'token', count: 3, label: 'GOLD TOKEN', verb: 'recovered', allDoneMsg: 'All tokens recovered!', phase2: { type: 'vaultseal', count: 2, label: 'VAULT SEAL', verb: 'cracked', allDoneMsg: 'Vault seals crack! The Counterfeiter revealed!' } },
+    challenge: { type: 'token', count: 3, label: 'GOLD TOKEN', verb: 'recovered', allDoneMsg: 'Three real tokens — the drawbridge falls!' },
     palette: { wall: 0x6a5020, floor: 0xa08040, path: 0xc8a858, water: 0x806830, decor: 0x887038 },
     mazeConfig: {
       width: 19, height: 20,
@@ -583,13 +590,13 @@ export const FLOORS = [
   {
     id: 8, name: 'Infinity Library', tileset: 'library',
     width: 25, height: 33, tiles: FLOOR_8_TILES, startX: 1, startY: 31,
-    challenge: { type: 'page', count: 3, label: 'LOST PAGE', verb: 'restored', allDoneMsg: 'All pages restored!', phase2: { type: 'chapterseal', count: 2, label: 'CHAPTER SEAL', verb: 'bound', allDoneMsg: 'Chapters sealed! The Paradox emerges!' } },
+    challenge: { type: 'page', count: 4, label: 'LOST PAGE', verb: 'restored', allDoneMsg: '4/4 — the Story is whole again!' },
     palette: { wall: 0x2a1808, floor: 0x4a3018, path: 0x6a4828, water: 0x3a2010, decor: 0x3a2010 },
     mazeConfig: {
       width: 19, height: 20,
       roomTemplates: [{ w: 5, h: 7 }, { w: 5, h: 8 }, { w: 5, h: 9 }, { w: 6, h: 5 }],
       challengeType: 'page',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'theparadox',
@@ -598,6 +605,7 @@ export const FLOORS = [
       { type: 'page',      x: 5,  y: 5 },
       { type: 'page',      x: 20, y: 16 },
       { type: 'page',      x: 10, y: 26 },
+      { type: 'page',      x: 15, y: 20 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 12, y: 3, enemyId: 'theparadox' },
       { type: 'golden',    x: 12, y: 2 },
@@ -623,13 +631,13 @@ export const FLOORS = [
   {
     id: 9, name: 'The Mending Room', tileset: 'arcane',
     width: 33, height: 43, tiles: FLOOR_9_TILES, startX: 1, startY: 41,
-    challenge: { type: 'fragment', count: 3, label: 'EQUATION FRAGMENT', verb: 'placed', allDoneMsg: 'All fragments aligned!', phase2: { type: 'eqanchor', count: 2, label: 'EQUATION ANCHOR', verb: 'set', allDoneMsg: 'Anchors set! Face The Theorem!' } },
+    challenge: { type: 'fragment', count: 4, label: 'EQUATION FRAGMENT', verb: 'placed', allDoneMsg: 'The Grand Equation solves — the void drains!' },
     palette: { wall: 0x140828, floor: 0x301850, path: 0x5830a0, water: 0x4018a0, decor: 0x281040 },
     mazeConfig: {
       width: 20, height: 20,
       roomTemplates: [{ w: 6, h: 6 }, { w: 7, h: 7 }, { w: 8, h: 6 }, { w: 5, h: 5 }],
       challengeType: 'fragment',
-      challengeCount: 3,
+      challengeCount: 4,
       enemyCount: 5,
       corridorWidth: 2,
       bossEnemyId: 'theorem',
@@ -638,6 +646,7 @@ export const FLOORS = [
       { type: 'fragment',  x: 5,  y: 5 },
       { type: 'fragment',  x: 27, y: 11 },
       { type: 'fragment',  x: 16, y: 33 },
+      { type: 'fragment',  x: 16, y: 20 },
       // Boss -> Golden Chest -> Exit (linear dead-end sequence)
       { type: 'boss',      x: 16, y: 3, enemyId: 'theorem' },
       { type: 'golden',    x: 16, y: 2 },

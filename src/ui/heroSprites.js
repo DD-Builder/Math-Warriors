@@ -15,7 +15,7 @@ import { createHeroCanvas, createHeroPartCanvas, createHeroPartCanvasClipped } f
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
 import { PAPER, PAPER_CSS } from '../config.js';
-import { drawSkinnedHero } from './skinnedHero.js';
+import { drawCharacter, characterHeight, HERO_SKINS } from './characterModel.js';
 import { getCycle, sampleCycle, cycleDone } from '../systems/poseAnimator.js';
 import { getEquipmentOverlay, applyEquipmentOverlays, getTierIndex } from './equipmentOverlays.js';
 import { getEquipmentById } from '../systems/equipment.js';
@@ -34,6 +34,10 @@ const PART_HAS_CONTENT = {};
 // Default canvas dimensions for hero portraits
 const HERO_W = 296;
 const HERO_H = 384;
+// Feet position relative to the sprite's 0.5,0.5 origin: characters are
+// drawn with feet at canvas y = HERO_H - 58, i.e. this many unscaled px
+// below center. Scenes use it to place ground shadows AT the feet.
+export const HERO_FEET_OFFSET = (HERO_H - 58) - HERO_H / 2;
 
 // Equipment slot → body part the overlay is drawn on, and key codes
 const PART_TO_SLOT = { weapon: 'weapon', torso: 'armor', head: 'accessory' };
@@ -247,8 +251,14 @@ const HOLD_STATES = new Set(['guard', 'ko', 'victory']);
 export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const scale = opts.scale ?? 1;
   const heroClass = getHeroClass(hero);
-  const art = ART_LOOKUP[hero.id];
-  if (!art || !art.draw) return drawHeroSprite(scene, x, y, hero, opts);
+  const baseSkinId = HERO_SKINS[hero.id] ? hero.id
+    : heroClass === 'wizard' ? 'wizard-stargazer'
+    : heroClass === 'bunny' ? 'bunny-pepper' : 'knight-shadow';
+  // Purchased skins render through variant palettes ('id:skinId').
+  const skinVariant = hero.skin && hero.skin !== 'default' ? `${baseSkinId}:${hero.skin}` : null;
+  const skinId = skinVariant && HERO_SKINS[skinVariant] ? skinVariant : baseSkinId;
+  // Worn gear draws as overlays on every animation frame.
+  const wornEquipment = resolveEquipment(opts.equipment);
 
   const container = scene.add.container(x, y);
 
@@ -264,9 +274,11 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   img.setScale(scale);
   container.add(img);
 
-  // Same placement math as the static portraits, so the animated hero
-  // is pixel-compatible with every scene's existing scale factor.
-  const geom = heroArtGeometry(cw, ch, art, 80, 78);
+  // Model → canvas fit (same visual density as the old portrait art,
+  // so every scene's existing scale factor keeps working)
+  const modelH = characterHeight(skinId);
+  const sc = (ch - 90) / modelH;
+  const feetY = ch - 58;
 
   // ── animation state ──
   const state = {
@@ -285,7 +297,17 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     if (container._destroyed || !scene.textures || !scene.textures.exists(texKey)) return;
     ctx.clearRect(0, 0, cw, ch);
     const pose = sampleCycle(state.cycle, state.elapsed);
-    drawSkinnedHero(cv, art, heroClass, pose, geom);
+    drawCharacter(ctx, skinId, pose, { x: cw / 2, y: feetY, scale: sc, view: state.view });
+    if (wornEquipment) {
+      // Overlay space is torso-anchored (~110-unit hero): map it onto
+      // the drawn model so plates/glows land on the body.
+      const bodyH = modelH * sc;
+      applyEquipmentOverlays(cv, wornEquipment, heroClass, {
+        cx: cw / 2,
+        cy: feetY - bodyH * 0.52,
+        sc: bodyH / 110,
+      });
+    }
     tex.refresh();
   }
 
@@ -300,22 +322,17 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   }
 
   const FRAME_MS = 40; // 25fps
-  container._timescale = 1;
   const timer = scene.time.addEvent({
     delay: FRAME_MS, loop: true,
     callback: () => {
       if (container._destroyed) return;
-      // _timescale < 1 slows playback so battle attacks are readable.
-      state.elapsed += FRAME_MS * (container._timescale || 1);
+      state.elapsed += FRAME_MS;
       if (!state.cycle.loop && cycleDone(state.cycle, state.elapsed)) {
         if (!state.hold) { setState('idle', { view: 'front' }); return; }
       }
       render();
     },
   });
-  // Battle uses this to stretch an attack out (e.g. 0.55 → ~1.8x longer),
-  // then restores to 1 so idle/walk stay at normal speed.
-  container.setTimescale = function (m) { container._timescale = m; };
 
   setState('idle', { view: 'front' });
 

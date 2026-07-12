@@ -33,6 +33,84 @@ import {
 } from './vfx.js';
 
 // ================================================================
+// MOVEMENT HELPERS
+// ================================================================
+//
+// Monster sprites are passed in as a plain wrapper object
+// `{ body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y }` built in
+// BattleScene. Only `ms.body` is the actual Phaser image — tweening the
+// wrapper itself just mutates dead numbers and nothing moves on screen.
+// These helpers always tween `ms.body`, always RELATIVELY (from its
+// current position/scale), and always restore the exact original values
+// afterwards so they never fight the battle scene's idle tweens.
+// IMPORTANT: bodies render at ~0.55 scale — never tween to absolute
+// scale values.
+
+/**
+ * Lunge the monster body by (+dx, +dy) px from its current position,
+ * yoyo back, then restore the exact original coordinates.
+ * hooks: { onHit, onComplete, ease } — onHit fires once at the forward
+ * apex, onComplete at the end.
+ */
+function lunge(scene, ms, dx, dy, dur, hooks) {
+  if (!ms || !ms.body) { hooks?.onComplete?.(); return; }
+  const body = ms.body;
+  const ox = body.x, oy = body.y;
+  let hitFired = false;
+  scene.tweens.add({
+    targets: body,
+    x: ox + dx,
+    y: oy + dy,
+    duration: dur,
+    yoyo: true,
+    ease: hooks?.ease || 'Quad.out',
+    onYoyo: function() {
+      if (hitFired) return;
+      hitFired = true;
+      hooks?.onHit?.();
+    },
+    onComplete: function() {
+      body.x = ox;
+      body.y = oy;
+      hooks?.onComplete?.();
+    },
+  });
+}
+
+/**
+ * Pulse the monster body's scale RELATIVELY (current scale x mult),
+ * yoyo back, then restore the exact original scale. `mult` is either a
+ * number (uniform) or `{ x, y }` for squash-and-stretch.
+ * hooks: { onHit, onComplete, ease } — onHit fires once at the apex.
+ */
+function pulse(scene, ms, mult, dur, hooks) {
+  if (!ms || !ms.body) { hooks?.onComplete?.(); return; }
+  const body = ms.body;
+  const osx = body.scaleX, osy = body.scaleY;
+  const multX = (typeof mult === 'object') ? (mult.x ?? 1) : mult;
+  const multY = (typeof mult === 'object') ? (mult.y ?? 1) : mult;
+  let hitFired = false;
+  scene.tweens.add({
+    targets: body,
+    scaleX: osx * multX,
+    scaleY: osy * multY,
+    duration: dur,
+    yoyo: true,
+    ease: hooks?.ease || 'Quad.out',
+    onYoyo: function() {
+      if (hitFired) return;
+      hitFired = true;
+      hooks?.onHit?.();
+    },
+    onComplete: function() {
+      body.scaleX = osx;
+      body.scaleY = osy;
+      hooks?.onComplete?.();
+    },
+  });
+}
+
+// ================================================================
 // REGISTRY & DISPATCH
 // ================================================================
 
@@ -68,14 +146,9 @@ function defaultMonsterAttack(scene, monsterSprite, targetSprite, damage, callba
 MONSTER_ATTACK_REGISTRY['sproutling'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.25,
-    y: my + (ty - my) * 0.25,
-    duration: 130,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.25, (ty - my) * 0.25, 130, {
     ease: 'Quad.out',
-    onYoyo: function() {
+    onHit: function() {
       playSparkBurst(scene, tx, ty, {
         colors: [0x7d9f6d, 0xb7c4a4, 0x9bad87],
         count: 12, maxDist: 30, duration: 300
@@ -115,14 +188,9 @@ MONSTER_ATTACK_REGISTRY['blossomfiend'] = function(scene, ms, ts, dmg, cb) {
     count: 10, maxDist: 30, duration: 200
   });
   scene.time.delayedCall(150, function() {
-    scene.tweens.add({
-      targets: ms,
-      x: mx + (tx - mx) * 0.4,
-      y: my + (ty - my) * 0.4,
-      duration: 100,
-      yoyo: true,
+    lunge(scene, ms, (tx - mx) * 0.4, (ty - my) * 0.4, 100, {
       ease: 'Back.out',
-      onYoyo: function() {
+      onHit: function() {
         playSparkBurst(scene, tx, ty, {
           colors: [0xe8a09a, 0x9bad87, 0xf2bf9a],
           count: 16, maxDist: 40, duration: 300
@@ -140,15 +208,10 @@ MONSTER_ATTACK_REGISTRY['blossomfiend'] = function(scene, ms, ts, dmg, cb) {
 // Puffshroom — spore cloud: inflates then pops, releasing a toxic spore cloud
 MONSTER_ATTACK_REGISTRY['puffshroom'] = function(scene, ms, ts, dmg, cb) {
   const tx = ts.x, ty = ts.y;
-  // Inflate
-  scene.tweens.add({
-    targets: ms,
-    scaleX: 1.3,
-    scaleY: 0.8,
-    duration: 120,
-    yoyo: true,
+  // Inflate (relative squash-and-stretch)
+  pulse(scene, ms, { x: 1.3, y: 0.8 }, 120, {
     ease: 'Quad.out',
-    onYoyo: function() {
+    onHit: function() {
       playElementalBurst(scene, tx, ty, {
         colors: [0x9bad87, 0xb7c4a4, 0x7d9f6d],
         count: 20, maxDist: 50, duration: 400
@@ -204,14 +267,9 @@ MONSTER_ATTACK_REGISTRY['briarking'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['drifter'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.2,
-    y: my + (ty - my) * 0.2,
-    duration: 160,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.2, (ty - my) * 0.2, 160, {
     ease: 'Sine.inOut',
-    onYoyo: function() {
+    onHit: function() {
       playSparkBurst(scene, tx, ty, {
         colors: [0x44888a, 0x7fb3ae, 0xa4c8d8],
         count: 10, maxDist: 35, duration: 350
@@ -228,14 +286,9 @@ MONSTER_ATTACK_REGISTRY['drifter'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['gulper'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.5,
-    y: my + (ty - my) * 0.5,
-    duration: 100,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.5, (ty - my) * 0.5, 100, {
     ease: 'Back.out',
-    onYoyo: function() {
+    onHit: function() {
       playImpactRing(scene, tx, ty, { color: 0x2a6063, endRadius: 40, duration: 250 });
       playSparkBurst(scene, tx, ty, {
         colors: [0x44888a, 0x7fb3ae, 0x2a6063],
@@ -298,14 +351,9 @@ MONSTER_ATTACK_REGISTRY['pressure'] = function(scene, ms, ts, dmg, cb) {
   });
   // Phase 2: tentacle slam lunge
   scene.time.delayedCall(200, function() {
-    scene.tweens.add({
-      targets: ms,
-      x: mx + (tx - mx) * 0.45,
-      y: my + (ty - my) * 0.45,
-      duration: 120,
-      yoyo: true,
+    lunge(scene, ms, (tx - mx) * 0.45, (ty - my) * 0.45, 120, {
       ease: 'Quad.in',
-      onYoyo: function() {
+      onHit: function() {
         playShockwave(scene, tx, ty, { color: 0x1f4244, endRadius: 100, duration: 350 });
         playImpactRing(scene, tx, ty, { color: 0x44888a, endRadius: 60, duration: 280 });
         playGroundCrack(scene, tx, ty, {
@@ -334,13 +382,9 @@ MONSTER_ATTACK_REGISTRY['pressure'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['stormwing'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.3,
-    duration: 100,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.3, 0, 100, {
     ease: 'Quad.out',
-    onYoyo: function() {
+    onHit: function() {
       playSparkBurst(scene, tx, ty, {
         colors: [0xecb964, 0xfdfbf2, 0xa4c8d8],
         count: 14, maxDist: 35, duration: 280
@@ -374,21 +418,29 @@ MONSTER_ATTACK_REGISTRY['hailshot'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['cycloneimp'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    angle: 360,
-    x: mx + (tx - mx) * 0.45,
-    y: my + (ty - my) * 0.45,
-    duration: 180,
-    yoyo: true,
+  // Spin the body while it lunges — angle restored on completion
+  if (ms && ms.body) {
+    const body = ms.body;
+    const oa = body.angle;
+    scene.tweens.add({
+      targets: body,
+      angle: oa + 360,
+      duration: 180,
+      yoyo: true,
+      ease: 'Cubic.out',
+      onComplete: function() {
+        body.angle = oa;
+      }
+    });
+  }
+  lunge(scene, ms, (tx - mx) * 0.45, (ty - my) * 0.45, 180, {
     ease: 'Cubic.out',
-    onYoyo: function() {
+    onHit: function() {
       playShockwave(scene, tx, ty, { color: 0xa4c8d8, endRadius: 50, duration: 250 });
       playSlashArc(scene, tx, ty, { color: 0xa4c8d8, lineWidth: 3, arcSpread: 65, duration: 220 });
       cb?.onHit?.();
     },
     onComplete: function() {
-      ms.angle = 0;
       cb?.onComplete?.();
     }
   });
@@ -420,39 +472,57 @@ MONSTER_ATTACK_REGISTRY['skywhale'] = function(scene, ms, ts, dmg, cb) {
     colors: [0xa4c8d8, 0xfdfbf2],
     count: 8, maxDist: 25, duration: 200
   });
-  scene.tweens.add({
-    targets: ms,
-    y: my - 40,
-    duration: 200,
-    ease: 'Quad.out'
-  });
+  // Multi-phase dive doesn't fit the yoyo helpers — tween the body
+  // directly, relatively, restoring the exact original coords at the end.
+  const body = (ms && ms.body) ? ms.body : null;
+  const obx = body ? body.x : 0;
+  const oby = body ? body.y : 0;
+  const impact = function() {
+    playShockwave(scene, tx, ty, { color: 0xa4c8d8, endRadius: 120, duration: 350 });
+    playImpactRing(scene, tx, ty, { color: 0xecb964, endRadius: 60, duration: 280 });
+    playElementalBurst(scene, tx, ty, {
+      colors: [0xa4c8d8, 0xecb964, 0xfdfbf2],
+      count: 28, maxDist: 60, duration: 400
+    });
+    playGroundCrack(scene, tx, ty, {
+      lineCount: 5, length: 65, color: 0xa4c8d8,
+      alpha: 0.6, lineWidth: 3, duration: 400
+    });
+    playScreenFlash(scene, { color: 0xecb964, alpha: 0.3, duration: 150 });
+    cb?.onHit?.();
+  };
+  if (body) {
+    scene.tweens.add({
+      targets: body,
+      y: oby - 40,
+      duration: 200,
+      ease: 'Quad.out'
+    });
+  }
   // Phase 2: dive bomb
   scene.time.delayedCall(220, function() {
+    if (!body) {
+      impact();
+      return;
+    }
     scene.tweens.add({
-      targets: ms,
-      x: tx,
-      y: ty - 20,
+      targets: body,
+      x: obx + (tx - mx),
+      y: oby + (ty - 20 - my),
       duration: 150,
       ease: 'Quad.in',
       onComplete: function() {
-        playShockwave(scene, tx, ty, { color: 0xa4c8d8, endRadius: 120, duration: 350 });
-        playImpactRing(scene, tx, ty, { color: 0xecb964, endRadius: 60, duration: 280 });
-        playElementalBurst(scene, tx, ty, {
-          colors: [0xa4c8d8, 0xecb964, 0xfdfbf2],
-          count: 28, maxDist: 60, duration: 400
-        });
-        playGroundCrack(scene, tx, ty, {
-          lineCount: 5, length: 65, color: 0xa4c8d8,
-          alpha: 0.6, lineWidth: 3, duration: 400
-        });
-        playScreenFlash(scene, { color: 0xecb964, alpha: 0.3, duration: 150 });
-        cb?.onHit?.();
+        impact();
         // Return to position
         scene.tweens.add({
-          targets: ms,
-          x: mx, y: my,
+          targets: body,
+          x: obx, y: oby,
           duration: 200,
-          ease: 'Sine.out'
+          ease: 'Sine.out',
+          onComplete: function() {
+            body.x = obx;
+            body.y = oby;
+          }
         });
       }
     });
@@ -471,14 +541,9 @@ MONSTER_ATTACK_REGISTRY['skywhale'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['cindercrab'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.35,
-    y: my + (ty - my) * 0.35,
-    duration: 110,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.35, (ty - my) * 0.35, 110, {
     ease: 'Back.out',
-    onYoyo: function() {
+    onHit: function() {
       playSparkBurst(scene, tx, ty, {
         colors: [0xe78f6c, 0xe39a4a, 0xd06a4d],
         count: 14, maxDist: 30, duration: 280
@@ -502,14 +567,9 @@ MONSTER_ATTACK_REGISTRY['ashwalker'] = function(scene, ms, ts, dmg, cb) {
     count: 10, maxDist: 30, duration: 250
   });
   scene.time.delayedCall(120, function() {
-    scene.tweens.add({
-      targets: ms,
-      x: mx + (tx - mx) * 0.4,
-      y: my + (ty - my) * 0.4,
-      duration: 100,
-      yoyo: true,
+    lunge(scene, ms, (tx - mx) * 0.4, (ty - my) * 0.4, 100, {
       ease: 'Quad.in',
-      onYoyo: function() {
+      onHit: function() {
         playSparkBurst(scene, tx, ty, {
           colors: [0xe78f6c, 0xd06a4d, 0xe39a4a],
           count: 16, maxDist: 35, duration: 300
@@ -634,13 +694,9 @@ MONSTER_ATTACK_REGISTRY['icicle'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['snowdrift'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.2,
-    duration: 140,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.2, 0, 140, {
     ease: 'Sine.inOut',
-    onYoyo: function() {
+    onHit: function() {
       playElementalBurst(scene, tx, ty, {
         colors: [0xfdfbf2, 0xf5eedd, 0xa4c8d8],
         count: 16, maxDist: 45, duration: 350
@@ -657,14 +713,9 @@ MONSTER_ATTACK_REGISTRY['snowdrift'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['glacial'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.45,
-    y: my + (ty - my) * 0.45,
-    duration: 130,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.45, (ty - my) * 0.45, 130, {
     ease: 'Quad.in',
-    onYoyo: function() {
+    onHit: function() {
       playShockwave(scene, tx, ty, { color: 0x7fb3ae, endRadius: 55, duration: 280 });
       playSparkBurst(scene, tx, ty, {
         colors: [0x7fb3ae, 0xa4c8d8, 0xfdfbf2],
@@ -735,14 +786,9 @@ MONSTER_ATTACK_REGISTRY['shard'] = function(scene, ms, ts, dmg, cb) {
 // Geode — crystal burst: inflates and explodes with a prismatic elemental burst
 MONSTER_ATTACK_REGISTRY['geode'] = function(scene, ms, ts, dmg, cb) {
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    scaleX: 1.2,
-    scaleY: 1.2,
-    duration: 100,
-    yoyo: true,
+  pulse(scene, ms, 1.2, 100, {
     ease: 'Quad.out',
-    onYoyo: function() {
+    onHit: function() {
       playElementalBurst(scene, tx, ty, {
         colors: [0x9c8fc0, 0x7c6fa8, 0xe8a09a],
         count: 20, maxDist: 45, duration: 350
@@ -780,14 +826,9 @@ MONSTER_ATTACK_REGISTRY['prismling'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['facet'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.4,
-    y: my + (ty - my) * 0.4,
-    duration: 120,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.4, (ty - my) * 0.4, 120, {
     ease: 'Quad.in',
-    onYoyo: function() {
+    onHit: function() {
       playImpactRing(scene, tx, ty, { color: 0x7c6fa8, endRadius: 45, duration: 260 });
       playSparkBurst(scene, tx, ty, {
         colors: [0x7c6fa8, 0x9c8fc0, 0xfdfbf2],
@@ -851,14 +892,9 @@ MONSTER_ATTACK_REGISTRY['theprism'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['pickpocket'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.5,
-    y: my + (ty - my) * 0.5,
-    duration: 90,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.5, (ty - my) * 0.5, 90, {
     ease: 'Quad.out',
-    onYoyo: function() {
+    onHit: function() {
       playSparkBurst(scene, tx, ty, {
         colors: [0xecb964, 0xe39a4a, 0xf2bf9a],
         count: 10, maxDist: 25, duration: 250
@@ -876,21 +912,20 @@ MONSTER_ATTACK_REGISTRY['pickpocket'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['taxcollector'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  // Rise with importance
+  if (!ms || !ms.body) { cb?.onComplete?.(); return; }
+  const body = ms.body;
+  const oby = body.y;
+  // Rise with importance, then slam via a relative lunge; the lunge
+  // returns the body to the risen height, so restore true y afterwards.
   scene.tweens.add({
-    targets: ms,
-    y: my - 20,
+    targets: body,
+    y: oby - 20,
     duration: 100,
     ease: 'Quad.out',
     onComplete: function() {
-      scene.tweens.add({
-        targets: ms,
-        x: mx + (tx - mx) * 0.3,
-        y: my + (ty - my) * 0.3,
-        duration: 100,
-        yoyo: true,
+      lunge(scene, ms, (tx - mx) * 0.3, (ty - my) * 0.3, 100, {
         ease: 'Quad.in',
-        onYoyo: function() {
+        onHit: function() {
           playImpactRing(scene, tx, ty, { color: 0xe39a4a, endRadius: 40, duration: 250 });
           playSparkBurst(scene, tx, ty, {
             colors: [0xe39a4a, 0xecb964, 0xf2bf9a],
@@ -899,6 +934,7 @@ MONSTER_ATTACK_REGISTRY['taxcollector'] = function(scene, ms, ts, dmg, cb) {
           cb?.onHit?.();
         },
         onComplete: function() {
+          body.y = oby;
           cb?.onComplete?.();
         }
       });
@@ -931,14 +967,9 @@ MONSTER_ATTACK_REGISTRY['merchant'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['banker'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.4,
-    y: my + (ty - my) * 0.4,
-    duration: 130,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.4, (ty - my) * 0.4, 130, {
     ease: 'Quad.in',
-    onYoyo: function() {
+    onHit: function() {
       playShockwave(scene, tx, ty, { color: 0xd9cfb2, endRadius: 50, duration: 280 });
       playSparkBurst(scene, tx, ty, {
         colors: [0xecb964, 0xe39a4a, 0xf2bf9a],
@@ -946,9 +977,7 @@ MONSTER_ATTACK_REGISTRY['banker'] = function(scene, ms, ts, dmg, cb) {
       });
       cb?.onHit?.();
     },
-    onComplete: function() {
-      cb?.onComplete?.();
-    }
+    onComplete: function() { cb?.onComplete?.(); },
   });
 };
 
@@ -994,14 +1023,9 @@ MONSTER_ATTACK_REGISTRY['counterfeiter'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['bookworm_e'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.25,
-    y: my + (ty - my) * 0.25,
-    duration: 130,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.25, (ty - my) * 0.25, 130, {
     ease: 'Sine.out',
-    onYoyo: function() {
+    onHit: function() {
       playSparkBurst(scene, tx, ty, {
         colors: [0xf5eedd, 0xe8dec6, 0xd9cfb2],
         count: 14, maxDist: 35, duration: 300
@@ -1009,9 +1033,7 @@ MONSTER_ATTACK_REGISTRY['bookworm_e'] = function(scene, ms, ts, dmg, cb) {
       playSlashArc(scene, tx, ty, { color: 0xf5eedd, lineWidth: 3, arcSpread: 50, duration: 230 });
       cb?.onHit?.();
     },
-    onComplete: function() {
-      cb?.onComplete?.();
-    }
+    onComplete: function() { cb?.onComplete?.(); },
   });
 };
 
@@ -1052,14 +1074,9 @@ MONSTER_ATTACK_REGISTRY['riddler'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['archivist'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.4,
-    y: my + (ty - my) * 0.4,
-    duration: 120,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.4, (ty - my) * 0.4, 120, {
     ease: 'Quad.in',
-    onYoyo: function() {
+    onHit: function() {
       playImpactRing(scene, tx, ty, { color: 0xd9cfb2, endRadius: 45, duration: 260 });
       playSparkBurst(scene, tx, ty, {
         colors: [0xf5eedd, 0xe8dec6, 0xd9cfb2],
@@ -1068,9 +1085,7 @@ MONSTER_ATTACK_REGISTRY['archivist'] = function(scene, ms, ts, dmg, cb) {
       playShockwave(scene, tx, ty, { color: 0xd9cfb2, endRadius: 50, duration: 280 });
       cb?.onHit?.();
     },
-    onComplete: function() {
-      cb?.onComplete?.();
-    }
+    onComplete: function() { cb?.onComplete?.(); },
   });
 };
 
@@ -1173,14 +1188,9 @@ MONSTER_ATTACK_REGISTRY['grimoire'] = function(scene, ms, ts, dmg, cb) {
 MONSTER_ATTACK_REGISTRY['familiar'] = function(scene, ms, ts, dmg, cb) {
   const mx = ms.x, my = ms.y;
   const tx = ts.x, ty = ts.y;
-  scene.tweens.add({
-    targets: ms,
-    x: mx + (tx - mx) * 0.6,
-    y: my + (ty - my) * 0.6,
-    duration: 100,
-    yoyo: true,
+  lunge(scene, ms, (tx - mx) * 0.6, (ty - my) * 0.6, 100, {
     ease: 'Back.out',
-    onYoyo: function() {
+    onHit: function() {
       playSparkBurst(scene, tx, ty, {
         colors: [0x1f3d3f, 0x7c6fa8, 0x9c8fc0],
         count: 14, maxDist: 30, duration: 280
@@ -1189,9 +1199,7 @@ MONSTER_ATTACK_REGISTRY['familiar'] = function(scene, ms, ts, dmg, cb) {
       playImpactRing(scene, tx, ty, { color: 0x7c6fa8, endRadius: 35, duration: 250 });
       cb?.onHit?.();
     },
-    onComplete: function() {
-      cb?.onComplete?.();
-    }
+    onComplete: function() { cb?.onComplete?.(); },
   });
 };
 

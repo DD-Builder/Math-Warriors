@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { generateQuestion, generateRatedQuestion, recordAnswer } from '../systems/math.js';
+import { nextReview, buildReviewQuestion, scheduleReview, tickReview } from '../systems/review.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
-import { recordSkillAnswer } from '../systems/mastery.js';
+import { recordSkillAnswer, getAdaptiveGrade, updateAdaptiveLevel, biasedMixedOperator } from '../systems/mastery.js';
 import {
   getZone,
   advanceMomentum,
@@ -15,9 +16,11 @@ import {
   advanceTurn,
   isPartyDefeated,
   pickRandomLivingHero,
+  pickEnemyTarget,
 } from '../systems/combat.js';
 import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
 import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
+import { speakQuestion } from '../systems/a11y.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
 import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
@@ -33,9 +36,13 @@ import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } fr
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
 import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnightSuper, playBunnySuper, playWizardSuper } from '../systems/attackAnimations.js';
-import { playSparkBurst, playProjectile, playImpactRing, playElementalBurst } from '../systems/vfx.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
-import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
+import { drawHeroSprite, createAnimatedHero, HERO_FEET_OFFSET } from '../ui/heroSprites.js';
+import { BATTLE_DEPTH } from '../ui/depths.js';
+import { getQuestionTimer, SOFT_TIMER_BONUS } from '../systems/battleTimer.js';
+import { canTriggerSpecial, specialOperator, resolveSpecial, specialTimerMs } from '../systems/specialRules.js';
+import { playBossEntrance, showIntentBadge, playBossTelegraph, getBossMove, isSpecialTurn, isTelegraphTurn, specialDamagePerHero } from '../systems/bossPresentation.js';
+import { createNumpad } from '../ui/numpad.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { createFractionDisplay } from '../ui/fractionDisplay.js';
@@ -47,7 +54,7 @@ import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
-import { getHint } from '../systems/hints.js';
+import { getHint, getWhy } from '../systems/hints.js';
 import { recordBattle, getBondStatBonuses, getAvailableCombos } from '../systems/bonds.js';
 import { getEvolutionStatBoosts, getEvolutionStage } from '../systems/evolution.js';
 import {
@@ -175,7 +182,7 @@ export class BattleScene extends Phaser.Scene {
 
     // Apply equipment bonuses from save to each hero
     for (let i = 0; i < this.party.length && i < 3; i++) {
-      const heroEquip = this.save.equipment?.[`hero${i}`];
+      const heroEquip = this.save.equipment?.[this.party[i].id];
       if (heroEquip) {
         if (heroEquip.weapon) {
           const wpn = getEquipmentById(heroEquip.weapon);
@@ -257,17 +264,53 @@ export class BattleScene extends Phaser.Scene {
 
     this.buildBackground();
 
-    // The parallax diorama already paints an organic layered ground —
-    // the old flat translucent bands here read as a giant stripe across
-    // the scene, and the "subtle path" polygon read as a stray light
-    // beam. Both removed.
+    // Draw a subtle ground plane before heroes/monsters for depth illusion
+    const groundGfx = this.add.graphics();
+    groundGfx.setDepth(10);
+    // Ground fills the bottom third with layered terrain — not empty
+    // single-color space. Three bands: far path (where monsters stand),
+    // mid ground, and near ground (where heroes stand + below).
+    const gTop = BATTLE_PERSPECTIVE.groundTopY;
+    const gBot = GAME_HEIGHT;
+    const gMid = BATTLE_PERSPECTIVE.groundBottomY;
+
+    // Far ground band (darker, behind monsters)
+    groundGfx.fillStyle(PAPER.sageD, 0.6);
+    groundGfx.fillRect(0, gTop - 10, GAME_WIDTH, gMid - gTop + 40);
+
+    // Mid ground path strip (lighter, transition zone)
+    groundGfx.fillStyle(PAPER.sand, 0.5);
+    groundGfx.fillRect(0, gMid - 30, GAME_WIDTH, 80);
+
+    // Near ground (below heroes to screen bottom)
+    groundGfx.fillStyle(PAPER.sage, 0.45);
+    groundGfx.fillRect(0, gMid + 30, GAME_WIDTH, gBot - gMid);
+
+    // Grass tufts scattered across the near ground
+    for (let gi = 0; gi < 30; gi++) {
+      const gx = Math.random() * GAME_WIDTH;
+      const gy = gMid + 20 + Math.random() * (gBot - gMid - 40);
+      groundGfx.fillStyle(PAPER.leaf, 0.3 + Math.random() * 0.2);
+      groundGfx.fillCircle(gx, gy, 3 + Math.random() * 5);
+    }
+
+    // Subtle path leading from heroes toward monsters
+    groundGfx.fillStyle(PAPER.creamD, 0.3);
+    groundGfx.fillPoints([
+      { x: 300, y: gMid + 10 }, { x: 500, y: gMid - 20 },
+      { x: 800, y: gTop + 60 }, { x: 900, y: gTop + 40 },
+      { x: 850, y: gTop + 80 }, { x: 550, y: gMid },
+      { x: 350, y: gMid + 30 },
+    ], true);
 
     this.buildHeroSprites();
     this.buildEnemySprite();
     this.buildUI();
     this.buildCommandMenu();
 
-    audio.playMusic('music/battle');
+    // Bosses get their own score (music/boss-N); the director falls back
+    // to the generic battle theme until a floor's boss piece exists.
+    audio.playMusic(this.isBoss ? `music/boss-${this.floor}` : 'music/battle');
 
     // Fire each enemy's onBattleStart hook so any ability state can
     // initialize
@@ -293,12 +336,17 @@ export class BattleScene extends Phaser.Scene {
     // Fade in
     fadeInScene(this);
 
-    // --- Battle cry: boss encounter ---
-    if (this.isBoss && this.party[0]) {
-      this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
+    // --- Boss battles open with an entrance + name card; the turn
+    // loop waits for the curtain. Normal battles start immediately. ---
+    this.bossTurnCount = 0;
+    if (this.isBoss && this.enemySprites[0]) {
+      if (this.party[0]) {
+        this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
+      }
+      playBossEntrance(this, this.enemySprites[0], this.enemies[0], () => this.nextTurn());
+    } else {
+      this.time.delayedCall(400, () => this.nextTurn());
     }
-
-    this.time.delayedCall(400, () => this.nextTurn());
 
     // --- Idle camera breathing: subtle slow drift for depth ---
     this.tweens.add({
@@ -578,54 +626,53 @@ export class BattleScene extends Phaser.Scene {
     this.heroSprites = this.party.map((hero, i) => {
       const pos = positions[i];
       const x = pos.x;
-      // FEET-ANCHOR: pos.y is the ground line. The hero canvas centers
-      // the body with feet ~134px (at scale 1) below center, so lift
-      // the container until the feet touch the line exactly.
+      const y = pos.y;
       const scale = pos.scale * 0.85; // overall hero scale factor
-      const y = pos.y - 134 * scale;
 
-      // Contact shadow AT THE FEET on the ground line
-      drawGroundShadow(shadowGfx, x, pos.y - 2, scale, { rx: 52, alpha: 0.3 });
+      // Ground shadow at the FEET (canvas feet sit HERO_FEET_OFFSET px
+      // below the sprite's center-origin), so heroes stand on it
+      // instead of floating above it.
+      drawGroundShadow(shadowGfx, x, y + HERO_FEET_OFFSET * scale, scale, { rx: 50, alpha: 0.28 });
 
       const evoStage = getEvolutionStage(this.save, hero.id);
       const body = createAnimatedHero(this, x, y, hero, {
         scale,
         floorId: this.floor,
         evolutionStage: evoStage,
-        equipment: this.save.equipment?.[`hero${i}`],
+        equipment: this.save.equipment?.[hero.id],
       });
       body.setDepth(pos.depth);
 
-      // Name + HP BELOW the hero's feet — and ABOVE every hero sprite's
-      // depth (bodies use pos.depth ≈ their y), so a neighboring hero
-      // can never draw over another hero's nameplate.
-      const labelDepth = pos.depth + 4;
-      const labelY = pos.y + 20; // just under the feet/shadow line
-      const name = this.add.text(x, labelY, hero.name.toUpperCase(), {
+      // Name + HP ABOVE the hero's head — below the feet they collide
+      // with the full-width turn band, and on the legs they collide
+      // with the sprite. Above-head matches the boss nameplate.
+      const headTopY = y - (384 / 2) * scale;
+      const labelY = headTopY - 44;
+      const name = this.add.text(x, labelY, `${hero.name.toUpperCase()} · L${hero.level || 1}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '22px',
+        fontSize: '20px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.ink,
         strokeThickness: 3,
         resolution: 2,
-      }).setOrigin(0.5).setDepth(labelDepth);
+      }).setOrigin(0.5).setDepth(14);
 
-      const hpBarY = labelY + 18;
-      const hpBarBg = this.add.rectangle(x, hpBarY, 150, 14, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD).setDepth(labelDepth - 1);
-      const hpBarFill = this.add.rectangle(x - 73, hpBarY, 146, 10, 0x40c040)
-        .setOrigin(0, 0.5).setDepth(labelDepth - 1);
-      const hpStroke = this.add.rectangle(x, hpBarY, 150, 14)
-        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(labelDepth);
-      const hpText = this.add.text(x, hpBarY + 14, `${hero.hp}/${hero.maxHp}`, {
+      const hpBarY = labelY + 20;
+      const hpBarBg = this.add.rectangle(x, hpBarY, 150, 16, COLORS.ink)
+        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
+      const hpBarFill = this.add.rectangle(x - 73, hpBarY, 146, 12, 0x40c040)
+        .setOrigin(0, 0.5).setDepth(13);
+      const hpStroke = this.add.rectangle(x, hpBarY, 150, 16)
+        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
+      const hpText = this.add.text(x, hpBarY, `${hero.hp}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '16px',
+        fontSize: '13px',
         color: COLORS_CSS.paper,
         resolution: 2,
-      }).setOrigin(0.5).setDepth(labelDepth);
+      }).setOrigin(0.5).setDepth(14);
 
-      const indicator = this.add.triangle(x, y - 100, 0, 0, 20, 0, 10, 20, COLORS.goldL)
-        .setVisible(false).setDepth(labelDepth + 1);
+      const indicator = this.add.triangle(x, labelY - 28, 0, 0, 20, 0, 10, 20, COLORS.goldL)
+        .setVisible(false).setDepth(15);
 
       return { hero, body, name, hpBarBg, hpBarFill, hpText, hpStroke, indicator, x, y };
     });
@@ -650,47 +697,40 @@ export class BattleScene extends Phaser.Scene {
       const enemy = this.enemies[ei];
       const pos = positions[ei];
       const x = pos.x;
+      const y = pos.y;
       const monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.02) : pos.scale;
 
-      // FEET-ANCHORED placement: the formation gives us where the
-      // creature touches the ground; center the sprite so its bottom
-      // rests there. Centering at the formation y floated monsters in
-      // the sky with an orphaned shadow at their waist.
-      const feetY = pos.feetY ?? pos.y;
-      const body = drawMonsterSprite(this, x, 0, enemy, { scale: monsterScale, floorId: this.floor });
-      const displayH = body.displayHeight ?? (640 * monsterScale);
-      const y = feetY - displayH * 0.44;
-      body.y = y;
+      const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
       body.setDepth(pos.depth);
 
-      // Ground shadow under the FEET, squashed wide — sells contact
-      drawGroundShadow(monsterShadowGfx, x, feetY - 6, monsterScale, { rx: 58, alpha: 0.30 });
+      // Ground shadow at the monster's FEET (center origin → base is
+      // half the display height below y), tucked up slightly so the
+      // creature reads as standing on it.
+      const displayH = body.displayHeight ?? (640 * monsterScale);
+      drawGroundShadow(monsterShadowGfx, x, y + displayH * 0.5 - 8, monsterScale, { rx: 40 });
 
-      // Label ABOVE each creature's head. With monsters now fanned wide
-      // across the right zone, the labels sit in open sky and never
-      // collide with each other or dip into the command UI.
-      const headTop = y - displayH * 0.5;
-      const nameY = Math.max(150, headTop - 30);
+      // Name/HP bars anchored above the sprite's actual rendered bounds,
+      // clamped below the top momentum panel (which reaches ~y=107) so a
+      // tall single enemy's plate is never hidden behind it.
+      const nameY = Math.max(y - displayH * 0.48 - 14, 140);
       const hpY = nameY + 20;
-      const hpTextY = hpY + 15;
+      const hpTextY = hpY + 16;
 
-      // Labels sit just above their own sprite's depth so they can
-      // never be swallowed by the creature art.
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: count >= 3 ? '20px' : '26px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.scarlet,
         strokeThickness: 4,
-      }).setOrigin(0.5).setDepth(pos.depth + 3);
+      }).setOrigin(0.5).setDepth(14);
 
       const hpBarBg = this.add.rectangle(x, hpY, w + 20, 20, COLORS.ink)
-        .setStrokeStyle(2, COLORS.paperD).setDepth(pos.depth + 2);
+        .setStrokeStyle(2, COLORS.paperD).setDepth(13);
       const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (enemy.hp / enemy.maxHp), 14, 0xc04030)
-        .setOrigin(0, 0.5).setDepth(pos.depth + 2);
+        .setOrigin(0, 0.5).setDepth(13);
       // 1px white stroke around HP bar for clarity
       const hpStroke = this.add.rectangle(x, hpY, w + 20, 20)
-        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(pos.depth + 3);
+        .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
       const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '16px',
@@ -698,7 +738,7 @@ export class BattleScene extends Phaser.Scene {
         stroke: '#1f4244',
         strokeThickness: 3,
         resolution: 2,
-      }).setOrigin(0.5).setDepth(pos.depth + 3);
+      }).setOrigin(0.5).setDepth(14);
 
       const spriteData = { body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y };
       this.enemySprites.push(spriteData);
@@ -747,7 +787,9 @@ export class BattleScene extends Phaser.Scene {
         tweenCfg.y = y - 6;
         tweenCfg.duration = anim.dur * 1.2;
       }
-      this.tweens.add(tweenCfg);
+      // Kept so attack animations can pause the idle instead of
+      // fighting it over the same body x/y/scale.
+      spriteData.idleTween = this.tweens.add(tweenCfg);
     }
 
     // Backward compat: this.enemySprite points to first enemy sprite
@@ -758,36 +800,11 @@ export class BattleScene extends Phaser.Scene {
   // UI — momentum, question, answers, toasts, end screen
   // ================================================================
 
-  /**
-   * Floating damage number — the impact readout kids watch for.
-   */
-  popDamage(targetIdx, result) {
-    const es = this.enemySprites[targetIdx];
-    if (!es || !es.body) return;
-    const dmg = result?.modifiedDamage ?? result?.damage;
-    if (!dmg) return;
-    const t = this.add.text(es.body.x, es.body.y - 60, `-${dmg}`, {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
-      fontSize: '54px', color: '#fff3d0', stroke: '#c04020', strokeThickness: 8,
-    }).setOrigin(0.5).setDepth(900).setScale(0.4);
-    this.tweens.add({ targets: t, scale: 1, y: t.y - 70, duration: 500, ease: 'Back.out' });
-    this.tweens.add({ targets: t, alpha: 0, delay: 550, duration: 300, onComplete: () => t.destroy() });
-  }
-
-  /** Physical knock-back recoil on the struck enemy. */
-  recoilEnemy(targetIdx) {
-    const es = this.enemySprites[targetIdx];
-    if (!es || !es.body) return;
-    const bx = es.body.x;
-    this.tweens.add({
-      targets: es.body, x: bx + 26, duration: 90, yoyo: true, ease: 'Quad.out',
-      onComplete: () => { es.body.x = bx; },
-    });
-  }
-
   setUIDepth(obj, depth) {
     if (!obj) return;
-    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track']) {
+    // barBg/barFill are PaperBar's graphics — omitting them left the
+    // momentum bar at depth 0, invisible behind the depth-20 top panel.
+    for (const key of ['bg', 'shadow', 'label', 'zone', 'fill', 'track', 'barBg', 'barFill']) {
       if (obj[key] && obj[key].setDepth) obj[key].setDepth(depth);
     }
     if (obj.setDepth) obj.setDepth(depth);
@@ -824,8 +841,10 @@ export class BattleScene extends Phaser.Scene {
     this.momentumBarObj = PaperBar(this, barX, topY, barW, 16, this.momentum, 0x4aa848, {
       bgColor: 0xc8b898,
     });
+    this.setUIDepth(this.momentumBarObj, BATTLE_DEPTH.UI);
     for (const t of [0.33, 0.66]) {
-      this.add.rectangle(barX + barW * t, topY, 2, 16, 0x3a2410, 0.5);
+      this.add.rectangle(barX + barW * t, topY, 2, 16, 0x3a2410, 0.5)
+        .setDepth(BATTLE_DEPTH.UI + 1);
     }
     this.momentumLabel = this.add.text(barX + barW + 10, topY, 'ZONE', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -844,7 +863,7 @@ export class BattleScene extends Phaser.Scene {
 
     const noteW = 345;
     const noteH = 110;
-    const noteCx = area.cx + 90; // clear of the hero column + labels
+    const noteCx = area.cx;
     const noteCy = eqY;
     this.eqCenterY = eqY;
 
@@ -876,11 +895,11 @@ export class BattleScene extends Phaser.Scene {
     this.eqLines.stars.setOrigin(1, 0);
 
     // Turn label — above the math panel, full width with larger font
-    const turnY = eqY - noteH / 2 - 30;
-    PaperPanel(this, area.cx + 90, turnY, 620, 46, {
+    const turnY = eqY - noteH / 2 - 24;
+    PaperPanel(this, area.cx, turnY, area.w - 40, 42, {
       color: 0xf5ead0, alpha: 0.92, radius: 14, shadowOff: 3, shadowAlpha: 0.18,
     });
-    this.turnLabel = this.add.text(area.cx + 90, turnY, '', {
+    this.turnLabel = this.add.text(area.cx, turnY, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '28px',
       color: '#3a2410',
@@ -926,22 +945,33 @@ export class BattleScene extends Phaser.Scene {
       this.drawColorblindMomentumPatterns(barX, topY, barW);
     }
 
-    const abilityBtnY = ansY + ansH / 2 + 32;
-    this.abilityBtn = PaperButton(this, area.cx, abilityBtnY, 'ABILITY', {
-      w: 220, h: 42, color: 0x9050c8, fontSize: 16,
+    // Ability/Super/Special live in the SIDE GUTTERS beside the answer
+    // row (the row spans x 216-1224, leaving ~176px each side) — the
+    // old row at ansY+72 sat inside BOTTOM_SAFE (y>960) where the iPad
+    // Safari toolbar can swallow taps.
+    this.abilityBtn = PaperButton(this, area.left + 85, ansY - 64, 'ABILITY', {
+      w: 150, h: 42, color: 0x9050c8, fontSize: 14,
       onClick: () => this.useAbility(),
     });
     this.setSuperVisible(this.abilityBtn, false);
 
-    this.superBtn = PaperButton(this, area.cx - 220, abilityBtnY, 'SUPER!', {
-      w: 180, h: 44, color: 0xe8a030, fontSize: 17,
+    this.superBtn = PaperButton(this, area.left + 85, ansY, 'SUPER!', {
+      w: 150, h: 44, color: 0xe8a030, fontSize: 15,
       onClick: () => this.executeSuperMove(),
     });
     this.setSuperVisible(this.superBtn, false);
 
-    this.teamBtn = PaperButton(this, area.cx + 220, abilityBtnY, 'TEAM ATTACK!', {
-      w: 200, h: 44, color: 0xe04040, fontSize: 15,
-      onClick: () => this.executeTeamAttack(),
+    this.teamBtn = PaperButton(this, area.right - 85, ansY, 'TEAM!', {
+      w: 150, h: 44, color: 0xe04040, fontSize: 15,
+      onClick: () => {
+        // Full momentum: grades 2+ spend it on the typed-answer
+        // SPECIAL; K-1 keep the tap-to-fire team attack.
+        if (canTriggerSpecial({ momentum: this.momentum, grade: this.grade })) {
+          this.startFillInSpecial();
+        } else {
+          this.executeTeamAttack();
+        }
+      },
     });
     this.setSuperVisible(this.teamBtn, false);
 
@@ -1021,7 +1051,7 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0).setDepth(50);
 
     // --- DEPTH FIX: Set all UI elements above parallax background (depths 0-8) ---
-    const UI_DEPTH = 850; // interactive UI must beat combatant depths (~500-800)
+    const UI_DEPTH = 20;
     const UI_TEXT_DEPTH = 21;
     // Momentum bar
     this.setUIDepth(this.momentumBarObj, UI_DEPTH);
@@ -1055,43 +1085,7 @@ export class BattleScene extends Phaser.Scene {
 
     // End overlay (hidden by default)
     this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
-    const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, COLORS.ink, 0.88);
-
-    // Papercut sunburst behind the verdict — layered warm rays + glow
-    // discs, slowly rotating (light through the cuts).
-    const burst = this.add.graphics();
-    for (let ring = 6; ring >= 1; ring--) {
-      burst.fillStyle(0xf5e2b0, 0.05 * (7 - ring) / 6 + 0.02);
-      burst.fillCircle(0, 0, 90 + ring * 46);
-    }
-    burst.fillStyle(0xf5e2b0, 0.10);
-    for (let rr = 0; rr < 14; rr++) {
-      const a = (rr / 14) * Math.PI * 2;
-      burst.beginPath();
-      burst.moveTo(Math.cos(a - 0.05) * 110, Math.sin(a - 0.05) * 110);
-      burst.lineTo(Math.cos(a - 0.012) * 430, Math.sin(a - 0.012) * 430);
-      burst.lineTo(Math.cos(a + 0.012) * 430, Math.sin(a + 0.012) * 430);
-      burst.lineTo(Math.cos(a + 0.05) * 110, Math.sin(a + 0.05) * 110);
-      burst.closePath(); burst.fillPath();
-    }
-    burst.y = -110;
-    this.tweens.add({ targets: burst, angle: 360, duration: 60000, repeat: -1, ease: 'Linear' });
-    this._endBurst = burst;
-
-    // Deckled ribbon plate behind the title text
-    const ribbon = this.add.graphics();
-    ribbon.fillStyle(COLORS.ink, 0.35);
-    ribbon.fillRoundedRect(-306, -206 + 8, 612, 104, 18);
-    ribbon.fillStyle(0xf5eedd, 0.97);
-    ribbon.fillRoundedRect(-310, -212, 620, 104, 18);
-    ribbon.fillStyle(0xecdcb8, 0.8);
-    ribbon.fillRoundedRect(-298, -204, 596, 88, 14);
-    ribbon.fillStyle(0xf5eedd, 1);
-    // deckle bumps along ribbon edges
-    for (let db = 0; db < 20; db++) {
-      ribbon.fillCircle(-300 + db * 31.5, -212 + (db % 2) * 104, 7 + (db * 7) % 5);
-    }
-
+    const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, COLORS.ink, 0.92);
     const endTitle = this.add.text(0, -160, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '72px',
@@ -1133,7 +1127,7 @@ export class BattleScene extends Phaser.Scene {
       this.scene.start(target, data);
     });
 
-    this.endOverlay.add([overlayBg, burst, ribbon, endTitle, endSub, endRewards, endBtnBg, endBtnLabel]);
+    this.endOverlay.add([overlayBg, endTitle, endSub, endRewards, endBtnBg, endBtnLabel]);
     this.endOverlay.titleText = endTitle;
     this.endOverlay.subText = endSub;
     this.endOverlay.rewardsText = endRewards;
@@ -1181,8 +1175,8 @@ export class BattleScene extends Phaser.Scene {
       });
       btn.cmd = cmd;
       btn._origY = cmdY;
-      this.setUIDepth(btn, 852);
-      if (btn.label?.setDepth) btn.label.setDepth(853);
+      this.setUIDepth(btn, 28);
+      if (btn.label?.setDepth) btn.label.setDepth(29);
       this.commandButtons.push(btn);
     }
     this.setCommandMenuVisible(false);
@@ -1229,8 +1223,8 @@ export class BattleScene extends Phaser.Scene {
       });
       btn.cmd = cmd;
       btn._origY = cmdY;
-      this.setUIDepth(btn, 852);
-      if (btn.label?.setDepth) btn.label.setDepth(853);
+      this.setUIDepth(btn, 28);
+      if (btn.label?.setDepth) btn.label.setDepth(29);
       this.commandButtons.push(btn);
     }
   }
@@ -1280,9 +1274,10 @@ export class BattleScene extends Phaser.Scene {
 
     // Generate a harder question (same as MAGIC — harder difficulty bias)
     const config = getCommandConfig(COMMANDS.MAGIC);
-    this.currentQuestion = generateRatedQuestion({
-      operator: this.operator,
-      grade: this.grade,
+    const effOp = this._effectiveOperator();
+    this.currentQuestion = this._makeQuestion({
+      operator: effOp,
+      grade: getAdaptiveGrade(this.save, effOp),
       streak: this.streak,
       floor: this.floor,
       targetStars: config.targetStars,
@@ -1299,6 +1294,8 @@ export class BattleScene extends Phaser.Scene {
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
     this._renderAnswerChoices();
+    // Upgrade 10: read the question aloud for pre-readers when TTS is on.
+    speakQuestion(this.save, this.currentQuestion);
 
     // Animate equation + answer buttons in
     const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
@@ -1489,112 +1486,11 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // Route FIGHT / bunny-HEAL through a target picker when there is a
-    // meaningful choice, so the player decides WHO — a core RPG expectation.
-    const heroCls = hero.class || 'knight';
-    const isHeal = cmd === COMMANDS.MAGIC && heroCls === 'bunny';
-    if (isHeal) {
-      const woundedAllies = this.party.filter(h => h.hp > 0);
-      if (woundedAllies.length > 1) { this.promptAllySelect(cmd); return; }
-    } else {
-      const aliveEnemies = this.enemies.filter(e => e.hp > 0);
-      if (aliveEnemies.length > 1) { this.promptTargetSelect(cmd); return; }
-      // single enemy: make sure currentTarget points at it
-      const only = this.enemies.findIndex(e => e.hp > 0);
-      if (only >= 0) this.currentTarget = only;
-    }
-    this._beginQuestion(cmd);
-  }
-
-  /**
-   * Let the player TAP an enemy to attack. Shows a bobbing target arrow
-   * over the current pick and makes every living enemy tappable.
-   */
-  promptTargetSelect(cmd) {
-    this.phase = 'selecting';
-    const hero = this.party[this.currentTurn.heroIndex];
-    this.turnLabel.setText(`${hero.name}: tap an enemy!`);
-    this._clearSelectors();
-    this._selectArrows = [];
-    const firstAlive = this.enemies.findIndex(e => e.hp > 0);
-    if (this.currentTarget == null || !this.enemies[this.currentTarget] || this.enemies[this.currentTarget].hp <= 0) {
-      this.currentTarget = firstAlive;
-    }
-    const commit = (idx) => {
-      if (this.phase !== 'selecting') return;
-      this.currentTarget = idx;
-      this._clearSelectors();
-      this._beginQuestion(cmd);
-    };
-    this.enemySprites.forEach((es, idx) => {
-      const enemy = this.enemies[idx];
-      if (!enemy || enemy.hp <= 0 || !es.body) return;
-      const top = es.body.y - (es.body.displayHeight ? es.body.displayHeight * 0.5 : 90);
-      const arrow = this.add.text(es.body.x, top - 22, '▼', {
-        fontFamily: '"Fredoka One", sans-serif', fontSize: '40px',
-        color: '#ffd23f', stroke: '#c04020', strokeThickness: 5,
-      }).setOrigin(0.5).setDepth(880).setVisible(idx === this.currentTarget);
-      this.tweens.add({ targets: arrow, y: top - 10, duration: 480, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-      const zone = this.add.zone(es.body.x, es.body.y, 200, 220).setOrigin(0.5)
-        .setInteractive({ useHandCursor: true }).setDepth(881);
-      zone.on('pointerover', () => { this._selectArrows.forEach((a, ai) => a.setVisible(ai === idx)); this.currentTarget = idx; });
-      zone.on('pointerdown', () => { this.currentTarget = idx; commit(idx); });
-      this._selectArrows.push(arrow);
-      this._selectZones = this._selectZones || [];
-      this._selectZones.push(zone);
-    });
-  }
-
-  /** Let the player TAP an ally for the bunny's heal. */
-  promptAllySelect(cmd) {
-    this.phase = 'selecting';
-    const hero = this.party[this.currentTurn.heroIndex];
-    this.turnLabel.setText(`${hero.name}: tap who to heal!`);
-    this._clearSelectors();
-    this._selectArrows = [];
-    // default to the most wounded ally
-    const order = this.party.map((h, i) => ({ h, i })).filter(o => o.h.hp > 0)
-      .sort((a, b) => (a.h.hp / a.h.maxHp) - (b.h.hp / b.h.maxHp));
-    this._healTarget = order.length ? order[0].i : this.currentTurn.heroIndex;
-    const commit = (idx) => {
-      if (this.phase !== 'selecting') return;
-      this._healTarget = idx;
-      this._clearSelectors();
-      this._beginQuestion(cmd);
-    };
-    this.heroSprites.forEach((hs, idx) => {
-      const h = this.party[idx];
-      if (!h || h.hp <= 0 || !hs.body) return;
-      const arrow = this.add.text(hs.body.x, hs.body.y - 150, '▼', {
-        fontFamily: '"Fredoka One", sans-serif', fontSize: '38px',
-        color: '#60ff9a', stroke: '#1f4244', strokeThickness: 5,
-      }).setOrigin(0.5).setDepth(880).setVisible(idx === this._healTarget);
-      this.tweens.add({ targets: arrow, y: hs.body.y - 138, duration: 480, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-      const zone = this.add.zone(hs.body.x, hs.body.y, 150, 220).setOrigin(0.5)
-        .setInteractive({ useHandCursor: true }).setDepth(881);
-      zone.on('pointerover', () => { this._selectArrows.forEach((a, ai) => a.setVisible(ai === idx)); this._healTarget = idx; });
-      zone.on('pointerdown', () => { this._healTarget = idx; commit(idx); });
-      this._selectArrows.push(arrow);
-      this._selectZones = this._selectZones || [];
-      this._selectZones.push(zone);
-    });
-  }
-
-  _clearSelectors() {
-    (this._selectArrows || []).forEach(a => a.destroy());
-    (this._selectZones || []).forEach(z => z.destroy());
-    this._selectArrows = [];
-    this._selectZones = [];
-  }
-
-  _beginQuestion(cmd) {
-    // Re-derive locals that used to live in selectCommand's scope before
-    // the target/ally-select split (config + hero were lost otherwise).
-    const hero = this.party[this.currentTurn.heroIndex];
-    const config = getCommandConfig(cmd);
-    this.currentQuestion = generateRatedQuestion({
-      operator: this.operator,
-      grade: this.grade,
+    // FIGHT or MAGIC: generate a rated question and show it
+    const effOp = this._effectiveOperator();
+    this.currentQuestion = this._makeQuestion({
+      operator: effOp,
+      grade: getAdaptiveGrade(this.save, effOp),
       streak: this.streak,
       floor: this.floor,
       targetStars: config.targetStars,
@@ -1614,6 +1510,8 @@ export class BattleScene extends Phaser.Scene {
     this.renderStackedEquation(this.currentQuestion);
     showPanelFx(this, this.panelFx);
     this._renderAnswerChoices();
+    // Upgrade 10: read the question aloud for pre-readers when TTS is on.
+    speakQuestion(this.save, this.currentQuestion);
 
     // Animate equation panel + answer buttons sliding/fading in
     const eqElements = Object.values(this.eqLines || {}).filter(Boolean);
@@ -1662,16 +1560,23 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    // Boss timer starts AFTER command selection
-    if (this.bossTimer) { this.bossTimer.remove(); this.bossTimer = null; }
-    if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
-    if (this.isBoss) {
-      const gradeTimers = [12000, 11000, 10000, 8000, 9000, 10000];
-      let timerDuration = gradeTimers[this.grade] || 8000;
-      // --- Bookworm signature: add extra seconds to boss timer ---
+    // Question timer starts NOW — after the player commits to a
+    // command, never while they read the menu. Duration comes from
+    // grade + question format (battleTimer.js); boss = hard timer,
+    // grades 2-5 normal battles = soft bonus timer, K-1 = none.
+    this.clearBossTimer();
+    const timerSpec = getQuestionTimer({
+      grade: this.grade,
+      format: this.currentQuestion?.op || FLOOR_OPERATORS[this.floor] || '+',
+      isBoss: this.isBoss,
+    });
+    if (timerSpec) {
+      let timerDuration = timerSpec.ms;
+      this._timerHard = timerSpec.hard;
+      this._softTimerExpired = false;
+      // --- Bookworm signature: add extra seconds to the timer ---
       if (this.signatureState.timerBonusSeconds > 0) {
         timerDuration += this.signatureState.timerBonusSeconds * 1000;
-        // Show +Ns indicator near the timer bar
         const area2 = safeArea(GAME_WIDTH, GAME_HEIGHT);
         const bonusLabel = this.add.text(area2.cx + 210, this.turnLabel.y - 30, `+${this.signatureState.timerBonusSeconds}s`, {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -1679,7 +1584,7 @@ export class BattleScene extends Phaser.Scene {
           color: '#4080e0',
           stroke: PAPER_CSS.shadow,
           strokeThickness: 2,
-        }).setOrigin(0, 0.5).setDepth(30);
+        }).setOrigin(0, 0.5).setDepth(BATTLE_DEPTH.TIMER);
         this._timerBonusLabel = bonusLabel;
       }
       this.bossTimerStart = this.time.now;
@@ -1690,7 +1595,12 @@ export class BattleScene extends Phaser.Scene {
       const barY = this.turnLabel.y - 30;
       this.bossTimerBar = this.add.graphics();
       this.bossTimerBar.setScrollFactor(0);
+      this.bossTimerBar.setDepth(BATTLE_DEPTH.TIMER);
       this.updateBossTimerBar(barW, barY, 1);
+      // Clock glyph: makes "the clock starts when you commit" visible
+      this._timerClockGlyph = this.add.text(area.cx - barW / 2 - 26, barY + 5, timerSpec.hard ? '⏱' : '✨', {
+        fontSize: '22px',
+      }).setOrigin(0.5).setDepth(BATTLE_DEPTH.TIMER);
 
       this.bossTimerUpdate = this.time.addEvent({
         delay: 50, loop: true,
@@ -1703,9 +1613,15 @@ export class BattleScene extends Phaser.Scene {
 
       this.bossTimer = this.time.delayedCall(timerDuration, () => {
         if (this.phase !== 'question' || this.locked) return;
-        this.showToast('TIME UP!', COLORS_CSS.scarletL);
-        const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
-        this.onAnswer(wrongIdx);
+        if (timerSpec.hard) {
+          this.showToast('TIME UP!', COLORS_CSS.scarletL);
+          const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
+          this.onAnswer(wrongIdx);
+        } else {
+          // Soft timer: no punishment — the sparkle bonus just lapses.
+          this._softTimerExpired = true;
+          this.showToast('Take your time!', '#8ac0e8');
+        }
       });
     }
 
@@ -1806,6 +1722,16 @@ export class BattleScene extends Phaser.Scene {
     this.refreshAbilityButton();
     this.updateSuperButton();
 
+    // Warn the player when the boss's NEXT turn is its special: a
+    // pulsing intent badge over the boss + a named callout, so kids
+    // can guard or heal on purpose instead of being ambushed.
+    if (this._intentBadge) { this._intentBadge.destroy(); this._intentBadge = null; }
+    if (this.isBoss && isTelegraphTurn(this.bossTurnCount || 0) && this.enemies[0]?.hp > 0) {
+      this._intentBadge = showIntentBadge(this, this.enemySprites[0], this.enemies[0]);
+      const move = getBossMove(this.enemies[0].id);
+      this.showToast(`${this.enemies[0].name} is preparing ${move.name}!`, '#e8a030');
+    }
+
     if (shouldShowTutorial('FIRST_BATTLE')) {
       markTutorialShown('FIRST_BATTLE');
       this.showToast(getTutorialText('FIRST_BATTLE'), COLORS_CSS.goldL);
@@ -1895,6 +1821,8 @@ export class BattleScene extends Phaser.Scene {
     if (this.bossTimerUpdate) { this.bossTimerUpdate.remove(); this.bossTimerUpdate = null; }
     if (this.bossTimerBar) { this.bossTimerBar.destroy(); this.bossTimerBar = null; }
     if (this._bossTimerUrgencyGlow) { this._bossTimerUrgencyGlow.destroy(); this._bossTimerUrgencyGlow = null; }
+    if (this._timerClockGlyph) { this._timerClockGlyph.destroy(); this._timerClockGlyph = null; }
+    if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
   }
 
   /**
@@ -2003,6 +1931,34 @@ export class BattleScene extends Phaser.Scene {
    *   ———
    *   ???
    */
+
+  /**
+   * Produce the next question. Upgrade 2: before generating fresh, check
+   * the persistent spaced-repetition schedule — if a previously-missed
+   * fact is due, re-present it (~40% of the time so it doesn't feel like
+   * a drill). Every presented question advances the review clock.
+   */
+  /**
+   * Upgrade 5: on 'mixed' floors, bias the served concept toward the
+   * child's weakest core skill ~45% of the time so struggling skills
+   * get extra reps; otherwise use the floor's concept as-is.
+   */
+  _effectiveOperator() {
+    if (this.operator === 'mixed') return biasedMixedOperator(this.save, ['+', '-', '*', '/']);
+    return this.operator;
+  }
+
+  _makeQuestion(opts) {
+    tickReview(this.save);
+    const due = nextReview(this.save);
+    if (due && Math.random() < 0.4) {
+      const q = buildReviewQuestion(due);
+      q.stars = rateQuestion(q, opts.grade ?? this.grade);
+      return q;
+    }
+    return generateRatedQuestion(opts);
+  }
+
   renderStackedEquation(q) {
     if (!q || !this.eqLines) return;
 
@@ -2176,7 +2132,19 @@ export class BattleScene extends Phaser.Scene {
     const livingHeroes = this.party.filter(h => h && h.hp > 0);
     if (livingHeroes.length === 0) return this.showDefeat();
 
-    let attackIndex = 0;
+    // The warning served its purpose — clear it as the blow lands.
+    if (this._intentBadge) { this._intentBadge.destroy(); this._intentBadge = null; }
+
+    // Boss special cadence: every 3rd boss turn is the telegraphed
+    // signature move, hitting the whole party at reduced power —
+    // spectacle over punishment.
+    if (this.isBoss && aliveEnemies[0]) {
+      this.bossTurnCount = (this.bossTurnCount || 0) + 1;
+      if (isSpecialTurn(this.bossTurnCount)) {
+        return this._doBossSpecial(aliveEnemies[0]);
+      }
+    }
+
     const doEnemyAttack = (enemyIdx) => {
       if (enemyIdx >= aliveEnemies.length) {
         this.time.delayedCall(250, () => this.nextTurn());
@@ -2187,11 +2155,16 @@ export class BattleScene extends Phaser.Scene {
       const attackerSpriteIdx = this.enemies.indexOf(attacker);
       const attackerSprite = this.enemySprites[attackerSpriteIdx];
 
-      // Pick target hero: spread attacks (enemy 0 → hero 0, enemy 1 → hero 1, etc)
+      // Pick target hero: random with an anti-streak reroll, tracked
+      // across the whole battle (the old round-robin reset to index 0
+      // every phase, so single enemies and bosses hammered hero 0
+      // forever).
       const currentLiving = this.party.filter(h => h && h.hp > 0);
       if (currentLiving.length === 0) return this.showDefeat();
-      const target = currentLiving[attackIndex % currentLiving.length];
-      attackIndex++;
+      if (!this._recentTargets) this._recentTargets = [];
+      const target = pickEnemyTarget(this.party, this._recentTargets);
+      this._recentTargets.push(target);
+      if (this._recentTargets.length > 2) this._recentTargets.shift();
 
       // Monster attack animation (uses per-monster themed VFX)
       const targetHeroSpriteIdx = this.party.indexOf(target);
@@ -2289,8 +2262,12 @@ export class BattleScene extends Phaser.Scene {
       // freeze-bug history — never trust an animation to unblock the
       // turn loop. A once-guard prevents double-advance and a watchdog
       // force-advances if the animation drops its callback.
-      const guardedDone = this._onceWithWatchdog(monsterAttackDone, 2500);
+      // Pause the attacker's idle so the lunge and the idle never fight
+      // over the same body; the watchdog-guarded done always resumes it.
+      const resumeIdle = () => { try { attackerSprite?.idleTween?.resume(); } catch { /* gone */ } };
+      const guardedDone = this._onceWithWatchdog(() => { resumeIdle(); monsterAttackDone(); }, 2500);
       if (attackerSprite && targetHeroSprite) {
+        attackerSprite.idleTween?.pause();
         try {
           playMonsterAttack(this, attackerSprite, targetHeroSprite, attacker.id, 0, {
             onHit: () => {},
@@ -2324,6 +2301,35 @@ export class BattleScene extends Phaser.Scene {
    * and (b) is force-fired after `timeoutMs` if the animation never
    * calls it. The single defense against turn-loop freezes.
    */
+  /**
+   * The boss's telegraphed signature move: wind-up, then the whole
+   * party takes a reduced hit at once. Guard still halves it; the
+   * defeat check runs after.
+   */
+  _doBossSpecial(boss) {
+    const bossIdx = this.enemies.indexOf(boss);
+    const bossSprite = this.enemySprites[bossIdx];
+    const move = getBossMove(boss.id);
+    this.showToast(`${boss.name} unleashes ${move.name}!`, '#e86040');
+    playBossTelegraph(this, bossSprite, boss, () => {
+      const living = this.party.filter(h => h && h.hp > 0);
+      for (const hero of living) {
+        const heroIdx = this.party.indexOf(hero);
+        const result = computeEnemyDamage(boss, hero, { momentum: this.momentum });
+        let dmg = specialDamagePerHero(result.modifiedDamage);
+        if (heroIdx >= 0 && this.guardActive[heroIdx]) dmg = Math.max(1, Math.ceil(dmg / 2));
+        hero.hp = Math.max(0, hero.hp - dmg);
+        this.flashHero(hero, { modifiedDamage: dmg, newHp: hero.hp });
+        this.updateHeroHp(hero);
+      }
+      audio.play('battle/hit-hero');
+      this.cameras.main.shake(260, 0.012);
+      this.battleDamageTaken = true;
+      if (this.party.every(h => !h || h.hp <= 0)) return this.showDefeat();
+      this.time.delayedCall(600, () => this.nextTurn());
+    });
+  }
+
   _onceWithWatchdog(fn, timeoutMs = 2500) {
     let fired = false;
     const fire = () => {
@@ -2361,6 +2367,12 @@ export class BattleScene extends Phaser.Scene {
     // Phase 2.1: Record answer for spaced repetition & adaptive difficulty
     recordAnswer(correct);
     recordSkillAnswer(this.save, this.currentQuestion?.op, correct);
+    // Upgrade 1: adjust the child's per-skill adaptive level; stash an
+    // up-promotion so it can be celebrated (wired to visuals in U9).
+    const levelChange = updateAdaptiveLevel(this.save, this.currentQuestion?.op);
+    if (levelChange.changed && levelChange.direction === 'up') this._pendingLevelUp = levelChange;
+    // Upgrade 2: update the persistent spaced-repetition schedule.
+    scheduleReview(this.save, this.currentQuestion, correct);
 
     if (correct) {
       this.recolorAnswerButton(index, 0x40c040, 1);
@@ -2370,6 +2382,11 @@ export class BattleScene extends Phaser.Scene {
       this.streak++;
       this.battleCorrect++;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
+      // Beating a soft (bonus) timer earns a sparkle of extra momentum
+      if (this.bossTimerBar && !this._timerHard && !this._softTimerExpired) {
+        this.momentum = Math.min(1, this.momentum + SOFT_TIMER_BONUS);
+        this.showFloatTextAt?.(GAME_WIDTH / 2, 140, 'QUICK!', '#8ae0f8');
+      }
       this.updateMomentumBar();
 
       const heroIdx = this.currentTurn.heroIndex;
@@ -2403,6 +2420,21 @@ export class BattleScene extends Phaser.Scene {
         if (!rm) confettiBurst(this, btnObj?.label?.x || area.cx, btnObj?.label?.y || area.cy, 8);
       }
 
+      // Upgrade 9: celebrate an adaptive/mastery level-up earned this turn.
+      if (this._pendingLevelUp) {
+        const up = this._pendingLevelUp;
+        this._pendingLevelUp = null;
+        this.time.delayedCall(650, () => {
+          if (this._shuttingDown || this.phase === 'end') return;
+          audio.play('world/floor-complete');
+          this.showToast(`⭐ ${up.label.toUpperCase()} LEVEL UP!`, '#ffd54a');
+          if (!rm) {
+            confettiBurst(this, area.cx, area.cy - 40, 24);
+            screenEdgeGlow(this, 0xffd54a, 500);
+          }
+        });
+      }
+
       // Combo attack: intercept before normal damage path
       if (activeCommand === '_COMBO_' && this._comboData) {
         this.applyComboAttack();
@@ -2431,11 +2463,7 @@ export class BattleScene extends Phaser.Scene {
         const stars = this.currentQuestion.stars ?? rateQuestion(this.currentQuestion, this.grade);
         const healAmt = Math.max(8, Math.round((hero.atk || 10) * getDifficultyMultiplier(stars) * 1.2));
         const alive = this.party.filter(h => h.hp > 0);
-        // Prefer the player's chosen ally; fall back to most-wounded.
-        const target = (this._healTarget != null && this.party[this._healTarget] && this.party[this._healTarget].hp > 0)
-          ? this.party[this._healTarget]
-          : alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
-        this._healTarget = null;
+        const target = alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
         if (target) {
           const before = target.hp;
           target.hp = Math.min(target.maxHp, target.hp + healAmt);
@@ -2640,68 +2668,48 @@ export class BattleScene extends Phaser.Scene {
         if (nextAlive >= 0) this.currentTarget = nextAlive;
         // Fall through to turn advance
       } else if (activeCommand === COMMANDS.MAGIC) {
-        // MAGIC — a READABLE three-beat cast, guaranteed visible no
-        // matter what the per-hero registry animation draws:
-        //   1. charge: staff-glow sparks at the caster (~420ms)
-        //   2. bolt: a projectile arcs across to the target
-        //   3. impact: burst + ring + flash + damage lands
+        // MAGIC: spectacular animation (900ms) via the new animation system
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
-        if (heroSprite.body && heroSprite.body.setTimescale) {
-          heroSprite.body.setTimescale(0.55); // readable slow-mo cast
-          this.time.delayedCall(1500, () => heroSprite.body.setTimescale && heroSprite.body.setTimescale(1));
+        // Trigger body-part attack animation
+        if (heroSprite.body && heroSprite.body.playAttack) {
+          heroSprite.body.playAttack('magic');
         }
-        if (heroSprite.body && heroSprite.body.playCast) heroSprite.body.playCast();
-        const hb = heroSprite.body, tb = targetSprite.body;
-        const castX = hb.x + 40, castY = hb.y - 70;
-        playSparkBurst(this, castX, castY, { count: 14, colors: [0xecb964, 0xa4c8d8, 0x9c8fc0], minDist: 6, maxDist: 26, duration: 420 });
-        this.time.delayedCall(420, () => {
-          if (!this.reducedMotion) {
-            this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
-            this.time.delayedCall(500, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
-          }
-          playProjectile(this, castX, castY, tb.x, tb.y, { color: 0xa4c8d8, size: 10 }).then(() => {
-            playImpactRing(this, tb.x, tb.y, { color: 0xa4c8d8, endRadius: 80 });
-            playElementalBurst(this, tb.x, tb.y, { colors: [0xa4c8d8, 0x9c8fc0, 0xecb964] });
+        // Camera punch-in for attack impact
+        if (!this.reducedMotion) {
+          this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
+          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
+        }
+        playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, {
+          onHit: () => {
             this.hitFlash();
             this.flashEnemy(result, targetIdx);
             this.updateEnemyHp(targetIdx);
-            this.popDamage(targetIdx, result);
-            this.recoilEnemy(targetIdx);
             this.shakeCamera(0.022, 500);
             audio.play('battle/hit-enemy');
-          });
-          // Per-hero flourish runs alongside the guaranteed baseline
-          playMagicAnimation(this, heroSprite, targetSprite, cls, op, result, { onHit: () => {} });
+          },
         });
       } else {
-        // FIGHT — readable beat: windup pose holds ~320ms BEFORE the
-        // strike choreography fires, so the action can actually be seen.
+        // FIGHT: class-specific attack animation via the animation system
         const heroSprite = this.heroSprites[this.currentTurn.heroIndex];
         const op = this.currentQuestion?.op || '+';
-        if (heroSprite.body && heroSprite.body.setTimescale) {
-          heroSprite.body.setTimescale(0.55); // readable slow-mo strike
-          this.time.delayedCall(1500, () => heroSprite.body.setTimescale && heroSprite.body.setTimescale(1));
-        }
+        // Trigger body-part attack animation based on class
         if (heroSprite.body && heroSprite.body.playAttack) {
           const attackType = cls === 'wizard' ? 'magic' : cls === 'bunny' ? 'punch' : 'slash';
           heroSprite.body.playAttack(attackType);
         }
-        this.time.delayedCall(320, () => {
-          if (!this.reducedMotion) {
-            this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
-            this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
-          }
-          playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
-            onHit: () => {
-              this.hitFlash();
-              this.flashEnemy(result, targetIdx);
-              this.updateEnemyHp(targetIdx);
-              this.popDamage(targetIdx, result);
-              this.recoilEnemy(targetIdx);
-              audio.play('battle/hit-enemy');
-            },
-          });
+        // Camera punch-in for attack impact
+        if (!this.reducedMotion) {
+          this.cameras.main.zoomTo(1.06, 200, 'Cubic.easeOut');
+          this.time.delayedCall(400, () => this.cameras.main.zoomTo(1.0, 300, 'Sine.easeOut'));
+        }
+        playFightAnimation(this, heroSprite, targetSprite, cls, op, result, {
+          onHit: () => {
+            this.hitFlash();
+            this.flashEnemy(result, targetIdx);
+            this.updateEnemyHp(targetIdx);
+            audio.play('battle/hit-enemy');
+          },
         });
       }
     } else {
@@ -2734,8 +2742,12 @@ export class BattleScene extends Phaser.Scene {
           markTutorialShown('FIRST_WRONG');
           this.showToast(getTutorialText('FIRST_WRONG'), COLORS_CSS.goldL);
         } else {
-          this.showToast('Try again!', COLORS_CSS.scarletL);
+          // Upgrade 3: the correct choice is already highlighted green;
+          // pair it with a concept-specific strategy tip so a wrong
+          // answer teaches instead of scolding.
+          this.showToast(getWhy(this.currentQuestion), COLORS_CSS.goldL);
         }
+        this.showHintButton(this.currentQuestion);
 
         const wrongTargetEnemy = this.enemies[this.currentTarget] || this.enemy;
         invokeAbility(wrongTargetEnemy.ability, 'onHeroWrong', {
@@ -3304,7 +3316,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   showHintOverlay(question) {
-    const hintText = getHint(question.op, question.a, question.b, question.answer);
+    const hintText = getHint(question);
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     this.locked = true;
 
@@ -3496,7 +3508,7 @@ export class BattleScene extends Phaser.Scene {
     this.hideAbilityButton();
 
     audio.stopMusic();
-    audio.play('battle/victory');
+    audio.playStinger('victory');
 
     // Compute rewards
     const goldEarned = 10 + this.floor * 5;
@@ -3676,6 +3688,22 @@ export class BattleScene extends Phaser.Scene {
       rewardText += `\n+${goldEarned} GOLD  •  +${xpEarned} XP`;
       if (leveledUp.length > 0) {
         rewardText += `\nLEVELED UP: ${leveledUp.join(' & ')}`;
+        // The moment: a burst and flying stat gains over each leveler
+        this.party.forEach((h, i) => {
+          if (!leveledUp.includes(h.name)) return;
+          const hs = this.heroSprites[i];
+          if (!hs) return;
+          this.time.delayedCall(400 + i * 250, () => {
+            const up = this.add.text(hs.x, hs.y - 120, `LEVEL UP!\n+5 HP  +2 ATK  +2 DEF`, {
+              fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+              fontSize: '26px', color: '#f0d060', align: 'center',
+              stroke: '#3a2410', strokeThickness: 5,
+            }).setOrigin(0.5).setDepth(BATTLE_DEPTH.END);
+            this.tweens.add({ targets: up, y: hs.y - 210, alpha: 0, duration: 1600, ease: 'Quad.out', onComplete: () => up.destroy() });
+            hs.body?.playVictory?.();
+            audio.play('battle/level-up');
+          });
+        });
       }
       if (dailyGold > 0) {
         rewardText += `\nDAILY CHALLENGE: +${dailyGold} GOLD`;
@@ -3776,7 +3804,7 @@ export class BattleScene extends Phaser.Scene {
     this.hideAbilityButton();
 
     audio.stopMusic();
-    audio.play('battle/defeat');
+    audio.playStinger('defeat');
 
     // --- Battle cry: defeat (show for first hero) ---
     if (this.party[0]) this.showBattleCry(this.party[0], 'defeat');
@@ -3876,6 +3904,129 @@ export class BattleScene extends Phaser.Scene {
       this.superBtn.label.setText(best ? best.name : 'SUPER!');
     }
     this.setSuperVisible(this.teamBtn, this.momentum >= 1.0);
+    if (this.momentum >= 1.0 && this.teamBtn?.label) {
+      this.teamBtn.label.setText(this.grade >= 2 ? 'SPECIAL!' : 'TEAM!');
+      // Pulse so the charged moment is unmissable
+      if (!this._teamPulse) {
+        this._teamPulse = this.tweens.add({
+          targets: [this.teamBtn.bg, this.teamBtn.label],
+          scaleX: 1.08, scaleY: 1.08,
+          duration: 350, yoyo: true, repeat: -1, ease: 'Sine.inOut',
+        });
+      }
+    } else if (this._teamPulse) {
+      this._teamPulse.stop();
+      this._teamPulse = null;
+      if (this.teamBtn?.bg) { this.teamBtn.bg.setScale(1); this.teamBtn.label.setScale(1); }
+    }
+  }
+
+  /**
+   * The momentum SPECIAL: the four answer buttons swap for a numpad
+   * and the player must TYPE the answer. Correct → the hero's super
+   * spectacle at triple damage with splash. Wrong or out of time →
+   * forgiving fizzle: the answer is shown, the hero still lands a
+   * normal-strength strike, momentum reseats at neutral.
+   */
+  startFillInSpecial() {
+    if (this.phase !== 'question' || this.locked || this._specialActive) return;
+    if (this.momentum < 1.0) return;
+    this._specialActive = true;
+    this.locked = true;
+    this.clearBossTimer();
+
+    const op = specialOperator({ floorOperator: FLOOR_OPERATORS[this.floor] || '+', grade: this.grade });
+    const q = generateRatedQuestion({
+      operator: op,
+      grade: getAdaptiveGrade(this.save, op),
+      streak: 0,
+      floor: this.floor,
+      targetStars: [2, 3],
+    });
+    this._specialQuestion = q;
+    this.renderStackedEquation(q);
+    this.setAnswerButtonsVisible(false);
+    this.setSuperVisible(this.superBtn, false);
+    this.setSuperVisible(this.teamBtn, false);
+    this.setSuperVisible(this.abilityBtn, false);
+    this.showToast('TYPE the answer to unleash it!', '#f0c040');
+
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this._specialNumpad = createNumpad(this, {
+      x: area.cx, y: area.bottom - 250,
+      depth: BATTLE_DEPTH.COMMAND,
+      onSubmit: (v) => this.resolveSpecialAnswer(v),
+    });
+
+    // Generous hard window: 1.5x the boss clock for this grade/format
+    const bossSpec = getQuestionTimer({ grade: this.grade, format: op, isBoss: true });
+    const ms = specialTimerMs(bossSpec.ms);
+    this._specialTimer = this.time.delayedCall(ms, () => this.resolveSpecialAnswer(null));
+  }
+
+  resolveSpecialAnswer(value) {
+    if (!this._specialActive) return;
+    this._specialActive = false;
+    if (this._specialTimer) { this._specialTimer.remove(); this._specialTimer = null; }
+    if (this._specialNumpad) { this._specialNumpad.destroy(); this._specialNumpad = null; }
+
+    const q = this._specialQuestion;
+    const correct = value != null && value === q.answer;
+    const rules = resolveSpecial({ correct });
+    this.momentum = rules.momentumAfter;
+    this.updateMomentumBar();
+
+    const heroIdx = this.currentTurn?.heroIndex ?? 0;
+    const hero = this.party[heroIdx];
+    const heroSprite = this.heroSprites[heroIdx];
+    const targetIdx = this.currentTarget || 0;
+    const targetEnemy = this.enemies[targetIdx] || this.enemy;
+    const targetSprite = this.enemySprites[targetIdx] || this.enemySprite;
+    const baseDmg = 5 + ((hero?.atk || 10) * 0.5);
+    const dmg = Math.round(baseDmg * rules.damageMult);
+
+    if (correct) {
+      recordAnswer(true);
+      audio.play('battle/correct');
+      this.showToast(`SPECIAL! ${dmg} DMG!`, '#f0c040');
+      this.showBattleCry(hero, 'superMove');
+      const cls = hero?.class || 'knight';
+      const superResult = { modifiedDamage: dmg };
+      const superCb = {
+        onHit: () => {
+          targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+          this.updateEnemyHp(targetIdx);
+          // Splash: the overflow arcs into every other living enemy
+          if (rules.splashMult > 0) {
+            const splash = Math.round(dmg * rules.splashMult);
+            this.enemies.forEach((e, i) => {
+              if (i === targetIdx || e.hp <= 0) return;
+              e.hp = Math.max(0, e.hp - splash);
+              this.updateEnemyHp(i);
+              const es = this.enemySprites[i];
+              if (es?.body) this.burstParticles(es.body.x, es.body.y, 0xf0c040);
+            });
+          }
+        },
+        onComplete: () => this.afterSuperDamage(targetIdx, targetSprite),
+      };
+      const tx = targetSprite.x, ty = targetSprite.y;
+      if (cls === 'knight') playKnightSuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
+      else if (cls === 'wizard') playWizardSuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
+      else playBunnySuper(this, heroSprite, targetSprite, tx, ty, superResult, superCb);
+    } else {
+      recordAnswer(false);
+      audio.play('battle/wrong');
+      // Show the answer — the miss should still teach
+      this.showToast(`It was ${q.answer}! The spark fizzles into a strike…`, '#8ac0e8');
+      playFightAnimation(this, heroSprite, targetSprite, hero?.class || 'knight', '+', { modifiedDamage: dmg }, {
+        onHit: () => {
+          targetEnemy.hp = Math.max(0, targetEnemy.hp - dmg);
+          this.updateEnemyHp(targetIdx);
+        },
+        onComplete: () => this.afterSuperDamage(targetIdx, targetSprite),
+      });
+    }
   }
 
   executeSuperMove() {

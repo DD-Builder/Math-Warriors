@@ -155,7 +155,7 @@ export function getEnemiesForFloor(floor) {
 }
 
 /** Pick a random NON-BOSS enemy for the given floor. */
-const BOSS_IDS = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'absolutezero', 'theprism', 'counterfeiter', 'theparadox', 'theorem'];
+export const BOSS_IDS = ['briarking', 'pressure', 'skywhale', 'pyroclast', 'absolutezero', 'theprism', 'counterfeiter', 'theparadox', 'theorem'];
 export function pickEnemyForFloor(floor, rng = Math.random) {
   const pool = getEnemiesForFloor(floor).filter(e => !BOSS_IDS.includes(e.id));
   if (pool.length === 0) return null;
@@ -225,9 +225,13 @@ export function computeEnemyHp(def, grade, isBoss) {
   // Relative difficulty within floor: use the original maxHp as a
   // weight against the floor's median original maxHp. Gives variety
   // (tanks vs glass cannons) without letting absolute values drift.
+  // Bosses escalate by floor instead — the Theorem must feel bigger
+  // than the Briar King, not identical (floor 1 ×1.0 → floor 9 ×1.4).
   const floorPool = ALL_ENEMIES.filter((e) => e.floor === def.floor && !isLegacyBoss(e));
   const medianOriginalHp = median(floorPool.map((e) => e.maxHp)) || def.maxHp;
-  const weight = isBoss ? 1 : clamp(def.maxHp / medianOriginalHp, 0.75, 1.4);
+  const weight = isBoss
+    ? 1 + ((def.floor || 1) - 1) * 0.05
+    : clamp(def.maxHp / medianOriginalHp, 0.75, 1.4);
 
   const hp = Math.round(avgHit * problemsTarget * weight);
   const minMob = isBoss ? Math.max(80, 40 + grade * 15) : 12;
@@ -248,15 +252,18 @@ function isLegacyBoss(e) {
   return BOSS_IDS.includes(e.id);
 }
 
-/** Map floor → primary operator. Used to choose math questions. */
+/** Map floor → primary operator. Used to choose math questions.
+ *  The math IS each floor's theme: geometry lives in the Crystal
+ *  Caverns (geo shards, shapes), money in the Market, fractions in
+ *  the Library (torn pages — fractions of a whole story). */
 export const FLOOR_OPERATORS = {
   1: '+',
   2: '-',
   3: '*',
   4: '/',
   5: 'mixed',
-  6: 'frac',
-  7: 'geo',
-  8: 'money',
+  6: 'geo',
+  7: 'money',
+  8: 'frac',
   9: 'word',
 };

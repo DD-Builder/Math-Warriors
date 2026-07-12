@@ -216,9 +216,11 @@ describe('enemies data integrity', () => {
     assert.equal(FLOOR_OPERATORS[3], '*');
     assert.equal(FLOOR_OPERATORS[4], '/');
     assert.equal(FLOOR_OPERATORS[5], 'mixed');
-    assert.equal(FLOOR_OPERATORS[6], 'frac');
-    assert.equal(FLOOR_OPERATORS[7], 'geo');
-    assert.equal(FLOOR_OPERATORS[8], 'money');
+    // Math = theme: geometry in the Crystal Caverns, money in the
+    // Market, fractions in the Library.
+    assert.equal(FLOOR_OPERATORS[6], 'geo');
+    assert.equal(FLOOR_OPERATORS[7], 'money');
+    assert.equal(FLOOR_OPERATORS[8], 'frac');
     assert.equal(FLOOR_OPERATORS[9], 'word');
   });
 

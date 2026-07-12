@@ -265,7 +265,9 @@ describe('save system (9-floor support)', () => {
 describe('floor operators → math generation', () => {
   const expectedOps = {
     1: '+', 2: '-', 3: '*', 4: '/',
-    5: 'mixed', 6: 'frac', 7: 'geo', 8: 'money', 9: 'word',
+    // Math = theme: geometry in the Crystal Caverns, money in the
+    // Market, fractions in the Library.
+    5: 'mixed', 6: 'geo', 7: 'money', 8: 'frac', 9: 'word',
   };
 
   for (let f = 1; f <= TOTAL_FLOORS; f++) {
@@ -535,6 +537,22 @@ describe('cross-system consistency', () => {
       ALL_HEROES.filter(h => h.unlockedAtFloor === f).forEach(h => unlocked.add(h.id));
     }
     assert.equal(unlocked.size, 15, `only ${unlocked.size}/15 heroes unlockable`);
+  });
+
+  it('each new hero is equal or superior to the previous hero of its class', () => {
+    // Rescued heroes must feel like an upgrade: within a class, total base
+    // stats never go DOWN as the unlock floor rises.
+    for (const cls of ['knight', 'wizard', 'bunny']) {
+      const line = ALL_HEROES.filter(h => h.class === cls)
+        .sort((a, b) => a.unlockedAtFloor - b.unlockedAtFloor);
+      for (let i = 1; i < line.length; i++) {
+        const prev = line[i - 1], next = line[i];
+        const prevTotal = prev.maxHp + prev.atk + prev.def;
+        const nextTotal = next.maxHp + next.atk + next.def;
+        assert.ok(nextTotal >= prevTotal,
+          `${next.id} (floor ${next.unlockedAtFloor}, total ${nextTotal}) is weaker than ${prev.id} (floor ${prev.unlockedAtFloor}, total ${prevTotal})`);
+      }
+    }
   });
 
   it('dialogue lines are graphic-novel short (max 50 chars for cutscene text)', () => {

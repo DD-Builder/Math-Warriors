@@ -3,9 +3,10 @@ import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStat
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
 import { generateFloorMaze } from '../data/floors.js';
 import { getLevel } from '../data/levels.js';
-import { loadSave, writeSave, isHeroUnlocked, getActiveSlot } from '../systems/save.js';
+import { loadSave, writeSave, isHeroUnlocked, unlockHero, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, ALL_HEROES, levelBonuses } from '../data/heroes.js';
+import { EQUIPMENT_TIERS } from '../systems/equipment.js';
 import { FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
@@ -13,17 +14,22 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { tileDepth } from '../systems/perspective.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, LV_rebuildArtLayer, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, setSkipCanvasHero, drawForeground, getForegroundCanvas, moveObject, setObjectLook } from '../ui/levelEngine.js';
 
 // Bump whenever the maze save-state shape or level layouts change in an
 // incompatible way — stale device saves are silently discarded instead
 // of resurrecting an old broken layout.
-const MAZE_STATE_SCHEMA = 3;
+const MAZE_STATE_SCHEMA = 6;
+
+// Signature-secret interactables — all render as glyph medallions in
+// the engine ('secretobj') and are handled by the secret machinery.
+const SECRET_OBJ_TYPES = ['statue', 'plate', 'seqmark', 'donation', 'zerodoor', 'lorepage', 'gearkit'];
 import { generateRatedQuestion } from '../systems/math.js';
+import { getAdaptiveGrade } from '../systems/mastery.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
-import { DIALOGUE } from '../data/dialogue.js';
+import { DIALOGUE, getRescueDialogue } from '../data/dialogue.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 
 /**
@@ -128,6 +134,18 @@ export class MazeScene extends Phaser.Scene {
       this.fairyTalkShown = mazeState.fairyTalkShown || false;
       this.mazeTransformed = mazeState.mazeTransformed || false;
       this.revealedSecrets = mazeState.revealedSecrets || [];
+      this.secretDone = mazeState.secretDone || false;
+      this.secretSeq = mazeState.secretSeq || 0;
+
+      // Re-entering the floor from the world map (not returning from a
+      // battle) repopulates fought encounters while the boss still
+      // rules the floor — floors stay alive on revisits. Boss victory
+      // still sweeps every encounter for good.
+      if (data?.fromWorldMap && !this.bossDefeated) {
+        for (const o of this.objects) {
+          if (o.type === 'encounter' && o.consumed) o.consumed = false;
+        }
+      }
     } else {
       // Fresh entry — every object is HAND-PLACED by the level design.
       // No randomization: the layout, the gates, and the rewards are
@@ -146,6 +164,8 @@ export class MazeScene extends Phaser.Scene {
       this.fairyTalkShown = false;
       this.mazeTransformed = false;
       this.revealedSecrets = [];
+      this.secretDone = false;
+      this.secretSeq = 0;
 
       this.objects = this.floor.objects.map((o, idx) => ({
         ...o,
@@ -220,19 +240,35 @@ export class MazeScene extends Phaser.Scene {
       else if (o.type === 'page') engineType = 'page';
       else if (o.type === 'mathdoor') engineType = 'mathdoor';
       else if (o.type === 'fountain') engineType = 'fountain';
+      // Mimics: a disguised encounter renders as its disguise (e.g. a
+      // tempting gold pile) and only reveals itself when touched.
+      if (o.type === 'encounter' && o.disguise) engineType = o.disguise;
+      if (SECRET_OBJ_TYPES.includes(o.type)) engineType = 'secretobj';
       return {
         type: engineType,
+        glyph: o.glyph,
+        activatedLook: !!o.activated,
         tx: o.x, ty: o.y,
         id: o.id,
         alive: !o.consumed,
         open: o.type === 'mathdoor' ? !!o.open : !!o.consumed,
-        hidden: o.type === 'encounter',
+        hidden: o.type === 'encounter' && !o.disguise,
         visible: true,
         kind: 'sprout',
         respawnAt: 0,
         loot: (o.type === challengeType || o.type === 'fairy') ? 'fairy' : undefined,
         fairyCol: '#88aaff',
         uses: o.uses ?? undefined,
+        // Trapped heroes render as their real portrait inside a themed prison
+        prison: o.prison,
+        heroCanvas: o.type === 'hero'
+          ? (() => {
+              const art = allArt.find(a => a.id === o.heroId);
+              return art && art.draw
+                ? createHeroCanvas(80, 110, null, art.draw, art.topExt, art.botExt)
+                : null;
+            })()
+          : undefined,
       };
     });
 
@@ -244,6 +280,20 @@ export class MazeScene extends Phaser.Scene {
     // resuming a save), the world must stay transformed — re-apply the
     // level's tile changes on top of the freshly-loaded base layout.
     if (this.mazeTransformed) this.applyLevelTransform();
+
+    // Staged draining (Floor 2 tide): each already-worked sluice/valve
+    // permanently opened its own band of tiles. The `consumed` flags
+    // persist in the saved objects, so re-apply every consumed drainer's
+    // tiles on load — mirrors how mazeTransformed re-applies the final
+    // transform, deterministically re-deriving the drained world.
+    for (const o of this.objects) {
+      if (o.consumed && Array.isArray(o.drain)) this.applyDrain(o.drain);
+    }
+
+    // A found signature secret stays found: re-open its passage.
+    if (this.secretDone && Array.isArray(this.level.secret?.open)) {
+      this.applyDrain(this.level.secret.open);
+    }
 
     if (this.revealedSecrets) {
       for (const s of this.revealedSecrets) {
@@ -317,12 +367,8 @@ export class MazeScene extends Phaser.Scene {
     const heroLeader = this.party[0];
     if (heroLeader) {
       setSkipCanvasHero(true);
-      // Contact shadow under the hero's feet — grounds the sprite on
-      // the papercut world instead of floating over it
-      this.heroShadow = this.add.ellipse(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 62, 66, 20, 0x1f3d3f, 0.26);
-      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1 });
+      this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1, equipment: this.save.equipment?.[heroLeader.id] });
       this.heroSprite.setDepth(10);
-      this.heroShadow.setDepth(9);
       this.heroSprite.setIdle();
       this._heroWasMoving = false;
       this._lastPartyX = null;
@@ -681,21 +727,19 @@ export class MazeScene extends Phaser.Scene {
     this.add.text(px + cardW / 2, cardY + cardH / 2 + 8, 'POTIONS', labelStyle).setOrigin(0.5);
     this.add.text(cx2 + (cardW + 20) / 2, cardY + cardH / 2 + 8, ch.label.toUpperCase(), labelStyle).setOrigin(0.5);
 
-    // Party strip — center of HUD with mini hero sprites. Everything
-    // here sits ABOVE the HUD panel (depth 31+) and is sized to stay
-    // INSIDE the bar — the old version poked above it half-occluded.
+    // Party strip — center of HUD with mini hero sprites
     const partyCx = area.cx;
     const partyY = hudCenterY;
     for (let i = 0; i < this.party.length; i++) {
       const hero = this.party[i];
       const x = partyCx - 120 + i * 110;
-      const spr = drawHeroSprite(this, x, partyY - 8, hero, { scale: 0.22 });
-      if (spr && spr.setDepth) spr.setDepth(31);
-      this.add.text(x, partyY + 26, hero.name, {
+      const spriteScale = 0.35;
+      drawHeroSprite(this, x, partyY - 18, hero, { scale: spriteScale, equipment: this.save.equipment?.[hero.id] });
+      this.add.text(x, partyY + 26, `${hero.name}  Lv${hero.level || 1}`, {
         ...TEXT.stat(), fontSize: '16px', color: '#3a2410',
-      }).setOrigin(0.5).setDepth(31);
+      }).setOrigin(0.5);
       const pct = hero.hp / hero.maxHp;
-      const hpBg = this.add.graphics().setDepth(31);
+      const hpBg = this.add.graphics();
       hpBg.fillStyle(0x3a2410, 0.4);
       hpBg.fillRoundedRect(x - 30, partyY + 36, 60, 4, 2);
       hpBg.fillStyle(PAPER.forest, 1);
@@ -737,9 +781,6 @@ export class MazeScene extends Phaser.Scene {
     for (let i = before; i < after; i++) {
       const child = this.children.getAt(i);
       if (child && child.setScrollFactor) child.setScrollFactor(0);
-      // HUD must beat world depths (tileDepth grows to ~190 on deep
-      // rows, which let foreground hedges draw OVER the bottom bar).
-      if (child && child.setDepth) child.setDepth(200 + (child.depth || 0));
     }
   }
 
@@ -964,6 +1005,106 @@ export class MazeScene extends Phaser.Scene {
     this.scene.restart({ floor: this.floorId });
   }
 
+  /**
+   * The big "you unlocked someone special" moment: the freed hero pops
+   * in center-screen under a starred banner with a burst of sparks,
+   * then hands off to the party prompt.
+   */
+  showHeroRescueCelebration(heroDef, onDone) {
+    const reduceMotion = !!this.save?.settings?.reducedMotion;
+    const DEPTH = 230;
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2 - 30;
+    const objs = [];
+    audio.play('world/floor-complete');
+
+    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.55)
+      .setScrollFactor(0).setDepth(DEPTH);
+    objs.push(dim);
+
+    const spr = drawHeroSprite(this, cx, cy, heroDef, { scale: 0.9 });
+    spr.setScrollFactor(0).setDepth(DEPTH + 2);
+    objs.push(spr);
+
+    const banner = this.add.text(cx, cy - 130, `★ ${heroDef.name.toUpperCase()} JOINS THE QUEST! ★`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '30px', color: '#f0d040', stroke: '#1a0e04', strokeThickness: 5,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 3);
+    objs.push(banner);
+
+    const traitTx = this.add.text(cx, cy + 105, `${heroDef.trait}`, {
+      fontFamily: '"Baloo 2", sans-serif',
+      fontSize: '18px', color: '#f0e4cc', stroke: '#1a0e04', strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 3);
+    objs.push(traitTx);
+
+    if (!reduceMotion) {
+      spr.setScale(0.2);
+      this.tweens.add({ targets: spr, scale: 0.9, duration: 420, ease: 'Back.out' });
+      banner.setAlpha(0);
+      this.tweens.add({ targets: banner, alpha: 1, y: banner.y + 8, duration: 350, delay: 150 });
+      for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * Math.PI * 2;
+        const p = this.add.circle(cx, cy, 5, 0xf0d040).setScrollFactor(0).setDepth(DEPTH + 1);
+        objs.push(p);
+        this.tweens.add({
+          targets: p,
+          x: cx + Math.cos(ang) * 130,
+          y: cy + Math.sin(ang) * 110,
+          alpha: 0, duration: 700, delay: 120, ease: 'Cubic.out',
+        });
+      }
+    }
+
+    this.time.delayedCall(reduceMotion ? 900 : 1600, () => {
+      objs.forEach(o => o.destroy());
+      if (onDone) onDone();
+    });
+  }
+
+  /** Post-rescue choice: put the new hero in the party now, or later. */
+  showRescuePartyPrompt(heroDef) {
+    const DEPTH = 220;
+    const objs = [];
+    const dim = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5)
+      .setScrollFactor(0).setInteractive().setDepth(DEPTH);
+    objs.push(dim);
+
+    const q = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, `Add ${heroDef.name} to your party?`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
+      fontSize: '26px', color: '#f0e4cc', stroke: '#1a0e04', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+    objs.push(q);
+
+    const destroyAll = () => objs.forEach(o => {
+      if (o.bg) { o.bg.destroy(); o.shadow.destroy(); o.label.destroy(); if (o.zone) o.zone.destroy(); }
+      else o.destroy();
+    });
+
+    const addBtn = PaperButton(this, GAME_WIDTH / 2 - 110, GAME_HEIGHT / 2 + 20, 'ADD TO PARTY', {
+      w: 190, h: 54, color: PAPER.gold, fontSize: 17,
+      onClick: () => {
+        audio.play('ui/confirm');
+        destroyAll();
+        this.showSlotPicker(heroDef, []);
+      },
+    });
+    const laterBtn = PaperButton(this, GAME_WIDTH / 2 + 110, GAME_HEIGHT / 2 + 20, 'LATER', {
+      w: 150, h: 54, color: PAPER.teal, fontSize: 17,
+      onClick: () => {
+        audio.play('ui/back');
+        destroyAll();
+        this.showToast(`${heroDef.name} waits in your roster!`, '#f0d040');
+      },
+    });
+    for (const btn of [addBtn, laterBtn]) {
+      btn.bg.setScrollFactor(0).setDepth(DEPTH + 1);
+      btn.shadow.setScrollFactor(0).setDepth(DEPTH);
+      btn.label.setScrollFactor(0).setDepth(DEPTH + 2);
+      if (btn.zone) btn.zone.setScrollFactor(0).setDepth(DEPTH + 2);
+      objs.push(btn);
+    }
+  }
+
   spawnPhase2Items(phase2) {
     const occupied = new Set();
     occupied.add(`${this.playerX},${this.playerY}`);
@@ -1002,7 +1143,7 @@ export class MazeScene extends Phaser.Scene {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '24px', color: color || '#f0d040',
       stroke: '#1a0e04', strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(320);
+    }).setOrigin(0.5).setScrollFactor(0);
     this.tweens.add({
       targets: t, alpha: 0, y: t.y - 60,
       duration: 1500, delay: 800,
@@ -1052,6 +1193,7 @@ export class MazeScene extends Phaser.Scene {
         if (isCorrect) {
           doorObj.open = true;
           markDoorOpen(doorObj.id);
+          doorObj.onOpen?.();
           this.showToast('Door opened!', '#40c040');
           audio.play('world/chest');
           elements.forEach(el => { if (el.scene) el.destroy(); });
@@ -1064,10 +1206,10 @@ export class MazeScene extends Phaser.Scene {
           this._touchDir = null;
           this.time.delayedCall(600, () => {
             if (!doorObj.open) {
-              const op = FLOOR_OPERATORS[this.floorId] || '+';
+              const op = doorObj.operator || FLOOR_OPERATORS[this.floorId] || '+';
               const newQ = generateRatedQuestion({
                 operator: op,
-                grade: this.save.grade || 3,
+                grade: getAdaptiveGrade(this.save, op),
                 streak: 0,
                 floor: this.floorId,
                 targetStars: [2, 3],
@@ -1182,7 +1324,6 @@ export class MazeScene extends Phaser.Scene {
       // Depth based on tile row
       const heroDepth = tileDepth(this.playerY, this.playerX, 5);
       this.heroSprite.setDepth(heroDepth);
-      if (this.heroShadow) this.heroShadow.setDepth(heroDepth - 1);
 
       // Foreground wall overlay must always be above the hero
       if (this.fgImage) {
@@ -1198,20 +1339,60 @@ export class MazeScene extends Phaser.Scene {
    * (movement + rendering) and our floor copy (battle variants).
    */
   applyLevelTransform() {
-    const tf = this.level?.transform;
-    if (!tf) return;
+    this.applyDrain(this.level?.transform?.tiles);
+  }
+
+  /**
+   * Mutate a list of tiles live (engine map + our copy). Used by both the
+   * final world transform and per-sluice STAGED draining (Floor 2 tide):
+   * each entry is [x, y, 'P'|'F'|'W'|'Q'|'S']. Turning Q→P/F drains water
+   * into walkable street; the engine repaints and re-checks collision.
+   */
+  applyDrain(tiles) {
+    if (!Array.isArray(tiles)) return;
     const CODE = { W: 0, F: 1, P: 2, Q: 3, S: 4 };
-    for (const [x, y, t] of tf.tiles) {
+    for (const [x, y, t] of tiles) {
       const code = CODE[t] ?? 2;
       LV_setTile(x, y, code);
       if (this.floor.tiles[y]) this.floor.tiles[y][x] = code;
     }
-    // The terrain is pre-painted — repaint it so the transformation
-    // (grown bridge / drained tide / cooled lava) becomes visible.
-    LV_rebuildArtLayer();
+  }
+
+  /**
+   * The floor's signature secret pays off: open the hidden passage,
+   * spawn the rewards, celebrate, persist. Idempotent.
+   */
+  completeSecret() {
+    const sec = this.level.secret;
+    if (!sec || this.secretDone) return;
+    this.secretDone = true;
+    if (Array.isArray(sec.open)) this.applyDrain(sec.open);
+    for (let i = 0; i < (sec.rewards || []).length; i++) {
+      const r = sec.rewards[i];
+      const id = `secret-reward-${i}`;
+      if (this.objects.some(o => o.id === id)) continue;
+      const obj = { type: r.type, x: r.x, y: r.y, id, glyph: r.glyph, tier: r.tier, loot: r.gold ? { gold: r.gold } : undefined };
+      this.objects.push(obj);
+      addObject({
+        type: r.type === 'gearkit' ? 'secretobj' : r.type,
+        glyph: r.glyph || '🛡',
+        tx: r.x, ty: r.y, id,
+        alive: true, visible: true, hidden: false, open: false,
+        loot: obj.loot,
+      });
+    }
+    audio.play('world/chest');
+    this.cameras.main.flash(400, 240, 216, 120);
+    this.cameras.main.shake(200, 0.004);
+    this.showToast('✨ SECRET FOUND! ✨', '#f0d060');
+    if (sec.message) this.time.delayedCall(700, () => this.showToast(sec.message, '#e8dec6'));
+    this.saveMazeState();
   }
 
   tryMove({ dx, dy }) {
+    // Remember where we came from — pushable statues need the shove
+    // direction when the party steps onto them.
+    this._prevTile = { x: this.playerX, y: this.playerY };
     // Feed a burst of movement frames to the level engine
     const keys = {};
     if (dx < 0) keys.ArrowLeft = true;
@@ -1271,15 +1452,146 @@ export class MazeScene extends Phaser.Scene {
     switch (obj.type) {
       case 'mathdoor': {
         if (obj.open) return;
-        const operator = FLOOR_OPERATORS[this.floorId] || '+';
+        // A door may carry its own operator (op-keyed doors: the Four Keys
+        // of Thaw, the memory-palace wings) — else the floor's operator.
+        const operator = obj.operator || FLOOR_OPERATORS[this.floorId] || '+';
         const question = generateRatedQuestion({
           operator,
-          grade: this.save.grade || 3,
+          grade: getAdaptiveGrade(this.save, operator),
           streak: 0,
           floor: this.floorId,
           targetStars: [2, 3],
         });
         this.showMathDoorPrompt(question, obj);
+        return;
+      }
+      case 'statue': {
+        // Pushable statue: stepping onto it shoves it one tile onward.
+        const prev = this._prevTile || { x: this.playerX, y: this.playerY };
+        const dx = Math.sign(obj.x - prev.x), dy = Math.sign(obj.y - prev.y);
+        if (dx === 0 && dy === 0) return;
+        const nx = obj.x + dx, ny = obj.y + dy;
+        const CODE_W = 0, CODE_Q = 3;
+        const destTile = this.floor.tiles[ny]?.[nx];
+        const blocked = destTile === undefined || destTile === CODE_W || destTile === CODE_Q ||
+          this.objects.some(o => o !== obj && !o.consumed && o.type !== 'plate' && o.x === nx && o.y === ny);
+        if (blocked) {
+          this.showFloatText(obj.x, obj.y, "IT WON'T BUDGE!", '#c0c0c0');
+          return;
+        }
+        obj.x = nx; obj.y = ny;
+        moveObject(obj.id, nx, ny);
+        audio.play('ui/click');
+        this.cameras.main.shake(90, 0.003);
+        const sec = this.level.secret;
+        if (sec?.plate && nx === sec.plate.x && ny === sec.plate.y) {
+          this.showFloatText(nx, ny, 'CLICK!', '#f0d060');
+          this.completeSecret();
+        } else {
+          this.showFloatText(nx, ny, 'The statue slides...', '#e8dec6');
+        }
+        return;
+      }
+      case 'plate':
+        return; // just a target marker — the statue does the work
+      case 'seqmark': {
+        const sec = this.level.secret;
+        if (!sec || this.secretDone) return;
+        if (sec.requiresTransform && !this.mazeTransformed) {
+          this.showFloatText(obj.x, obj.y, 'IT SLEEPS... FOR NOW', '#a0a0d0');
+          return;
+        }
+        const seqObjs = this.objects.filter(o => o.type === 'seqmark');
+        if (sec.order === 'any') {
+          if (obj.activated) return;
+          obj.activated = true;
+          setObjectLook(obj.id, true);
+          audio.play('world/fairy');
+          const lit = seqObjs.filter(o => o.activated).length;
+          this.showFloatText(obj.x, obj.y, `${lit} / ${seqObjs.length}`, '#f0d060');
+          if (lit >= seqObjs.length) this.completeSecret();
+          return;
+        }
+        // strict order by seqIdx
+        if (obj.seqIdx === this.secretSeq) {
+          this.secretSeq++;
+          obj.activated = true;
+          setObjectLook(obj.id, true);
+          audio.play('world/fairy');
+          this.showFloatText(obj.x, obj.y, `${this.secretSeq} / ${seqObjs.length}`, '#f0d060');
+          if (this.secretSeq >= seqObjs.length) this.completeSecret();
+        } else if (obj.seqIdx !== undefined && this.secretSeq > 0) {
+          this.secretSeq = 0;
+          for (const o of seqObjs) { o.activated = false; setObjectLook(o.id, false); }
+          this.showFloatText(obj.x, obj.y, 'THE GLOW FADES...', '#a0a0d0');
+          audio.play('ui/back');
+        }
+        return;
+      }
+      case 'donation': {
+        const sec = this.level.secret;
+        if (!sec || this.secretDone) return;
+        const amount = sec.amount ?? 25;
+        if (this.save.gold >= amount) {
+          this.save.gold -= amount;
+          writeSave(this.save, this.slot);
+          this.updateHud?.();
+          audio.play('world/gold');
+          this.dialogue.show([
+            { speaker: obj.speaker || 'Beggar', text: obj.thanks || `A kindness! Few spare ${amount} gold for an old soul. Let me show you something the merchants never found...` },
+          ]).then(() => this.completeSecret());
+        } else {
+          this.showFloatText(obj.x, obj.y, `NEEDS ${amount} GOLD`, '#e0a040');
+        }
+        return;
+      }
+      case 'zerodoor': {
+        if (this.secretDone || obj.open) return;
+        // The ice wall that only nothing can open: answer must be ZERO.
+        const a = 3 + Math.floor(Math.random() * 7);
+        const choices = [0, a, a * 2, a + a + a];
+        const question = { a, op: '-', b: a, choices, correctIndex: 0 };
+        obj.onOpen = () => { this.completeSecret(); };
+        this.showMathDoorPrompt(question, obj);
+        return;
+      }
+      case 'lorepage': {
+        if (this.secretDone) return;
+        const lead = (this.save.party || [])[0];
+        this.dialogue.show([
+          { speaker: 'The Author', text: 'You found my last page. I wrote the Theorem when I believed the world could not add up... but every story deserves a second draft.' },
+          { speaker: 'The Author', text: 'Take this. A feather from the phoenix that taught me endings are just sums waiting to balance.' },
+        ]).then(() => {
+          if (lead) {
+            if (!this.save.equipment) this.save.equipment = {};
+            const gear = this.save.equipment[lead.id] || { weapon: null, armor: null, accessory: null };
+            gear.accessory = 'soul_gem';
+            this.save.equipment[lead.id] = gear;
+            writeSave(this.save, this.slot);
+            this.showToast(`${lead.name} received the PHOENIX FEATHER!`, '#f0d060');
+          }
+          obj.consumed = true;
+          markDead(obj.id);
+          this.completeSecret();
+        });
+        return;
+      }
+      case 'gearkit': {
+        const lead = (this.save.party || [])[0];
+        if (!lead) return;
+        const tier = EQUIPMENT_TIERS.find(t => t.tier === obj.tier) || EQUIPMENT_TIERS[1];
+        if (!this.save.equipment) this.save.equipment = {};
+        this.save.equipment[lead.id] = {
+          weapon: tier.weapon.id,
+          armor: tier.armor.id,
+          accessory: tier.accessory.id,
+        };
+        writeSave(this.save, this.slot);
+        obj.consumed = true;
+        markDead(obj.id);
+        audio.play('battle/level-up');
+        this.showToast(`${lead.name} is armed with the ${tier.tier.toUpperCase()} set!`, '#f0d060');
+        this.saveMazeState();
         return;
       }
       case 'fountain': {
@@ -1332,6 +1644,40 @@ export class MazeScene extends Phaser.Scene {
         this.updateHud();
         break;
       }
+      case 'hero': {
+        // In-maze hero rescue — the level's special unlock moment.
+        if (isHeroUnlocked(this.save, obj.heroId)) {
+          // Already granted (boss-victory safety net on a re-entered floor):
+          // dissolve the stale prison silently.
+          obj.consumed = true;
+          markDead(obj.id);
+          this.saveMazeState();
+          break;
+        }
+        const heroDef = spawnHero(obj.heroId);
+        if (!heroDef) { obj.consumed = true; markDead(obj.id); break; }
+        audio.play('world/fairy');
+        const lines = getRescueDialogue(this.floorId, [obj.heroId]);
+        const fallback = [
+          { speaker: heroDef.name, text: 'You... you found me! I am free!' },
+          { speaker: heroDef.name, text: 'My strength is yours. Let me fight beside you!' },
+        ];
+        this.dialogue.show(lines.length ? lines : fallback).then(() => {
+          // Persist the rescue BEFORE any party prompt so a scene restart
+          // (performSwap) or quit can never lose it.
+          obj.consumed = true;
+          markDead(obj.id);
+          unlockHero(this.save, obj.heroId);
+          writeSave(this.save, this.slot);
+          if (Array.isArray(obj.drain)) {
+            this.applyDrain(obj.drain);
+            if (obj.drainMessage) this.showToast(obj.drainMessage, '#ffe070');
+          }
+          this.saveMazeState();
+          this.showHeroRescueCelebration(heroDef, () => this.showRescuePartyPrompt(heroDef));
+        });
+        break;
+      }
       case 'fairy':
       case 'valve':
       case 'beacon':
@@ -1374,6 +1720,14 @@ export class MazeScene extends Phaser.Scene {
         markDead(obj.id);
         audio.play('world/chest');
         this.showChallengeEffect(obj.type);
+        // Staged draining (Floor 2 tide): if this sluice opens its own band
+        // of tiles, drain them NOW so a whole new district surfaces before
+        // the final transform. The final valve still triggers transformFloor.
+        if (Array.isArray(obj.drain)) {
+          this.applyDrain(obj.drain);
+          if (obj.drainMessage) this.showToast(obj.drainMessage, '#60d0e8');
+          audio.play('world/floor-complete');
+        }
         const ch = this.floor.challenge || { count: 3, label: 'ITEM', verb: 'found', allDoneMsg: 'Challenge complete!' };
         const remaining = ch.count - this.challengeProgress;
         if (remaining > 0) {
@@ -1445,6 +1799,9 @@ export class MazeScene extends Phaser.Scene {
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/encounter');
+        if (obj.disguise) {
+          this.showToast("Fool's gold — it's a mimic!", '#e08840');
+        }
         this.encountersFought++;
         this.startBattle(false);
         break;
@@ -1553,8 +1910,10 @@ export class MazeScene extends Phaser.Scene {
     flash.setDepth(100).setScrollFactor(0);
     this.tweens.add({ targets: flash, alpha: 0, duration: 800, onComplete: () => flash.destroy() });
 
-    // 2. Celebration particles burst from center
-    for (let i = 0; i < 20; i++) {
+    // 2. Celebration particles burst from center (Upgrade 9: honor
+    // reduced-motion — skip the burst for motion-sensitive players).
+    const reduceMotion = !!this.save?.settings?.reducedMotion;
+    for (let i = 0; !reduceMotion && i < 20; i++) {
       const angle = (i / 20) * Math.PI * 2;
       const dist = 100 + Math.random() * 200;
       const color = [0x40c040, 0xf0c040, 0x60a0e0][Math.floor(Math.random() * 3)];
@@ -1624,6 +1983,8 @@ export class MazeScene extends Phaser.Scene {
     const gs = getGameState();
     const state = {
       v: MAZE_STATE_SCHEMA,
+      secretDone: this.secretDone || false,
+      secretSeq: this.secretSeq || 0,
       levelW: this.floor.width,
       levelH: this.floor.height,
       x: this.playerX,
@@ -1690,6 +2051,11 @@ export class MazeScene extends Phaser.Scene {
       3: { colors: [0xd0dce8, 0xe8f0f8, 0xffffff], size: [4, 8], speed: 0.15, name: 'wisp' },
       4: { colors: [0xf08020, 0xe04808, 0xf0c040], size: [2, 4], speed: 0.6, name: 'ember' },
       5: { colors: [0xc8e0f0, 0xe0f0ff, 0xffffff], size: [2, 4], speed: 0.2, name: 'snow' },
+      // v1 stopped at floor 5 — floors 6-9 drifted in silence
+      6: { colors: [0xb090e8, 0xd0b8ff, 0xffffff], size: [2, 4], speed: 0.12, name: 'glint' },
+      7: { colors: [0xf0d060, 0xffe890, 0xe8a840], size: [2, 3], speed: 0.35, name: 'sparkle' },
+      8: { colors: [0xe8d8b0, 0xd0c098, 0xf8ecd0], size: [2, 5], speed: 0.08, name: 'mote' },
+      9: { colors: [0x9070d8, 0xc0a8f8, 0xffffff], size: [3, 5], speed: 0.1, name: 'ripple' },
     };
     const config = particleConfig[this.floorId] || particleConfig[1];
 
@@ -1736,7 +2102,7 @@ export class MazeScene extends Phaser.Scene {
       color,
       stroke: '#1f4244',
       strokeThickness: 4,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(320);
+    }).setOrigin(0.5).setScrollFactor(0);
     this.tweens.add({
       targets: t,
       y: sy - 60,

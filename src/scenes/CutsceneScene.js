@@ -10,6 +10,7 @@ import { getHeroById } from '../data/heroes.js';
 import { getEnemyById } from '../data/enemies.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
 import { HERO_REACTIONS } from '../data/dialogue.js';
+import { drawGuidePortrait } from '../ui/guideArt.js';
 
 export class CutsceneScene extends Phaser.Scene {
   constructor() {
@@ -43,14 +44,20 @@ export class CutsceneScene extends Phaser.Scene {
 
     for (let i = 0; i < main.length; i++) {
       const line = { ...main[i] };
-      if (i >= third && i < third * 2) {
-        line._layout = 'party';
+      // Panel heuristics (authored line.frame wins): the opener is a
+      // wide establishing shot, villain lines are low-angle boss
+      // panels (dutch-tilted when they shout), the middle third plays
+      // on the party, and guide speech alternates close-up sides.
+      if (line.frame) {
+        line._layout = line.frame;
       } else if (main[i].sprite && getEnemyById(main[i].sprite)) {
-        line._layout = 'boss';
-      } else if (main[i].wide) {
+        line._layout = /!\s*$/.test(line.text || '') ? 'dutch' : 'boss';
+      } else if (i === 0 || main[i].wide) {
         line._layout = 'wide';
+      } else if (i >= third && i < third * 2) {
+        line._layout = 'party';
       } else {
-        line._layout = 'fairy';
+        line._layout = i % 2 ? 'closeR' : 'close';
       }
       this.allLines.push(line);
     }
@@ -78,42 +85,16 @@ export class CutsceneScene extends Phaser.Scene {
 
     drawPapercutBackground(this, this.floorId, GAME_WIDTH, GAME_HEIGHT, 555 + this.floorId);
 
-    // ── Papercut stage dressing (reference DNA) ──
-    const stage = this.add.graphics().setDepth(1);
-    // Focal glow high center — light through the mountain gap
-    const gx = GAME_WIDTH * 0.52, gy = GAME_HEIGHT * 0.24;
-    for (let ring = 6; ring >= 1; ring--) {
-      stage.fillStyle(0xf5e2b0, 0.05 * (7 - ring) / 6 + 0.015);
-      stage.fillCircle(gx, gy, 70 + ring * 60);
-    }
-    // Crescent paper moon with cut shadow
-    stage.fillStyle(0x1f3d3f, 0.18);
-    stage.fillCircle(gx + 5, gy + 7, 46);
-    stage.fillStyle(0xf5eedd, 0.95);
-    stage.fillCircle(gx, gy, 46);
-    stage.fillStyle(0xe8dcc0, 0.9);
-    stage.fillCircle(gx - 8, gy - 4, 38);
-    // Paper clouds, each with its own drop shadow
-    for (const [cx2, cy2, cw] of [[GAME_WIDTH * 0.18, GAME_HEIGHT * 0.12, 90], [GAME_WIDTH * 0.78, GAME_HEIGHT * 0.09, 110], [GAME_WIDTH * 0.62, GAME_HEIGHT * 0.19, 70]]) {
-      stage.fillStyle(0x1f3d3f, 0.12);
-      stage.fillEllipse(cx2 + 4, cy2 + 6, cw, cw * 0.32);
-      stage.fillStyle(0xf0ead8, 0.9);
-      stage.fillEllipse(cx2, cy2, cw, cw * 0.32);
-      stage.fillEllipse(cx2 - cw * 0.28, cy2 + 4, cw * 0.55, cw * 0.22);
-    }
-    // Dark botanical corner framing (top corners, like the forest arch)
-    stage.fillStyle(0x22403f, 0.20);
-    stage.fillEllipse(30, 20, 340, 150);
-    stage.fillEllipse(GAME_WIDTH - 40, 26, 380, 160);
-    stage.fillStyle(0x22403f, 0.12);
-    stage.fillEllipse(140, 70, 230, 100);
-    stage.fillEllipse(GAME_WIDTH - 150, 80, 250, 110);
-
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.18);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.25);
 
     this.artContainer = this.add.container(0, 0);
     this.heroContainer = this.add.container(0, 0).setDepth(5);
     this.bubbleGfx = this.add.graphics().setDepth(20);
+
+    // Letterbox bars — the film frame that makes panels feel composed
+    const barH = 74;
+    this.add.rectangle(GAME_WIDTH / 2, barH / 2, GAME_WIDTH, barH, PAPER.inkTeal, 1).setDepth(40);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - barH / 2, GAME_WIDTH, barH, PAPER.inkTeal, 1).setDepth(40);
 
     this.speakerDot = this.add.circle(0, 0, 10, PAPER.sky).setDepth(21);
     this.nameText = this.add.text(0, 0, '', {
@@ -169,20 +150,26 @@ export class CutsceneScene extends Phaser.Scene {
     this.bubbleGfx.clear();
 
     if (layoutChanged) {
-      if (layout === 'boss') {
-        this.drawBossArt(line);
+      if (layout === 'boss' || layout === 'dutch') {
+        this.drawBossArt(line, layout === 'dutch');
       } else if (layout === 'party') {
-        this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.28, line.speaker, 50);
+        this.drawFairySprite(GAME_WIDTH * 0.50, GAME_HEIGHT * 0.28, line.speaker, 50, line);
         this.drawPartyHeroes();
+      } else if (layout === 'close' || layout === 'closeR') {
+        const cx = layout === 'close' ? GAME_WIDTH * 0.24 : GAME_WIDTH * 0.76;
+        this.drawFairySprite(cx, GAME_HEIGHT * 0.46, line.speaker, 175, line);
       } else {
-        this.drawFairySprite(GAME_WIDTH * 0.12, GAME_HEIGHT * 0.24, line.speaker, 74);
+        this.drawFairySprite(GAME_WIDTH * 0.22, GAME_HEIGHT * 0.48, line.speaker, 120, line);
       }
+      this.panelCam(layout);
     }
 
-    const isWide = line.wide || false;
+    const isWide = layout === 'wide' || line.wide || false;
     let bubbleLayout = 'left';
-    if (layout === 'boss') bubbleLayout = 'right';
+    if (layout === 'boss' || layout === 'dutch') bubbleLayout = 'right';
     else if (layout === 'party') bubbleLayout = 'party';
+    else if (layout === 'closeR') bubbleLayout = 'closeR';
+    else if (layout === 'close') bubbleLayout = 'close';
     else if (isWide) bubbleLayout = 'wide';
 
     this.layoutBubble(bubbleLayout, isWide, line);
@@ -211,14 +198,20 @@ export class CutsceneScene extends Phaser.Scene {
 
     let bx, by;
     if (layout === 'wide') {
-      bx = GAME_WIDTH * 0.12;
-      by = GAME_HEIGHT * 0.35;
+      bx = GAME_WIDTH * 0.3;
+      by = GAME_HEIGHT * 0.12;
     } else if (layout === 'right') {
       bx = GAME_WIDTH * 0.02;
       by = GAME_HEIGHT * 0.25;
     } else if (layout === 'party') {
       bx = GAME_WIDTH * 0.19;
       by = GAME_HEIGHT * 0.08;
+    } else if (layout === 'close') {
+      bx = GAME_WIDTH * 0.44;
+      by = GAME_HEIGHT * 0.3;
+    } else if (layout === 'closeR') {
+      bx = GAME_WIDTH * 0.1;
+      by = GAME_HEIGHT * 0.3;
     } else {
       bx = GAME_WIDTH * 0.39;
       by = GAME_HEIGHT * 0.25;
@@ -251,52 +244,26 @@ export class CutsceneScene extends Phaser.Scene {
     this.bubbleGfx.strokeRoundedRect(bx, by, bw, bh, 20);
   }
 
-  drawFairySprite(cx, cy, speaker, radius) {
+  drawFairySprite(cx, cy, speaker, radius, line) {
     const gfx = this.add.graphics();
     const color = this.getSpeakerColor(speaker);
     const r = radius || 120;
 
-    // Soft focal glow (much gentler than the old wall of rings)
-    for (let ring = 3; ring >= 1; ring--) {
-      gfx.fillStyle(color, 0.05 * ring);
-      gfx.fillCircle(cx, cy, r + 24 + ring * 14);
+    // soft glow rings behind the portrait
+    for (let ring = 5; ring >= 1; ring--) {
+      gfx.fillStyle(color, 0.08 * ring);
+      gfx.fillCircle(cx, cy, r + 40 + ring * 15);
     }
-
-    // Paper wings behind the medallion
-    gfx.fillStyle(0xf5eedd, 0.75);
-    gfx.fillEllipse(cx - r * 0.95, cy - r * 0.18, r * 1.1, r * 0.5);
-    gfx.fillEllipse(cx + r * 0.95, cy - r * 0.18, r * 1.1, r * 0.5);
-    gfx.fillStyle(0xe4d8bc, 0.7);
-    gfx.fillEllipse(cx - r * 0.85, cy + r * 0.12, r * 0.7, r * 0.3);
-    gfx.fillEllipse(cx + r * 0.85, cy + r * 0.12, r * 0.7, r * 0.3);
-
-    // Deckled medallion: shadow → cream bumped rim → color disc
-    gfx.fillStyle(PAPER.shadow, 0.25);
-    gfx.fillCircle(cx + 5, cy + 8, r + 8);
-    gfx.fillStyle(0xf5eedd, 1);
-    gfx.fillCircle(cx, cy, r + 7);
-    for (let b = 0; b < 14; b++) {
-      const ba = (b / 14) * Math.PI * 2;
-      gfx.fillCircle(cx + Math.cos(ba) * (r + 5), cy + Math.sin(ba) * (r + 5), 5 + (b * 3) % 4);
-    }
-    gfx.fillStyle(color, 0.95);
-    gfx.fillCircle(cx, cy, r);
-    gfx.fillStyle(PAPER.white, 0.35);
-    gfx.fillCircle(cx - r * 0.2, cy - r * 0.25, r * 0.45);
-
-    gfx.fillStyle(PAPER.inkTeal, 1);
-    gfx.fillCircle(cx - r * 0.18, cy - r * 0.05, r * 0.08);
-    gfx.fillCircle(cx + r * 0.18, cy - r * 0.05, r * 0.08);
-    gfx.fillStyle(PAPER.white, 1);
-    gfx.fillCircle(cx - r * 0.16, cy - r * 0.07, r * 0.03);
-    gfx.fillCircle(cx + r * 0.20, cy - r * 0.07, r * 0.03);
-
-    gfx.fillStyle(PAPER.rose, 0.6);
-    gfx.fillEllipse(cx, cy + r * 0.12, r * 0.25, r * 0.08);
-
     this.artContainer.add(gfx);
 
-    const label = this.add.text(cx, cy + r + 20, speaker || '', {
+    // the speaker's actual face — excited when the line lands with a bang
+    const excited = /[!]\s*$/.test(line?.text || '');
+    const portrait = drawGuidePortrait(this, cx, cy, speaker, {
+      r, expression: excited ? 'excited' : 'neutral',
+    });
+    this.artContainer.add(portrait);
+
+    const label = this.add.text(cx, cy + r + 28, speaker || '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
       fontSize: '20px',
       color: PAPER_CSS.cream,
@@ -334,13 +301,74 @@ export class CutsceneScene extends Phaser.Scene {
     }
   }
 
-  drawBossArt(line) {
-    const cx = GAME_WIDTH * 0.78;
-    const cy = GAME_HEIGHT * 0.48;
+  drawBossArt(line, dutch = false) {
+    // Low-angle villain panel: the monster looms large from the lower
+    // right under a darkened sky; dutch tilt when it shouts.
+    const cx = GAME_WIDTH * 0.72;
+    const cy = GAME_HEIGHT * 0.52;
     const enemy = getEnemyById(line.sprite);
-    if (enemy) {
-      const img = drawMonsterSprite(this, cx, cy, enemy, { scale: 1.8 });
-      this.artContainer.add(img);
+    if (!enemy) return;
+
+    const vignette = this.add.graphics();
+    vignette.fillStyle(PAPER.inkTeal, 0.35);
+    vignette.fillRect(-GAME_WIDTH * 0.25, -GAME_HEIGHT * 0.25, GAME_WIDTH * 1.5, GAME_HEIGHT * 1.5);
+    this.artContainer.add(vignette);
+
+    const img = drawMonsterSprite(this, cx, cy, enemy, { scale: 1.9 });
+    this.artContainer.add(img);
+
+    // menace glow at the feet
+    const glow = this.add.graphics();
+    glow.fillStyle(this.getSpeakerColor(enemy.name), 0.22);
+    glow.fillEllipse(cx, cy + 220, 560, 130);
+    this.artContainer.add(glow);
+    this.artContainer.sendToBack(glow);
+    this.artContainer.sendToBack(vignette);
+
+    if (dutch) this.artContainer.setRotation(-0.035);
+  }
+
+  /**
+   * In-panel camera: slow drift on the art container, sized to outlast
+   * the read. Container transforms pivot at (0,0), so zooms offset the
+   * position to keep the frame center fixed.
+   */
+  panelCam(layout) {
+    const c = this.artContainer;
+    this.tweens.killTweensOf(c);
+    c.setScale(1).setPosition(0, 0);
+    if (layout !== 'dutch') c.setRotation(0);
+
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2;
+    const zoomTo = (s, { dx = 0, dy = 0, dur = 9000 } = {}) => this.tweens.add({
+      targets: c,
+      scaleX: s, scaleY: s,
+      x: cx * (1 - s) + dx, y: cy * (1 - s) + dy,
+      duration: dur, ease: 'Sine.out',
+    });
+
+    switch (layout) {
+      case 'wide': // slow push-in over the establishing shot
+        zoomTo(1.06);
+        break;
+      case 'close': // drift toward the speaker
+        zoomTo(1.07, { dx: 40 });
+        break;
+      case 'closeR':
+        zoomTo(1.07, { dx: -40 });
+        break;
+      case 'party': // gentle rise, like looking up at the heroes
+        this.tweens.add({ targets: c, y: -26, duration: 9000, ease: 'Sine.out' });
+        break;
+      case 'boss': // creep toward the villain
+        zoomTo(1.09, { dy: -20, dur: 10000 });
+        break;
+      case 'dutch': // tilt slowly rights itself as the threat lands
+        zoomTo(1.08, { dur: 8000 });
+        this.tweens.add({ targets: c, rotation: -0.01, duration: 8000, ease: 'Sine.inOut' });
+        break;
+      default:
+        zoomTo(1.04);
     }
   }
 

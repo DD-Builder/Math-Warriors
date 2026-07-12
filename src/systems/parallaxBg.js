@@ -74,22 +74,11 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
 
   for (let ring = 8; ring >= 1; ring--) {
     const r = glowR * (ring / 8);
-    const alpha = pal.glowAlpha * (1 - ring / 10) * 0.95;
+    const alpha = pal.glowAlpha * (1 - ring / 10) * 0.6;
     glow.fillStyle(pal.skyGlow, alpha);
     glow.fillCircle(glowCx, glowCy, r);
   }
-  // Paper rays — the reference's light-through-the-cuts fanning out
-  glow.fillStyle(pal.skyGlow, pal.glowAlpha * 0.35);
-  for (let ray = 0; ray < 10; ray++) {
-    const ra = -Math.PI / 2 + (ray - 4.5) * 0.22;
-    glow.beginPath();
-    glow.moveTo(glowCx + Math.cos(ra - 0.028) * glowR * 0.25, glowCy + Math.sin(ra - 0.028) * glowR * 0.25);
-    glow.lineTo(glowCx + Math.cos(ra - 0.008) * glowR * 1.35, glowCy + Math.sin(ra - 0.008) * glowR * 1.35);
-    glow.lineTo(glowCx + Math.cos(ra + 0.008) * glowR * 1.35, glowCy + Math.sin(ra + 0.008) * glowR * 1.35);
-    glow.lineTo(glowCx + Math.cos(ra + 0.028) * glowR * 0.25, glowCy + Math.sin(ra + 0.028) * glowR * 0.25);
-    glow.closePath(); glow.fillPath();
-  }
-  glow.fillStyle(pal.glow, pal.glowAlpha * 0.6);
+  glow.fillStyle(pal.glow, pal.glowAlpha * 0.5);
   glow.fillCircle(glowCx, glowCy, glowR * 0.15);
   glow.setDepth(LAYER_CONFIG[1].depth);
   layers.push({ gfx: glow, baseX: 0, baseY: 0, ...LAYER_CONFIG[1], glowCx, glowCy });
@@ -113,18 +102,6 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
     drawShadowedPoly(hillGfx, pts, layerDef.color, {
       shadowDy: -6, shadowAlpha: 0.18,
     });
-
-    // Striation cut-lines inside the sheet — the reference mountains'
-    // internal texture (contour-following curves at whisper alpha).
-    hillGfx.lineStyle(2, 0x1f3d3f, 0.08);
-    for (let st = 1; st <= 2; st++) {
-      hillGfx.beginPath();
-      for (let pi2 = 0; pi2 < pts.length; pi2 += 2) {
-        const px = pts[pi2].x, py = pts[pi2].y + st * (16 + li * 8) + Math.sin(pi2 * 0.4 + st) * 3;
-        if (pi2 === 0) hillGfx.moveTo(px, py); else hillGfx.lineTo(px, py);
-      }
-      hillGfx.strokePath();
-    }
 
     // Trees along the ridge (using papercutArt trees)
     const treeScales = [0.5, 0.8, 1.2];
@@ -177,23 +154,14 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
     shadowDy: -5, shadowAlpha: 0.18,
   });
 
-  // Tonal depth strata — two soft darker wave bands across the ground
-  // give the papercut layered-depth read. (Replaces the old cream
-  // "path" stripe, which cut across the hills like a stray light beam.)
-  for (const [f, alpha] of [[0.30, 0.05], [0.62, 0.07]]) {
-    const bandY = groundY + (height - groundY) * f;
-    const bandPts = waveEdgePoints(-40, width + 40, bandY, {
-      seed: seed + 150 + Math.floor(f * 100), amplitude: 12,
-    });
-    ground.fillStyle(0x1f2828, alpha);
-    ground.beginPath();
-    ground.moveTo(bandPts[0].x, bandPts[0].y);
-    for (const p of bandPts) ground.lineTo(p.x, p.y);
-    ground.lineTo(width + 40, height + 40);
-    ground.lineTo(-40, height + 40);
-    ground.closePath();
-    ground.fillPath();
-  }
+  // Path across center
+  const pathPts = waveEdgePoints(width * 0.05, width * 0.95, groundY + 12, {
+    seed: seed + 150, amplitude: 4,
+  });
+  const pathBottom = pathPts.map(p => ({ x: p.x, y: p.y + 35 })).reverse();
+  drawShadowedPoly(ground, [...pathPts, ...pathBottom], PAPER.sand, {
+    shadowDy: 3, shadowAlpha: 0.12,
+  });
 
   // Scattered flowers and leaf sprigs on ground
   for (let i = 0; i < 8; i++) {
@@ -258,18 +226,6 @@ export function createParallaxBackground(scene, floorId, variant, width, height)
       color: PAPER.white,
       accent: pal.accent,
     });
-  }
-
-  // Dark organic corner masses — the reference's botanical framing
-  // holding the luminous scene from the bottom corners.
-  for (const side of [0, 1]) {
-    const bx = side === 0 ? 0 : width;
-    const dir = side === 0 ? 1 : -1;
-    fg.fillStyle(0x22403f, 0.18);
-    fg.fillEllipse(bx + dir * 40, height - 26, 230, 116);
-    fg.fillEllipse(bx + dir * 105, height - 66, 150, 84);
-    fg.fillStyle(0x22403f, 0.11);
-    fg.fillEllipse(bx + dir * 62, height - 122, 124, 62);
   }
 
   fg.setDepth(LAYER_CONFIG[6].depth);

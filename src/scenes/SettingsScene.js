@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { loadSave, writeSave, clearSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
+import { speak } from '../systems/a11y.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
@@ -84,6 +85,26 @@ export class SettingsScene extends Phaser.Scene {
       this.scene.restart();
     });
 
+    // Upgrade 10: Read-aloud (TTS) — compact toggle on the same row, in
+    // the free space right of the colorblind control.
+    this.add.text(area.cx + 170, cbY, '🔊 READ ALOUD', {
+      ...TEXT.heading(), fontSize: '22px', color: PAPER_CSS.inkTeal, stroke: PAPER_CSS.cream, strokeThickness: 3,
+    }).setOrigin(0, 0.5);
+    [{ label: 'OFF', value: false }, { label: 'ON', value: true }].forEach((opt, i) => {
+      const bx = area.cx + 430 + i * 95;
+      const active = !!this.save.settings.ttsEnabled === opt.value;
+      PaperButton(this, bx, cbY, opt.label, {
+        w: 82, h: 54, color: active ? PAPER.orange : PAPER.sand, fontSize: 15,
+        textColor: active ? PAPER_CSS.cream : PAPER_CSS.inkTeal,
+        onClick: () => {
+          this.save.settings.ttsEnabled = opt.value;
+          writeSave(this.save, this.slot);
+          if (opt.value) speak('Read aloud is on! I will read the questions for you.');
+          this.scene.restart();
+        },
+      });
+    });
+
     // Row 4: Session Timer
     const stY = contentTop + rowH * 3.5;
     this.buildSessionTimerRow(area.cx, stY);
@@ -134,7 +155,13 @@ export class SettingsScene extends Phaser.Scene {
       color: PAPER_CSS.inkTeal,
     }).setOrigin(0.5, 0.5);
 
-    this.resetBtn = PaperButton(this, area.cx, statsY + 22, 'RESET ALL PROGRESS', {
+    // Upgrade 6: parent/teacher progress dashboard (gated inside).
+    PaperButton(this, area.cx, statsY + 22, '📊 FOR GROWN-UPS: PROGRESS REPORT', {
+      w: 440, h: 48, color: PAPER.teal, fontSize: 16,
+      onClick: () => transitionTo(this, SCENES.PROGRESS, { returnScene: SCENES.SETTINGS, returnData: { returnScene: this.returnScene, returnData: this.returnData } }, 200),
+    });
+
+    this.resetBtn = PaperButton(this, area.cx, statsY + 78, 'RESET ALL PROGRESS', {
       w: 360, h: 50, color: PAPER.coralD, fontSize: 16,
       onClick: () => this.onResetPressed(),
     });
