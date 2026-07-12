@@ -78,6 +78,16 @@ const FLOOR_1 = {
     'WWWWWWWWWWWWWWWWWWWWWW', // 15
   ],
   startX: 2, startY: 10,
+  secret: {
+    kind: 'push',
+    plate: { x: 4, y: 7 },
+    open: [[3, 6, 'F'], [4, 6, 'F']],
+    rewards: [
+      { type: 'chest', x: 4, y: 6, gold: 60 },
+      { type: 'gearkit', x: 3, y: 6, tier: 'iron', glyph: '🛡' },
+    ],
+    message: "The Gardener statue guarded a hidden garden!",
+  },
   objective: [
     { key: 'challenge', label: 'Free the 3 garden fairies' },
     { key: 'transform', label: 'Cross the flower bridge' },
@@ -120,6 +130,9 @@ const FLOOR_1 = {
     { type: 'boss', x: 18, y: 5, enemyId: 'briarking' },
     { type: 'golden', x: 18, y: 4 },
     { type: 'exit', x: 18, y: 3 },
+  
+    { type: 'statue', x: 3, y: 7, glyph: '🗿' },
+    { type: 'plate', x: 4, y: 7, glyph: '◎' },
   ],
 };
 
@@ -186,6 +199,14 @@ const FLOOR_2 = {
     'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
   ],
   startX: 2, startY: 8,
+  secret: {
+    kind: 'sequence',
+    open: [[18, 8, 'F'], [19, 8, 'F']],
+    rewards: [
+      { type: 'chest', x: 19, y: 8, gold: 90 },
+    ],
+    message: "The harbor bells open the lighthouse cellar!",
+  },
   objective: [
     { key: 'challenge', label: 'Open the four sluices — walk the sea down' },
     { key: 'transform', label: 'Cross the drained streets to the Deep Basin' },
@@ -237,6 +258,10 @@ const FLOOR_2 = {
     { type: 'boss', x: 31, y: 27, enemyId: 'pressure' },
     { type: 'golden', x: 32, y: 28 },
     { type: 'exit', x: 33, y: 27 },
+  
+    { type: 'seqmark', x: 32, y: 12, glyph: '🔔', seqIdx: 0 },
+    { type: 'seqmark', x: 13, y: 17, glyph: '🔔', seqIdx: 1 },
+    { type: 'seqmark', x: 2, y: 3, glyph: '🔔', seqIdx: 2 },
   ],
 };
 
@@ -304,6 +329,14 @@ const FLOOR_3 = {
     'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
   ],
   startX: 3, startY: 6,
+  secret: {
+    kind: 'sequence',
+    open: [[18, 2, 'F'], [18, 3, 'F']],
+    rewards: [
+      { type: 'chest', x: 18, y: 3, gold: 110 },
+    ],
+    message: "The constellation lights a hidden star vault!",
+  },
   objective: [
     { key: 'challenge', label: 'Light the four Sky Beacons — the light doubles' },
     { key: 'transform', label: 'Cross the great light-bridge into the Eye' },
@@ -355,6 +388,12 @@ const FLOOR_3 = {
     { type: 'boss', x: 16, y: 15, enemyId: 'skywhale' },
     { type: 'golden', x: 15, y: 16 },
     { type: 'exit', x: 17, y: 16 },
+  
+    { type: 'seqmark', x: 23, y: 9, glyph: '⭐', seqIdx: 0 },
+    { type: 'seqmark', x: 6, y: 14, glyph: '⭐', seqIdx: 1 },
+    { type: 'seqmark', x: 13, y: 4, glyph: '⭐', seqIdx: 2 },
+    { type: 'seqmark', x: 8, y: 16, glyph: '⭐', seqIdx: 3 },
+    { type: 'seqmark', x: 3, y: 17, glyph: '⭐', seqIdx: 4 },
   ],
 };
 
@@ -411,6 +450,15 @@ const FLOOR_4 = {
     'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
   ],
   startX: 18, startY: 25,
+  secret: {
+    kind: 'push',
+    plate: { x: 22, y: 21 },
+    open: [[5, 24, 'F'], [6, 24, 'F'], [5, 25, 'F'], [6, 25, 'F']],
+    rewards: [
+      { type: 'gearkit', x: 6, y: 25, tier: 'mithril', glyph: '🛡' },
+    ],
+    message: "The boulder seals the vent — the Forge Vault opens!",
+  },
   objective: [
     { key: 'challenge', label: 'Seal the four vents — divide the great fire' },
     { key: 'transform', label: 'Cross the cooled flows to the caldera' },
@@ -465,6 +513,9 @@ const FLOOR_4 = {
     { type: 'boss', x: 18, y: 7, enemyId: 'pyroclast' },
     { type: 'golden', x: 17, y: 6 },
     { type: 'exit', x: 19, y: 6 },
+  
+    { type: 'statue', x: 21, y: 21, glyph: '🪨' },
+    { type: 'plate', x: 22, y: 21, glyph: '◎' },
   ],
 };
 
@@ -524,6 +575,14 @@ const FLOOR_5 = {
     'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
   ],
   startX: 15, startY: 32,
+  secret: {
+    kind: 'zerodoor',
+    open: [[4, 10, 'F'], [5, 10, 'F']],
+    rewards: [
+      { type: 'chest', x: 5, y: 10, gold: 120 },
+    ],
+    message: "Only nothing could open the ice... an echo cave!",
+  },
   objective: [
     { key: 'challenge', label: 'Wake the four Thaw Crystals — one for each operation' },
     { key: 'transform', label: 'Climb the thawed switchbacks to the summit' },
@@ -571,6 +630,8 @@ const FLOOR_5 = {
     { type: 'golden', x: 14, y: 3 },
     { type: 'exit', x: 17, y: 3 },
     { type: 'chest', x: 12, y: 3, loot: { gold: 50 } },
+  
+    { type: 'zerodoor', x: 10, y: 17, glyph: '❄' },
   ],
 };
 
@@ -627,6 +688,14 @@ const FLOOR_6 = {
     'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
   ],
   startX: 17, startY: 28,
+  secret: {
+    kind: 'sequence',
+    open: [[4, 7, 'F'], [5, 7, 'F'], [4, 8, 'F'], [5, 8, 'F']],
+    rewards: [
+      { type: 'chest', x: 5, y: 8, gold: 140 },
+    ],
+    message: "Triangle, square, hexagon — the Geode Heart core!",
+  },
   objective: [
     { key: 'challenge', label: 'Restore the four geo-shards — light takes shape' },
     { key: 'transform', label: 'Follow the beams to the Octagon' },
@@ -679,6 +748,10 @@ const FLOOR_6 = {
     { type: 'boss', x: 26, y: 22, enemyId: 'theprism' },
     { type: 'golden', x: 25, y: 23 },
     { type: 'exit', x: 27, y: 23 },
+  
+    { type: 'seqmark', x: 6, y: 7, glyph: '🔺', seqIdx: 0 },
+    { type: 'seqmark', x: 9, y: 11, glyph: '🔷', seqIdx: 1 },
+    { type: 'seqmark', x: 24, y: 28, glyph: '⬡', seqIdx: 2 },
   ],
 };
 
@@ -735,6 +808,15 @@ const FLOOR_7 = {
     'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
   ],
   startX: 17, startY: 26,
+  secret: {
+    kind: 'donation',
+    amount: 25,
+    open: [[11, 26, 'F'], [12, 26, 'F'], [11, 27, 'F'], [12, 27, 'F']],
+    rewards: [
+      { type: 'chest', x: 12, y: 27, gold: 160 },
+    ],
+    message: "The beggar reveals the smuggler tunnel!",
+  },
   objective: [
     { key: 'challenge', label: 'Recover the 3 REAL Gold Tokens — beware fake gold' },
     { key: 'transform', label: 'Lower the drawbridge to the Grand Bazaar' },
@@ -787,6 +869,8 @@ const FLOOR_7 = {
     { type: 'boss', x: 31, y: 4, enemyId: 'counterfeiter' },
     { type: 'golden', x: 30, y: 3 },
     { type: 'exit', x: 32, y: 3 },
+  
+    { type: 'donation', x: 10, y: 30, glyph: '🪙' },
   ],
 };
 
@@ -845,6 +929,12 @@ const FLOOR_8 = {
     'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
   ],
   startX: 18, startY: 31,
+  secret: {
+    kind: 'lorepage',
+    open: [],
+    rewards: [],
+    message: "The Author's last page...",
+  },
   objective: [
     { key: 'challenge', label: 'Restore the 4 Lost Pages — mend the Story Stair' },
     { key: 'transform', label: 'Climb the whole Story to the Sanctum' },
@@ -895,6 +985,8 @@ const FLOOR_8 = {
     { type: 'boss', x: 19, y: 3, enemyId: 'theparadox' },
     { type: 'golden', x: 17, y: 4 },
     { type: 'exit', x: 21, y: 4 },
+  
+    { type: 'lorepage', x: 15, y: 31, glyph: '📜' },
   ],
 };
 
@@ -958,6 +1050,17 @@ const FLOOR_9 = {
     'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
   ],
   startX: 20, startY: 33,
+  secret: {
+    kind: 'sequence',
+    order: 'any',
+    requiresTransform: true,
+    open: [[6, 9, 'F'], [7, 9, 'F']],
+    rewards: [
+      { type: 'chest', x: 7, y: 9, gold: 250 },
+      { type: 'gearkit', x: 6, y: 9, tier: 'legendary', glyph: '🛡' },
+    ],
+    message: "The four memories open the Audience Chamber!",
+  },
   objective: [
     { key: 'challenge', label: 'Place the 4 Equation Fragments — every math you know' },
     { key: 'transform', label: 'The Grand Equation solves — cross the void' },
@@ -1024,6 +1127,11 @@ const FLOOR_9 = {
     { type: 'boss', x: 20, y: 17, enemyId: 'theorem' },
     { type: 'golden', x: 19, y: 16 },
     { type: 'exit', x: 22, y: 16 },
+  
+    { type: 'seqmark', x: 6, y: 13, glyph: '🕯' },
+    { type: 'seqmark', x: 18, y: 29, glyph: '🕯' },
+    { type: 'seqmark', x: 7, y: 32, glyph: '🕯' },
+    { type: 'seqmark', x: 3, y: 21, glyph: '🕯' },
   ],
 };
 

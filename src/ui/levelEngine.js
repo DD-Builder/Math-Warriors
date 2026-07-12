@@ -1907,6 +1907,7 @@ function LV_draw(t) {
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
     else if (o.type === 'hero') LV_drawHeroPrison(osx, osy, ts, o, t);
     else if (o.type === 'doorway') LV_drawDoorway(osx, osy, ts, o, t);
+    else if (o.type === 'secretobj') LV_drawSecretObj(osx, osy, ts, o, t);
   }
   // Party — draw leader only (skip if external animated hero is used)
   if (!_skipCanvasHero) {
@@ -2215,6 +2216,53 @@ export function markDead(id) {
       }
       break;
     }
+  }
+}
+
+// Signature-secret interactables: a pulsing papercut medallion with an
+// emoji glyph (statue, bell, star, shard, pedestal, beggar, page…).
+// One draw covers every secret object type; the glyph carries theme.
+function LV_drawSecretObj(osx, osy, ts, o, t) {
+  var cx = osx + ts * 0.5, cy = osy + ts * 0.5;
+  var pulse = 0.5 + Math.sin(t * 2.4 + (o.tx || 0)) * 0.18;
+  var r = ts * 0.36;
+  _G.save();
+  _G.globalAlpha = pulse * 0.5;
+  var gl = _G.createRadialGradient(cx, cy, r * 0.2, cx, cy, r * 1.5);
+  gl.addColorStop(0, 'rgba(240,208,96,0.9)');
+  gl.addColorStop(1, 'rgba(240,208,96,0)');
+  _G.fillStyle = gl;
+  _G.fillRect(cx - r * 1.5, cy - r * 1.5, r * 3, r * 3);
+  _G.restore();
+  _G.save();
+  _G.fillStyle = 'rgba(31,61,63,0.35)';
+  _G.beginPath(); _G.arc(cx + 2, cy + 3, r, 0, Math.PI * 2); _G.fill();
+  _G.fillStyle = o.activatedLook ? '#f0d060' : '#f5eedd';
+  _G.beginPath(); _G.arc(cx, cy, r, 0, Math.PI * 2); _G.fill();
+  _G.strokeStyle = '#c09020';
+  _G.lineWidth = 2;
+  _G.beginPath(); _G.arc(cx, cy, r, 0, Math.PI * 2); _G.stroke();
+  _G.font = Math.round(ts * 0.44) + 'px sans-serif';
+  _G.textAlign = 'center';
+  _G.textBaseline = 'middle';
+  _G.fillText(o.glyph || '?', cx, cy + 1);
+  _G.restore();
+}
+
+/**
+ * Slide an object to a new tile (pushable statues). The canvas redraw
+ * picks the new position up next frame.
+ */
+export function moveObject(id, tx, ty) {
+  for (var oi = 0; oi < _objs.length; oi++) {
+    if (_objs[oi].id === id) { _objs[oi].tx = tx; _objs[oi].ty = ty; return; }
+  }
+}
+
+/** Flip a secret object's medallion to its lit look (sequence progress). */
+export function setObjectLook(id, lit) {
+  for (var oi = 0; oi < _objs.length; oi++) {
+    if (_objs[oi].id === id) { _objs[oi].activatedLook = !!lit; return; }
   }
 }
 

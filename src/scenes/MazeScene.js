@@ -6,6 +6,7 @@ import { getLevel } from '../data/levels.js';
 import { loadSave, writeSave, isHeroUnlocked, unlockHero, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { spawnHero, ALL_HEROES, levelBonuses } from '../data/heroes.js';
+import { EQUIPMENT_TIERS } from '../systems/equipment.js';
 import { FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
 import { FLOOR_PALETTES } from '../systems/papercut.js';
@@ -13,12 +14,16 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
 import { tileDepth } from '../systems/perspective.js';
-import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, setSkipCanvasHero, drawForeground, getForegroundCanvas } from '../ui/levelEngine.js';
+import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, setSkipCanvasHero, drawForeground, getForegroundCanvas, moveObject, setObjectLook } from '../ui/levelEngine.js';
 
 // Bump whenever the maze save-state shape or level layouts change in an
 // incompatible way — stale device saves are silently discarded instead
 // of resurrecting an old broken layout.
-const MAZE_STATE_SCHEMA = 5;
+const MAZE_STATE_SCHEMA = 6;
+
+// Signature-secret interactables — all render as glyph medallions in
+// the engine ('secretobj') and are handled by the secret machinery.
+const SECRET_OBJ_TYPES = ['statue', 'plate', 'seqmark', 'donation', 'zerodoor', 'lorepage', 'gearkit'];
 import { generateRatedQuestion } from '../systems/math.js';
 import { getAdaptiveGrade } from '../systems/mastery.js';
 import { createHeroCanvas } from '../ui/legacyRenderer.js';
@@ -129,6 +134,8 @@ export class MazeScene extends Phaser.Scene {
       this.fairyTalkShown = mazeState.fairyTalkShown || false;
       this.mazeTransformed = mazeState.mazeTransformed || false;
       this.revealedSecrets = mazeState.revealedSecrets || [];
+      this.secretDone = mazeState.secretDone || false;
+      this.secretSeq = mazeState.secretSeq || 0;
 
       // Re-entering the floor from the world map (not returning from a
       // battle) repopulates fought encounters while the boss still
@@ -157,6 +164,8 @@ export class MazeScene extends Phaser.Scene {
       this.fairyTalkShown = false;
       this.mazeTransformed = false;
       this.revealedSecrets = [];
+      this.secretDone = false;
+      this.secretSeq = 0;
 
       this.objects = this.floor.objects.map((o, idx) => ({
         ...o,
@@ -234,8 +243,11 @@ export class MazeScene extends Phaser.Scene {
       // Mimics: a disguised encounter renders as its disguise (e.g. a
       // tempting gold pile) and only reveals itself when touched.
       if (o.type === 'encounter' && o.disguise) engineType = o.disguise;
+      if (SECRET_OBJ_TYPES.includes(o.type)) engineType = 'secretobj';
       return {
         type: engineType,
+        glyph: o.glyph,
+        activatedLook: !!o.activated,
         tx: o.x, ty: o.y,
         id: o.id,
         alive: !o.consumed,
@@ -276,6 +288,11 @@ export class MazeScene extends Phaser.Scene {
     // transform, deterministically re-deriving the drained world.
     for (const o of this.objects) {
       if (o.consumed && Array.isArray(o.drain)) this.applyDrain(o.drain);
+    }
+
+    // A found signature secret stays found: re-open its passage.
+    if (this.secretDone && Array.isArray(this.level.secret?.open)) {
+      this.applyDrain(this.level.secret.open);
     }
 
     if (this.revealedSecrets) {
@@ -1176,6 +1193,7 @@ export class MazeScene extends Phaser.Scene {
         if (isCorrect) {
           doorObj.open = true;
           markDoorOpen(doorObj.id);
+          doorObj.onOpen?.();
           this.showToast('Door opened!', '#40c040');
           audio.play('world/chest');
           elements.forEach(el => { if (el.scene) el.destroy(); });
@@ -1340,7 +1358,41 @@ export class MazeScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The floor's signature secret pays off: open the hidden passage,
+   * spawn the rewards, celebrate, persist. Idempotent.
+   */
+  completeSecret() {
+    const sec = this.level.secret;
+    if (!sec || this.secretDone) return;
+    this.secretDone = true;
+    if (Array.isArray(sec.open)) this.applyDrain(sec.open);
+    for (let i = 0; i < (sec.rewards || []).length; i++) {
+      const r = sec.rewards[i];
+      const id = `secret-reward-${i}`;
+      if (this.objects.some(o => o.id === id)) continue;
+      const obj = { type: r.type, x: r.x, y: r.y, id, glyph: r.glyph, tier: r.tier, loot: r.gold ? { gold: r.gold } : undefined };
+      this.objects.push(obj);
+      addObject({
+        type: r.type === 'gearkit' ? 'secretobj' : r.type,
+        glyph: r.glyph || '🛡',
+        tx: r.x, ty: r.y, id,
+        alive: true, visible: true, hidden: false, open: false,
+        loot: obj.loot,
+      });
+    }
+    audio.play('world/chest');
+    this.cameras.main.flash(400, 240, 216, 120);
+    this.cameras.main.shake(200, 0.004);
+    this.showToast('✨ SECRET FOUND! ✨', '#f0d060');
+    if (sec.message) this.time.delayedCall(700, () => this.showToast(sec.message, '#e8dec6'));
+    this.saveMazeState();
+  }
+
   tryMove({ dx, dy }) {
+    // Remember where we came from — pushable statues need the shove
+    // direction when the party steps onto them.
+    this._prevTile = { x: this.playerX, y: this.playerY };
     // Feed a burst of movement frames to the level engine
     const keys = {};
     if (dx < 0) keys.ArrowLeft = true;
@@ -1411,6 +1463,135 @@ export class MazeScene extends Phaser.Scene {
           targetStars: [2, 3],
         });
         this.showMathDoorPrompt(question, obj);
+        return;
+      }
+      case 'statue': {
+        // Pushable statue: stepping onto it shoves it one tile onward.
+        const prev = this._prevTile || { x: this.playerX, y: this.playerY };
+        const dx = Math.sign(obj.x - prev.x), dy = Math.sign(obj.y - prev.y);
+        if (dx === 0 && dy === 0) return;
+        const nx = obj.x + dx, ny = obj.y + dy;
+        const CODE_W = 0, CODE_Q = 3;
+        const destTile = this.floor.tiles[ny]?.[nx];
+        const blocked = destTile === undefined || destTile === CODE_W || destTile === CODE_Q ||
+          this.objects.some(o => o !== obj && !o.consumed && o.type !== 'plate' && o.x === nx && o.y === ny);
+        if (blocked) {
+          this.showFloatText(obj.x, obj.y, "IT WON'T BUDGE!", '#c0c0c0');
+          return;
+        }
+        obj.x = nx; obj.y = ny;
+        moveObject(obj.id, nx, ny);
+        audio.play('ui/click');
+        this.cameras.main.shake(90, 0.003);
+        const sec = this.level.secret;
+        if (sec?.plate && nx === sec.plate.x && ny === sec.plate.y) {
+          this.showFloatText(nx, ny, 'CLICK!', '#f0d060');
+          this.completeSecret();
+        } else {
+          this.showFloatText(nx, ny, 'The statue slides...', '#e8dec6');
+        }
+        return;
+      }
+      case 'plate':
+        return; // just a target marker — the statue does the work
+      case 'seqmark': {
+        const sec = this.level.secret;
+        if (!sec || this.secretDone) return;
+        if (sec.requiresTransform && !this.mazeTransformed) {
+          this.showFloatText(obj.x, obj.y, 'IT SLEEPS... FOR NOW', '#a0a0d0');
+          return;
+        }
+        const seqObjs = this.objects.filter(o => o.type === 'seqmark');
+        if (sec.order === 'any') {
+          if (obj.activated) return;
+          obj.activated = true;
+          setObjectLook(obj.id, true);
+          audio.play('world/fairy');
+          const lit = seqObjs.filter(o => o.activated).length;
+          this.showFloatText(obj.x, obj.y, `${lit} / ${seqObjs.length}`, '#f0d060');
+          if (lit >= seqObjs.length) this.completeSecret();
+          return;
+        }
+        // strict order by seqIdx
+        if (obj.seqIdx === this.secretSeq) {
+          this.secretSeq++;
+          obj.activated = true;
+          setObjectLook(obj.id, true);
+          audio.play('world/fairy');
+          this.showFloatText(obj.x, obj.y, `${this.secretSeq} / ${seqObjs.length}`, '#f0d060');
+          if (this.secretSeq >= seqObjs.length) this.completeSecret();
+        } else if (obj.seqIdx !== undefined && this.secretSeq > 0) {
+          this.secretSeq = 0;
+          for (const o of seqObjs) { o.activated = false; setObjectLook(o.id, false); }
+          this.showFloatText(obj.x, obj.y, 'THE GLOW FADES...', '#a0a0d0');
+          audio.play('ui/back');
+        }
+        return;
+      }
+      case 'donation': {
+        const sec = this.level.secret;
+        if (!sec || this.secretDone) return;
+        const amount = sec.amount ?? 25;
+        if (this.save.gold >= amount) {
+          this.save.gold -= amount;
+          writeSave(this.save, this.slot);
+          this.updateHud?.();
+          audio.play('world/gold');
+          this.dialogue.show([
+            { speaker: obj.speaker || 'Beggar', text: obj.thanks || `A kindness! Few spare ${amount} gold for an old soul. Let me show you something the merchants never found...` },
+          ]).then(() => this.completeSecret());
+        } else {
+          this.showFloatText(obj.x, obj.y, `NEEDS ${amount} GOLD`, '#e0a040');
+        }
+        return;
+      }
+      case 'zerodoor': {
+        if (this.secretDone || obj.open) return;
+        // The ice wall that only nothing can open: answer must be ZERO.
+        const a = 3 + Math.floor(Math.random() * 7);
+        const choices = [0, a, a * 2, a + a + a];
+        const question = { a, op: '-', b: a, choices, correctIndex: 0 };
+        obj.onOpen = () => { this.completeSecret(); };
+        this.showMathDoorPrompt(question, obj);
+        return;
+      }
+      case 'lorepage': {
+        if (this.secretDone) return;
+        const lead = (this.save.party || [])[0];
+        this.dialogue.show([
+          { speaker: 'The Author', text: 'You found my last page. I wrote the Theorem when I believed the world could not add up... but every story deserves a second draft.' },
+          { speaker: 'The Author', text: 'Take this. A feather from the phoenix that taught me endings are just sums waiting to balance.' },
+        ]).then(() => {
+          if (lead) {
+            if (!this.save.equipment) this.save.equipment = {};
+            const gear = this.save.equipment[lead.id] || { weapon: null, armor: null, accessory: null };
+            gear.accessory = 'soul_gem';
+            this.save.equipment[lead.id] = gear;
+            writeSave(this.save, this.slot);
+            this.showToast(`${lead.name} received the PHOENIX FEATHER!`, '#f0d060');
+          }
+          obj.consumed = true;
+          markDead(obj.id);
+          this.completeSecret();
+        });
+        return;
+      }
+      case 'gearkit': {
+        const lead = (this.save.party || [])[0];
+        if (!lead) return;
+        const tier = EQUIPMENT_TIERS.find(t => t.tier === obj.tier) || EQUIPMENT_TIERS[1];
+        if (!this.save.equipment) this.save.equipment = {};
+        this.save.equipment[lead.id] = {
+          weapon: tier.weapon.id,
+          armor: tier.armor.id,
+          accessory: tier.accessory.id,
+        };
+        writeSave(this.save, this.slot);
+        obj.consumed = true;
+        markDead(obj.id);
+        audio.play('battle/level-up');
+        this.showToast(`${lead.name} is armed with the ${tier.tier.toUpperCase()} set!`, '#f0d060');
+        this.saveMazeState();
         return;
       }
       case 'fountain': {
@@ -1802,6 +1983,8 @@ export class MazeScene extends Phaser.Scene {
     const gs = getGameState();
     const state = {
       v: MAZE_STATE_SCHEMA,
+      secretDone: this.secretDone || false,
+      secretSeq: this.secretSeq || 0,
       levelW: this.floor.width,
       levelH: this.floor.height,
       x: this.playerX,
