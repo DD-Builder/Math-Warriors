@@ -6,11 +6,11 @@ import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { PaperButton, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { audio } from '../systems/audio.js';
-import { getHeroById } from '../data/heroes.js';
+import { getHeroById, ALL_HEROES } from '../data/heroes.js';
 import { getEnemyById } from '../data/enemies.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
 import { HERO_REACTIONS } from '../data/dialogue.js';
-import { drawGuidePortrait } from '../ui/guideArt.js';
+import { drawGuidePortrait, hasGuidePortrait } from '../ui/guideArt.js';
 
 export class CutsceneScene extends Phaser.Scene {
   constructor() {
@@ -256,12 +256,30 @@ export class CutsceneScene extends Phaser.Scene {
     }
     this.artContainer.add(gfx);
 
-    // the speaker's actual face — excited when the line lands with a bang
-    const excited = /[!]\s*$/.test(line?.text || '');
-    const portrait = drawGuidePortrait(this, cx, cy, speaker, {
-      r, expression: excited ? 'excited' : 'neutral',
-    });
-    this.artContainer.add(portrait);
+    // A party hero speaking has no bespoke guide face — draw their actual
+    // sprite in the medallion instead of the initial-letter fallback.
+    const heroDef = !hasGuidePortrait(speaker) ? this.findHeroByName(speaker) : null;
+    if (heroDef) {
+      const backing = this.add.graphics();
+      backing.fillStyle(PAPER.shadow, 0.2); backing.fillCircle(cx + 3, cy + 6, r + 8);
+      backing.fillStyle(PAPER.cream, 1); backing.fillCircle(cx, cy, r + 8);
+      backing.fillStyle(color, 0.22); backing.fillCircle(cx, cy, r);
+      backing.lineStyle(4, color, 0.9); backing.strokeCircle(cx, cy, r + 8);
+      this.artContainer.add(backing);
+      // Feet sit low in the frame; clip the sprite to the medallion circle.
+      const sprite = drawHeroSprite(this, cx, cy + r * 0.5, heroDef, { scale: (r * 2.1) / 300 });
+      const maskG = this.make.graphics({ add: false });
+      maskG.fillStyle(0xffffff); maskG.fillCircle(cx, cy, r);
+      sprite.setMask(maskG.createGeometryMask());
+      this.artContainer.add(sprite);
+    } else {
+      // the speaker's actual face — excited when the line lands with a bang
+      const excited = /[!]\s*$/.test(line?.text || '');
+      const portrait = drawGuidePortrait(this, cx, cy, speaker, {
+        r, expression: excited ? 'excited' : 'neutral',
+      });
+      this.artContainer.add(portrait);
+    }
 
     const label = this.add.text(cx, cy + r + 28, speaker || '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontStyle: 'bold',
@@ -271,6 +289,12 @@ export class CutsceneScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
     this.artContainer.add(label);
+  }
+
+  findHeroByName(name) {
+    if (!name) return null;
+    const n = String(name).trim().toLowerCase();
+    return ALL_HEROES.find(h => (h.name || '').toLowerCase() === n) || null;
   }
 
   drawPartyHeroes() {
