@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
-import { getAllMastery, getMasteryColor, getMasteryLabel, getPracticeRecommendation } from '../systems/mastery.js';
+import { getAllMastery, getMasteryColor, getMasteryLabel, getPracticeRecommendation, getSkillHintStats } from '../systems/mastery.js';
 import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
@@ -118,6 +118,13 @@ export class MasteryScene extends Phaser.Scene {
       this.add.text(cx, cy + 88, `${s.total} questions`, {
         ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.inkTeal,
       }).setOrigin(0.5);
+
+      const hintStats = getSkillHintStats(save, s.id);
+      if (hintStats.hints > 0) {
+        this.add.text(cx, cy + 106, `Hints used: ${hintStats.hints}`, {
+          ...TEXT.stat(), fontSize: '13px', color: PAPER_CSS.sand,
+        }).setOrigin(0.5);
+      }
     }
 
     PaperButton(this, area.cx, area.bottom - 30, 'BACK', {

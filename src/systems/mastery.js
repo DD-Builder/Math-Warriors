@@ -41,6 +41,27 @@ export function recordSkillAnswer(save, operator, correct) {
   if (skill.recent.length > WINDOW) skill.recent.shift();
 }
 
+/**
+ * Tally a coach hint used on a skill. `hints` counts any rung; the
+ * `scaffolds` sub-count tracks the deeper tier-2 worked scaffolds.
+ * Fields are added lazily, so old saves need no migration.
+ */
+export function recordHintUsed(save, operator, tier) {
+  const stats = ensureSkillStats(save);
+  const key = operator || '+';
+  const skill = stats[key];
+  if (!skill) return;
+  skill.hints = (skill.hints || 0) + 1;
+  if (tier === 2) skill.scaffolds = (skill.scaffolds || 0) + 1;
+}
+
+/** Hint totals for a skill, defaulting to zero for saves that never used them. */
+export function getSkillHintStats(save, skillId) {
+  const stats = ensureSkillStats(save);
+  const skill = stats[skillId];
+  return { hints: skill?.hints || 0, scaffolds: skill?.scaffolds || 0 };
+}
+
 export function getSkillMastery(save, skillId) {
   const stats = ensureSkillStats(save);
   const skill = stats[skillId];
