@@ -909,64 +909,6 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
     _G.globalAlpha = 1;
   }
   else fns.floor(sx, sy, ts, tx, ty);
-  _applyTileDepth(tt, sx, sy, ts, tx, ty);
-}
-
-// Objects that emit light onto the scene (r,g,b strings for gradients)
-var LV_LIGHT_COLORS = {
-  fairy: '255,220,120',
-  beacon: '255,230,140',
-  vent: '255,140,60',
-  crystal: '150,220,255',
-  thawcrystal: '170,230,255',
-  geoshard: '190,150,255',
-  fragment: '200,160,255',
-  token: '255,215,100',
-  page: '255,240,200',
-  exit: '160,255,180',
-  hero: '255,225,140',
-};
-
-// ─── SHARED DEPTH PASS ──────────────────────────────────────────
-// Turns "flat construction paper" into a layered diorama, for EVERY
-// theme at once: walls cast soft paper shadows onto the walkable
-// tiles beside them, and water gets a bright shoreline wherever it
-// meets land. Stacked solid fills (no gradients) keep the papercut
-// look and cost two fillRects per edge at most.
-
-function _tileAt(tx, ty) {
-  if (ty < 0 || ty >= _ROWS || tx < 0 || tx >= _COLS) return LV_TW;
-  return _map[ty][tx];
-}
-function _isWalk(tt) { return tt === LV_TF || tt === LV_TP || tt === LV_TS; }
-
-function _applyTileDepth(tt, sx, sy, ts, tx, ty) {
-  if (tt === LV_TF || tt === LV_TP) {
-    // Wall above casts down into the scene (3/4 top-down light)
-    if (_tileAt(tx, ty - 1) === LV_TW) {
-      _G.fillStyle = 'rgba(12,7,3,0.20)';
-      _G.fillRect(sx, sy, ts + 1, ts * 0.20);
-      _G.fillStyle = 'rgba(12,7,3,0.10)';
-      _G.fillRect(sx, sy, ts + 1, ts * 0.42);
-    }
-    // Softer sideways occlusion from a wall on the left
-    if (_tileAt(tx - 1, ty) === LV_TW) {
-      _G.fillStyle = 'rgba(12,7,3,0.12)';
-      _G.fillRect(sx, sy, ts * 0.16, ts + 1);
-    }
-    // Bank line where land meets water below — grounds the shoreline
-    if (_tileAt(tx, ty + 1) === LV_TQ) {
-      _G.fillStyle = 'rgba(12,7,3,0.14)';
-      _G.fillRect(sx, sy + ts - ts * 0.08, ts + 1, ts * 0.08);
-    }
-  } else if (tt === LV_TQ) {
-    // Shoreline: a light rim inside every water edge that touches land
-    _G.fillStyle = 'rgba(255,255,255,0.16)';
-    if (_isWalk(_tileAt(tx, ty - 1))) _G.fillRect(sx, sy, ts + 1, ts * 0.10);
-    if (_isWalk(_tileAt(tx, ty + 1))) _G.fillRect(sx, sy + ts - ts * 0.10, ts + 1, ts * 0.10);
-    if (_isWalk(_tileAt(tx - 1, ty))) _G.fillRect(sx, sy, ts * 0.10, ts + 1);
-    if (_isWalk(_tileAt(tx + 1, ty))) _G.fillRect(sx + ts - ts * 0.10, sy, ts * 0.10, ts + 1);
-  }
 }
 
 // ─── OBJECT DRAWING (1:1 from reference) ────────────────────────
@@ -1485,120 +1427,6 @@ function LV_drawPartyMember(px, py, ts, idx, moving, t) {
   _G.restore();
 }
 
-// ─── TRAPPED HERO (in-maze rescue) ──────────────────────────────
-
-var PRISON_STYLES = {
-  vine:    { bar: '#3a7028', accent: '#78c050', glow: '#a0e070' },
-  coral:   { bar: '#c06a58', accent: '#f0a890', glow: '#80d8e8' },
-  cloud:   { bar: '#b8c8d8', accent: '#f0f4f8', glow: '#d0e8ff' },
-  ember:   { bar: '#402018', accent: '#f08030', glow: '#ffb060' },
-  ice:     { bar: '#a8d0e8', accent: '#e8f6ff', glow: '#c0e8ff' },
-  crystal: { bar: '#7048b8', accent: '#b090e8', glow: '#c8a8ff' },
-  vault:   { bar: '#585048', accent: '#d8b040', glow: '#f0d060' },
-};
-
-/**
- * A hero trapped in a themed prison, waiting to be rescued. Draws the
- * hero's real portrait canvas (o.heroCanvas) dimmed inside a papercut
- * prison whose look is picked by o.prison, with a pulsing gold ring so
- * kids spot the rescue from across the room.
- */
-function LV_drawHeroPrison(x, y, ts, o, t) {
-  var style = PRISON_STYLES[o.prison] || PRISON_STYLES.vine;
-  var cx = x + ts * 0.5, cy = y + ts * 0.5;
-  var bob = Math.sin(t * 1.6 + (o.tx || 0)) * ts * 0.02;
-
-  // Beckoning glow ring under everything
-  var pulse = 0.30 + Math.sin(t * 2.4) * 0.15;
-  _G.save();
-  _G.globalAlpha = pulse;
-  _G.fillStyle = style.glow;
-  _G.beginPath(); _G.arc(cx, cy, ts * 0.46, 0, Math.PI * 2); _G.fill();
-  _G.restore();
-
-  // The hero, dimmed and slightly small — present but not yet free
-  if (o.heroCanvas) {
-    var hcv = o.heroCanvas;
-    var hsc = ts * 0.9 / hcv.width, hw = hcv.width * hsc, hh = hcv.height * hsc;
-    _G.save();
-    _G.globalAlpha = 0.85;
-    _G.drawImage(hcv, cx - hw / 2, cy - hh * 0.78 + bob, hw, hh);
-    _G.restore();
-  } else {
-    LV_cut(style.accent, 4, function () { _G.arc(cx, cy - ts * 0.1 + bob, ts * 0.2, 0, Math.PI * 2); });
-  }
-
-  // Prison encasement: ice/crystal read as a translucent block,
-  // everything else as bars with a themed accent.
-  _G.save();
-  if (o.prison === 'ice' || o.prison === 'crystal') {
-    _G.globalAlpha = 0.38;
-    _G.fillStyle = style.accent;
-    _G.beginPath();
-    if (o.prison === 'ice') {
-      var ix = cx - ts * 0.34, iy = cy - ts * 0.44, iw = ts * 0.68, ih = ts * 0.8, ir = ts * 0.12;
-      _G.moveTo(ix + ir, iy);
-      _G.lineTo(ix + iw - ir, iy); _G.quadraticCurveTo(ix + iw, iy, ix + iw, iy + ir);
-      _G.lineTo(ix + iw, iy + ih - ir); _G.quadraticCurveTo(ix + iw, iy + ih, ix + iw - ir, iy + ih);
-      _G.lineTo(ix + ir, iy + ih); _G.quadraticCurveTo(ix, iy + ih, ix, iy + ih - ir);
-      _G.lineTo(ix, iy + ir); _G.quadraticCurveTo(ix, iy, ix + ir, iy);
-      _G.closePath();
-    } else {
-      _G.moveTo(cx, cy - ts * 0.5); _G.lineTo(cx + ts * 0.36, cy - ts * 0.18);
-      _G.lineTo(cx + ts * 0.28, cy + ts * 0.38); _G.lineTo(cx - ts * 0.28, cy + ts * 0.38);
-      _G.lineTo(cx - ts * 0.36, cy - ts * 0.18); _G.closePath();
-    }
-    _G.fill();
-    _G.globalAlpha = 0.8;
-    _G.strokeStyle = style.bar; _G.lineWidth = ts * 0.045; _G.stroke();
-    // glints
-    _G.globalAlpha = 0.7; _G.strokeStyle = '#ffffff'; _G.lineWidth = ts * 0.03;
-    _G.beginPath(); _G.moveTo(cx - ts * 0.18, cy - ts * 0.3); _G.lineTo(cx - ts * 0.06, cy - ts * 0.14); _G.stroke();
-  } else {
-    _G.strokeStyle = style.bar;
-    _G.lineWidth = ts * 0.07;
-    _G.lineCap = 'round';
-    for (var b = -1; b <= 1; b++) {
-      var bx = cx + b * ts * 0.22 + (o.prison === 'vine' ? Math.sin(t * 1.2 + b) * ts * 0.02 : 0);
-      _G.beginPath(); _G.moveTo(bx, cy - ts * 0.42); _G.lineTo(bx, cy + ts * 0.4); _G.stroke();
-    }
-    _G.beginPath(); _G.moveTo(cx - ts * 0.3, cy - ts * 0.42); _G.lineTo(cx + ts * 0.3, cy - ts * 0.42); _G.stroke();
-    // Themed accent on the bars
-    _G.fillStyle = style.accent;
-    if (o.prison === 'vine') {
-      for (var lf = 0; lf < 3; lf++) {
-        var ly = cy - ts * 0.3 + lf * ts * 0.26;
-        _G.beginPath(); _G.ellipse(cx + (lf % 2 ? ts * 0.22 : -ts * 0.22), ly, ts * 0.07, ts * 0.035, 0.6, 0, Math.PI * 2); _G.fill();
-      }
-    } else if (o.prison === 'cloud') {
-      for (var pf = 0; pf < 3; pf++) {
-        _G.beginPath(); _G.arc(cx - ts * 0.24 + pf * ts * 0.24, cy + ts * 0.38, ts * 0.1, 0, Math.PI * 2); _G.fill();
-      }
-    } else if (o.prison === 'vault') {
-      _G.beginPath(); _G.arc(cx, cy, ts * 0.09, 0, Math.PI * 2); _G.fill();
-      _G.fillStyle = style.bar;
-      _G.fillRect(cx - ts * 0.02, cy, ts * 0.04, ts * 0.1);
-    } else if (o.prison === 'coral') {
-      for (var cb = 0; cb < 3; cb++) {
-        _G.beginPath(); _G.arc(cx - ts * 0.22 + cb * ts * 0.22, cy + ts * 0.4, ts * 0.05, 0, Math.PI); _G.fill();
-      }
-    } else if (o.prison === 'ember') {
-      _G.globalAlpha = 0.5 + Math.sin(t * 4) * 0.3;
-      _G.beginPath(); _G.arc(cx, cy + ts * 0.42, ts * 0.08, 0, Math.PI * 2); _G.fill();
-    }
-  }
-  _G.restore();
-
-  // Orbiting sparkles — "something special is here"
-  for (var sp = 0; sp < 3; sp++) {
-    var sa = (sp / 3) * Math.PI * 2 + t * 1.2;
-    var spx = cx + Math.cos(sa) * ts * 0.42, spy = cy + Math.sin(sa) * ts * 0.36;
-    _G.save(); _G.globalAlpha = 0.35 + Math.sin(t * 2.5 + sp) * 0.25;
-    _G.fillStyle = '#ffe870';
-    _G.beginPath(); _G.arc(spx, spy, ts * 0.025, 0, Math.PI * 2); _G.fill(); _G.restore();
-  }
-}
-
 // ─── MINIMAP (1:1 from reference, draws to internal canvas) ─────
 
 function LV_drawMinimap() {
@@ -1646,15 +1474,323 @@ function LV_drawMinimap() {
 
 // ─── MAIN DRAW (1:1 from reference) ────────────────────────────
 
+// ═══════════════════════════════════════════════════════════════
+// PAPERCUT ART LAYER — the level remaster.
+//
+// Terrain is no longer drawn tile-by-tile (which read as an Atari
+// grid). Instead the whole level is painted ONCE, in world space,
+// as ORGANIC REGIONS: every wall/water/path mass is a union of
+// overlapping, jittered round blobs — adjacent tiles melt into one
+// flowing hand-cut shape with no seams — stacked in papercut layers
+// (drop shadow → dark base → lighter inset → crown decor), sitting
+// on a torn-paper island over a soft backdrop, exactly like the
+// reference art. Per frame the result is a single drawImage blit,
+// which is also far cheaper than redrawing every tile.
+// ═══════════════════════════════════════════════════════════════
+
+var ART_MARGIN = 96;
+var _artCanvas = null, _artG = null;
+// Transparent canvas holding ONLY the wall art (faces/masses/crowns).
+// The hero-behind-walls foreground pass copies from THIS, so square
+// copy regions can never drag backdrop pixels along (the pale-boxes
+// bug from copying off the full composite).
+var _wallsArtCanvas = null, _wallsArtG = null;
+var _artBackdrop = '#182e33';
+
+var _ART_THEMES = {
+  1: { // The Garden — sunlit, fresh, reference-matched
+    bg: '#dfe7cd', paperEdge: '#f5eedd', paper: '#e9dfc2',
+    ground: '#a3c47f', groundTone: '#93b871', stipple: '#7fa85f',
+    path: '#e6d7ae', pebble: '#cbb98c', pebbleHi: '#efe4c4',
+    wallShadow: 'rgba(30,48,28,0.35)', wallDark: '#2f6136', wallMid: '#458d4c', crown: '#63ad64', crownHi: '#82c47b',
+    face: '#234f2a', faceHi: '#38703f',
+    flowers: ['#e07098', '#ecb964', '#a4c8d8', '#f2f0a0'],
+    water: ['#2a5d74', '#3d84a0', '#7fc4d8', '#e0f2ee'],
+  },
+  2: { bg: '#12262e', paperEdge: '#d8e4dc', paper: '#c3d6c9', ground: '#7fae9b', groundTone: '#6fa28e', stipple: '#5e9480',
+    path: '#dccfa8', pebble: '#b7a888', pebbleHi: '#e6dcc0', wallShadow: 'rgba(10,28,32,0.4)', wallDark: '#1e4a52', wallMid: '#2f6b74', crown: '#44909a', crownHi: '#63b3ba',
+    face: '#153840', faceHi: '#255661', flowers: ['#e78f6c', '#ecb964', '#a4c8d8'], water: ['#183f58', '#2a6485', '#5aa3c0', '#cfeef0'] },
+  3: { bg: '#26323e', paperEdge: '#e8ecf2', paper: '#d3dbe6', ground: '#9fb4cd', groundTone: '#8fa6c2', stipple: '#7e97b5',
+    path: '#e8e2d2', pebble: '#c3bda9', pebbleHi: '#f2eee0', wallShadow: 'rgba(30,38,52,0.4)', wallDark: '#546a86', wallMid: '#71889f', crown: '#8fa3bb', crownHi: '#b3c3d6', face: '#41546e', faceHi: '#5d7290',
+    flowers: ['#f2f0a0', '#e07098', '#ffffff'], water: ['#4d6a8c', '#6c8cb0', '#9fbcd8', '#eef4fa'] },
+  4: { bg: '#1a0d08', paperEdge: '#e3c9a8', paper: '#caa580', ground: '#8a5f42', groundTone: '#7b533a', stipple: '#6b4832',
+    path: '#d9b184', pebble: '#a87c54', pebbleHi: '#ecd0a8', wallShadow: 'rgba(20,6,2,0.45)', wallDark: '#3d1c10', wallMid: '#5c2f1a', crown: '#7c4426', crownHi: '#a05c30', face: '#2a1208', faceHi: '#46220f',
+    flowers: ['#e39a4a', '#ecb964', '#d06a4d'], water: ['#7c2810', '#b8481c', '#e8762e', '#ffd080'] },
+  5: { bg: '#15242c', paperEdge: '#e9f2f5', paper: '#d3e4ea', ground: '#a8ccd6', groundTone: '#97bfcb', stipple: '#86b2c0',
+    path: '#e8e8e0', pebble: '#bccfd4', pebbleHi: '#f4f8f8', wallShadow: 'rgba(12,30,38,0.4)', wallDark: '#2b5a68', wallMid: '#3f7d8e', crown: '#5aa1b2', crownHi: '#83c3d0', face: '#1e4450', faceHi: '#316475',
+    flowers: ['#a4c8d8', '#ffffff', '#9c8fc0'], water: ['#1f4a5e', '#337690', '#63aec6', '#e4f6f8'] },
+  6: { bg: '#170d26', paperEdge: '#e2d5ee', paper: '#c9b8dd', ground: '#9d8abc', groundTone: '#8f7bb0', stipple: '#806fa3',
+    path: '#ded2ea', pebble: '#ab97c6', pebbleHi: '#efe6f8', wallShadow: 'rgba(20,8,36,0.45)', wallDark: '#3c2260', wallMid: '#55357f', crown: '#71499e', crownHi: '#9468bf', face: '#2b1548', faceHi: '#452a68',
+    flowers: ['#ecb964', '#e07098', '#a4c8d8'], water: ['#472a6e', '#654093', '#8f66bb', '#e8daf6'] },
+  7: { bg: '#251c10', paperEdge: '#f0e4c8', paper: '#e0cda3', ground: '#c3a878', groundTone: '#b69c6e', stipple: '#a88e60',
+    path: '#ecdebc', pebble: '#c3ac83', pebbleHi: '#f6ecd4', wallShadow: 'rgba(30,22,8,0.4)', wallDark: '#5c4423', wallMid: '#7c5e33', crown: '#9c7843', crownHi: '#bd9758', face: '#443218', faceHi: '#644b26',
+    flowers: ['#d06a4d', '#ecb964', '#3c6b4f'], water: ['#4d5c30', '#6c7c44', '#95a562', '#e8eecb'] },
+  8: { bg: '#160f08', paperEdge: '#e8dcc4', paper: '#d4c2a0', ground: '#a08a68', groundTone: '#93805f', stipple: '#857356',
+    path: '#dcd0b4', pebble: '#ab9878', pebbleHi: '#ece0c8', wallShadow: 'rgba(18,12,4,0.45)', wallDark: '#3f2c16', wallMid: '#5c4222', crown: '#7a592e', crownHi: '#9b763c', face: '#2c1e0e', faceHi: '#48321a',
+    flowers: ['#ecb964', '#d06a4d', '#7d9f6d'], water: ['#3d3320', '#5c4e2e', '#847246', '#e2d8b4'] },
+  9: { bg: '#0d081a', paperEdge: '#d9d0e8', paper: '#bcb0d4', ground: '#8d81ad', groundTone: '#8074a2', stipple: '#726695',
+    path: '#d2c9e2', pebble: '#a195bd', pebbleHi: '#e8e2f2', wallShadow: 'rgba(10,4,24,0.5)', wallDark: '#2a1c4e', wallMid: '#3e2c6b', crown: '#553f8a', crownHi: '#7157ab', face: '#1c1038', faceHi: '#312050',
+    flowers: ['#ecb964', '#e07098', '#a4c8d8'], water: ['#1c1240', '#2f2260', '#4c3a88', '#d6ccf0'] },
+};
+
+// One union-of-blobs pass over a set of cells. r0 ≥ 0.72 guarantees
+// adjacent-tile blobs overlap, so contiguous regions read as one mass.
+function artBlobs(g, cells, T, r0, jseed, color, dx, dy) {
+  g.fillStyle = color;
+  g.beginPath();
+  for (var i = 0; i < cells.length; i++) {
+    var c = cells[i];
+    var rr = mkRng(c[0] * 131 + c[1] * 173 + jseed);
+    var cx = ART_MARGIN + (c[0] + 0.5) * T + (rr() - 0.5) * T * 0.2 + (dx || 0);
+    var cy = ART_MARGIN + (c[1] + 0.5) * T + (rr() - 0.5) * T * 0.2 + (dy || 0);
+    var rad = T * r0 * (0.88 + rr() * 0.28);
+    g.moveTo(cx + rad, cy);
+    g.arc(cx, cy, rad, 0, Math.PI * 2);
+  }
+  g.fill();
+}
+
+function LV_buildArtLayer() {
+  var T = LV_TILE;
+  var P = _ART_THEMES[_floorTheme] || _ART_THEMES[1];
+  _artBackdrop = P.bg;
+  var aw = _COLS * T + ART_MARGIN * 2, ah = _ROWS * T + ART_MARGIN * 2;
+  if (!_artCanvas || _artCanvas.width !== aw || _artCanvas.height !== ah) {
+    _artCanvas = document.createElement('canvas');
+    _artCanvas.width = aw; _artCanvas.height = ah;
+    _artG = _artCanvas.getContext('2d');
+  }
+  var g = _artG;
+  g.clearRect(0, 0, aw, ah);
+
+  // Bucket the map once
+  var all = [], walls = [], waters = [], floors = [], paths = [], crownCells = [], faceCells = [];
+  for (var y = 0; y < _ROWS; y++) for (var x = 0; x < _COLS; x++) {
+    var tt = _map[y][x];
+    var cell = [x, y];
+    all.push(cell);
+    if (tt === LV_TW || tt === LV_TS) {
+      walls.push(cell);
+      if (y === 0 || (_map[y - 1][x] !== LV_TW && _map[y - 1][x] !== LV_TS)) crownCells.push(cell);
+      if (y === _ROWS - 1 || (_map[y + 1][x] !== LV_TW && _map[y + 1][x] !== LV_TS)) faceCells.push(cell);
+    } else if (tt === LV_TQ) waters.push(cell);
+    else if (tt === LV_TP) paths.push(cell);
+    else floors.push(cell);
+  }
+
+  // 1. Torn-paper island: deckled cream edge, then parchment sheet —
+  //    the whole level sits as one organic papercut island.
+  artBlobs(g, all, T, 0.92, 11, 'rgba(20,30,30,0.28)', 7, 11);   // island drop shadow
+  artBlobs(g, all, T, 0.90, 12, P.paperEdge, 0, 0);
+  artBlobs(g, all, T, 0.80, 13, P.paper, 0, 0);
+
+  // 2. Ground wash over the walkable interior
+  var walkable = floors.concat(paths, waters);
+  artBlobs(g, walkable, T, 0.72, 21, P.ground, 0, 0);
+  // tonal variation — sparse darker patches melt the flatness
+  var toned = floors.filter(function (c) { return mkRng(c[0] * 7 + c[1] * 13 + 31)() < 0.4; });
+  artBlobs(g, toned, T, 0.5, 22, P.groundTone, 0, 0);
+  // Sun-dapple pools — large soft warm light patches (the focal light
+  // every reference composition carries)
+  var dappled = floors.filter(function (c) { return mkRng(c[0] * 19 + c[1] * 23 + 77)() < 0.08; });
+  for (var di2 = 0; di2 < dappled.length; di2++) {
+    var dpc = dappled[di2];
+    var dcx = ART_MARGIN + (dpc[0] + 0.5) * T, dcy = ART_MARGIN + (dpc[1] + 0.5) * T;
+    for (var dr2 = 3; dr2 >= 1; dr2--) {
+      g.fillStyle = 'rgba(246,234,186,' + (0.05 * (4 - dr2)).toFixed(3) + ')';
+      g.beginPath(); g.arc(dcx, dcy, T * 0.7 * dr2, 0, Math.PI * 2); g.fill();
+    }
+  }
+
+  // 3. Paths — a flowing sand ribbon with hand-laid pebbles
+  artBlobs(g, paths, T, 0.58, 31, 'rgba(30,40,30,0.18)', 3, 5);
+  artBlobs(g, paths, T, 0.56, 32, P.path, 0, 0);
+  for (var pi = 0; pi < paths.length; pi++) {
+    var pc = paths[pi];
+    var pr = mkRng(pc[0] * 37 + pc[1] * 59 + 41);
+    for (var st = 0; st < 3; st++) {
+      var px = ART_MARGIN + pc[0] * T + T * (0.2 + pr() * 0.6);
+      var py = ART_MARGIN + pc[1] * T + T * (0.2 + pr() * 0.6);
+      var prx = T * (0.1 + pr() * 0.08), pry = prx * (0.65 + pr() * 0.25);
+      g.fillStyle = 'rgba(30,40,30,0.15)';
+      g.beginPath(); g.ellipse(px + 1.5, py + 2.5, prx, pry, pr() * 3, 0, Math.PI * 2); g.fill();
+      g.fillStyle = pr() < 0.4 ? P.pebbleHi : P.pebble;
+      g.beginPath(); g.ellipse(px, py, prx, pry, pr() * 3, 0, Math.PI * 2); g.fill();
+    }
+  }
+
+  // 4. Water — layered papercut ponds (each ring a deeper sheet)
+  artBlobs(g, waters, T, 0.72, 51, 'rgba(10,24,30,0.35)', 4, 7);
+  artBlobs(g, waters, T, 0.70, 52, P.water[0], 0, 0);
+  artBlobs(g, waters, T, 0.52, 53, P.water[1], 0, -2);
+  artBlobs(g, waters, T, 0.34, 54, P.water[2], 0, -3);
+  var waterSpark = waters.filter(function (c) { return mkRng(c[0] * 11 + c[1] * 17 + 55)() < 0.5; });
+  artBlobs(g, waterSpark, T, 0.10, 56, P.water[3], 0, -4);
+  // Lace highlight along each pond's top edge — thin cream arcs
+  for (var wl = 0; wl < waters.length; wl++) {
+    var wc = waters[wl];
+    var northWater = waters.some(function (o) { return o[0] === wc[0] && o[1] === wc[1] - 1; });
+    if (northWater) continue;
+    var wx0 = ART_MARGIN + wc[0] * T, wy0 = ART_MARGIN + wc[1] * T;
+    var wr2 = mkRng(wc[0] * 3 + wc[1] * 5 + 99);
+    g.strokeStyle = 'rgba(240,250,246,0.5)';
+    g.lineWidth = T * 0.045;
+    g.beginPath();
+    g.moveTo(wx0 + T * 0.12, wy0 + T * 0.3);
+    g.quadraticCurveTo(wx0 + T * 0.5, wy0 + T * (0.16 + wr2() * 0.1), wx0 + T * 0.88, wy0 + T * 0.3);
+    g.stroke();
+  }
+
+  // 5. Walls — the big papercut masses.
+  //    South faces first (they hang below), then base, inset, crowns.
+  //    PAINTED INTO A TRANSPARENT WALLS-ONLY CANVAS, then composited
+  //    onto the main art — the foreground (hero-behind-walls) pass
+  //    copies from the walls-only canvas so it can never drag backdrop
+  //    pixels along inside its square copy regions.
+  if (!_wallsArtCanvas || _wallsArtCanvas.width !== aw || _wallsArtCanvas.height !== ah) {
+    _wallsArtCanvas = document.createElement('canvas');
+    _wallsArtCanvas.width = aw; _wallsArtCanvas.height = ah;
+    _wallsArtG = _wallsArtCanvas.getContext('2d');
+  }
+  _wallsArtG.clearRect(0, 0, aw, ah);
+  var _mainArtG = g;
+  g = _wallsArtG; // wall sections below draw into the transparent layer
+  var wallH = T * MAZE_PERSPECTIVE.heightFactor;
+  for (var fi = 0; fi < faceCells.length; fi++) {
+    var fc = faceCells[fi];
+    var fx0 = ART_MARGIN + fc[0] * T, fy0 = ART_MARGIN + (fc[1] + 1) * T - T * 0.18;
+    var fr = mkRng(fc[0] * 43 + fc[1] * 67 + 61);
+    g.fillStyle = P.face;
+    g.beginPath();
+    g.moveTo(fx0 - 2, fy0);
+    g.lineTo(fx0 + T + 2, fy0);
+    g.lineTo(fx0 + T + (fr() - 0.5) * 4, fy0 + wallH);
+    g.quadraticCurveTo(fx0 + T * 0.5, fy0 + wallH + T * 0.14, fx0 + (fr() - 0.5) * 4, fy0 + wallH);
+    g.closePath(); g.fill();
+    g.fillStyle = P.faceHi;
+    g.beginPath();
+    g.moveTo(fx0, fy0);
+    g.lineTo(fx0 + T, fy0);
+    g.lineTo(fx0 + T, fy0 + wallH * 0.30);
+    g.lineTo(fx0, fy0 + wallH * 0.30);
+    g.closePath(); g.fill();
+  }
+  artBlobs(g, walls, T, 0.76, 71, P.wallShadow, 6, 9);
+  artBlobs(g, walls, T, 0.74, 72, P.wallDark, 0, 0);
+  artBlobs(g, walls, T, 0.56, 73, P.wallMid, -1, -3);
+  // Crowns: leafy silhouette clusters + flowers along exposed top edges
+  for (var ci = 0; ci < crownCells.length; ci++) {
+    var cc = crownCells[ci];
+    var cr = mkRng(cc[0] * 53 + cc[1] * 71 + 81);
+    var baseX = ART_MARGIN + cc[0] * T, baseY = ART_MARGIN + cc[1] * T;
+    for (var tuft = 0; tuft < 4; tuft++) {
+      var tx = baseX + T * (0.12 + tuft * 0.25 + (cr() - 0.5) * 0.1);
+      var tyy = baseY + T * (0.06 + cr() * 0.16);
+      var trad = T * (0.14 + cr() * 0.1);
+      g.fillStyle = cr() < 0.5 ? P.crown : P.crownHi;
+      g.beginPath(); g.arc(tx, tyy, trad, 0, Math.PI * 2); g.fill();
+    }
+    if (cr() < 0.4) {
+      var fcol = P.flowers[Math.floor(cr() * P.flowers.length)];
+      var flx = baseX + T * (0.2 + cr() * 0.6), fly = baseY + T * (0.05 + cr() * 0.12);
+      g.fillStyle = fcol;
+      for (var pet = 0; pet < 5; pet++) {
+        var pa = pet * Math.PI * 2 / 5;
+        g.beginPath(); g.arc(flx + Math.cos(pa) * T * 0.045, fly + Math.sin(pa) * T * 0.045, T * 0.032, 0, Math.PI * 2); g.fill();
+      }
+      g.fillStyle = '#f5e6a0';
+      g.beginPath(); g.arc(flx, fly, T * 0.022, 0, Math.PI * 2); g.fill();
+    }
+  }
+
+  // 5b. Interior cut-detail — leaf-vein clusters INSIDE the hedge
+  // masses so big walls aren't flat fills (reference: lace-like cut
+  // texture within every large sheet).
+  for (var wi2 = 0; wi2 < walls.length; wi2++) {
+    var wcell = walls[wi2];
+    var wr3 = mkRng(wcell[0] * 41 + wcell[1] * 61 + 121);
+    if (wr3() < 0.55) continue;
+    var lx = ART_MARGIN + wcell[0] * T + T * (0.2 + wr3() * 0.6);
+    var ly = ART_MARGIN + wcell[1] * T + T * (0.3 + wr3() * 0.45);
+    g.fillStyle = 'rgba(18,30,24,0.16)';
+    for (var lv2 = 0; lv2 < 3; lv2++) {
+      var la = wr3() * Math.PI * 2;
+      g.beginPath();
+      g.ellipse(lx + Math.cos(la) * T * 0.13 * lv2, ly + Math.sin(la) * T * 0.1 * lv2,
+        T * 0.09, T * 0.042, la, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+
+  // Composite the wall layer onto the main art, restore main target
+  g = _mainArtG;
+  g.drawImage(_wallsArtCanvas, 0, 0);
+
+  // 6. Meadow scatter on open floor: sprigs, petals, tiny blooms
+  for (var si = 0; si < floors.length; si++) {
+    var sc = floors[si];
+    var sr = mkRng(sc[0] * 29 + sc[1] * 47 + 91);
+    if (sr() < 0.28) {
+      var sxp = ART_MARGIN + sc[0] * T + T * (0.15 + sr() * 0.7);
+      var syp = ART_MARGIN + sc[1] * T + T * (0.15 + sr() * 0.7);
+      if (sr() < 0.55) {
+        g.strokeStyle = P.stipple; g.lineWidth = 1.4;
+        g.beginPath(); g.moveTo(sxp, syp + 4); g.quadraticCurveTo(sxp + 2, syp - 2, sxp + 1, syp - 6); g.stroke();
+        g.beginPath(); g.moveTo(sxp, syp + 4); g.quadraticCurveTo(sxp - 3, syp - 1, sxp - 4, syp - 5); g.stroke();
+      } else {
+        var scol = P.flowers[Math.floor(sr() * P.flowers.length)];
+        g.fillStyle = scol;
+        g.beginPath(); g.arc(sxp, syp, T * 0.05, 0, Math.PI * 2); g.fill();
+        g.fillStyle = 'rgba(255,250,220,0.9)';
+        g.beginPath(); g.arc(sxp, syp, T * 0.02, 0, Math.PI * 2); g.fill();
+      }
+    }
+  }
+}
+
+// Animated water sparkle — the only terrain that moves per frame
+function LV_drawWaterShimmer(camX, camY, ts, t) {
+  for (var y = 0; y < _ROWS; y++) for (var x = 0; x < _COLS; x++) {
+    if (_map[y][x] !== LV_TQ || !_fog[y] || !_fog[y][x]) continue;
+    var sx = camX + x * ts, sy = camY + y * ts;
+    if (sx + ts < 0 || sx > _W || sy + ts < 0 || sy > _H) continue;
+    var wr = mkRng(x * 91 + y * 113);
+    if (wr() < 0.45) continue;
+    var ph = t * 1.4 + wr() * 6.28;
+    _G.save();
+    _G.globalAlpha = 0.25 + Math.sin(ph) * 0.2;
+    _G.strokeStyle = '#eaf8f4';
+    _G.lineWidth = ts * 0.035;
+    _G.beginPath();
+    var hx = sx + ts * (0.25 + wr() * 0.4), hy = sy + ts * (0.3 + wr() * 0.4) + Math.sin(ph) * ts * 0.05;
+    _G.moveTo(hx, hy);
+    _G.quadraticCurveTo(hx + ts * 0.14, hy - ts * 0.05, hx + ts * 0.26, hy);
+    _G.stroke();
+    _G.restore();
+  }
+}
+
+export function LV_rebuildArtLayer() {
+  if (_map) LV_buildArtLayer();
+}
+
+var _fogMaskCanvas = null, _fogMaskG = null;
+
 function LV_draw(t) {
   var ts = LV_TILE * _SCALE;
   var camX = _W / 2 - _party.x * _SCALE, camY = _H / 2 - _party.y * _SCALE;
-  // Background
-  _G.fillStyle = _fogColor; _G.fillRect(0, 0, _W, _H);
+  // Backdrop + ONE blit of the pre-painted papercut world
+  _G.fillStyle = _artBackdrop; _G.fillRect(0, 0, _W, _H);
+  if (_artCanvas) {
+    _G.drawImage(_artCanvas,
+      camX - ART_MARGIN * _SCALE, camY - ART_MARGIN * _SCALE,
+      _artCanvas.width * _SCALE, _artCanvas.height * _SCALE);
+  }
+  LV_drawWaterShimmer(camX, camY, ts, t);
   var sx0 = Math.max(0, Math.floor(-camX / ts) - 1), sy0 = Math.max(0, Math.floor(-camY / ts) - 1);
   var sx1 = Math.min(_COLS, sx0 + Math.ceil(_W / ts) + 3), sy1 = Math.min(_ROWS, sy0 + Math.ceil(_H / ts) + 3);
-  // Tiles
-  for (var ty2 = sy0; ty2 < sy1; ty2++) for (var tx2 = sx0; tx2 < sx1; tx2++) {
+  // (legacy per-tile terrain pass removed — kept for reference below)
+  if (false) for (var ty2 = sy0; ty2 < sy1; ty2++) for (var tx2 = sx0; tx2 < sx1; tx2++) {
     var scx = camX + tx2 * ts, scy = camY + ty2 * ts;
     if (scx + ts < 0 || scx > _W || scy + ts < 0 || scy > _H) continue;
     if (!_fog[ty2][tx2]) { _G.fillStyle = _fogColor; _G.fillRect(scx, scy, ts + 1, ts + 1); continue; }
@@ -1726,8 +1862,8 @@ function LV_draw(t) {
       }
     }
   }
-  // Decorations: theme-specific elements along wall-to-floor borders
-  for (var dy = sy0; dy < sy1; dy++) for (var dx = sx0; dx < sx1; dx++) {
+  // Decorations: superseded by the art layer's crown/scatter passes
+  if (false) for (var dy = sy0; dy < sy1; dy++) for (var dx = sx0; dx < sx1; dx++) {
     if (!_fog[dy] || !_fog[dy][dx]) continue;
     var dtt = _map[dy][dx];
     if (dtt === LV_TW || dtt === LV_TS) continue;
@@ -1828,26 +1964,6 @@ function LV_draw(t) {
       _G.restore();
     }
   }
-  // Light pass: glowing objects softly light the tiles around them,
-  // so beacons/crystals/vents read as actual light sources in the
-  // scene instead of stickers on it. Few lights are ever on screen,
-  // so one radial gradient each is cheap.
-  for (var li = 0; li < _objs.length; li++) {
-    var lo = _objs[li];
-    if (_gs.dead[lo.id] || !lo.alive) continue;
-    var lightCol = LV_LIGHT_COLORS[lo.type];
-    if (!lightCol) continue;
-    if (!_fog[lo.ty] || !_fog[lo.ty][lo.tx]) continue;
-    var lsx = camX + lo.tx * ts + ts * 0.5, lsy = camY + lo.ty * ts + ts * 0.5;
-    var lr = ts * 2.1;
-    if (lsx + lr < 0 || lsx - lr > _W || lsy + lr < 0 || lsy - lr > _H) continue;
-    var pulse = 0.16 + Math.sin(t * 1.8 + lo.tx * 1.3) * 0.04;
-    var lg = _G.createRadialGradient(lsx, lsy, ts * 0.2, lsx, lsy, lr);
-    lg.addColorStop(0, 'rgba(' + lightCol + ',' + pulse + ')');
-    lg.addColorStop(1, 'rgba(' + lightCol + ',0)');
-    _G.fillStyle = lg;
-    _G.fillRect(lsx - lr, lsy - lr, lr * 2, lr * 2);
-  }
   // Objects
   for (var oi = 0; oi < _objs.length; oi++) {
     var o = _objs[oi];
@@ -1857,6 +1973,15 @@ function LV_draw(t) {
     if (!_fog[o.ty] || !_fog[o.ty][o.tx]) continue;
     var osx = camX + o.tx * ts, osy = camY + o.ty * ts;
     if (osx + ts < 0 || osx > _W || osy + ts < 0 || osy > _H) continue;
+    // Universal papercut contact shadow — grounds every item on the page
+    if (o.type !== 'monster' || !o.hidden) {
+      _G.save();
+      _G.fillStyle = 'rgba(31,61,63,0.22)';
+      _G.beginPath();
+      _G.ellipse(osx + ts * 0.5, osy + ts * 0.86, ts * 0.34, ts * 0.10, 0, 0, Math.PI * 2);
+      _G.fill();
+      _G.restore();
+    }
     // Draw activated phase 2 items with a golden glow ring
     if (isActivated) {
       var acx = osx + ts * 0.5, acy = osy + ts * 0.5;
@@ -1905,49 +2030,42 @@ function LV_draw(t) {
     else if (o.type === 'monster' && o.alive && o.hidden) LV_drawEncounterIndicator(osx, osy, ts, o, t);
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
-    else if (o.type === 'hero') LV_drawHeroPrison(osx, osy, ts, o, t);
     else if (o.type === 'doorway') LV_drawDoorway(osx, osy, ts, o, t);
-    else if (o.type === 'secretobj') LV_drawSecretObj(osx, osy, ts, o, t);
   }
   // Party — draw leader only (skip if external animated hero is used)
   if (!_skipCanvasHero) {
     var moving = (_party.vx !== 0 || _party.vy !== 0);
     LV_drawPartyMember(camX + _party.x * _SCALE, camY + _party.y * _SCALE, ts, 0, moving, t);
   }
-  // Fog overlay
-  for (var fy2 = sy0; fy2 < sy1; fy2++) for (var fx2 = sx0; fx2 < sx1; fx2++) {
-    if (_fog[fy2][fx2]) continue;
-    var fsx = camX + fx2 * ts, fsy = camY + fy2 * ts;
-    if (fsx + ts < 0 || fsx > _W || fsy + ts < 0 || fsy > _H) continue;
-    _G.fillStyle = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.86)'; _G.fillRect(fsx, fsy, ts + 1, ts + 1);
-  }
-  // Fog edge softening — two-pass for smooth transition
-  var fogEdgeCol = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.30)';
-  var fogEdgeCol2 = 'rgba(' + _fogR + ',' + _fogG + ',' + _fogB + ',0.15)';
-  for (var fy3 = sy0; fy3 < sy1; fy3++) for (var fx3 = sx0; fx3 < sx1; fx3++) {
-    if (!_fog[fy3][fx3]) continue;
-    var efx = camX + fx3 * ts, efy = camY + fy3 * ts;
-    if (efx + ts < 0 || efx > _W || efy + ts < 0 || efy > _H) continue;
-    var fogN = (fy3 > 0 && !_fog[fy3 - 1][fx3]);
-    var fogS = (fy3 < _ROWS - 1 && !_fog[fy3 + 1][fx3]);
-    var fogW = (fx3 > 0 && !_fog[fy3][fx3 - 1]);
-    var fogE = (fx3 < _COLS - 1 && !_fog[fy3][fx3 + 1]);
-    var adjCount = (fogN ? 1 : 0) + (fogS ? 1 : 0) + (fogW ? 1 : 0) + (fogE ? 1 : 0);
-    if (adjCount > 0) {
-      _G.fillStyle = adjCount >= 2 ? fogEdgeCol : fogEdgeCol2;
-      _G.fillRect(efx, efy, ts + 1, ts + 1);
+  // Fog overlay — soft organic edges: a 1-pixel-per-tile mask upscaled
+  // with bilinear smoothing, so the unexplored dark rolls off in a soft
+  // gradient instead of hard tile squares.
+  if (_fogMaskCanvas) {
+    // Unexplored area = BLANK PAPER: same tone as the backdrop, so the
+    // world reads as a papercut being revealed as you explore, and the
+    // surround never mismatches the fogged map.
+    _fogMaskG.clearRect(0, 0, _COLS, _ROWS);
+    _fogMaskG.globalAlpha = 0.97;
+    _fogMaskG.fillStyle = _artBackdrop;
+    for (var fy2 = 0; fy2 < _ROWS; fy2++) for (var fx2 = 0; fx2 < _COLS; fx2++) {
+      if (!_fog[fy2][fx2]) _fogMaskG.fillRect(fx2, fy2, 1, 1);
     }
+    _fogMaskG.globalAlpha = 1;
+    _G.save();
+    _G.imageSmoothingEnabled = true;
+    _G.drawImage(_fogMaskCanvas, camX - ts / 2, camY - ts / 2, _COLS * ts, _ROWS * ts);
+    _G.restore();
   }
   // Vignette (theme-tinted)
   var vigR = Math.min(_W, _H);
-  var vig = _G.createRadialGradient(_W / 2, _H / 2, vigR * 0.34, _W / 2, _H / 2, vigR * 0.82);
+  var vig = _G.createRadialGradient(_W / 2, _H / 2, vigR * 0.22, _W / 2, _H / 2, vigR * 0.68);
   var _vigTint = {
     1: 'rgba(6,18,4,', 2: 'rgba(4,12,20,', 3: 'rgba(12,16,24,',
     4: 'rgba(16,4,0,', 5: 'rgba(4,12,18,', 6: 'rgba(10,4,18,',
     7: 'rgba(12,10,4,', 8: 'rgba(6,4,2,', 9: 'rgba(4,2,8,',
   };
   var vigBase = _vigTint[_floorTheme] || 'rgba(0,0,0,';
-  vig.addColorStop(0, vigBase + '0)'); vig.addColorStop(0.75, vigBase + '0.08)'); vig.addColorStop(1, vigBase + '0.30)');
+  vig.addColorStop(0, vigBase + '0)'); vig.addColorStop(0.7, vigBase + '0.06)'); vig.addColorStop(1, vigBase + '0.22)');
   _G.fillStyle = vig; _G.fillRect(0, 0, _W, _H);
   // Flash
   if (_gs.flash > 0) { _G.fillStyle = 'rgba(156,32,32,' + (_gs.flash / 10 * 0.45) + ')'; _G.fillRect(0, 0, _W, _H); _gs.flash--; }
@@ -1985,21 +2103,9 @@ function LV_update(keys) {
     if (LV_walkable(_party.x, ny)) _party.y = ny;
     if (Math.abs(dx) > Math.abs(dy)) _party.facing = dx > 0 ? 'right' : 'left';
     else _party.facing = dy > 0 ? 'down' : 'up';
-    // Footfall dust: a soft puff kicked back from the feet on a walk
-    // rhythm — movement should stir the world.
-    if (_party.animT % 14 === 0) {
-      _deathParticles.push({
-        x: _party.x - dx * LV_TILE * 0.2 + (Math.random() - 0.5) * 6,
-        y: _party.y + LV_TILE * 0.28,
-        vx: -dx * 0.4 + (Math.random() - 0.5) * 0.5,
-        vy: -0.3 - Math.random() * 0.3,
-        col: 'rgba(210,195,170,0.55)',
-        t: 0, maxT: 16,
-      });
-    }
   }
   _party.vx = dx; _party.vy = dy;
-  LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 5);
+  LV_revealFog(Math.floor(_party.x / LV_TILE), Math.floor(_party.y / LV_TILE), 3);
   _party.animT++;
 }
 
@@ -2021,7 +2127,7 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   _H = height;
   _ROWS = map.length;
   _COLS = map[0].length;
-  _SCALE = _W / (LV_TILE * 16);   // ~16 visible columns — v1's 13.5 felt cramped
+  _SCALE = _W / (LV_TILE * 13.5);
   _map = map;
   _objs = objects;
   _heroCanvases = heroCanvases || [];
@@ -2064,7 +2170,16 @@ export function initLevel(width, height, map, objects, heroCanvases, startX, sta
   };
 
   // Reveal starting area
-  LV_revealFog(startX, startY, 5);
+  LV_revealFog(startX, startY, 3);
+
+  // Paint the papercut art layer (once — per-frame terrain is a blit)
+  LV_buildArtLayer();
+
+  // Low-res fog mask (1px per tile) for the soft-edge fog upscale
+  _fogMaskCanvas = document.createElement('canvas');
+  _fogMaskCanvas.width = _COLS;
+  _fogMaskCanvas.height = _ROWS;
+  _fogMaskG = _fogMaskCanvas.getContext('2d');
 
   // Dev/testing hook — inspect live engine state from the console when
   // the page was loaded with ?dev=...
@@ -2219,53 +2334,6 @@ export function markDead(id) {
   }
 }
 
-// Signature-secret interactables: a pulsing papercut medallion with an
-// emoji glyph (statue, bell, star, shard, pedestal, beggar, page…).
-// One draw covers every secret object type; the glyph carries theme.
-function LV_drawSecretObj(osx, osy, ts, o, t) {
-  var cx = osx + ts * 0.5, cy = osy + ts * 0.5;
-  var pulse = 0.5 + Math.sin(t * 2.4 + (o.tx || 0)) * 0.18;
-  var r = ts * 0.36;
-  _G.save();
-  _G.globalAlpha = pulse * 0.5;
-  var gl = _G.createRadialGradient(cx, cy, r * 0.2, cx, cy, r * 1.5);
-  gl.addColorStop(0, 'rgba(240,208,96,0.9)');
-  gl.addColorStop(1, 'rgba(240,208,96,0)');
-  _G.fillStyle = gl;
-  _G.fillRect(cx - r * 1.5, cy - r * 1.5, r * 3, r * 3);
-  _G.restore();
-  _G.save();
-  _G.fillStyle = 'rgba(31,61,63,0.35)';
-  _G.beginPath(); _G.arc(cx + 2, cy + 3, r, 0, Math.PI * 2); _G.fill();
-  _G.fillStyle = o.activatedLook ? '#f0d060' : '#f5eedd';
-  _G.beginPath(); _G.arc(cx, cy, r, 0, Math.PI * 2); _G.fill();
-  _G.strokeStyle = '#c09020';
-  _G.lineWidth = 2;
-  _G.beginPath(); _G.arc(cx, cy, r, 0, Math.PI * 2); _G.stroke();
-  _G.font = Math.round(ts * 0.44) + 'px sans-serif';
-  _G.textAlign = 'center';
-  _G.textBaseline = 'middle';
-  _G.fillText(o.glyph || '?', cx, cy + 1);
-  _G.restore();
-}
-
-/**
- * Slide an object to a new tile (pushable statues). The canvas redraw
- * picks the new position up next frame.
- */
-export function moveObject(id, tx, ty) {
-  for (var oi = 0; oi < _objs.length; oi++) {
-    if (_objs[oi].id === id) { _objs[oi].tx = tx; _objs[oi].ty = ty; return; }
-  }
-}
-
-/** Flip a secret object's medallion to its lit look (sequence progress). */
-export function setObjectLook(id, lit) {
-  for (var oi = 0; oi < _objs.length; oi++) {
-    if (_objs[oi].id === id) { _objs[oi].activatedLook = !!lit; return; }
-  }
-}
-
 /**
  * Mark an object as activated (phase 2 items glow instead of disappearing).
  * @param {string} id - Object id
@@ -2388,76 +2456,30 @@ export function getWallOverlays(grid, floorId) {
  * @param {number} heroRow - The hero's current tile row
  */
 export function drawForeground(heroRow) {
-  if (!_fgCanvas || !_fgG || !_canvas) return;
+  if (!_fgCanvas || !_fgG || !_wallsArtCanvas) return;
   _fgG.clearRect(0, 0, _W, _H);
 
-  var ts = LV_TILE * _SCALE;
   var camX = _W / 2 - _party.x * _SCALE;
   var camY = _H / 2 - _party.y * _SCALE;
-  var wallH = MAZE_PERSPECTIVE.heightFactor * ts;
+  var T = LV_TILE;
+  // Copy generous pads so crown bumps above and face extrusions below
+  // the cell are included; the walls-only source is transparent
+  // everywhere else, so pads can never smear backdrop or ground.
+  var padT = T * 0.55, padS = T * 0.35;
+  var padB = T * (MAZE_PERSPECTIVE.heightFactor + 0.45);
 
-  for (var ty = 0; ty < _ROWS; ty++) {
+  for (var ty = heroRow + 1; ty < _ROWS; ty++) {
     for (var tx = 0; tx < _COLS; tx++) {
       if (!_fog[ty] || !_fog[ty][tx]) continue;
       var tt = _map[ty][tx];
-      // We want wall tiles whose visual area is below the hero.
-      // A wall at row ty occupies screen from camY + ty*ts to camY + ty*ts + ts.
-      // Its south face extends further down by wallH.
-      // The hero is at row heroRow. Walls at rows > heroRow should be in
-      // foreground. Also walls at heroRow itself if they have a south face
-      // that extends below the hero center.
       if (tt !== LV_TW && tt !== LV_TS) continue;
-      // Only walls at rows after the hero row should be foreground
-      if (ty <= heroRow) continue;
-
-      var scx = camX + tx * ts;
-      var scy = camY + ty * ts;
-
-      // Determine the full vertical extent of this wall tile's rendering
-      var belowIsWall = (ty + 1 < _ROWS) && (_map[ty + 1][tx] === LV_TW);
-      var totalH = ts;
-      if (!belowIsWall) {
-        totalH = ts + wallH; // includes south-face extension
-      }
-
-      // Clip to canvas bounds
-      var srcX = Math.max(0, Math.floor(scx));
-      var srcY = Math.max(0, Math.floor(scy));
-      var srcW = Math.min(Math.ceil(ts + 1), _W - srcX);
-      var srcH = Math.min(Math.ceil(totalH + 1), _H - srcY);
-
-      if (srcW <= 0 || srcH <= 0) continue;
-      if (srcX >= _W || srcY >= _H) continue;
-
-      // Copy this wall region from the main canvas to the foreground canvas
-      _fgG.drawImage(_canvas, srcX, srcY, srcW, srcH, srcX, srcY, srcW, srcH);
-    }
-  }
-
-  // Also copy decorations that sit on floor tiles adjacent to foreground walls
-  // (these are drawn in the decoration pass of LV_draw and sit on floor tiles
-  // at rows > heroRow that border walls)
-  for (var dy = 0; dy < _ROWS; dy++) {
-    if (dy <= heroRow) continue;
-    for (var dx = 0; dx < _COLS; dx++) {
-      if (!_fog[dy] || !_fog[dy][dx]) continue;
-      var dtt = _map[dy][dx];
-      if (dtt === LV_TW || dtt === LV_TS) continue; // already copied above
-      // Check if this floor tile borders a wall (has decorations)
-      var northIsWall = (dy > 0) && (_map[dy - 1][dx] === LV_TW || _map[dy - 1][dx] === LV_TS);
-      var westIsWall = (dx > 0) && (_map[dy][dx - 1] === LV_TW);
-      var eastIsWall = (dx + 1 < _COLS) && (_map[dy][dx + 1] === LV_TW);
-      if (!northIsWall && !westIsWall && !eastIsWall) continue;
-
-      var dsx = camX + dx * ts;
-      var dsy = camY + dy * ts;
-      var dsrcX = Math.max(0, Math.floor(dsx));
-      var dsrcY = Math.max(0, Math.floor(dsy));
-      var dsrcW = Math.min(Math.ceil(ts + 1), _W - dsrcX);
-      var dsrcH = Math.min(Math.ceil(ts + 1), _H - dsrcY);
-      if (dsrcW <= 0 || dsrcH <= 0 || dsrcX >= _W || dsrcY >= _H) continue;
-
-      _fgG.drawImage(_canvas, dsrcX, dsrcY, dsrcW, dsrcH, dsrcX, dsrcY, dsrcW, dsrcH);
+      var sx = ART_MARGIN + tx * T - padS;
+      var sy = ART_MARGIN + ty * T - padT;
+      var sw = T + padS * 2;
+      var sh = T + padT + padB;
+      var dxp = camX + (tx * T - padS) * _SCALE;
+      var dyp = camY + (ty * T - padT) * _SCALE;
+      _fgG.drawImage(_wallsArtCanvas, sx, sy, sw, sh, dxp, dyp, sw * _SCALE, sh * _SCALE);
     }
   }
 }
@@ -2467,4 +2489,16 @@ export function drawForeground(heroRow) {
  */
 export function getForegroundCanvas() {
   return _fgCanvas;
+}
+
+// Ported from v2 for hero-rescue / secret-sequence gameplay compatibility.
+export function moveObject(id, tx, ty) {
+  for (var oi = 0; oi < _objs.length; oi++) {
+    if (_objs[oi].id === id) { _objs[oi].tx = tx; _objs[oi].ty = ty; return; }
+  }
+}
+export function setObjectLook(id, lit) {
+  for (var oi = 0; oi < _objs.length; oi++) {
+    if (_objs[oi].id === id) { _objs[oi].activatedLook = !!lit; return; }
+  }
 }
