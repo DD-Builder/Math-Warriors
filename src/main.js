@@ -7,7 +7,18 @@ import { checkForUpdate } from './systems/updateCheck.js';
 // stale cached build. Result is stashed for the title screen's version
 // label / manual "Update" fallback. Runs immediately, before boot.
 window.__MW_UPDATE = { current: true, running: null, latest: null };
-checkForUpdate().then((res) => { window.__MW_UPDATE = res; });
+checkForUpdate().then((res) => {
+  window.__MW_UPDATE = res;
+  // A silent hard-reload is imminent (updateCheck already fired it). Keep the
+  // loading veil up and relabel it so the player never touches the stale
+  // build's menu in the brief window before the navigation lands — this
+  // enforces "force update before play begins".
+  if (res && res.reloading) {
+    window.__MW_RELOADING = true;
+    const el = document.getElementById('loading');
+    if (el) { el.textContent = 'UPDATING TO LATEST VERSION…'; el.classList.remove('hidden'); }
+  }
+});
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { GradeSelectScene } from './scenes/GradeSelectScene.js';
@@ -160,7 +171,9 @@ setInterval(() => {
 // secrets to protect.
 window.__MW = { game, scenes: SCENES };
 
-// Hide the HTML loading overlay once the first scene reports ready.
+// Hide the HTML loading overlay once the first scene reports ready — unless
+// an auto-update reload is in flight, in which case we keep the veil up
+// (showing "Updating…") so no stale UI flashes before the navigation lands.
 game.events.once('ready', () => {
-  if (loadingEl) loadingEl.classList.add('hidden');
+  if (loadingEl && !window.__MW_RELOADING) loadingEl.classList.add('hidden');
 });
