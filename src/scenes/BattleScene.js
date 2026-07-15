@@ -42,6 +42,7 @@ import { BATTLE_DEPTH } from '../ui/depths.js';
 import { getQuestionTimer, SOFT_TIMER_BONUS } from '../systems/battleTimer.js';
 import { canTriggerSpecial, specialOperator, resolveSpecial, specialTimerMs } from '../systems/specialRules.js';
 import { playBossEntrance, showIntentBadge, playBossTelegraph, getBossMove, isSpecialTurn, isTelegraphTurn, specialDamagePerHero } from '../systems/bossPresentation.js';
+import { getBossRig } from '../systems/bossRigs.js';
 import { createNumpad } from '../ui/numpad.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
@@ -274,6 +275,7 @@ export class BattleScene extends Phaser.Scene {
       this.time.removeAllEvents();
       if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
       if (this.envState) destroyEnvironmentState(this.envState);
+      if (this._arenaHandle && this._arenaHandle.destroy) this._arenaHandle.destroy();
     });
 
     this.buildBackground();
@@ -357,7 +359,9 @@ export class BattleScene extends Phaser.Scene {
       if (this.party[0]) {
         this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
       }
-      playBossEntrance(this, this.enemySprites[0], this.enemies[0], () => this.nextTurn());
+      const rig = getBossRig(this.enemies[0].id);
+      const entranceDone = this._onceWithWatchdog(() => this.nextTurn(), 4000);
+      (rig.entrance || playBossEntrance)(this, this.enemySprites[0], this.enemies[0], entranceDone);
     } else {
       this.time.delayedCall(400, () => this.nextTurn());
     }
@@ -410,6 +414,15 @@ export class BattleScene extends Phaser.Scene {
 
     // Legacy: still draw themed details on top for extra richness
     this.drawBattleThemeDetails(bgHeight);
+
+    // Boss arena garnish — a cheap themed layer behind the actors. Runs
+    // before enemy sprites exist, so rigs draw at stage coordinates and
+    // must tolerate null spriteData.
+    if (this.isBoss) {
+      try {
+        this._arenaHandle = getBossRig(this.enemies?.[0]?.id ?? this.enemyId).arena?.(this, null) || null;
+      } catch { this._arenaHandle = null; }
+    }
 
     const sceneName = this.registry.get('battleSceneName') || '';
     const questLabel = sceneName ? `QUEST ${this.floor} — ${sceneName}` : `QUEST ${this.floor}`;
@@ -2374,21 +2387,38 @@ export class BattleScene extends Phaser.Scene {
     const move = getBossMove(boss.id);
     this.showToast(`${boss.name} unleashes ${move.name}!`, '#e86040');
     playBossTelegraph(this, bossSprite, boss, () => {
+      // Precompute per-hero damage WITHOUT mutating hp — the rig only
+      // performs; done() applies exactly this. Damage math is untouched.
       const living = this.party.filter(h => h && h.hp > 0);
-      for (const hero of living) {
+      const plan = living.map(hero => {
         const heroIdx = this.party.indexOf(hero);
         const result = computeEnemyDamage(boss, hero, { momentum: this.momentum });
         let dmg = specialDamagePerHero(result.modifiedDamage);
         if (heroIdx >= 0 && this.guardActive[heroIdx]) dmg = Math.max(1, Math.ceil(dmg / 2));
-        hero.hp = Math.max(0, hero.hp - dmg);
-        this.flashHero(hero, { modifiedDamage: dmg, newHp: hero.hp });
-        this.updateHeroHp(hero);
-      }
-      audio.play('battle/hit-hero');
-      this.cameras.main.shake(260, 0.012);
-      this.battleDamageTaken = true;
-      if (this.party.every(h => !h || h.hp <= 0)) return this.showDefeat();
-      this.time.delayedCall(600, () => this.nextTurn());
+        return { hero, dmg };
+      });
+      const perHeroDamage = plan.map(p => p.dmg);
+
+      // Apply-and-advance, fired once when the rig finishes (watchdog at 5s).
+      const done = this._onceWithWatchdog(() => {
+        for (const { hero, dmg } of plan) {
+          hero.hp = Math.max(0, hero.hp - dmg);
+          this.flashHero(hero, { modifiedDamage: dmg, newHp: hero.hp });
+          this.updateHeroHp(hero);
+        }
+        audio.play('battle/hit-hero');
+        this.cameras.main.shake(260, 0.012);
+        this.battleDamageTaken = true;
+        if (this.party.every(h => !h || h.hp <= 0)) return this.showDefeat();
+        this.time.delayedCall(600, () => this.nextTurn());
+      }, 5000);
+
+      getBossRig(boss.id).special(this, bossSprite, {
+        party: this.party,
+        heroSprites: this.heroSprites,
+        perHeroDamage,
+        reducedMotion: this.reducedMotion,
+      }, done);
     });
   }
 
