@@ -509,6 +509,20 @@ export function drawCharacter(ctx, heroId, pose, opts = {}) {
   ctx.restore();
 }
 
+/**
+ * Purchased-skin recolor for a hero, or null for the default look.
+ * Returns the variant's dominant papercut tones so the original-art
+ * renderer can wash a bought skin (Golden/Crimson/Frost/…) over the
+ * hand-drawn sprite without re-arting it. Default skins keep the
+ * hero's original palette untouched.
+ */
+export function skinVariantTint(heroId, skinId) {
+  if (!skinId || skinId === 'default') return null;
+  const v = SKIN_VARIANTS[`${heroId}:${skinId}`];
+  if (!v) return null;
+  return { body: v.body, bodyL: v.bodyL || v.body, accent: v.accent || v.body };
+}
+
 /** Standing height in model units (for sizing render canvases). */
 export function characterHeight(heroId) {
   const P = PROPORTIONS[CLASS_OF(heroId)];

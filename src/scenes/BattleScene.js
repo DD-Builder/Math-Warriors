@@ -4,7 +4,7 @@ import { generateQuestion, generateRatedQuestion, recordAnswer } from '../system
 import { nextReview, buildReviewQuestion, scheduleReview, tickReview } from '../systems/review.js';
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
-import { recordSkillAnswer, getAdaptiveGrade, updateAdaptiveLevel, biasedMixedOperator } from '../systems/mastery.js';
+import { recordSkillAnswer, getAdaptiveGrade, updateAdaptiveLevel, biasedMixedOperator, recordHintUsed } from '../systems/mastery.js';
 import {
   getZone,
   advanceMomentum,
@@ -42,6 +42,8 @@ import { BATTLE_DEPTH } from '../ui/depths.js';
 import { getQuestionTimer, SOFT_TIMER_BONUS } from '../systems/battleTimer.js';
 import { canTriggerSpecial, specialOperator, resolveSpecial, specialTimerMs } from '../systems/specialRules.js';
 import { playBossEntrance, showIntentBadge, playBossTelegraph, getBossMove, isSpecialTurn, isTelegraphTurn, specialDamagePerHero } from '../systems/bossPresentation.js';
+import { getBossRig } from '../systems/bossRigs.js';
+import { advanceSpireRun } from '../systems/spire.js';
 import { createNumpad } from '../ui/numpad.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
@@ -55,6 +57,12 @@ import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../syste
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
 import { getHint, getWhy } from '../systems/hints.js';
+import {
+  createCoachQuestionState, takeHint, hintDamageMult, applyHintMomentum,
+  retryEligible, eliminateForRetry, retryDamageMult, HINT_TIERS,
+} from '../systems/coach.js';
+import { showCoachChip, FLOOR_GUIDES } from '../ui/coachChip.js';
+import { drawGuidePortrait } from '../ui/guideArt.js';
 import { recordBattle, getBondStatBonuses, getAvailableCombos } from '../systems/bonds.js';
 import { getEvolutionStatBoosts, getEvolutionStage } from '../systems/evolution.js';
 import {
@@ -97,6 +105,14 @@ export class BattleScene extends Phaser.Scene {
     this._answerProcessing = false;
     this._counterAttackDefeated = false;
     this._activeHintDismiss = null;
+    // Math Coach — per-question hint ladder + one scaffolded retry.
+    this._coachState = null;
+    this._retryPending = false;
+    this._retryUsedThisQuestion = false;
+    this._timerAutoAnswered = false;
+    this._retryEliminated = null;
+    this._activeCoachChip = null;
+    this._coachBtn = null;
 
     // Party: use provided or default to one of each class
     if (data?.party && data.party.length === 3) {
@@ -244,6 +260,8 @@ export class BattleScene extends Phaser.Scene {
 
     // Boss Rush mode
     this.bossRush = !!data?.bossRush;
+    // Endless Spire mode
+    this.spire = !!data?.spire;
 
     // Command menu state (Phase 2: Streamlined Commander)
     this.selectedCommand = null;        // 'fight', 'magic', or 'guard'
@@ -260,6 +278,7 @@ export class BattleScene extends Phaser.Scene {
       this.time.removeAllEvents();
       if (this.parallaxState) destroyParallaxBackground(this.parallaxState);
       if (this.envState) destroyEnvironmentState(this.envState);
+      if (this._arenaHandle && this._arenaHandle.destroy) this._arenaHandle.destroy();
     });
 
     this.buildBackground();
@@ -343,7 +362,9 @@ export class BattleScene extends Phaser.Scene {
       if (this.party[0]) {
         this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
       }
-      playBossEntrance(this, this.enemySprites[0], this.enemies[0], () => this.nextTurn());
+      const rig = getBossRig(this.enemies[0].id);
+      const entranceDone = this._onceWithWatchdog(() => this.nextTurn(), 4000);
+      (rig.entrance || playBossEntrance)(this, this.enemySprites[0], this.enemies[0], entranceDone);
     } else {
       this.time.delayedCall(400, () => this.nextTurn());
     }
@@ -396,6 +417,15 @@ export class BattleScene extends Phaser.Scene {
 
     // Legacy: still draw themed details on top for extra richness
     this.drawBattleThemeDetails(bgHeight);
+
+    // Boss arena garnish — a cheap themed layer behind the actors. Runs
+    // before enemy sprites exist, so rigs draw at stage coordinates and
+    // must tolerate null spriteData.
+    if (this.isBoss) {
+      try {
+        this._arenaHandle = getBossRig(this.enemies?.[0]?.id ?? this.enemyId).arena?.(this, null) || null;
+      } catch { this._arenaHandle = null; }
+    }
 
     const sceneName = this.registry.get('battleSceneName') || '';
     const questLabel = sceneName ? `QUEST ${this.floor} — ${sceneName}` : `QUEST ${this.floor}`;
@@ -928,6 +958,8 @@ export class BattleScene extends Phaser.Scene {
         onClick: () => {
           if (this.locked) return;
           if (this._consumedButtonIdx === i) return;
+          // During a scaffolded retry the two eliminated buttons are dead.
+          if (this._retryPending && this._retryEliminated && this._retryEliminated.includes(i)) return;
           audio.play('ui/click');
           this.onAnswer(i);
         },
@@ -938,6 +970,18 @@ export class BattleScene extends Phaser.Scene {
         seed,
       });
     }
+
+    // Coach "?" — pre-answer hint ladder (tip → scaffold). Sits at the
+    // equation panel's right edge, hidden until a question is on screen.
+    // Tapping it never blocks answering; each rung trades some power.
+    this._coachBtn = PaperButton(this, area.right - 44, eqY - 6, '?', {
+      w: 48, h: 48, color: PAPER.inkTeal, fontSize: 30, seed: 7777,
+      onClick: () => this.onCoachHint(),
+    });
+    for (const el of [this._coachBtn.shadow, this._coachBtn.bg, this._coachBtn.label, this._coachBtn.zone]) {
+      if (el) el.setDepth(BATTLE_DEPTH.ANSWER_BTNS);
+    }
+    this._setCoachBtnVisible(false);
 
     // Colorblind mode: draw shape icons on answer buttons + momentum bar patterns
     if (this.save.settings.colorblindMode) {
@@ -1615,6 +1659,8 @@ export class BattleScene extends Phaser.Scene {
         if (this.phase !== 'question' || this.locked) return;
         if (timerSpec.hard) {
           this.showToast('TIME UP!', COLORS_CSS.scarletL);
+          // A timed-out auto-answer gets no scaffolded retry.
+          this._timerAutoAnswered = true;
           const wrongIdx = [0,1,2,3].find(i => i !== this.currentQuestion.correctIndex) ?? 0;
           this.onAnswer(wrongIdx);
         } else {
@@ -1643,6 +1689,30 @@ export class BattleScene extends Phaser.Scene {
       if (btn.shadow) btn.shadow.setVisible(visible);
       if (btn.label) btn.label.setVisible(visible);
       if (btn.zone) btn.zone.setVisible(visible);
+    }
+    this._setCoachBtnVisible(visible);
+  }
+
+  _setCoachBtnVisible(visible) {
+    if (!this._coachBtn) return;
+    for (const el of [this._coachBtn.bg, this._coachBtn.shadow, this._coachBtn.label, this._coachBtn.zone]) {
+      if (el) el.setVisible(visible);
+    }
+  }
+
+  // Advance the pre-answer hint ladder: tier 1 pops the guide's face with
+  // a strategy tip; tier 2 opens the worked scaffold (answer masked).
+  onCoachHint() {
+    if (this.phase !== 'question' || !this.currentQuestion || this.locked) return;
+    const h = takeHint(this._coachState, this.currentQuestion);
+    if (!h) return; // already at the top rung
+    recordHintUsed(this.save, this.currentQuestion?.op, h.tier);
+    audio.play('ui/click');
+    if (h.tier === HINT_TIERS.TIP) {
+      if (this._activeCoachChip) this._activeCoachChip.destroy();
+      this._activeCoachChip = showCoachChip(this, this.floor, h.text);
+    } else {
+      this.showScaffoldOverlay(this.currentQuestion, h.text);
     }
   }
 
@@ -1677,6 +1747,8 @@ export class BattleScene extends Phaser.Scene {
     if (this._activeHintDismiss) {
       this._activeHintDismiss();
     }
+    if (this._activeCoachChip) { this._activeCoachChip.destroy(); this._activeCoachChip = null; }
+    this._setCoachBtnVisible(false);
 
     if (isPartyDefeated(this.party)) return this.showDefeat();
     if (this.allEnemiesDead()) return this.showVictory();
@@ -1949,6 +2021,12 @@ export class BattleScene extends Phaser.Scene {
   }
 
   _makeQuestion(opts) {
+    // Fresh coach state for each presented question.
+    this._coachState = createCoachQuestionState();
+    this._retryUsedThisQuestion = false;
+    this._retryPending = false;
+    this._timerAutoAnswered = false;
+    this._retryEliminated = null;
     tickReview(this.save);
     const due = nextReview(this.save);
     if (due && Math.random() < 0.4) {
@@ -2312,21 +2390,38 @@ export class BattleScene extends Phaser.Scene {
     const move = getBossMove(boss.id);
     this.showToast(`${boss.name} unleashes ${move.name}!`, '#e86040');
     playBossTelegraph(this, bossSprite, boss, () => {
+      // Precompute per-hero damage WITHOUT mutating hp — the rig only
+      // performs; done() applies exactly this. Damage math is untouched.
       const living = this.party.filter(h => h && h.hp > 0);
-      for (const hero of living) {
+      const plan = living.map(hero => {
         const heroIdx = this.party.indexOf(hero);
         const result = computeEnemyDamage(boss, hero, { momentum: this.momentum });
         let dmg = specialDamagePerHero(result.modifiedDamage);
         if (heroIdx >= 0 && this.guardActive[heroIdx]) dmg = Math.max(1, Math.ceil(dmg / 2));
-        hero.hp = Math.max(0, hero.hp - dmg);
-        this.flashHero(hero, { modifiedDamage: dmg, newHp: hero.hp });
-        this.updateHeroHp(hero);
-      }
-      audio.play('battle/hit-hero');
-      this.cameras.main.shake(260, 0.012);
-      this.battleDamageTaken = true;
-      if (this.party.every(h => !h || h.hp <= 0)) return this.showDefeat();
-      this.time.delayedCall(600, () => this.nextTurn());
+        return { hero, dmg };
+      });
+      const perHeroDamage = plan.map(p => p.dmg);
+
+      // Apply-and-advance, fired once when the rig finishes (watchdog at 5s).
+      const done = this._onceWithWatchdog(() => {
+        for (const { hero, dmg } of plan) {
+          hero.hp = Math.max(0, hero.hp - dmg);
+          this.flashHero(hero, { modifiedDamage: dmg, newHp: hero.hp });
+          this.updateHeroHp(hero);
+        }
+        audio.play('battle/hit-hero');
+        this.cameras.main.shake(260, 0.012);
+        this.battleDamageTaken = true;
+        if (this.party.every(h => !h || h.hp <= 0)) return this.showDefeat();
+        this.time.delayedCall(600, () => this.nextTurn());
+      }, 5000);
+
+      getBossRig(boss.id).special(this, bossSprite, {
+        party: this.party,
+        heroSprites: this.heroSprites,
+        perHeroDamage,
+        reducedMotion: this.reducedMotion,
+      }, done);
     });
   }
 
@@ -2352,6 +2447,8 @@ export class BattleScene extends Phaser.Scene {
     this._counterAttackDefeated = false;
     this.locked = true;
     this.clearBossTimer();
+    this._setCoachBtnVisible(false);
+    if (this._activeCoachChip) { this._activeCoachChip.destroy(); this._activeCoachChip = null; }
     hidePanelFx(this.panelFx);
 
     // Clean up signature UI elements
@@ -2364,15 +2461,19 @@ export class BattleScene extends Phaser.Scene {
     const correct = index === this.currentQuestion.correctIndex;
     const btn = this.answerButtons[index];
 
-    // Phase 2.1: Record answer for spaced repetition & adaptive difficulty
-    recordAnswer(correct);
-    recordSkillAnswer(this.save, this.currentQuestion?.op, correct);
-    // Upgrade 1: adjust the child's per-skill adaptive level; stash an
-    // up-promotion so it can be celebrated (wired to visuals in U9).
-    const levelChange = updateAdaptiveLevel(this.save, this.currentQuestion?.op);
-    if (levelChange.changed && levelChange.direction === 'up') this._pendingLevelUp = levelChange;
-    // Upgrade 2: update the persistent spaced-repetition schedule.
-    scheduleReview(this.save, this.currentQuestion, correct);
+    // Phase 2.1: Record answer for spaced repetition & adaptive difficulty.
+    // A scaffolded retry records nothing new — mastery/SM-2/adaptive keep
+    // the FIRST attempt; the retry only restores lost attack power.
+    if (!this._retryPending) {
+      recordAnswer(correct);
+      recordSkillAnswer(this.save, this.currentQuestion?.op, correct);
+      // Upgrade 1: adjust the child's per-skill adaptive level; stash an
+      // up-promotion so it can be celebrated (wired to visuals in U9).
+      const levelChange = updateAdaptiveLevel(this.save, this.currentQuestion?.op);
+      if (levelChange.changed && levelChange.direction === 'up') this._pendingLevelUp = levelChange;
+      // Upgrade 2: update the persistent spaced-repetition schedule.
+      scheduleReview(this.save, this.currentQuestion, correct);
+    }
 
     if (correct) {
       this.recolorAnswerButton(index, 0x40c040, 1);
@@ -2381,7 +2482,10 @@ export class BattleScene extends Phaser.Scene {
 
       this.streak++;
       this.battleCorrect++;
+      const _preHintM = this.momentum;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
+      // Hints dampen the momentum gain (full → 60% → 30% by hint tier).
+      this.momentum = applyHintMomentum(_preHintM, this.momentum, this._coachState?.tier || 0);
       // Beating a soft (bonus) timer earns a sparkle of extra momentum
       if (this.bossTimerBar && !this._timerHard && !this._softTimerExpired) {
         this.momentum = Math.min(1, this.momentum + SOFT_TIMER_BONUS);
@@ -2555,6 +2659,13 @@ export class BattleScene extends Phaser.Scene {
       });
 
       let abilityDmg = sigDmg;
+      // Coach penalties: a hint (by tier) and/or a rescued retry each trim
+      // attack power. A damage floor downstream keeps hits meaningful.
+      const _hintMult = hintDamageMult(this._coachState?.tier || 0);
+      let _powerReduced = false;
+      if (_hintMult < 1) { abilityDmg = Math.round(abilityDmg * _hintMult); _powerReduced = true; }
+      if (this._retryPending) { abilityDmg = Math.round(abilityDmg * retryDamageMult()); _powerReduced = true; }
+      if (_powerReduced) this.showToast('Hint used — reduced power', '#c8a86a');
       if (this.manaSurgeActive) {
         abilityDmg = Math.round(abilityDmg * 2);
         this.manaSurgeActive = false;
@@ -2713,6 +2824,20 @@ export class BattleScene extends Phaser.Scene {
         });
       }
     } else {
+      // Offer one scaffolded second chance (an untimed 50/50) before any
+      // penalty lands. While a retry is pending the turn does NOT advance,
+      // the correct answer is NOT revealed, and the counter-attack /
+      // onHeroWrong below are deferred to the final wrong. The retry
+      // records no new stats — the first-attempt bookkeeping ran above.
+      if (!this._retryPending && retryEligible(this.currentQuestion, {
+        retryUsed: this._retryUsedThisQuestion,
+        consumedButtonIdx: this._consumedButtonIdx,
+        timedOut: this._timerAutoAnswered,
+      })) {
+        this.offerRetry(index);
+        return;
+      }
+
       this.recolorAnswerButton(index, 0xc04040, 1);
       this.recolorAnswerButton(this.currentQuestion.correctIndex, 0x40c040, 1);
 
@@ -2819,6 +2944,44 @@ export class BattleScene extends Phaser.Scene {
         }
       }
     });
+  }
+
+  /**
+   * Rescue a wrong answer with one scaffolded 50/50: dim the child's own
+   * wrong pick plus the farthest distractor, leaving the answer and the
+   * closest distractor lit. Untimed (the boss timer was already cleared),
+   * kid-friendly, and worth half power on the retry. Re-opens input.
+   */
+  offerRetry(pickedIndex) {
+    this._retryPending = true;
+    this._retryUsedThisQuestion = true;
+    audio.play('battle/wrong');
+
+    const elim = eliminateForRetry(this.currentQuestion, pickedIndex);
+    this._retryEliminated = elim;
+    // Kill any in-flight question fade-in on the eliminated buttons first,
+    // or it would animate their alpha back to 1 and undo the dim.
+    for (const idx of elim) {
+      const b = this.answerButtons[idx];
+      this.tweens.killTweensOf([b.bg, b.shadow, b.label].filter(Boolean));
+      if (b.label) b.label.y = this.answerBtnLayout.y;
+    }
+    // The wrong pick shows a faded red; the other eliminated button fades
+    // to its base tone. Both are inert (guarded in the answer onClick).
+    this.recolorAnswerButton(pickedIndex, 0xc04040, 0.4);
+    for (const idx of elim) {
+      if (idx === pickedIndex) continue;
+      this.recolorAnswerButton(idx, this.answerButtons[idx].baseColor, 0.25);
+    }
+
+    if (this._activeCoachChip) this._activeCoachChip.destroy();
+    this._activeCoachChip = showCoachChip(this, this.floor,
+      getWhy(this.currentQuestion) + '\nTry once more!', { expression: 'excited' });
+
+    // Re-open input for the second try. No advance timer runs — the caller
+    // returned before scheduling one — so the retry window is untimed.
+    this._answerProcessing = false;
+    this.locked = false;
   }
 
   // ================================================================
@@ -3374,6 +3537,66 @@ export class BattleScene extends Phaser.Scene {
     const dismissTimer = this.time.delayedCall(6000, dismissHint);
   }
 
+  /**
+   * Pre-answer scaffold overlay: the worked steps with the answer masked
+   * (tier-2 coach hint), fronted by the floor guide. Never reveals the
+   * result — the child still has to solve it. Same locked-overlay
+   * lifecycle as showHintOverlay so nextTurn() can force it closed.
+   */
+  showScaffoldOverlay(question, text) {
+    const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
+    this.locked = true;
+
+    const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5)
+      .setDepth(BATTLE_DEPTH.HINT).setInteractive();
+    const panel = PaperPanel(this, area.cx, area.cy - 20, 640, 230, {
+      color: 0xf5ead0, alpha: 0.97, radius: 20,
+    });
+    if (panel.bg) panel.bg.setDepth(BATTLE_DEPTH.HINT + 1);
+    if (panel.shadow) panel.shadow.setDepth(BATTLE_DEPTH.HINT);
+
+    // Guide badge in the panel's top-left corner, out of the text column.
+    const speaker = FLOOR_GUIDES[this.floor] || 'Elara';
+    const portrait = drawGuidePortrait(this, area.cx - 268, area.cy - 96, speaker, { r: 34, expression: 'neutral' });
+    portrait.setDepth(BATTLE_DEPTH.HINT + 2);
+
+    // Centered text with generous wrap — same proven layout as the hint
+    // overlay, so long scaffolds wrap instead of clipping the panel.
+    const scaffoldLabel = this.add.text(area.cx, area.cy - 28, text, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '22px', color: '#3a2410', align: 'center',
+      lineSpacing: 4,
+      wordWrap: { width: 560 },
+    }).setOrigin(0.5).setDepth(BATTLE_DEPTH.HINT + 2);
+
+    const gotItBtn = PaperButton(this, area.cx, area.cy + 66, 'GOT IT', {
+      w: 200, h: 54, color: 0x4aa848, fontSize: 22,
+    });
+    for (const el of [gotItBtn.bg, gotItBtn.shadow]) if (el) el.setDepth(BATTLE_DEPTH.HINT + 3);
+    if (gotItBtn.label) gotItBtn.label.setDepth(BATTLE_DEPTH.HINT + 4);
+    if (gotItBtn.zone) gotItBtn.zone.setDepth(BATTLE_DEPTH.HINT + 4);
+
+    const elements = [overlayBg, scaffoldLabel, portrait];
+    if (panel.bg) elements.push(panel.bg);
+    if (panel.shadow) elements.push(panel.shadow);
+    elements.push(gotItBtn.bg, gotItBtn.shadow, gotItBtn.label);
+    if (gotItBtn.zone) elements.push(gotItBtn.zone);
+
+    let dismissed = false;
+    const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
+      this._activeHintDismiss = null;
+      if (dismissTimer) dismissTimer.remove();
+      elements.forEach(el => { if (el && el.scene) el.destroy(); });
+      if (this.phase === 'question' || this.phase === 'command') this.locked = false;
+    };
+    this._activeHintDismiss = dismiss;
+    overlayBg.on('pointerdown', dismiss);
+    if (gotItBtn.zone) gotItBtn.zone.on('pointerdown', dismiss);
+    const dismissTimer = this.time.delayedCall(8000, dismiss);
+  }
+
   // ================================================================
   // PAUSE OVERLAY
   // ================================================================
@@ -3470,6 +3693,7 @@ export class BattleScene extends Phaser.Scene {
     this.phase = 'end';
     this.locked = true;
 
+    if (this._activeCoachChip) { this._activeCoachChip.destroy(); this._activeCoachChip = null; }
     this.clearEquationDisplay();
     if (this._revealWrongMark) { this._revealWrongMark.destroy(); this._revealWrongMark = null; }
     if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
@@ -3561,8 +3785,10 @@ export class BattleScene extends Phaser.Scene {
 
     // Mark floor complete on boss defeat. If we came directly from the
     // world map (no maze wrapper), any win counts so the progression
-    // still advances on the fast path.
-    if (this.isBoss || this.returnScene === SCENES.WORLD_MAP) {
+    // still advances on the fast path. But Boss Rush and Spire fights must
+    // NEVER flip real floor progression — a Spire boss (unlocked at Floor 3)
+    // would otherwise complete unbeaten floors and unlock heroes early.
+    if ((this.isBoss && !this.bossRush && !this.spire) || this.returnScene === SCENES.WORLD_MAP) {
       markFloorComplete(save, this.floor);
       const newHeroes = unlockHeroesForFloor(save, this.floor);
       if (newHeroes.length > 0) {
@@ -3624,6 +3850,17 @@ export class BattleScene extends Phaser.Scene {
           rushState.endTime = Date.now();
         }
         this.registry.set('bossRushState', rushState);
+      }
+    }
+
+    // Endless Spire: advance the run on victory (floor++, bank gold).
+    if (this.spire) {
+      const st = this.registry.get('spireState');
+      if (st) {
+        this.registry.set('spireState', advanceSpireRun(st, {
+          won: true, correct: this.battleCorrect, wrong: this.battleWrong,
+          party: this.party.map(h => ({ ...h })),
+        }));
       }
     }
 
@@ -3781,6 +4018,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.tryRevive()) return;
     this.phase = 'end';
     this.locked = true;
+    if (this._activeCoachChip) { this._activeCoachChip.destroy(); this._activeCoachChip = null; }
     this.clearEquationDisplay();
     if (this._revealWrongMark) { this._revealWrongMark.destroy(); this._revealWrongMark = null; }
     if (this._timerBonusLabel) { this._timerBonusLabel.destroy(); this._timerBonusLabel = null; }
@@ -3835,6 +4073,17 @@ export class BattleScene extends Phaser.Scene {
         rushState.defeated = true;
         rushState.endTime = Date.now();
         this.registry.set('bossRushState', rushState);
+      }
+    }
+
+    // Endless Spire: mark the run defeated (floor unchanged).
+    if (this.spire) {
+      const st = this.registry.get('spireState');
+      if (st) {
+        this.registry.set('spireState', advanceSpireRun(st, {
+          won: false, correct: this.battleCorrect, wrong: this.battleWrong,
+          party: this.party.map(h => ({ ...h })),
+        }));
       }
     }
 

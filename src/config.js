@@ -112,6 +112,7 @@ export const SCENES = {
   BOSS_RUSH: 'BossRushScene',
   EVOLUTION: 'EvolutionScene',
   GALLERY: 'GalleryScene',
+  TOWER: 'TowerScene',
 };
 
 // Safe margin from screen edges (pixels). All UI MUST stay inside this.
@@ -122,6 +123,6 @@ export const SCENES = {
 export const MARGIN = 40;
 export const BOTTOM_SAFE = 120;
 export const TOP_SAFE = 60;
-export const VERSION = '0.7.0';
+export const VERSION = '0.8.0';
 
 export function mazeStateKey(floorId) { return `mazeState_${floorId}`; }

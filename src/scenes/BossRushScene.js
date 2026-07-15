@@ -161,7 +161,7 @@ export class BossRushScene extends Phaser.Scene {
       textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/click');
-        transitionTo(this, SCENES.ENDING, undefined, 400);
+        transitionTo(this, SCENES.TOWER, undefined, 400);
       },
     });
   }
@@ -319,6 +319,11 @@ export class BossRushScene extends Phaser.Scene {
     const bonusGold = stars * 50;
     save.gold = (save.gold || 0) + bonusGold;
     save.stats.totalGold = (save.stats.totalGold || 0) + bonusGold;
+    // Record best clear time (the start screen already reads this).
+    if (rushState.bossesDefeated === 9) {
+      const t = rushState.endTime - rushState.startTime;
+      if (!save.stats.bestBossRushTime || t < save.stats.bestBossRushTime) save.stats.bestBossRushTime = t;
+    }
     writeSave(save, slot);
 
     this.add.text(area.cx, area.cy + 120, `+${bonusGold} GOLD bonus!`, {
@@ -333,7 +338,7 @@ export class BossRushScene extends Phaser.Scene {
       textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/confirm');
-        transitionTo(this, SCENES.ENDING, undefined, 400);
+        transitionTo(this, SCENES.TOWER, undefined, 400);
       },
     });
   }
@@ -376,7 +381,7 @@ export class BossRushScene extends Phaser.Scene {
       textColor: PAPER_CSS.cream,
       onClick: () => {
         audio.play('ui/confirm');
-        transitionTo(this, SCENES.ENDING, undefined, 400);
+        transitionTo(this, SCENES.TOWER, undefined, 400);
       },
     });
   }
