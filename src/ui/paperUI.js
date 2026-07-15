@@ -227,35 +227,24 @@ export function PaperButton(scene, x, y, text, opts = {}) {
   const zone = hitZone(scene, x, y, w, h);
 
   if (opts.onClick) {
+    // Press feedback nudges the WHOLE button down a few px. We must NOT
+    // scale here: bg/shadow are Graphics with origin (0,0), so scaling them
+    // pivots about the canvas corner and the paper shape visibly slides out
+    // from under the (properly-centred) label. A uniform y-translate presses
+    // every piece together and reads as a real button press.
     const btnTargets = [bg, shadow, label, zone];
-    zone.on('pointerdown', () => {
-      scene.tweens.add({
-        targets: btnTargets,
-        scaleX: 0.97,
-        scaleY: 0.97,
-        duration: 50,
-        ease: 'Sine.out',
-      });
-    });
-    zone.on('pointerup', () => {
-      opts.onClick();
-      scene.tweens.add({
-        targets: btnTargets,
-        scaleX: 1.0,
-        scaleY: 1.0,
-        duration: 100,
-        ease: 'Sine.out',
-      });
-    });
-    zone.on('pointerout', () => {
-      // Reset if pointer leaves without releasing
-      scene.tweens.add({
-        targets: btnTargets,
-        scaleX: 1.0,
-        scaleY: 1.0,
-        duration: 100,
-      });
-    });
+    let pressed = false;
+    const down = () => {
+      if (pressed) return; pressed = true;
+      scene.tweens.add({ targets: btnTargets, y: '+=3', duration: 50, ease: 'Sine.out' });
+    };
+    const up = () => {
+      if (!pressed) return; pressed = false;
+      scene.tweens.add({ targets: btnTargets, y: '-=3', duration: 100, ease: 'Sine.out' });
+    };
+    zone.on('pointerdown', down);
+    zone.on('pointerup', () => { up(); opts.onClick(); });
+    zone.on('pointerout', up);
   }
 
   return { bg, shadow, label, zone };

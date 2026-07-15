@@ -1,5 +1,13 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS, PAPER, PAPER_CSS, SCENES } from './config.js';
+import { checkForUpdate } from './systems/updateCheck.js';
+
+// Auto-update: if this build is behind the deployed version.json, hard
+// reload once from a cache-busting URL so players never get stuck on a
+// stale cached build. Result is stashed for the title screen's version
+// label / manual "Update" fallback. Runs immediately, before boot.
+window.__MW_UPDATE = { current: true, running: null, latest: null };
+checkForUpdate().then((res) => { window.__MW_UPDATE = res; });
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { GradeSelectScene } from './scenes/GradeSelectScene.js';

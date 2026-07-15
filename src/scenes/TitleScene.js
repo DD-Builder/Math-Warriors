@@ -5,6 +5,7 @@ import { audio } from '../systems/audio.js';
 import { makeRng } from '../systems/rng.js';
 import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { hardReload } from '../systems/updateCheck.js';
 import {
   blobPoints, hillPoints, waveEdgePoints, organicRectPoints,
   drawShadowedPoly, drawShadowedBlob, drawPapercutTree,
@@ -217,8 +218,28 @@ export class TitleScene extends Phaser.Scene {
       w: 160, h: 54, color: PAPER.orange, fontSize: 16,
       onClick: () => transitionTo(this, SCENES.TUTORIAL, undefined, 200),
     }), 10);
-    this.add.text(area.right, area.bottom + 40, `v${VERSION}`,
-      { ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.forest }).setOrigin(1, 1).setAlpha(0.4).setDepth(10);
+    // Build version, bottom-right and inside the safe area so it's visible.
+    const verText = this.add.text(area.right, area.bottom - 8, `v${VERSION}`,
+      { ...TEXT.stat(), fontSize: '16px', color: PAPER_CSS.forest }).setOrigin(1, 1).setAlpha(0.5).setDepth(10);
+
+    // Auto-update normally hard-reloads silently (main.js). This reflects
+    // the result once the version check resolves and offers a manual
+    // "Update" button only if the silent reload couldn't apply it.
+    const applyUpdateState = () => {
+      const upd = (typeof window !== 'undefined' && window.__MW_UPDATE) || {};
+      if (upd.current === false && upd.latest && upd.latest !== VERSION) {
+        verText.setText(`v${VERSION} → v${upd.latest}`);
+        if (upd.reloading === false && !this._updateBtnShown) {
+          this._updateBtnShown = true;
+          dp(PaperButton(this, area.cx, area.bottom - 34, 'UPDATE TO LATEST VERSION', {
+            w: 400, h: 50, color: PAPER.orange, fontSize: 17, textColor: PAPER_CSS.cream,
+            onClick: () => hardReload(upd.latest),
+          }), 12);
+        }
+      }
+    };
+    applyUpdateState();
+    this.time.delayedCall(1600, applyUpdateState); // in case the check was still in flight
   }
 }
 
