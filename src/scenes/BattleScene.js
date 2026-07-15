@@ -283,44 +283,41 @@ export class BattleScene extends Phaser.Scene {
 
     this.buildBackground();
 
-    // Draw a subtle ground plane before heroes/monsters for depth illusion
+    // Ground plane — a soft meadow floor that blends into the parallax
+    // hills instead of a flat green box. A vertical gradient (transparent
+    // at the far ground line, warm sage near the camera) grounds the
+    // actors without any hard rectangular band.
     const groundGfx = this.add.graphics();
     groundGfx.setDepth(10);
-    // Ground fills the bottom third with layered terrain — not empty
-    // single-color space. Three bands: far path (where monsters stand),
-    // mid ground, and near ground (where heroes stand + below).
-    const gTop = BATTLE_PERSPECTIVE.groundTopY;
+    const gTop = BATTLE_PERSPECTIVE.groundTopY;      // far ground line (monster feet)
     const gBot = GAME_HEIGHT;
-    const gMid = BATTLE_PERSPECTIVE.groundBottomY;
+    const gMid = BATTLE_PERSPECTIVE.groundBottomY;   // near ground line (hero feet)
 
-    // Far ground band (darker, behind monsters)
-    groundGfx.fillStyle(PAPER.sageD, 0.6);
-    groundGfx.fillRect(0, gTop - 10, GAME_WIDTH, gMid - gTop + 40);
+    // Meadow floor with a FEATHERED top edge (a soft fade over ~140px, not
+    // a hard line) so the grass reads as receding under the hills — the
+    // monster row and the hero row both clearly stand on it, no flat box.
+    groundGfx.fillGradientStyle(PAPER.sage, PAPER.sage, PAPER.sage, PAPER.sage, 0, 0, 0.30, 0.30);
+    groundGfx.fillRect(0, gTop - 70, GAME_WIDTH, 150);                 // soft fade-in: ~210 → 360
+    groundGfx.fillGradientStyle(PAPER.sage, PAPER.sage, PAPER.sageD, PAPER.sageD, 0.30, 0.30, 0.42, 0.42);
+    groundGfx.fillRect(0, gTop + 80, GAME_WIDTH, gBot - (gTop + 80));  // meadow body: 360 → bottom
 
-    // Mid ground path strip (lighter, transition zone)
-    groundGfx.fillStyle(PAPER.sand, 0.5);
-    groundGfx.fillRect(0, gMid - 30, GAME_WIDTH, 80);
+    // A soft, low-contrast path curving from the hero row up to the
+    // monster row so both rows clearly stand on a floor — blended, faint.
+    groundGfx.fillStyle(PAPER.creamD, 0.12);
+    groundGfx.fillPoints([
+      { x: 300, y: gMid + 10 }, { x: 520, y: gMid - 40 },
+      { x: 820, y: gTop + 40 }, { x: 940, y: gTop + 20 },
+      { x: 900, y: gTop + 70 }, { x: 560, y: gMid - 5 },
+      { x: 350, y: gMid + 34 },
+    ], true);
 
-    // Near ground (below heroes to screen bottom)
-    groundGfx.fillStyle(PAPER.sage, 0.45);
-    groundGfx.fillRect(0, gMid + 30, GAME_WIDTH, gBot - gMid);
-
-    // Grass tufts scattered across the near ground
-    for (let gi = 0; gi < 30; gi++) {
+    // Grass tufts + a few blossoms across the near ground for texture.
+    for (let gi = 0; gi < 34; gi++) {
       const gx = Math.random() * GAME_WIDTH;
-      const gy = gMid + 20 + Math.random() * (gBot - gMid - 40);
-      groundGfx.fillStyle(PAPER.leaf, 0.3 + Math.random() * 0.2);
+      const gy = gMid - 40 + Math.random() * (gBot - gMid + 20);
+      groundGfx.fillStyle(PAPER.leaf, 0.22 + Math.random() * 0.18);
       groundGfx.fillCircle(gx, gy, 3 + Math.random() * 5);
     }
-
-    // Subtle path leading from heroes toward monsters
-    groundGfx.fillStyle(PAPER.creamD, 0.3);
-    groundGfx.fillPoints([
-      { x: 300, y: gMid + 10 }, { x: 500, y: gMid - 20 },
-      { x: 800, y: gTop + 60 }, { x: 900, y: gTop + 40 },
-      { x: 850, y: gTop + 80 }, { x: 550, y: gMid },
-      { x: 350, y: gMid + 30 },
-    ], true);
 
     this.buildHeroSprites();
     this.buildEnemySprite();
@@ -722,27 +719,31 @@ export class BattleScene extends Phaser.Scene {
 
     this.enemySprites = [];
     const w = 200;
+    // Monster art sits centered in a 640px canvas with its visible feet
+    // ~0.34 of the height below center. pos.y is the ground line, so raise
+    // the sprite by that fraction to plant its feet on the ground.
+    const MONSTER_CANVAS = 640;
+    const FEET_FRAC = 0.38;
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
       const pos = positions[ei];
       const x = pos.x;
-      const y = pos.y;
       const monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.02) : pos.scale;
+
+      const displayH = MONSTER_CANVAS * monsterScale;
+      const feetY = pos.y;                        // where the creature's feet rest
+      const y = feetY - displayH * FEET_FRAC;     // sprite center that puts feet on feetY
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
       body.setDepth(pos.depth);
 
-      // Ground shadow at the monster's FEET (center origin → base is
-      // half the display height below y), tucked up slightly so the
-      // creature reads as standing on it.
-      const displayH = body.displayHeight ?? (640 * monsterScale);
-      drawGroundShadow(monsterShadowGfx, x, y + displayH * 0.5 - 8, monsterScale, { rx: 40 });
+      // Ground shadow right at the feet / ground line (not the canvas edge).
+      drawGroundShadow(monsterShadowGfx, x, feetY, monsterScale, { rx: 46, ry: 12, alpha: 0.24 });
 
-      // Name/HP bars anchored above the sprite's actual rendered bounds,
-      // clamped below the top momentum panel (which reaches ~y=107) so a
-      // tall single enemy's plate is never hidden behind it.
-      const nameY = Math.max(y - displayH * 0.48 - 14, 140);
+      // Name/HP bars anchored above the sprite's rendered bounds, clamped
+      // below the top momentum panel so a tall enemy's plate is never hidden.
+      const nameY = Math.max(y - displayH * 0.42 - 14, 140);
       const hpY = nameY + 20;
       const hpTextY = hpY + 16;
 

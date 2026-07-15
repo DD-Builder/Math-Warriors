@@ -115,13 +115,24 @@ export class CutsceneScene extends Phaser.Scene {
     }).setDepth(21);
 
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
-    this.advanceBtn = PaperButton(this, area.right - 130, area.bottom - 50, 'NEXT ▶', {
+    const btnX = area.right - 130, btnY = area.bottom - 50;
+    this.advanceBtn = PaperButton(this, btnX, btnY, 'NEXT', {
       w: 200, h: 60, color: PAPER.orange, fontSize: 22,
       onClick: () => this.onTap(),
     });
     [this.advanceBtn.bg, this.advanceBtn.shadow, this.advanceBtn.label, this.advanceBtn.zone].forEach((el, i) => {
       if (el) el.setDepth(49 + i);
     });
+    // A hand-cut papercut arrow (cream fill + soft ink edge) instead of the
+    // blue play-emoji glyph, so it belongs to the game's art language.
+    const nudge = this.advanceBtn.label.width * 0.5 + 20;
+    const ax = btnX + nudge, ay = btnY;
+    const arrow = this.add.graphics().setDepth(54);
+    arrow.fillStyle(PAPER.shadow, 0.25);
+    arrow.fillTriangle(ax - 8, ay - 12 + 3, ax - 8, ay + 12 + 3, ax + 14, ay + 3);
+    arrow.fillStyle(PAPER.cream, 1);
+    arrow.fillTriangle(ax - 8, ay - 12, ax - 8, ay + 12, ax + 14, ay);
+    this.advanceArrow = arrow;
 
     this.input.on('pointerup', (pointer) => {
       if (pointer.getDuration() < 500) this.onTap();

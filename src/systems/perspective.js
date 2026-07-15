@@ -119,26 +119,22 @@ export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
  */
 export function monsterFormation(enemyCount, config = BATTLE_PERSPECTIVE) {
   const positions = [];
+  // pos.y is the FEET/ground line where each monster stands. Monsters line
+  // up along the far ground with only a gentle depth stagger for the outer
+  // ones, so they read as standing side-by-side rather than stacked.
+  const baseY = config.groundTopY + 175;
+  const cx = config.monsterBaseX;
   if (enemyCount === 1) {
-    const y = config.groundTopY + 80;
-    positions.push({
-      x: config.monsterBaseX,
-      y,
-      scale: scaleForY(y, config),
-      depth: Math.floor(y),
-    });
-  } else if (enemyCount === 2) {
-    for (let i = 0; i < 2; i++) {
-      const y = config.groundTopY + 50 + i * 120;
-      const x = config.monsterBaseX + (i === 0 ? -70 : 70);
-      positions.push({ x, y, scale: scaleForY(y, config) * 0.85, depth: Math.floor(y) });
-    }
+    positions.push({ x: cx, y: baseY, scale: scaleForY(baseY, config), depth: Math.floor(baseY) });
   } else {
+    const spread = enemyCount === 2 ? 185 : 220;
+    const mid = (enemyCount - 1) / 2;
     for (let i = 0; i < enemyCount; i++) {
-      const t = i / (enemyCount - 1);
-      const y = config.groundTopY + 40 + t * 160;
-      const x = config.monsterBaseX + (i - 1) * config.monsterStaggerX;
-      positions.push({ x, y, scale: scaleForY(y, config) * 0.75, depth: Math.floor(y) });
+      const off = i - mid;
+      const y = baseY + Math.abs(off) * 24;          // outer monsters a touch further back
+      const x = cx + off * spread;
+      const shrink = enemyCount >= 3 ? 0.70 : 0.86;
+      positions.push({ x, y, scale: scaleForY(y, config) * shrink, depth: Math.floor(y) });
     }
   }
   return positions;
