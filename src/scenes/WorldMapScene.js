@@ -766,7 +766,7 @@ export class WorldMapScene extends Phaser.Scene {
     const bBtnW = 130;
     const bBtnH = 50;
     const bBtnGap = 16;
-    const bTotalW = 5 * bBtnW + 4 * bBtnGap;
+    const bTotalW = 6 * bBtnW + 5 * bBtnGap;
     const bStartX = area.cx - bTotalW / 2 + bBtnW / 2;
 
     const dailyCompleted = isDailyChallengeCompleted(this.save);
@@ -810,7 +810,20 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.setScrollFactorDeep(galleryBtn, 0);
 
-    const settingsBtn = PaperButton(this, bStartX + 4 * (bBtnW + bBtnGap), bottomY, '⚙', {
+    // SPIRE unlocks after Floor 3 (floor id 3 = index 2).
+    const spireUnlocked = !!this.save.floors?.[2]?.complete;
+    const spireBtn = PaperButton(this, bStartX + 4 * (bBtnW + bBtnGap), bottomY, spireUnlocked ? 'SPIRE' : '🔒 SPIRE', {
+      w: bBtnW, h: bBtnH, color: spireUnlocked ? PAPER.coralD : PAPER.sand, fontSize: 16,
+      textColor: spireUnlocked ? PAPER_CSS.cream : PAPER_CSS.forest,
+      onClick: () => {
+        if (!spireUnlocked) { audio.play('ui/click'); this.showFlash('Beat Floor 3 to unlock!'); return; }
+        audio.play('ui/click');
+        transitionTo(this, SCENES.TOWER, undefined, 200);
+      },
+    });
+    this.setScrollFactorDeep(spireBtn, 0);
+
+    const settingsBtn = PaperButton(this, bStartX + 5 * (bBtnW + bBtnGap), bottomY, '⚙', {
       w: bBtnW, h: bBtnH, color: PAPER.tealL, fontSize: 20,
       onClick: () => {
         audio.play('ui/click');

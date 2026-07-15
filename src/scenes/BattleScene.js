@@ -43,6 +43,7 @@ import { getQuestionTimer, SOFT_TIMER_BONUS } from '../systems/battleTimer.js';
 import { canTriggerSpecial, specialOperator, resolveSpecial, specialTimerMs } from '../systems/specialRules.js';
 import { playBossEntrance, showIntentBadge, playBossTelegraph, getBossMove, isSpecialTurn, isTelegraphTurn, specialDamagePerHero } from '../systems/bossPresentation.js';
 import { getBossRig } from '../systems/bossRigs.js';
+import { advanceSpireRun } from '../systems/spire.js';
 import { createNumpad } from '../ui/numpad.js';
 import { drawMonsterSprite } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
@@ -259,6 +260,8 @@ export class BattleScene extends Phaser.Scene {
 
     // Boss Rush mode
     this.bossRush = !!data?.bossRush;
+    // Endless Spire mode
+    this.spire = !!data?.spire;
 
     // Command menu state (Phase 2: Streamlined Commander)
     this.selectedCommand = null;        // 'fight', 'magic', or 'guard'
@@ -3782,8 +3785,10 @@ export class BattleScene extends Phaser.Scene {
 
     // Mark floor complete on boss defeat. If we came directly from the
     // world map (no maze wrapper), any win counts so the progression
-    // still advances on the fast path.
-    if (this.isBoss || this.returnScene === SCENES.WORLD_MAP) {
+    // still advances on the fast path. But Boss Rush and Spire fights must
+    // NEVER flip real floor progression — a Spire boss (unlocked at Floor 3)
+    // would otherwise complete unbeaten floors and unlock heroes early.
+    if ((this.isBoss && !this.bossRush && !this.spire) || this.returnScene === SCENES.WORLD_MAP) {
       markFloorComplete(save, this.floor);
       const newHeroes = unlockHeroesForFloor(save, this.floor);
       if (newHeroes.length > 0) {
@@ -3845,6 +3850,17 @@ export class BattleScene extends Phaser.Scene {
           rushState.endTime = Date.now();
         }
         this.registry.set('bossRushState', rushState);
+      }
+    }
+
+    // Endless Spire: advance the run on victory (floor++, bank gold).
+    if (this.spire) {
+      const st = this.registry.get('spireState');
+      if (st) {
+        this.registry.set('spireState', advanceSpireRun(st, {
+          won: true, correct: this.battleCorrect, wrong: this.battleWrong,
+          party: this.party.map(h => ({ ...h })),
+        }));
       }
     }
 
@@ -4057,6 +4073,17 @@ export class BattleScene extends Phaser.Scene {
         rushState.defeated = true;
         rushState.endTime = Date.now();
         this.registry.set('bossRushState', rushState);
+      }
+    }
+
+    // Endless Spire: mark the run defeated (floor unchanged).
+    if (this.spire) {
+      const st = this.registry.get('spireState');
+      if (st) {
+        this.registry.set('spireState', advanceSpireRun(st, {
+          won: false, correct: this.battleCorrect, wrong: this.battleWrong,
+          party: this.party.map(h => ({ ...h })),
+        }));
       }
     }
 

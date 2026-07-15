@@ -95,6 +95,8 @@ export function makeDefaultSave() {
       lastDailyChallenge: 0,
       lastDailyDate: 0,
       dailyStreak: 0,
+      bestSpireFloor: 0,
+      bestBossRushTime: 0,
     },
   };
 }
