@@ -69,6 +69,7 @@ document.addEventListener('visibilitychange', () => {
           scene: sceneKey,
           slot,
           floor: activeScene.floorId || activeScene.floor || null,
+          ts: Date.now(), // resume only honored within a short grace window
         }));
       } catch (e) { /* ignore */ }
     }

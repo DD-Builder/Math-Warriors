@@ -17,13 +17,29 @@ export class TitleScene extends Phaser.Scene {
   constructor() { super({ key: SCENES.TITLE }); }
 
   create() {
-    // Check for auto-resume from backgrounding
+    // Auto-resume is ONLY for a genuine quick background/foreground blip
+    // (iPad standalone freezes the canvas on background and reloads on
+    // return). A fresh open, a long gap, or a new app version must always
+    // land on the title page — never drop the player straight into a maze.
     try {
-      const resumeStr = localStorage.getItem('mw_resume');
+      const storedVer = localStorage.getItem('mw_version');
+      const versionChanged = storedVer !== VERSION;
+      if (versionChanged) {
+        // A new build shipped: forget stale resume state and show the title
+        // so the player always starts fresh on the newest version.
+        localStorage.setItem('mw_version', VERSION);
+        localStorage.removeItem('mw_resume');
+      }
+
+      const resumeStr = versionChanged ? null : localStorage.getItem('mw_resume');
       if (resumeStr) {
         localStorage.removeItem('mw_resume');
         const resume = JSON.parse(resumeStr);
-        if (resume.slot && resume.scene) {
+        // Only within a short grace window — otherwise treat it as a fresh
+        // open and fall through to the title.
+        const RESUME_GRACE_MS = 120000; // 2 minutes
+        const recent = resume.ts && (Date.now() - resume.ts) < RESUME_GRACE_MS;
+        if (recent && resume.slot && resume.scene) {
           this.registry.set('activeSlot', resume.slot);
           if (resume.scene === SCENES.MAZE && resume.floor) {
             this.scene.start(SCENES.MAZE, { floor: resume.floor });
