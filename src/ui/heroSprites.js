@@ -15,7 +15,8 @@ import { createHeroCanvas, createHeroPartCanvas, createHeroPartCanvasClipped } f
 import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { applySpriteFilter } from '../systems/renderingFilters.js';
 import { PAPER, PAPER_CSS } from '../config.js';
-import { drawCharacter, characterHeight, HERO_SKINS } from './characterModel.js';
+import { drawSkinnedHero } from './skinnedHero.js';
+import { skinVariantTint } from './characterModel.js';
 import { getCycle, sampleCycle, cycleDone } from '../systems/poseAnimator.js';
 import { getEquipmentOverlay, applyEquipmentOverlays, getTierIndex } from './equipmentOverlays.js';
 import { getEquipmentById } from '../systems/equipment.js';
@@ -90,6 +91,21 @@ function heroArtGeometry(w, h, art, defTop, defBot) {
   const te = art.topExt || defTop, be = art.botExt || defBot;
   const sc = (h - 14) / (te + be) * 0.89;
   return { cx: w * 0.5, cy: 7 + te * sc, sc };
+}
+
+/**
+ * Wash a purchased-skin recolor over an already-drawn hero canvas.
+ * source-atop keeps the sprite's own alpha (and paper wobble edges)
+ * while blending the variant's body tone across it — a bought skin
+ * reads as Golden/Crimson/Frost without re-drawing the original art.
+ */
+function applySkinTint(cv, ctx, tint) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.globalAlpha = 0.42;
+  ctx.fillStyle = tint.body;
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.restore();
 }
 
 function getHeroCanvas(hero) {
@@ -229,10 +245,11 @@ function getHeroCardBg(heroId) {
 
 // ─── POSE-DRIVEN ANIMATED HERO ─────────────────────────────────
 //
-// Characters are DRAWN each frame from a pose (joint angles) by the
-// parametric character model — never assembled from pre-cut image
-// pieces. Limbs are single connected shapes through their joints, so
-// knees and elbows genuinely bend and nothing can ever detach.
+// Characters are DRAWN each frame by redrawing each hero's ORIGINAL
+// heroArt.js artwork and deforming its geometry through the pose's
+// joints (see skinnedHero.js) — same shapes, palette and paper wobble
+// as the static portrait, now truly walking, striking and hopping.
+// Worn gear and purchased-skin recolors layer on top per frame.
 //
 // The container keeps the same API the whole game already calls:
 //   startWalk/stopWalk/playAttack/setGuard/playHit/playKO/
@@ -251,12 +268,11 @@ const HOLD_STATES = new Set(['guard', 'ko', 'victory']);
 export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   const scale = opts.scale ?? 1;
   const heroClass = getHeroClass(hero);
-  const baseSkinId = HERO_SKINS[hero.id] ? hero.id
-    : heroClass === 'wizard' ? 'wizard-stargazer'
-    : heroClass === 'bunny' ? 'bunny-pepper' : 'knight-shadow';
-  // Purchased skins render through variant palettes ('id:skinId').
-  const skinVariant = hero.skin && hero.skin !== 'default' ? `${baseSkinId}:${hero.skin}` : null;
-  const skinId = skinVariant && HERO_SKINS[skinVariant] ? skinVariant : baseSkinId;
+  const art = ART_LOOKUP[hero.id];
+  // No original art for this id → fall back to the static portrait.
+  if (!art || !art.draw) return drawHeroSprite(scene, x, y, hero, opts);
+  // Purchased skins recolor the original art with a papercut wash.
+  const skinTint = skinVariantTint(hero.id, hero.skin);
   // Worn gear draws as overlays on every animation frame.
   const wornEquipment = resolveEquipment(opts.equipment);
 
@@ -274,11 +290,10 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
   img.setScale(scale);
   container.add(img);
 
-  // Model → canvas fit (same visual density as the old portrait art,
-  // so every scene's existing scale factor keeps working)
-  const modelH = characterHeight(skinId);
-  const sc = (ch - 90) / modelH;
-  const feetY = ch - 58;
+  // Same placement math as the static portraits, so the animated hero
+  // is pixel-compatible with every scene's existing scale factor and
+  // equipment overlays land where they do on the portrait.
+  const geom = heroArtGeometry(cw, ch, art, 80, 78);
 
   // ── animation state ──
   const state = {
@@ -297,16 +312,15 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     if (container._destroyed || !scene.textures || !scene.textures.exists(texKey)) return;
     ctx.clearRect(0, 0, cw, ch);
     const pose = sampleCycle(state.cycle, state.elapsed);
-    drawCharacter(ctx, skinId, pose, { x: cw / 2, y: feetY, scale: sc, view: state.view });
+    // The ORIGINAL hand-drawn art, deformed by the live pose — same
+    // shapes, palette and paper wobble as the portrait, now walking.
+    drawSkinnedHero(cv, art, heroClass, pose, geom);
+    if (skinTint) applySkinTint(cv, ctx, skinTint);
     if (wornEquipment) {
-      // Overlay space is torso-anchored (~110-unit hero): map it onto
-      // the drawn model so plates/glows land on the body.
-      const bodyH = modelH * sc;
-      applyEquipmentOverlays(cv, wornEquipment, heroClass, {
-        cx: cw / 2,
-        cy: feetY - bodyH * 0.52,
-        sc: bodyH / 110,
-      });
+      // Overlays share the portrait's art geometry so plates/glows land
+      // on the body; they anchor at the rest pose, so the deformed body
+      // drifts a few px under them mid-swing, which reads fine.
+      applyEquipmentOverlays(cv, wornEquipment, heroClass, geom);
     }
     tex.refresh();
   }
