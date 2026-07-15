@@ -325,11 +325,19 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     tex.refresh();
   }
 
+  // Per-instance desync so a row of idling/swaying heroes never moves in
+  // lockstep (e.g. the party-select cards). Applied ONLY to the ambient
+  // standing cycles; walking and one-shot combat animations keep exact
+  // timing so movement and hit timing stay correct.
+  const _phaseOffset = Math.random() * 3000;
+  const _idleSpeed = 0.85 + Math.random() * 0.3;
+  const _isAmbient = (name) => name === 'idle' || name === 'sway';
+
   function setState(name, o = {}) {
     if (container._destroyed) return;
     state.name = name;
     state.cycle = getCycle(heroClass, name === 'sway' ? 'sway' : name);
-    state.elapsed = 0;
+    state.elapsed = _isAmbient(name) ? _phaseOffset : 0;
     state.hold = o.hold ?? HOLD_STATES.has(name);
     if (o.view) state.view = o.view;
     render();
@@ -340,7 +348,7 @@ export function createAnimatedHero(scene, x, y, hero, opts = {}) {
     delay: FRAME_MS, loop: true,
     callback: () => {
       if (container._destroyed) return;
-      state.elapsed += FRAME_MS;
+      state.elapsed += FRAME_MS * (_isAmbient(state.name) ? _idleSpeed : 1);
       if (!state.cycle.loop && cycleDone(state.cycle, state.elapsed)) {
         if (!state.hold) { setState('idle', { view: 'front' }); return; }
       }
