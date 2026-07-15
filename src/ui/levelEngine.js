@@ -914,50 +914,139 @@ function _drawTile(tt, sx, sy, ts, tx, ty, t) {
 // ─── OBJECT DRAWING (1:1 from reference) ────────────────────────
 
 function LV_drawChest(sx, sy, ts, o) {
-  var x = sx + ts * 0.5, y = sy + ts * 0.62;
-  LV_cut('rgba(14,6,2,0.28)', 0, function () { LV_ellipse(x, y + ts * 0.16, ts * 0.24, ts * 0.065, 0); });
-  var bc = o.open ? '#3a1c08' : '#5a3010', bl = o.open ? '#4e2c10' : '#7a4820';
-  LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.26, y + ts * 0.14); _G.lineTo(x + ts * 0.28, y - ts * 0.02); _G.lineTo(x + ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.24, y - ts * 0.1); _G.lineTo(x - ts * 0.28, y - ts * 0.02); });
-  LV_cut(bc, 5, function () { _G.moveTo(x - ts * 0.26, y - ts * 0.08); _G.lineTo(x + ts * 0.26, y - ts * 0.08); _G.lineTo(x + ts * 0.22, y - ts * 0.2); _G.bezierCurveTo(x + ts * 0.18, y - ts * 0.26, x - ts * 0.18, y - ts * 0.26, x - ts * 0.22, y - ts * 0.2); });
-  LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.27, y - ts * 0.02, ts * 0.54, ts * 0.038); });
-  LV_cut(LV_PAL.gold, 2, function () { _G.rect(x - ts * 0.055, y - ts * 0.055, ts * 0.11, ts * 0.09); });
+  var x = sx + ts * 0.5, y = sy + ts * 0.58;
+  var open = !!o.open;
+  // Ground shadow
+  LV_cut('rgba(14,6,2,0.30)', 0, function () { LV_ellipse(x, y + ts * 0.22, ts * 0.30, ts * 0.08, 0); });
+  var bodyD = open ? '#40280f' : '#5a3414';
+  var bodyM = open ? '#4c3013' : '#7a4a1e';
+  var bodyL = open ? '#5a3a1a' : '#9a6528';
+  var bandD = '#8a5a14', band = '#d0982c', bandL = '#f0c250';
+  // Chest body (rounded lower box)
+  LV_cut(bodyD, 6, function () {
+    _G.moveTo(x - ts * 0.30, y - ts * 0.04);
+    _G.lineTo(x + ts * 0.30, y - ts * 0.04);
+    _G.lineTo(x + ts * 0.30, y + ts * 0.15);
+    _G.quadraticCurveTo(x + ts * 0.30, y + ts * 0.21, x + ts * 0.24, y + ts * 0.21);
+    _G.lineTo(x - ts * 0.24, y + ts * 0.21);
+    _G.quadraticCurveTo(x - ts * 0.30, y + ts * 0.21, x - ts * 0.30, y + ts * 0.15);
+  });
+  // Lit front face + plank seams
+  LV_cut(bodyM, 5, function () { _G.rect(x - ts * 0.27, y - ts * 0.02, ts * 0.54, ts * 0.19); });
+  LV_cut(bodyL, 4, function () { _G.rect(x - ts * 0.27, y - ts * 0.01, ts * 0.10, ts * 0.18); });
+  LV_cut(bodyD, 3, function () { _G.rect(x - ts * 0.08, y - ts * 0.02, ts * 0.015, ts * 0.19); });
+  LV_cut(bodyD, 3, function () { _G.rect(x + ts * 0.12, y - ts * 0.02, ts * 0.015, ts * 0.19); });
+  // Vertical gold straps
+  LV_cut(band, 4, function () { _G.rect(x - ts * 0.24, y - ts * 0.03, ts * 0.05, ts * 0.24); });
+  LV_cut(band, 4, function () { _G.rect(x + ts * 0.19, y - ts * 0.03, ts * 0.05, ts * 0.24); });
+  if (open) {
+    // Lid swung up and back
+    LV_cut(bodyD, 7, function () {
+      _G.moveTo(x - ts * 0.30, y - ts * 0.04);
+      _G.lineTo(x + ts * 0.30, y - ts * 0.04);
+      _G.lineTo(x + ts * 0.28, y - ts * 0.26);
+      _G.quadraticCurveTo(x, y - ts * 0.40, x - ts * 0.28, y - ts * 0.26);
+    });
+    LV_cut('#2a1608', 3, function () {
+      _G.moveTo(x - ts * 0.24, y - ts * 0.06);
+      _G.lineTo(x + ts * 0.24, y - ts * 0.06);
+      _G.lineTo(x + ts * 0.22, y - ts * 0.24);
+      _G.quadraticCurveTo(x, y - ts * 0.34, x - ts * 0.22, y - ts * 0.24);
+    });
+    // Treasure glow + coins
+    _G.save(); _G.globalAlpha = 0.5; _G.fillStyle = '#ffe070';
+    _G.beginPath(); LV_ellipse(x, y + ts * 0.02, ts * 0.22, ts * 0.06, 0); _G.fill(); _G.restore();
+    LV_cut(bandL, 2, function () { _G.arc(x - ts * 0.08, y + ts * 0.02, ts * 0.05, 0, Math.PI * 2); });
+    LV_cut(band, 2, function () { _G.arc(x + ts * 0.07, y + ts * 0.04, ts * 0.055, 0, Math.PI * 2); });
+  } else {
+    // Domed lid
+    LV_cut(bodyM, 7, function () {
+      _G.moveTo(x - ts * 0.30, y - ts * 0.02);
+      _G.lineTo(x + ts * 0.30, y - ts * 0.02);
+      _G.lineTo(x + ts * 0.30, y - ts * 0.10);
+      _G.quadraticCurveTo(x + ts * 0.30, y - ts * 0.30, x, y - ts * 0.30);
+      _G.quadraticCurveTo(x - ts * 0.30, y - ts * 0.30, x - ts * 0.30, y - ts * 0.10);
+    });
+    LV_cut(bodyL, 6, function () {
+      _G.moveTo(x - ts * 0.26, y - ts * 0.12);
+      _G.quadraticCurveTo(x - ts * 0.20, y - ts * 0.27, x - ts * 0.02, y - ts * 0.27);
+      _G.lineTo(x - ts * 0.02, y - ts * 0.20);
+      _G.quadraticCurveTo(x - ts * 0.16, y - ts * 0.20, x - ts * 0.20, y - ts * 0.11);
+    });
+    // Horizontal gold band + lock plate
+    LV_cut(band, 5, function () { _G.rect(x - ts * 0.31, y - ts * 0.05, ts * 0.62, ts * 0.06); });
+    LV_cut(bandL, 5, function () { _G.rect(x - ts * 0.31, y - ts * 0.05, ts * 0.62, ts * 0.018); });
+    LV_cut(bandD, 5, function () { _G.rect(x - ts * 0.06, y - ts * 0.09, ts * 0.12, ts * 0.14); });
+    LV_cut(bandL, 6, function () { _G.rect(x - ts * 0.045, y - ts * 0.075, ts * 0.09, ts * 0.11); });
+    LV_cut('#3a2408', 2, function () { _G.arc(x, y - ts * 0.02, ts * 0.022, 0, Math.PI * 2); });
+  }
 }
 
 function LV_drawFairyCage(sx, sy, ts, o, t) {
-  var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  var bob = Math.sin(t * 2.5) * ts * 0.02;
-  // Base plate
-  LV_cut('#8a7040', 3, function () { _G.rect(x - ts * 0.22, y + ts * 0.2, ts * 0.44, ts * 0.06); });
-  // Cage bars (4 vertical lines + dome)
-  _G.save(); _G.strokeStyle = o.open ? '#6a5030' : '#c0a050'; _G.lineWidth = 1.5; _G.globalAlpha = 0.9;
-  for (var b = -1.5; b <= 1.5; b++) {
-    var bx = x + b * ts * 0.1;
-    _G.beginPath(); _G.moveTo(bx, y + ts * 0.2); _G.lineTo(bx, y - ts * 0.12 + bob); _G.stroke();
+  var x = sx + ts * 0.5, y = sy + ts * 0.48;
+  var open = !!o.open;
+  var bob = Math.sin(t * 2.2) * ts * 0.015;
+  var domeTop = y - ts * 0.30 + bob;
+  var cageBot = y + ts * 0.20;
+  var cageR = ts * 0.22;
+  // Ground shadow
+  LV_cut('rgba(14,6,2,0.28)', 0, function () { LV_ellipse(x, y + ts * 0.30, ts * 0.24, ts * 0.06, 0); });
+  // Ornate stacked base
+  LV_cut('#6a5220', 4, function () { LV_ellipse(x, cageBot + ts * 0.06, ts * 0.24, ts * 0.07, 0); });
+  LV_cut('#b89038', 4, function () { LV_ellipse(x, cageBot + ts * 0.03, ts * 0.20, ts * 0.055, 0); });
+  LV_cut('#8a6a24', 3, function () { LV_ellipse(x, cageBot, ts * 0.22, ts * 0.05, 0); });
+  // Cage-dome volume fill (soft), reads as glass behind the bars
+  _G.save(); _G.globalAlpha = open ? 0.10 : 0.22;
+  _G.fillStyle = open ? '#8a8a80' : '#ffe89a';
+  _G.beginPath();
+  _G.moveTo(x - cageR, cageBot);
+  _G.lineTo(x - cageR, domeTop + ts * 0.10);
+  _G.quadraticCurveTo(x - cageR, domeTop - ts * 0.02, x, domeTop - ts * 0.02);
+  _G.quadraticCurveTo(x + cageR, domeTop - ts * 0.02, x + cageR, domeTop + ts * 0.10);
+  _G.lineTo(x + cageR, cageBot);
+  _G.closePath(); _G.fill(); _G.restore();
+  // Caged fairy (behind bars)
+  if (!open) {
+    var fy = y - ts * 0.02 + Math.sin(t * 3.2) * ts * 0.05;
+    _G.save(); _G.globalAlpha = 0.5; _G.fillStyle = '#bfe0ff';
+    _G.beginPath(); LV_ellipse(x - ts * 0.06, fy, ts * 0.05, ts * 0.08, -0.5); _G.fill();
+    _G.beginPath(); LV_ellipse(x + ts * 0.06, fy, ts * 0.05, ts * 0.08, 0.5); _G.fill();
+    _G.restore();
+    _G.save(); _G.globalAlpha = 0.9;
+    _G.fillStyle = '#88bbff'; _G.beginPath(); _G.arc(x, fy, ts * 0.055, 0, Math.PI * 2); _G.fill();
+    _G.fillStyle = '#ffffff'; _G.beginPath(); _G.arc(x - ts * 0.015, fy - ts * 0.015, ts * 0.028, 0, Math.PI * 2); _G.fill();
+    _G.restore();
   }
-  // Dome arc
-  _G.beginPath(); _G.arc(x, y - ts * 0.12 + bob, ts * 0.18, Math.PI, 0); _G.stroke();
-  // Ring at top
-  LV_cut('#c0a050', 1, function () { _G.arc(x, y - ts * 0.3 + bob, ts * 0.04, 0, Math.PI * 2); });
+  // Cage bars — thicker, curving up to meet the dome apex
+  var barColor = open ? '#6a5a3a' : '#d8b048';
+  _G.save(); _G.strokeStyle = barColor; _G.lineWidth = Math.max(1.6, ts * 0.018);
+  _G.globalAlpha = 0.95; _G.lineCap = 'round';
+  var bars = 5;
+  for (var bi = 0; bi < bars; bi++) {
+    var frac = bi / (bars - 1);
+    var bx = x - cageR + frac * cageR * 2;
+    var curveTop = domeTop + Math.abs(frac - 0.5) * 2 * ts * 0.10;
+    _G.beginPath();
+    _G.moveTo(bx, cageBot);
+    _G.lineTo(bx, domeTop + ts * 0.10);
+    _G.quadraticCurveTo(bx, curveTop, x + (bx - x) * 0.3, curveTop - ts * 0.01);
+    _G.stroke();
+  }
+  // Horizontal hoops
+  _G.beginPath(); _G.moveTo(x - cageR, cageBot); _G.lineTo(x + cageR, cageBot); _G.stroke();
+  _G.beginPath(); _G.moveTo(x - cageR * 0.96, y); _G.lineTo(x + cageR * 0.96, y); _G.stroke();
   _G.restore();
-  if (!o.open) {
-    // Fairy inside — glowing circle bobbing
-    var fy = y + Math.sin(t * 3.5) * ts * 0.06;
-    _G.save(); _G.globalAlpha = 0.7 + Math.sin(t * 4) * 0.2;
-    _G.fillStyle = '#88bbff'; _G.beginPath(); _G.arc(x, fy, ts * 0.08, 0, Math.PI * 2); _G.fill();
-    _G.fillStyle = '#ffffff'; _G.beginPath(); _G.arc(x - ts * 0.02, fy - ts * 0.02, ts * 0.04, 0, Math.PI * 2); _G.fill();
-    // Sparkles
+  // Finial on top
+  LV_cut(open ? '#6a5a3a' : '#c0a040', 2, function () { _G.rect(x - ts * 0.008, domeTop - ts * 0.06, ts * 0.016, ts * 0.06); });
+  LV_cut(open ? '#6a5a3a' : '#e0c060', 3, function () { _G.arc(x, domeTop - ts * 0.06, ts * 0.03, 0, Math.PI * 2); });
+  // Sparkles around the caged fairy
+  if (!open) {
     for (var s = 0; s < 3; s++) {
-      var sa = (s / 3) * Math.PI * 2 + t * 2;
-      var sdx = Math.cos(sa) * ts * 0.14, sdy = Math.sin(sa) * ts * 0.1;
-      _G.fillStyle = '#ffe880'; _G.globalAlpha = 0.5 + Math.sin(t * 5 + s) * 0.3;
-      _G.beginPath(); _G.arc(x + sdx, fy + sdy, ts * 0.025, 0, Math.PI * 2); _G.fill();
+      var sa = (s / 3) * Math.PI * 2 + t * 1.8;
+      var sdx = Math.cos(sa) * ts * 0.13, sdy = Math.sin(sa) * ts * 0.10;
+      _G.save(); _G.fillStyle = '#ffe880'; _G.globalAlpha = 0.4 + Math.sin(t * 4 + s) * 0.3;
+      _G.beginPath(); _G.arc(x + sdx, y - ts * 0.02 + sdy, ts * 0.02, 0, Math.PI * 2); _G.fill(); _G.restore();
     }
-    _G.restore();
-  } else {
-    // Door open — bent bar
-    _G.save(); _G.strokeStyle = '#8a7040'; _G.lineWidth = 1.2; _G.globalAlpha = 0.6;
-    _G.beginPath(); _G.moveTo(x + ts * 0.15, y + ts * 0.2); _G.lineTo(x + ts * 0.25, y); _G.stroke();
-    _G.restore();
   }
 }
 
@@ -1179,36 +1268,105 @@ function LV_drawEqAnchor(sx, sy, ts, o, t) { LV_drawPhase2Item(sx, sy, ts, o, t,
 function LV_drawDoor(sx, sy, ts, o, t) {
   if (o.open) return;
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
-  LV_cut('#5a4030', 6, function() { _G.rect(sx + ts * 0.08, sy + ts * 0.05, ts * 0.84, ts * 0.9); });
-  var barColor = '#8a6840';
+  var l = sx + ts * 0.14, r = sx + ts * 0.86, top = sy + ts * 0.06, bot = sy + ts * 0.94;
+  var w = r - l;
+  // Stone arch frame behind the door
+  LV_cut('#6a5844', 6, function () {
+    _G.moveTo(l - ts * 0.06, bot);
+    _G.lineTo(l - ts * 0.06, top + ts * 0.16);
+    _G.quadraticCurveTo(x, top - ts * 0.10, r + ts * 0.06, top + ts * 0.16);
+    _G.lineTo(r + ts * 0.06, bot);
+  });
+  LV_cut('#8a7458', 6, function () {
+    _G.moveTo(l - ts * 0.06, top + ts * 0.30);
+    _G.lineTo(l - ts * 0.06, top + ts * 0.16);
+    _G.quadraticCurveTo(x, top - ts * 0.10, r + ts * 0.06, top + ts * 0.16);
+    _G.lineTo(r + ts * 0.06, top + ts * 0.30);
+    _G.quadraticCurveTo(x, top + ts * 0.04, l - ts * 0.06, top + ts * 0.30);
+  });
+  // Door slab (dark wood, arched top)
+  LV_cut('#4a3016', 4, function () {
+    _G.moveTo(l, bot);
+    _G.lineTo(l, top + ts * 0.18);
+    _G.quadraticCurveTo(x, top + ts * 0.04, r, top + ts * 0.18);
+    _G.lineTo(r, bot);
+  });
+  // Vertical planks (alternating light for a carved look)
   for (var b = 0; b < 4; b++) {
-    var bx = sx + ts * (0.2 + b * 0.2);
-    LV_cut(barColor, 3, (function(bx2) { return function() { _G.rect(bx2, sy + ts * 0.1, ts * 0.04, ts * 0.75); }; })(bx));
+    var pw = w / 4;
+    var px = l + b * pw + ts * 0.012;
+    var plankC = b % 2 === 0 ? '#6a441e' : '#7a5024';
+    LV_cut(plankC, 3, (function (px2, pw2, bb) {
+      return function () {
+        var pt = top + ts * 0.16 + Math.abs(bb - 1.5) * ts * 0.02;
+        _G.rect(px2, pt, pw2 - ts * 0.024, bot - pt - ts * 0.02);
+      };
+    })(px, pw, b));
   }
-  var lockAlpha = 0.6 + Math.sin(t * 2) * 0.2;
-  _G.globalAlpha = lockAlpha;
-  _G.fillStyle = '#f0c040';
-  _G.beginPath(); _G.arc(x, y - ts * 0.05, ts * 0.1, 0, Math.PI * 2); _G.fill();
-  _G.fillRect(x - ts * 0.08, y, ts * 0.16, ts * 0.14);
-  _G.globalAlpha = 1;
+  // Iron cross-bands with rivets
+  var bandY = [top + ts * 0.26, bot - ts * 0.24];
+  for (var k = 0; k < bandY.length; k++) {
+    LV_cut('#33302e', 5, (function (by) { return function () { _G.rect(l, by, w, ts * 0.07); }; })(bandY[k]));
+    LV_cut('#4c4642', 5, (function (by) { return function () { _G.rect(l, by, w, ts * 0.022); }; })(bandY[k]));
+    for (var s = 0; s < 4; s++) {
+      var stx = l + ts * 0.08 + s * (w - ts * 0.16) / 3;
+      LV_cut('#1c1a18', 3, (function (a, by) { return function () { _G.arc(a, by + ts * 0.035, ts * 0.017, 0, Math.PI * 2); }; })(stx, bandY[k]));
+    }
+  }
+  // Central iron lock ring with glowing keyhole
+  LV_cut('#2b2826', 6, function () { _G.arc(x, y, ts * 0.13, 0, Math.PI * 2); });
+  LV_cut('#4c4642', 6, function () { _G.arc(x, y, ts * 0.10, 0, Math.PI * 2); });
+  LV_cut('#23211f', 5, function () { _G.arc(x, y, ts * 0.07, 0, Math.PI * 2); });
+  var lockPulse = 0.55 + Math.sin(t * 2) * 0.25;
+  _G.save(); _G.globalAlpha = lockPulse; _G.fillStyle = '#f0c040';
+  _G.beginPath(); _G.arc(x, y - ts * 0.02, ts * 0.04, 0, Math.PI * 2); _G.fill();
+  _G.beginPath(); _G.moveTo(x - ts * 0.022, y - ts * 0.01); _G.lineTo(x + ts * 0.022, y - ts * 0.01);
+  _G.lineTo(x + ts * 0.012, y + ts * 0.07); _G.lineTo(x - ts * 0.012, y + ts * 0.07); _G.closePath(); _G.fill();
+  _G.restore();
 }
 
 function LV_drawFountain(sx, sy, ts, o, t) {
-  var x = sx + ts * 0.5, y = sy + ts * 0.45;
+  var x = sx + ts * 0.5, y = sy + ts * 0.5;
   var depleted = o.uses <= 0;
-  var baseColor = depleted ? '#504840' : '#3090c0';
-  var glowColor = depleted ? '#383430' : '#60c0e8';
-  LV_cut('#706058', 4, function() { _G.rect(sx + ts * 0.2, sy + ts * 0.7, ts * 0.6, ts * 0.15); });
-  LV_cut(baseColor, 3, function() { _G.beginPath(); LV_ellipse(x, y + ts * 0.15, ts * 0.3, ts * 0.12, 0); });
+  var stoneD = '#7a6e5c', stone = '#a89880', stoneL = '#c8b89a';
+  var waterD = depleted ? '#4a5450' : '#2a6e94';
+  var water = depleted ? '#5a645e' : '#3f9ec8';
+  var waterHL = depleted ? '#6a746a' : '#7fd0ee';
+  // Ground shadow
+  LV_cut('rgba(14,6,2,0.26)', 0, function () { LV_ellipse(x, y + ts * 0.30, ts * 0.34, ts * 0.09, 0); });
+  // Lower basin (stacked stone ring)
+  LV_cut(stoneD, 5, function () { LV_ellipse(x, y + ts * 0.20, ts * 0.34, ts * 0.13, 0); });
+  LV_cut(stone, 5, function () { LV_ellipse(x, y + ts * 0.16, ts * 0.34, ts * 0.12, 0); });
+  LV_cut(stoneL, 4, function () { LV_ellipse(x, y + ts * 0.15, ts * 0.30, ts * 0.10, 0); });
+  // Water in the lower basin
+  LV_cut(waterD, 2, function () { LV_ellipse(x, y + ts * 0.15, ts * 0.26, ts * 0.085, 0); });
+  _G.save(); _G.fillStyle = water; _G.beginPath(); LV_ellipse(x, y + ts * 0.15, ts * 0.24, ts * 0.075, 0); _G.fill(); _G.restore();
+  // Ripple ring
   if (!depleted) {
-    var colAlpha = 0.4 + Math.sin(t * 3) * 0.15;
-    _G.globalAlpha = colAlpha;
-    _G.fillStyle = glowColor;
-    _G.beginPath(); _G.arc(x, y - ts * 0.05, ts * 0.08 + Math.sin(t * 2.5) * ts * 0.02, 0, Math.PI * 2); _G.fill();
-    var sparkY = y - ts * 0.1 - (t * 0.5 % 0.3) * ts;
-    _G.fillStyle = '#ffffff';
-    _G.beginPath(); _G.arc(x + Math.sin(t * 4) * ts * 0.06, sparkY, ts * 0.025, 0, Math.PI * 2); _G.fill();
-    _G.globalAlpha = 1;
+    _G.save(); _G.strokeStyle = waterHL; _G.lineWidth = ts * 0.012; _G.globalAlpha = 0.5;
+    var rr = (t * 0.4 % 1);
+    _G.beginPath(); LV_ellipse(x, y + ts * 0.15, ts * 0.06 + rr * ts * 0.16, (ts * 0.06 + rr * ts * 0.16) * 0.32, 0); _G.stroke();
+    _G.restore();
+  }
+  // Central pillar + upper bowl
+  LV_cut(stoneD, 5, function () { _G.rect(x - ts * 0.06, y - ts * 0.10, ts * 0.12, ts * 0.24); });
+  LV_cut(stoneL, 5, function () { _G.rect(x - ts * 0.06, y - ts * 0.10, ts * 0.04, ts * 0.24); });
+  LV_cut(stoneD, 6, function () { LV_ellipse(x, y - ts * 0.06, ts * 0.16, ts * 0.06, 0); });
+  LV_cut(stoneL, 6, function () { LV_ellipse(x, y - ts * 0.09, ts * 0.16, ts * 0.055, 0); });
+  LV_cut(water, 3, function () { LV_ellipse(x, y - ts * 0.09, ts * 0.12, ts * 0.038, 0); });
+  // Water spout burst + falling droplets
+  if (!depleted) {
+    _G.save(); _G.fillStyle = waterHL; _G.globalAlpha = 0.7 + Math.sin(t * 3) * 0.15;
+    _G.beginPath(); _G.arc(x, y - ts * 0.15, ts * 0.028 + Math.sin(t * 2.5) * ts * 0.008, 0, Math.PI * 2); _G.fill();
+    for (var d = 0; d < 4; d++) {
+      var side = d < 2 ? -1 : 1;
+      var prog = ((t * 0.9 + d * 0.5) % 1);
+      var dx2 = side * ts * (0.05 + prog * 0.09);
+      var dy2 = -ts * 0.10 + prog * ts * 0.24;
+      _G.globalAlpha = 0.75 * (1 - prog * 0.6);
+      _G.beginPath(); _G.arc(x + dx2, y + dy2, ts * 0.016, 0, Math.PI * 2); _G.fill();
+    }
+    _G.restore();
   }
 }
 
@@ -1252,15 +1410,54 @@ function LV_drawGoldChest(sx, sy, ts, o, t) {
 }
 
 function LV_drawPotion(sx, sy, ts, t) {
-  var x = sx + ts * 0.5, y = sy + ts * 0.5, bob = Math.sin(t * 2.5) * ts * 0.04;
-  LV_cut('#401880', 4, function () { LV_ellipse(x, y + ts * 0.08 + bob, ts * 0.14, ts * 0.18, 0); });
-  LV_cut('#6828c0', 2, function () { _G.rect(x - ts * 0.07, y - ts * 0.12 + bob, ts * 0.14, ts * 0.12); });
-  LV_cut(LV_PAL.stone, 1, function () { _G.rect(x - ts * 0.05, y - ts * 0.15 + bob, ts * 0.1, ts * 0.05); });
+  var x = sx + ts * 0.5, y = sy + ts * 0.5, bob = Math.sin(t * 2.5) * ts * 0.035;
+  var cy = y + bob;
+  // Shadow
+  LV_cut('rgba(14,6,2,0.22)', 0, function () { LV_ellipse(x, y + ts * 0.20, ts * 0.14, ts * 0.04, 0); });
+  // Glow aura
+  _G.save(); _G.globalAlpha = 0.30 + Math.sin(t * 3) * 0.12; _G.fillStyle = '#b060ff';
+  _G.beginPath(); _G.arc(x, cy, ts * 0.20, 0, Math.PI * 2); _G.fill(); _G.restore();
+  // Round glass flask + liquid
+  LV_cut('#3a1668', 4, function () { _G.arc(x, cy + ts * 0.02, ts * 0.15, 0, Math.PI * 2); });
+  LV_cut('#8a3ce0', 3, function () { _G.arc(x, cy + ts * 0.03, ts * 0.12, 0, Math.PI * 2); });
+  LV_cut('#b070f0', 2, function () { _G.arc(x - ts * 0.04, cy - ts * 0.01, ts * 0.05, 0, Math.PI * 2); });
+  // Neck
+  LV_cut('#6828c0', 3, function () { _G.rect(x - ts * 0.045, cy - ts * 0.18, ts * 0.09, ts * 0.10); });
+  // Glass shine
+  _G.save(); _G.globalAlpha = 0.5; _G.fillStyle = '#ffffff';
+  _G.beginPath(); LV_ellipse(x - ts * 0.06, cy - ts * 0.01, ts * 0.02, ts * 0.05, -0.4); _G.fill(); _G.restore();
+  // Cork
+  LV_cut('#c89858', 3, function () { _G.rect(x - ts * 0.05, cy - ts * 0.22, ts * 0.10, ts * 0.055); });
+  LV_cut('#e0b478', 3, function () { _G.rect(x - ts * 0.05, cy - ts * 0.22, ts * 0.10, ts * 0.02); });
+  // Rising bubbles
+  for (var b = 0; b < 3; b++) {
+    var bp = ((t * 0.7 + b * 0.4) % 1);
+    _G.save(); _G.globalAlpha = 0.6 * (1 - bp); _G.fillStyle = '#e0c0ff';
+    _G.beginPath(); _G.arc(x + (b - 1) * ts * 0.04, cy + ts * 0.06 - bp * ts * 0.14, ts * 0.012, 0, Math.PI * 2); _G.fill(); _G.restore();
+  }
 }
 
 function LV_drawGold(sx, sy, ts, o) {
-  var r = mkRng(o.tx * 7 + o.ty * 13); var x = sx + ts * 0.5, y = sy + ts * 0.56;
-  for (var i = 0; i < 5; i++) { var cx = x + (r() - 0.5) * ts * 0.28, cy = y + (r() - 0.5) * ts * 0.18; LV_cut(i % 2 === 0 ? LV_PAL.gold : LV_PAL.goldL, 2 + i * 0.4, (function (c2x, c2y) { return function () { _G.arc(c2x, c2y, ts * 0.1, 0, Math.PI * 2); }; })(cx, cy)); }
+  var r = mkRng(o.tx * 7 + o.ty * 13);
+  var x = sx + ts * 0.5, y = sy + ts * 0.56;
+  // Shadow
+  LV_cut('rgba(14,6,2,0.24)', 0, function () { LV_ellipse(x, y + ts * 0.10, ts * 0.26, ts * 0.07, 0); });
+  // Stacked coin pile — edges under faces for a minted look
+  var spots = [
+    [-0.14, 0.05, 0.11], [0.13, 0.06, 0.10], [-0.02, 0.07, 0.12],
+    [0.06, -0.01, 0.10], [-0.08, -0.02, 0.09], [0.0, -0.08, 0.095]
+  ];
+  for (var i = 0; i < spots.length; i++) {
+    var cx = x + spots[i][0] * ts, cyv = y + spots[i][1] * ts, cr = spots[i][2] * ts;
+    LV_cut('#9a6414', 2 + i * 0.5, (function (a, b, c) { return function () { LV_ellipse(a, b + c * 0.28, c, c * 0.42, 0); }; })(cx, cyv, cr));
+    LV_cut('#e8a828', 2.4 + i * 0.5, (function (a, b, c) { return function () { LV_ellipse(a, b, c, c * 0.5, 0); }; })(cx, cyv, cr));
+    LV_cut('#f8d048', 2.4 + i * 0.5, (function (a, b, c) { return function () { LV_ellipse(a, b - c * 0.06, c * 0.7, c * 0.32, 0); }; })(cx, cyv, cr));
+    LV_cut('#c07818', 2.6 + i * 0.5, (function (a, b, c) { return function () { _G.arc(a, b, c * 0.16, 0, Math.PI * 2); }; })(cx, cyv, cr));
+  }
+  // Static glint
+  var sp = r() * 6.28;
+  _G.save(); _G.globalAlpha = 0.85; _G.fillStyle = '#fff4c0';
+  _G.beginPath(); _G.arc(x + Math.cos(sp) * ts * 0.1, y - ts * 0.06, ts * 0.02, 0, Math.PI * 2); _G.fill(); _G.restore();
 }
 
 function LV_drawEncounterIndicator(sx, sy, ts, o, t) {

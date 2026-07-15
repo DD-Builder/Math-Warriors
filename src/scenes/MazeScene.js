@@ -776,11 +776,18 @@ export class MazeScene extends Phaser.Scene {
       },
     });
 
-    // Fix all HUD elements to the camera so they don't scroll
+    // Fix all HUD elements to the camera so they don't scroll, and lift them
+    // to a depth well above the level layers. The maze renders as levelImage
+    // (depth 0), heroSprite (depth 10) and the foreground wall overlay
+    // fgImage (depth 20); without an explicit depth the HUD sits at the
+    // default 0 and the foreground hedges draw right over the status bar and
+    // party portraits. HUD_DEPTH keeps the whole bottom bar on top.
+    const HUD_DEPTH = 100;
     const after = this.children.length;
     for (let i = before; i < after; i++) {
       const child = this.children.getAt(i);
       if (child && child.setScrollFactor) child.setScrollFactor(0);
+      if (child && child.setDepth) child.setDepth(HUD_DEPTH);
     }
   }
 
