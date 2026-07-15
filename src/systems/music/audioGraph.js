@@ -50,7 +50,36 @@ function ensureGraph() {
 export function unlockAudio() {
   const ctx = getCtx();
   if (ctx.state === 'suspended') ctx.resume();
+  return ctx.state;
 }
+
+/**
+ * iOS/iPadOS unlock. Safari starts the AudioContext SUSPENDED and only
+ * lets it run if resume() is called synchronously inside a real user
+ * gesture. Playing a 1-frame silent buffer in the same gesture fully
+ * "primes" the context on iOS. Safe to call repeatedly. Returns true
+ * once the context is actually running.
+ *
+ * Must be invoked from a NATIVE DOM gesture handler (touchend/pointerdown/
+ * click) — NOT from a Phaser input callback, which fires later in the
+ * requestAnimationFrame game loop and no longer counts as a user gesture.
+ */
+export function primeAudio() {
+  const ctx = getCtx();
+  ensureGraph();
+  try {
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch (e) { /* ignore */ }
+  if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* ignore */ } }
+  return ctx.state === 'running';
+}
+
+/** Current AudioContext state, or null if not yet created. */
+export function audioState() { return _ctx ? _ctx.state : null; }
 
 export function getMasterBus() { ensureGraph(); return _master; }
 export function getMusicBus() { ensureGraph(); return _music; }
