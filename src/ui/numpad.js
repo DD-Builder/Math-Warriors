@@ -11,6 +11,7 @@
 
 import { PaperButton, PaperPanel } from './paperUI.js';
 import { audio } from '../systems/audio.js';
+import { GAME_WIDTH, GAME_HEIGHT } from '../config.js';
 
 export const NUMPAD_MAX_LEN = 6;
 
@@ -50,14 +51,27 @@ export function createNumpad(scene, { x, y, onSubmit, allowMinus = false, depth 
   const objs = [];
   const BTN = 92, GAP = 10;
 
+  // Dim the battlefield behind the pad so the actors don't bleed through the
+  // input surface (the pad now sits ABOVE the Y-sorted actor depths).
+  const dim = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH * 2, GAME_HEIGHT * 2, 0x0a1a1a, 0.55)
+    .setDepth(depth - 2).setScrollFactor(0);
+  objs.push(dim);
+
   const panel = PaperPanel(scene, x, y, BTN * 4 + GAP * 5 + 130, BTN * 4 + GAP * 5 + 80, {
-    color: 0xfff4e0, alpha: 0.97, radius: 20,
+    color: 0xfff4e0, alpha: 1, radius: 20,
   });
   for (const k of ['bg', 'shadow']) if (panel[k]) { panel[k].setDepth(depth - 1).setScrollFactor(0); objs.push(panel[k]); }
 
-  const display = scene.add.text(x, y - BTN * 1.9, '_', {
+  // A clear readable display field (was a bare underscore floating on the
+  // battlefield with no backing).
+  const dispY = y - BTN * 1.9;
+  const dispPanel = PaperPanel(scene, x - 30, dispY, BTN * 3.4, BTN * 0.9, {
+    color: 0xfffdf5, alpha: 1, radius: 12,
+  });
+  for (const k of ['bg', 'shadow']) if (dispPanel[k]) { dispPanel[k].setDepth(depth).setScrollFactor(0); objs.push(dispPanel[k]); }
+  const display = scene.add.text(x - 30, dispY, '_', {
     fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-    fontSize: '58px', color: '#2a1a08',
+    fontSize: '52px', color: '#2a1a08',
   }).setOrigin(0.5).setDepth(depth + 1).setScrollFactor(0);
   objs.push(display);
 

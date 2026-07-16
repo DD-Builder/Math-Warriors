@@ -12,13 +12,25 @@ import { FLOOR_PALETTES } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
-import { tileDepth } from '../systems/perspective.js';
 import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, setSkipCanvasHero, drawForeground, getForegroundCanvas, moveObject, setObjectLook } from '../ui/levelEngine.js';
 
 // Bump whenever the maze save-state shape or level layouts change in an
 // incompatible way — stale device saves are silently discarded instead
 // of resurrecting an old broken layout.
 const MAZE_STATE_SCHEMA = 6;
+
+// Fixed maze world-layer depths. There are only three depth-sorted maze
+// sprites — the full level canvas, the hero, and the foreground-hedge overlay
+// that draws the "in front" hedges over the hero — so only their ORDER
+// matters, not any tile-based magnitude. Pinning them low (0 < hero < fg)
+// keeps the camera-fixed HUD (HUD_LAYER_DEPTH) and the maze modals (200+)
+// safely above the hedges no matter where the player stands. (A previous
+// build set these to tileDepth() which climbed into the hundreds deep in the
+// maze and overran the HUD — that was the "status bar behind hedges" bug.)
+const MAZE_LEVEL_DEPTH = 0;
+const MAZE_HERO_DEPTH = 10;
+const MAZE_FG_DEPTH = 20;
+const HUD_LAYER_DEPTH = 100;
 
 // Signature-secret interactables — all render as glyph medallions in
 // the engine ('secretobj') and are handled by the secret machinery.
@@ -361,13 +373,14 @@ export class MazeScene extends Phaser.Scene {
     this.textures.addCanvas('level-canvas', cv);
     this.levelImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'level-canvas');
     this.levelImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+    this.levelImage.setDepth(MAZE_LEVEL_DEPTH);
 
     // Animated hero sprite overlay (replaces static hero image)
     const heroLeader = this.party[0];
     if (heroLeader) {
       setSkipCanvasHero(true);
       this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1, equipment: this.save.equipment?.[heroLeader.id] });
-      this.heroSprite.setDepth(10);
+      this.heroSprite.setDepth(MAZE_HERO_DEPTH);
       this.heroSprite.setIdle();
       this._heroWasMoving = false;
       this._lastPartyX = null;
@@ -383,7 +396,7 @@ export class MazeScene extends Phaser.Scene {
       this.textures.addCanvas('level-fg', fgCv);
       this.fgImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'level-fg');
       this.fgImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
-      this.fgImage.setDepth(20); // above hero (depth ~10) but below HUD
+      this.fgImage.setDepth(MAZE_FG_DEPTH); // above hero, below HUD (100)
     }
 
     this.buildHUD();
@@ -782,12 +795,10 @@ export class MazeScene extends Phaser.Scene {
     });
 
     // Fix all HUD elements to the camera so they don't scroll, and lift them
-    // to a depth well above the level layers. The maze renders as levelImage
-    // (depth 0), heroSprite (depth 10) and the foreground wall overlay
-    // fgImage (depth 20); without an explicit depth the HUD sits at the
-    // default 0 and the foreground hedges draw right over the status bar and
-    // party portraits. HUD_DEPTH keeps the whole bottom bar on top.
-    const HUD_DEPTH = 100;
+    // above every world layer. The maze sprites are pinned at fixed low depths
+    // (level 0 < hero 10 < fg 20), so HUD_DEPTH=100 clears the hedges no matter
+    // where the player stands, while the maze modals (200+) still sit above it.
+    const HUD_DEPTH = HUD_LAYER_DEPTH;
     const after = this.children.length;
     for (let i = before; i < after; i++) {
       const child = this.children.getAt(i);
@@ -802,11 +813,14 @@ export class MazeScene extends Phaser.Scene {
     if (this.hudChallenge) {
       const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
       const activeLabel = (this.phase2Active && ch.phase2) ? ch.phase2.label : ch.label;
+      // Value line shows just the progress count — the sublabel underneath
+      // already names the challenge, so prefixing the label here repeated it
+      // ("RUNE STONE 0/2" over "RUNE STONE").
       if (this.phase2Active && ch.phase2) {
         const p2 = ch.phase2;
-        this.hudChallenge.setText(`${p2.label} ${this.phase2Progress}/${p2.count}`);
+        this.hudChallenge.setText(`${this.phase2Progress}/${p2.count}`);
       } else {
-        this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
+        this.hudChallenge.setText(`${this.challengeProgress}/${ch.count}`);
       }
       // Keep the small sublabel under the card in sync with the active phase.
       if (this.hudChallengeLabel) this.hudChallengeLabel.setText(activeLabel.toUpperCase());
@@ -1120,17 +1134,40 @@ export class MazeScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * BFS flood-fill of every tile the player can currently WALK to from (sx,sy),
+   * over the live floor grid (walls + water block, same rule as LV_blocked).
+   * Used to guarantee spawned items land somewhere actually reachable.
+   */
+  reachableTiles(sx, sy) {
+    const t = this.floor.tiles, H = this.floor.height, W = this.floor.width;
+    const blocked = (v) => v === TILE.WALL || v === TILE.WATER;
+    const seen = new Set([`${sx},${sy}`]);
+    const q = [[sx, sy]];
+    while (q.length) {
+      const [x, y] = q.shift();
+      for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const k = `${nx},${ny}`;
+        if (seen.has(k) || blocked(t[ny][nx])) continue;
+        seen.add(k); q.push([nx, ny]);
+      }
+    }
+    return seen;
+  }
+
   spawnPhase2Items(phase2) {
     const occupied = new Set();
     occupied.add(`${this.playerX},${this.playerY}`);
     this.objects.forEach(o => { if (!o.consumed) occupied.add(`${o.x},${o.y}`); });
+    // Only spawn on tiles the player can actually WALK to right now — no more
+    // scattering rune stones into a walled-off pocket or the far side of a
+    // not-yet-open crossing (which made floor 1 feel unbeatable).
+    const reachable = this.reachableTiles(this.playerX, this.playerY);
     const candidates = [];
     for (let y = 0; y < this.floor.height; y++) {
       for (let x = 0; x < this.floor.width; x++) {
-        // Only spawn on genuinely walkable ground — walls AND water are
-        // impassable, so an item there would sit embedded/unreachable.
-        const tt = this.floor.tiles[y][x];
-        if (tt === TILE.WALL || tt === TILE.WATER) continue;
+        if (!reachable.has(`${x},${y}`)) continue;
         if (occupied.has(`${x},${y}`)) continue;
         if (Math.abs(x - this.playerX) + Math.abs(y - this.playerY) < 3) continue;
         candidates.push({ x, y });
@@ -1349,13 +1386,13 @@ export class MazeScene extends Phaser.Scene {
         this.heroSprite.scaleX = Math.abs(this.heroSprite.scaleX || 1);
       }
 
-      // Depth based on tile row
-      const heroDepth = tileDepth(this.playerY, this.playerX, 5);
-      this.heroSprite.setDepth(heroDepth);
-
-      // Foreground wall overlay must always be above the hero
+      // Fixed low depths: the foreground-hedge canvas already contains exactly
+      // the hedges that should be in front of the hero, so it only needs to
+      // sit just above the hero — never at a tile-scaled magnitude that could
+      // overrun the HUD.
+      this.heroSprite.setDepth(MAZE_HERO_DEPTH);
       if (this.fgImage) {
-        this.fgImage.setDepth(heroDepth + 1);
+        this.fgImage.setDepth(MAZE_FG_DEPTH);
       }
     }
   }
@@ -1436,6 +1473,43 @@ export class MazeScene extends Phaser.Scene {
   // ================================================================
   // OBJECT INTERACTION
   // ================================================================
+
+  /**
+   * Interaction lock gate. An object may be sealed behind one or more math
+   * doors (`obj.lock` = a door id, or an array of ids answered in order). The
+   * object cannot be operated until every lock door is answered — so each lock
+   * is a TRUE gate on its content even though the door tile itself does not
+   * physically block the party, and even if the player reached the tile from an
+   * unintended direction. Answering a door by walking into it also opens it;
+   * either path works. Lock doors are plain math prompts, always answerable, so
+   * a lock can never make a floor unwinnable.
+   *
+   * Returns true if the interaction is still gated (a prompt was shown — the
+   * caller must `return`), false if all locks are open (proceed).
+   */
+  promptNextLock(obj, hint) {
+    if (!obj.lock) return false;
+    const ids = Array.isArray(obj.lock) ? obj.lock : [obj.lock];
+    for (const id of ids) {
+      const lockDoor = this.objects.find(o => o.id === id);
+      if (!lockDoor || lockDoor.open) continue;
+      const operator = lockDoor.operator || FLOOR_OPERATORS[this.floorId] || '+';
+      const q = generateRatedQuestion({
+        operator,
+        grade: getAdaptiveGrade(this.save, operator),
+        streak: 0,
+        floor: this.floorId,
+        targetStars: [2, 3],
+      });
+      // On a correct answer this door opens; re-run the interaction so the
+      // next unopened lock (or the now-unlocked object) is handled.
+      lockDoor.onOpen = () => this.checkObjectAt(obj.x, obj.y);
+      if (hint) this.showFloatText(obj.x, obj.y, hint, '#f0c040');
+      this.showMathDoorPrompt(q, lockDoor);
+      return true;
+    }
+    return false;
+  }
 
   checkObjectAt(x, y) {
     // Boss blocking — if player hasn't defeated the boss, they can't walk
@@ -1648,6 +1722,8 @@ export class MazeScene extends Phaser.Scene {
         return;
       }
       case 'chest': {
+        // A vault chest may be gated by a lock door — answer it to claim it.
+        if (this.promptNextLock(obj, '🔒 Answer the vault lock!')) return;
         const gold = obj.loot?.gold ?? 10;
         this.save.gold += gold;
         writeSave(this.save, this.slot);
@@ -1673,6 +1749,8 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'hero': {
+        // A caged hero may sit behind a vault/cell lock — answer it to rescue.
+        if (this.promptNextLock(obj, '🔒 Answer the cell lock!')) return;
         // In-maze hero rescue — the level's special unlock moment.
         if (isHeroUnlocked(this.save, obj.heroId)) {
           // Already granted (boss-victory safety net on a re-entered floor):
@@ -1724,6 +1802,9 @@ export class MazeScene extends Phaser.Scene {
       case 'vaultseal':
       case 'chapterseal':
       case 'eqanchor': {
+        // A challenge item may be sealed behind a math-door lock (see
+        // promptNextLock): answer it before the item can be operated.
+        if (this.promptNextLock(obj, '🔒 Answer the lock!')) return;
         const isPhase2 = this.phase2Active && this.floor.challenge?.phase2?.type === obj.type;
         if (isPhase2) {
           this.phase2Progress++;
@@ -1844,6 +1925,12 @@ export class MazeScene extends Phaser.Scene {
           this.showFloatText(obj.x, obj.y, `FIND ALL ${bch.phase2.label}S FIRST!`, '#e088c0');
           return;
         }
+        // Cage lock: the boss sits sealed behind its final math door(s) — a
+        // cagelock, and on Floor 9 the three-door "gauntlet of everything"
+        // ahead of it (obj.lock is an ordered list). The challenge is already
+        // complete here, so answering these only adds the final key-turns; it
+        // never makes the floor unwinnable.
+        if (this.promptNextLock(obj, '🔒 Break the seal!')) return;
         // Do NOT consume the boss before the battle — if the player loses,
         // the boss must still be present for a retry. The boss object is
         // consumed after victory when bossDefeated is set to true.

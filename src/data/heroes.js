@@ -117,7 +117,7 @@ export const KNIGHTS = [
     },
   }, 9),
 
-  make('knight-crusader', 'Crusader', 'knight', 'Holy. Righteous. Relentless.', { def: 3, maxHp: -1 }, 1, [
+  make('knight-crusader', 'Crusader', 'knight', 'Holy. Righteous. Relentless.', { def: 3, maxHp: -1 }, 2, [
     { name: 'Holy Slam',       type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Radiant Smash',   type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Divine Judgment',  type: 'damage', multiplier: 3, unlockLevel: 7 },
@@ -428,7 +428,7 @@ export const WIZARDS = [
     },
   }, 3),
 
-  make('wizard-toadstool', 'Toadstool', 'wizard', 'Brews chaos. Serves it hot.', { atk: 2, def: 1 }, 1, [
+  make('wizard-toadstool', 'Toadstool', 'wizard', 'Brews chaos. Serves it hot.', { atk: 2, def: 1, maxHp: 1 }, 3, [
     { name: 'Spore Cloud',    type: 'damage', multiplier: 2, unlockLevel: 1 },
     { name: 'Mushroom Bomb',  type: 'damage', multiplier: 2.5, unlockLevel: 4 },
     { name: 'Toxic Nova',     type: 'damage', multiplier: 3, unlockLevel: 7 },

@@ -579,27 +579,20 @@ export const DIALOGUE = {
 // ══════════════════════════════════════════════════════════════════
 
 const HERO_RESCUE = {
-  // ── FLOOR 1: THE GARDEN — tangled in the Briar King's thorns ──
-  1: {
-    'knight-crusader': [
-      { speaker: 'Elara', text: 'Someone is stuck in the thorns!' },
-      { speaker: 'Crusader', text: 'Free at last! The Briar King' },
-      { speaker: 'Crusader', text: 'tangled me up in his briars.' },
-      { speaker: 'Crusader', text: 'My holy aura shields the party.' },
-      { speaker: 'Crusader', text: 'Point me at the math!' },
-      { speaker: 'Elara', text: 'Welcome, Crusader. We need you.' },
-    ],
-    'wizard-toadstool': [
-      { speaker: 'Elara', text: 'A mushroom wizard in the vines?' },
-      { speaker: 'Toadstool', text: 'Hee hee! Finally!' },
-      { speaker: 'Toadstool', text: 'Those thorns were NOT comfy.' },
-      { speaker: 'Toadstool', text: 'I brew sneaky spores. Let me help!' },
-      { speaker: 'Elara', text: 'Your funny magic is welcome!' },
-    ],
-  },
+  // ── FLOOR 1: THE GARDEN — no rescuable heroes (findable characters
+  // begin on floor 2 so the first level stays on the core loop) ──
+  1: {},
 
   // ── FLOOR 2: TIDEPOOL RUINS — pinned by the stuck-high tide ──
   2: {
+    'knight-crusader': [
+      { speaker: 'Water Fairy', text: 'A knight, pinned in the coral!' },
+      { speaker: 'Crusader', text: 'Free at last! The stuck tide' },
+      { speaker: 'Crusader', text: 'wedged me into this reef.' },
+      { speaker: 'Crusader', text: 'My holy aura shields the party.' },
+      { speaker: 'Crusader', text: 'Point me at the math!' },
+      { speaker: 'Water Fairy', text: 'Welcome, Crusader. We need you.' },
+    ],
     'wizard-spellblade': [
       { speaker: 'Water Fairy', text: 'Someone is stuck in the coral!' },
       { speaker: 'Spellblade', text: 'The stuck tide pinned me' },
@@ -634,6 +627,13 @@ const HERO_RESCUE = {
       { speaker: 'Boulder', text: 'Guarded the sheep treasure for you.' },
       { speaker: 'Boulder', text: 'Ready to bonk things. With rocks.' },
       { speaker: 'Zephyr', text: 'Glad to have you, Boulder.' },
+    ],
+    'wizard-toadstool': [
+      { speaker: 'Zephyr', text: 'A mushroom wizard up in the clouds?' },
+      { speaker: 'Toadstool', text: 'Hee hee! Finally! Free at last!' },
+      { speaker: 'Toadstool', text: 'The dark winds pinned me here.' },
+      { speaker: 'Toadstool', text: 'I brew sneaky spores. Let me help!' },
+      { speaker: 'Zephyr', text: 'Your funny magic is welcome up here!' },
     ],
   },
 

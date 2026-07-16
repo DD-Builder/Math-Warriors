@@ -97,9 +97,12 @@ class AudioManager {
    */
   init(game) {
     this.game = game;
-    // Load saved volume preferences if they exist
+    // Load saved volume preferences if they exist. loadSave migrates the
+    // legacy 'mathwarriors.save' key into slot keys ('mathwarriors.save.1',
+    // …) and deletes the legacy key, so read the slot key first.
     try {
-      const raw = localStorage.getItem('mathwarriors.save');
+      const raw = localStorage.getItem('mathwarriors.save.1')
+        || localStorage.getItem('mathwarriors.save');
       if (raw) {
         const save = JSON.parse(raw);
         if (save?.settings) {
@@ -110,6 +113,12 @@ class AudioManager {
     } catch {
       // localStorage not available or corrupted — use defaults
     }
+    // Push our state into the actual audio buses so the graph matches from
+    // the very first sound — previously the buses only ever got set when the
+    // user dragged a Settings slider, so a saved non-default volume was lost.
+    setMusicBusVolume(this.musicVolume);
+    setSfxBusVolume(this.sfxVolume);
+    setBusMuted(this.muted);
   }
 
   /**
@@ -228,6 +237,20 @@ class AudioManager {
     stopSynthMusic();
     stopSong();
     this.currentMusic = null;
+  }
+
+  /**
+   * Re-kick the current music track. Music started in a scene's create()
+   * fires before any user gesture, so on iOS the AudioContext is still
+   * suspended and the track never actually plays — and currentMusic is
+   * already set, so same-key scenes won't retry. Called from the native
+   * unlock path once the context is running: replay from scratch.
+   */
+  resumeMusic() {
+    const key = this.currentMusic;
+    if (!key || this.muted || this.musicVolume <= 0) return;
+    this.currentMusic = null;   // force playMusic to actually restart it
+    this.playMusic(key);
   }
 
   setMuted(muted) {

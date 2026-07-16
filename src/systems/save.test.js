@@ -426,21 +426,21 @@ describe('hero unlock system', () => {
     assert.ok(!isHeroUnlocked(save, 'wizard-toadstool'));
   });
 
-  test('unlockHeroesForFloor(1) unlocks Crusader + Toadstool', () => {
+  test('unlockHeroesForFloor unlocks each floor\'s rescues (Crusader on 2, Toadstool on 3)', () => {
     const save = makeDefaultSave();
-    const unlocked = unlockHeroesForFloor(save, 1);
-    assert.equal(unlocked.length, 2);
-    assert.ok(unlocked.some(h => h.id === 'knight-crusader'));
-    assert.ok(unlocked.some(h => h.id === 'wizard-toadstool'));
+    const f2 = unlockHeroesForFloor(save, 2);
+    assert.ok(f2.some(h => h.id === 'knight-crusader'));
     assert.ok(isHeroUnlocked(save, 'knight-crusader'));
+    const f3 = unlockHeroesForFloor(save, 3);
+    assert.ok(f3.some(h => h.id === 'wizard-toadstool'));
     assert.ok(isHeroUnlocked(save, 'wizard-toadstool'));
   });
 
   test('unlockHeroesForFloor does not duplicate', () => {
     const save = makeDefaultSave();
-    unlockHeroesForFloor(save, 1);
+    unlockHeroesForFloor(save, 2);
     const before = save.unlockedHeroes.length;
-    unlockHeroesForFloor(save, 1);
+    unlockHeroesForFloor(save, 2);
     assert.equal(save.unlockedHeroes.length, before);
   });
 
@@ -464,14 +464,15 @@ describe('hero unlock system', () => {
 
   test('unlockHero does not queue rescue dialogue; safety net skips rescued heroes', () => {
     const save = makeDefaultSave();
-    unlockHero(save, 'knight-crusader');           // rescued in-maze
+    unlockHero(save, 'knight-crusader');           // rescued in-maze (floor 2)
     assert.equal((save.pendingRescueDialogue || []).length, 0,
       'in-maze rescue must not queue the post-boss cutscene');
-    const unlocked = unlockHeroesForFloor(save, 1); // boss-victory safety net
-    assert.equal(unlocked.length, 1, 'only the missed hero unlocks at the boss');
-    assert.equal(unlocked[0].id, 'wizard-toadstool');
-    assert.deepEqual(save.pendingRescueDialogue, ['wizard-toadstool'],
-      'cutscene queue holds only the hero NOT rescued in-maze');
+    const unlocked = unlockHeroesForFloor(save, 2); // boss-victory safety net
+    assert.ok(!unlocked.some(h => h.id === 'knight-crusader'),
+      'the already-rescued hero is not unlocked again at the boss');
+    assert.ok(unlocked.length >= 1, 'the un-rescued floor-2 heroes unlock at the boss');
+    assert.ok(!save.pendingRescueDialogue.includes('knight-crusader'),
+      'cutscene queue excludes the hero rescued in-maze');
   });
 
   test('save version is 5', () => {
@@ -531,12 +532,14 @@ describe('hero unlock system', () => {
     const loaded = loadSave();
     assert.equal(loaded.version, 5);
     assert.ok(Array.isArray(loaded.unlockedHeroes));
-    // Starters + floor 1 unlocks + floor 2 unlocks
+    // Starters + floor-2 unlocks (floors 1 & 2 complete; floor 3 is not, so
+    // its rescue Toadstool must NOT be unlocked yet).
     assert.ok(loaded.unlockedHeroes.includes('knight-shadow'));
-    assert.ok(loaded.unlockedHeroes.includes('knight-crusader'));
-    assert.ok(loaded.unlockedHeroes.includes('wizard-toadstool'));
-    assert.ok(loaded.unlockedHeroes.includes('bunny-nova'));
-    assert.ok(loaded.unlockedHeroes.includes('wizard-spellblade'));
+    assert.ok(loaded.unlockedHeroes.includes('knight-crusader'));   // floor 2
+    assert.ok(loaded.unlockedHeroes.includes('bunny-nova'));         // floor 2
+    assert.ok(loaded.unlockedHeroes.includes('wizard-spellblade'));  // floor 2
+    assert.ok(!loaded.unlockedHeroes.includes('wizard-toadstool'),   // floor 3, incomplete
+      'floor-3 rescue not unlocked while floor 3 is incomplete');
     assert.equal(loaded.gold, 100);
   });
 
@@ -545,7 +548,7 @@ describe('hero unlock system', () => {
     writeSave(save);
     const loaded = loadSave();
     markFloorComplete(loaded, 1);
-    unlockHeroesForFloor(loaded, 1);
+    unlockHeroesForFloor(loaded, 2);   // Crusader is a floor-2 rescue now
     writeSave(loaded);
     const reloaded = loadSave();
     assert.ok(reloaded.floors[0].complete);

@@ -54,16 +54,25 @@ export class DialogueOverlay {
       lineSpacing: 8,
     }).setDepth(DEPTH + 2);
 
-    this.continueBtn = PaperButton(scene, 0, 0, 'TAP ▶', {
-      w: 150, h: 46, color: PAPER.orange, fontSize: 17,
+    // Papercut wood "TAP" chip — no ▶ arrow (which the player disliked), and
+    // the whole bubble is tappable (tapZone below) so this is just a hint.
+    this.continueBtn = PaperButton(scene, 0, 0, 'TAP', {
+      w: 130, h: 46, color: 0xc9a870, fontSize: 17, textColor: '#2a1a08',
       onClick: () => this.onTap(),
     });
     ['bg', 'shadow', 'label', 'zone'].forEach((k, i) => {
       if (this.continueBtn[k]) this.continueBtn[k].setDepth(DEPTH + 3 + i);
     });
 
+    // Tap ANYWHERE on the bubble/screen to advance — the tiny button is no
+    // longer the only target. onTap() no-ops unless the overlay is active, and
+    // show()/hide() toggle this zone's interactivity so it never eats maze taps.
+    this.tapZone = scene.add.zone(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT)
+      .setDepth(DEPTH + 1).setScrollFactor(0);
+    this.tapZone.on('pointerdown', () => this.onTap());
+
     this.allObjects = [
-      this.panelGfx, this.nameText, this.bodyText,
+      this.panelGfx, this.nameText, this.bodyText, this.tapZone,
       this.continueBtn.bg, this.continueBtn.shadow, this.continueBtn.label, this.continueBtn.zone,
     ];
     this.hide();
@@ -76,6 +85,7 @@ export class DialogueOverlay {
   }
 
   hide() {
+    if (this.tapZone) this.tapZone.disableInteractive();
     this.allObjects.forEach(o => { if (o) o.setVisible(false); });
     this._destroyPortrait();
     if (this.autoTimer) { this.autoTimer.remove(); this.autoTimer = null; }
@@ -96,6 +106,8 @@ export class DialogueOverlay {
         if (o.setScrollFactor) o.setScrollFactor(0);
       }
     });
+    // Arm tap-anywhere-to-advance only while the bubble is up.
+    if (this.tapZone) this.tapZone.setInteractive();
 
     return new Promise((resolve) => {
       this.resolve = resolve;

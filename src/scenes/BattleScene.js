@@ -35,7 +35,7 @@ import { createParallaxBackground, shiftParallaxLayers, startAtmosphericParticle
 import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } from '../systems/envResponsive.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
-import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnightSuper, playBunnySuper, playWizardSuper } from '../systems/attackAnimations.js';
+import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnightSuper, playBunnySuper, playWizardSuper, impactFx } from '../systems/attackAnimations.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero, HERO_FEET_OFFSET } from '../ui/heroSprites.js';
 import { BATTLE_DEPTH } from '../ui/depths.js';
@@ -716,6 +716,19 @@ export class BattleScene extends Phaser.Scene {
     // No idle bob tween needed — the state machine's idle state handles breathing
   }
 
+  /**
+   * Fade out a defeated enemy's whole name/HP plate. Previously each death
+   * path faded name+bars+text but NOT hpStroke (the white outline), leaving an
+   * empty white bar floating where the enemy died. This fades every plate part
+   * (the body fade stays with each caller, since it has bespoke scale/ease).
+   */
+  fadeEnemyPlate(sprite, dur = 400) {
+    if (!sprite) return;
+    for (const part of ['name', 'hpBarBg', 'hpBarFill', 'hpStroke', 'hpText']) {
+      if (sprite[part]) this.tweens.add({ targets: sprite[part], alpha: 0, duration: dur });
+    }
+  }
+
   buildEnemySprite() {
     const count = this.enemies.length;
 
@@ -727,7 +740,10 @@ export class BattleScene extends Phaser.Scene {
     monsterShadowGfx.setDepth(11);
 
     this.enemySprites = [];
-    const w = 200;
+    // Name/HP plate width scales with how many enemies share the right zone,
+    // so 3 plates never run into each other in their narrower slots.
+    const zoneW = BATTLE_PERSPECTIVE.monsterZoneR - BATTLE_PERSPECTIVE.monsterZoneL;
+    const w = Math.min(200, Math.max(120, zoneW / count - 28));
     // Monster art sits centered in a 640px canvas with its visible feet
     // ~0.34 of the height below center. pos.y is the ground line, so raise
     // the sprite by that fraction to plant its feet on the ground.
@@ -742,9 +758,11 @@ export class BattleScene extends Phaser.Scene {
       const pos = positions[ei];
       const x = pos.x;
       // Bosses stand a little nearer the camera (lower) so they read as
-      // imposing without floating; everyone else stands on pos.y.
+      // imposing without floating; everyone else stands on pos.y. Scale comes
+      // from the formation (already width-capped to the monster zone) so a
+      // boss never bursts out of its side into the party or the POTION button.
       const feetY = enemy.isBoss ? pos.y + 55 : pos.y;   // ground line under the feet
-      let monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.10) : pos.scale;
+      let monsterScale = pos.scale;
       // Fit: the sprite is drawn origin 0.5, so its top edge sits at
       // feetY - CANVAS*scale*(FEET_FRAC + 0.5). Cap the scale so that top
       // never rises above TOP_MARGIN (bosses especially).
@@ -770,7 +788,7 @@ export class BattleScene extends Phaser.Scene {
 
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: count >= 3 ? '20px' : count === 2 ? '23px' : '28px',
+        fontSize: count >= 3 ? '17px' : count === 2 ? '23px' : '28px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.scarlet,
         strokeThickness: 4,
@@ -920,9 +938,14 @@ export class BattleScene extends Phaser.Scene {
     const noteCy = eqY;
     this.eqCenterY = eqY;
 
-    PaperPanel(this, noteCx, noteCy, noteW, noteH, {
-      color: 0xf5ead0, alpha: 0.92, radius: 18, shadowOff: 4, shadowAlpha: 0.2,
+    // Capture + depth the panel: the return was discarded, leaving its bg at
+    // the default depth 0 (behind the ground and actors), so the equation card
+    // read as faint/see-through. Pin it to the panel layer and make it solid.
+    const eqPanel = PaperPanel(this, noteCx, noteCy, noteW, noteH, {
+      color: 0xf7edd6, alpha: 1, radius: 18, shadowOff: 4, shadowAlpha: 0.28,
     });
+    if (eqPanel.bg) eqPanel.bg.setDepth(BATTLE_DEPTH.PANEL);
+    if (eqPanel.shadow) eqPanel.shadow.setDepth(BATTLE_DEPTH.PANEL_SHADOW);
 
     // Floor-themed math panel decorations
     this.panelFx = createPanelDecorations(this, this.floor, noteCx, noteCy, noteW, noteH);
@@ -997,8 +1020,10 @@ export class BattleScene extends Phaser.Scene {
     // Coach "?" — pre-answer hint ladder (tip → scaffold). Sits at the
     // equation panel's right edge, hidden until a question is on screen.
     // Tapping it never blocks answering; each rung trades some power.
-    this._coachBtn = PaperButton(this, area.right - 44, eqY - 6, '?', {
-      w: 48, h: 48, color: PAPER.inkTeal, fontSize: 30, seed: 7777,
+    // Warm amber "hint" chip — the old near-black inkTeal square read as an
+    // off-style placeholder. Bigger touch target + friendly gold face.
+    this._coachBtn = PaperButton(this, area.right - 52, eqY - 6, '?', {
+      w: 58, h: 58, color: 0xf0a83c, fontSize: 34, textColor: '#3a2410', seed: 7777,
       onClick: () => this.onCoachHint(),
     });
     for (const el of [this._coachBtn.shadow, this._coachBtn.bg, this._coachBtn.label, this._coachBtn.zone]) {
@@ -1496,10 +1521,7 @@ export class BattleScene extends Phaser.Scene {
       // Check for kill
       if (targetEnemy.hp <= 0) {
         this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
-        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
-        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
-        if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 300 });
+        this.fadeEnemyPlate(targetSprite);
         if (this.allEnemiesDead()) {
           this.time.delayedCall(500, () => this.showVictory());
           return;
@@ -2208,10 +2230,7 @@ export class BattleScene extends Phaser.Scene {
         }
         if (enemy.hp <= 0 && sprite) {
           this.tweens.add({ targets: sprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-          if (sprite.name) this.tweens.add({ targets: sprite.name, alpha: 0, duration: 400 });
-          if (sprite.hpBarBg) this.tweens.add({ targets: sprite.hpBarBg, alpha: 0, duration: 400 });
-          if (sprite.hpBarFill) this.tweens.add({ targets: sprite.hpBarFill, alpha: 0, duration: 400 });
-          if (sprite.hpText) this.tweens.add({ targets: sprite.hpText, alpha: 0, duration: 300 });
+          this.fadeEnemyPlate(sprite);
         }
       });
       dotDelay += 200;
@@ -2795,10 +2814,7 @@ export class BattleScene extends Phaser.Scene {
         this.shakeCamera(0.012, 300);
         // Fade out the killed enemy sprite
         this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
-        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
-        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
-        if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 300 });
+        this.fadeEnemyPlate(targetSprite);
         // Check if ALL enemies are dead
         if (this.allEnemiesDead()) {
           this.time.delayedCall(400, () => this.showVictory());
@@ -3275,9 +3291,10 @@ export class BattleScene extends Phaser.Scene {
         repeat: 1,
       });
     }
-    // Red floating damage number for enemy damage dealt to hero
+    // Same juicy impact the enemy gets — a red-tinted burst so a monster's
+    // hit on a hero lands with equal weight — plus the big damage number.
+    impactFx(this, s.x, s.y - 20, result.modifiedDamage, { flashColor: 0xff5a5a, ringColor: 0xff6a6a, colors: [0xff5a5a, 0xffb0b0, 0xffffff] });
     this.floatDamageNumber(s.x, s.y - 80, result.modifiedDamage, '#ff6060', '-');
-    this.burstParticles(s.x, s.y - 30, 0xc03030);
     // Flash hero HP bar red before updating
     this.flashHpBar(s.hpBarFill, 0xff0000);
   }
@@ -3304,23 +3321,35 @@ export class BattleScene extends Phaser.Scene {
    * @param {string} prefix  '+' for hero damage (gold), '-' for enemy damage (red)
    */
   floatDamageNumber(x, y, amount, color, prefix = '-') {
-    const t = this.add.text(x, y, `${prefix}${amount}`, {
+    // BIG, punchy, pop-and-HOLD — the damage number is the payoff, so it has
+    // to be readable and satisfying: large font, snap up to full size, hold a
+    // beat, then drift up and fade. Depth 1000 so an enemy body never hides it.
+    const big = amount >= 20;
+    const t = this.add.text(x + (Math.random() - 0.5) * 26, y, `${prefix}${amount}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '28px',
+      fontSize: big ? '66px' : '52px',
       fontStyle: 'bold',
       color,
-      stroke: PAPER_CSS.shadow,
-      strokeThickness: 4,
-    }).setOrigin(0.5).setScale(0.5);
+      stroke: '#1f1206',
+      strokeThickness: 8,
+    }).setOrigin(0.5).setScale(0.2).setDepth(1000).setAngle((Math.random() - 0.5) * 12);
 
     this.tweens.add({
       targets: t,
-      y: y - 60,
-      alpha: 0,
-      scale: 1.2,
-      duration: 800,
-      ease: 'Cubic.out',
-      onComplete: () => t.destroy(),
+      scale: big ? 1.5 : 1.3,
+      duration: 150,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: t,
+          y: t.y - 72,
+          alpha: 0,
+          duration: 380,
+          delay: 340,
+          ease: 'Cubic.in',
+          onComplete: () => t.destroy(),
+        });
+      },
     });
   }
 
@@ -3905,20 +3934,22 @@ export class BattleScene extends Phaser.Scene {
         }
         this.burstParticles(es.x, es.y, 0xe8a030);
         this.burstParticles(es.x, es.y, 0xf0d040);
-        if (es.name) this.tweens.add({ targets: es.name, alpha: 0, duration: 400 });
-        if (es.hpBarBg) this.tweens.add({ targets: es.hpBarBg, alpha: 0, duration: 400 });
-        if (es.hpBarFill) this.tweens.add({ targets: es.hpBarFill, alpha: 0, duration: 400 });
-        if (es.hpText) this.tweens.add({ targets: es.hpText, alpha: 0, duration: 400 });
+        if (es.body) this.tweens.add({ targets: es.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+        this.fadeEnemyPlate(es);
       } catch (_) { /* defensive: don't let sprite cleanup prevent victory */ }
     }
 
     const accuracy = this.battleCorrect + this.battleWrong > 0
       ? Math.round((this.battleCorrect / (this.battleCorrect + this.battleWrong)) * 100) : 100;
 
-    // Build defeated names
-    const defeatedNames = this.enemies.length > 1
-      ? this.enemies.map(e => e.name).join(' & ')
-      : this.enemy.name;
+    // Build defeated names — collapse duplicates so three enemies don't read
+    // "Puffshroom & Puffshroom & Blossom Fiend"; a repeated name becomes
+    // "2× Puffshroom" instead.
+    const defeatedNames = (() => {
+      const counts = new Map();
+      for (const e of this.enemies) counts.set(e.name, (counts.get(e.name) || 0) + 1);
+      return Array.from(counts, ([name, n]) => (n > 1 ? `${n}× ${name}` : name)).join(' & ');
+    })();
 
     this.time.delayedCall(500, () => {
       this.endOverlay.titleText.setText('VICTORY!');
@@ -4247,7 +4278,7 @@ export class BattleScene extends Phaser.Scene {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     this._specialNumpad = createNumpad(this, {
       x: area.cx, y: area.bottom - 250,
-      depth: BATTLE_DEPTH.COMMAND,
+      depth: BATTLE_DEPTH.NUMPAD,
       onSubmit: (v) => this.resolveSpecialAnswer(v),
     });
 
@@ -4413,10 +4444,7 @@ export class BattleScene extends Phaser.Scene {
     if (targetEnemy.hp <= 0) {
       this.burstParticles(targetSprite.body?.x || 900, targetSprite.body?.y || 400, 0xe8a030);
       if (targetSprite.body) this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-      if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
-      if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
-      if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
-      if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 400 });
+      this.fadeEnemyPlate(targetSprite);
       if (this.allEnemiesDead()) {
         this.time.delayedCall(400, () => this.showVictory());
       } else {
