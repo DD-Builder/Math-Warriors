@@ -123,9 +123,8 @@ const FLOOR_1 = {
     { type: 'gold', x: 19, y: 13 },
     { type: 'potion', x: 8, y: 13 },
     { type: 'potion', x: 20, y: 4 },
-    // trapped heroes — freed in-maze, they join the quest
-    { type: 'hero', x: 7, y: 14, id: 'hero-wizard-toadstool', heroId: 'wizard-toadstool', prison: 'vine' },  // SE hedge maze
-    { type: 'hero', x: 20, y: 7, id: 'hero-knight-crusader', heroId: 'knight-crusader', prison: 'vine' },    // east grove, past the bridge
+    // No rescuable heroes on floor 1 — the first level stays focused on the
+    // core loop; findable characters begin on floor 2 (Crusader) and 3 (Toadstool).
     // east grove — reachable only after the bridge grows
     { type: 'boss', x: 18, y: 5, enemyId: 'briarking' },
     { type: 'golden', x: 18, y: 4 },
@@ -251,6 +250,7 @@ const FLOOR_2 = {
     { type: 'encounter', x: 24, y: 15 },
     { type: 'encounter', x: 10, y: 2 },
     // ── trapped heroes — Ebbport survivors, freed as districts surface ──
+    { type: 'hero', x: 5, y: 3, id: 'hero-knight-crusader', heroId: 'knight-crusader', prison: 'coral' },       // Harbor Steps (moved from floor 1)
     { type: 'hero', x: 24, y: 7, id: 'hero-wizard-spellblade', heroId: 'wizard-spellblade', prison: 'coral' },  // Market Row
     { type: 'hero', x: 21, y: 21, id: 'hero-bunny-nova', heroId: 'bunny-nova', prison: 'coral' },               // Temple Terraces
     // ── E Deep Basin (boss lair) ──
@@ -370,6 +370,7 @@ const FLOOR_3 = {
     { type: 'mathdoor', x: 24, y: 10, id: 'f3lock4' },
     { type: 'beacon', x: 24, y: 12 },        // FINAL beacon → quad-bridge transform
     { type: 'hero', x: 26, y: 9, id: 'hero-knight-paladin', heroId: 'knight-paladin', prison: 'cloud' },
+    { type: 'hero', x: 7, y: 4, id: 'hero-wizard-toadstool', heroId: 'wizard-toadstool', prison: 'cloud' },  // NW dawn terrace (moved from floor 1)
     { type: 'encounter', x: 26, y: 13 },
     { type: 'potion', x: 27, y: 8 },
     // ── E: sunset treasure isle — Boulder and the flock's riches ──
