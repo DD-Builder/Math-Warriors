@@ -1330,11 +1330,29 @@ function LV_drawDoor(sx, sy, ts, o, t) {
 
 function LV_drawFountain(sx, sy, ts, o, t) {
   var x = sx + ts * 0.5, y = sy + ts * 0.5;
+  // A fountain is a landmark water feature, not a tile trinket — render it
+  // ~2.8x the tile so it reads big and central. (It is placed in an open
+  // clearing with paver ground around it, so the overflow is intentional.)
+  ts = ts * 2.8;
   var depleted = o.uses <= 0;
   var stoneD = '#7a6e5c', stone = '#a89880', stoneL = '#c8b89a';
   var waterD = depleted ? '#4a5450' : '#2a6e94';
   var water = depleted ? '#5a645e' : '#3f9ec8';
   var waterHL = depleted ? '#6a746a' : '#7fd0ee';
+  // Stone-paver apron so the fountain sits on a plaza, not floating on grass.
+  LV_cut('rgba(14,6,2,0.22)', 0, function () { LV_ellipse(x, y + ts * 0.22, ts * 0.52, ts * 0.2, 0); });
+  LV_cut('#a89066', 1, function () { LV_ellipse(x, y + ts * 0.17, ts * 0.5, ts * 0.19, 0); });
+  LV_cut('#c2ac82', 1, function () { LV_ellipse(x, y + ts * 0.15, ts * 0.45, ts * 0.16, 0); });
+  // Radial paver seams
+  _G.save(); _G.strokeStyle = 'rgba(90,74,48,0.35)'; _G.lineWidth = ts * 0.01;
+  for (var pv = 0; pv < 10; pv++) {
+    var pa = (pv / 10) * Math.PI * 2;
+    _G.beginPath();
+    _G.moveTo(x + Math.cos(pa) * ts * 0.30, y + ts * 0.15 + Math.sin(pa) * ts * 0.10);
+    _G.lineTo(x + Math.cos(pa) * ts * 0.45, y + ts * 0.15 + Math.sin(pa) * ts * 0.16);
+    _G.stroke();
+  }
+  _G.restore();
   // Ground shadow
   LV_cut('rgba(14,6,2,0.26)', 0, function () { LV_ellipse(x, y + ts * 0.30, ts * 0.34, ts * 0.09, 0); });
   // Lower basin (stacked stone ring)
