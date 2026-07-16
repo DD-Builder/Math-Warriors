@@ -146,6 +146,25 @@ for (const idStr of Object.keys(LEVEL_DEFS)) {
     }
   });
 
+  test(`floor ${id}: every math door is a real gate and every lock resolves`, () => {
+    // No gate-to-nowhere: every mathdoor must be referenced by some object's
+    // `lock` (a string id or an ordered array of ids), and every lock must
+    // resolve to a real door on this floor. This is what makes each door a
+    // TRUE gate on its content rather than decoration the player can ignore.
+    const doorIds = new Set(lv.objects.filter(o => o.type === 'mathdoor').map(o => o.id));
+    const locked = new Set();
+    for (const o of lv.objects) {
+      if (!o.lock) continue;
+      for (const l of (Array.isArray(o.lock) ? o.lock : [o.lock])) {
+        assert.ok(doorIds.has(l), `lock "${l}" on ${o.type}@(${o.x},${o.y}) has no matching door`);
+        locked.add(l);
+      }
+    }
+    for (const id of doorIds) {
+      assert.ok(locked.has(id), `math door "${id}" gates nothing — a gate to nowhere`);
+    }
+  });
+
   test(`floor ${id}: every drained/transform tile is interior and starts as wall or water`, () => {
     for (const [x, y] of allDrainTiles(lv)) {
       assert.ok(x > 0 && x < lv.width - 1 && y > 0 && y < lv.height - 1, `drain tile (${x},${y}) on border`);

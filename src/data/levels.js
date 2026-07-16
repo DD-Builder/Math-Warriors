@@ -99,9 +99,9 @@ const FLOOR_1 = {
   },
   objects: [
     // fairies — the challenge (type comes from floors.js challenge config)
-    { type: 'fairy', x: 2, y: 1 },     // NW pocket, behind door
+    { type: 'fairy', x: 2, y: 1, lock: 'f1door1' },     // NW pocket, behind door
     { type: 'fairy', x: 10, y: 5 },    // pond clearing, at the water's edge
-    { type: 'fairy', x: 5, y: 13 },    // SE hedge maze
+    { type: 'fairy', x: 5, y: 13, lock: 'f1door2' },    // SE hedge maze (SW pocket, door is the only way in)
     // math doors gate the pockets — addition problems open the way
     { type: 'mathdoor', x: 2, y: 3, id: 'f1door1' },
     { type: 'mathdoor', x: 2, y: 12, id: 'f1door2' },
@@ -255,7 +255,7 @@ const FLOOR_2 = {
     { type: 'hero', x: 21, y: 21, id: 'hero-bunny-nova', heroId: 'bunny-nova', prison: 'coral' },               // Temple Terraces
     // ── E Deep Basin (boss lair) ──
     { type: 'mathdoor', x: 30, y: 27, id: 'f2cagelock' },
-    { type: 'boss', x: 31, y: 27, enemyId: 'pressure' },
+    { type: 'boss', x: 31, y: 27, enemyId: 'pressure', lock: 'f2cagelock' },
     { type: 'golden', x: 32, y: 28 },
     { type: 'exit', x: 33, y: 27 },
   
@@ -386,7 +386,7 @@ const FLOOR_3 = {
     { type: 'encounter', x: 12, y: 2 },
     // ── THE EYE: the Skywhale's storm-heart ──
     { type: 'mathdoor', x: 15, y: 14, id: 'f3cagelock' },
-    { type: 'boss', x: 16, y: 15, enemyId: 'skywhale' },
+    { type: 'boss', x: 16, y: 15, enemyId: 'skywhale', lock: 'f3cagelock' },
     { type: 'golden', x: 15, y: 16 },
     { type: 'exit', x: 17, y: 16 },
   
@@ -511,7 +511,7 @@ const FLOOR_4 = {
     { type: 'gold', x: 14, y: 3 },
     // ── The caldera: Pyroclast's island ──
     { type: 'mathdoor', x: 18, y: 9, id: 'f4cagelock' },
-    { type: 'boss', x: 18, y: 7, enemyId: 'pyroclast' },
+    { type: 'boss', x: 18, y: 7, enemyId: 'pyroclast', lock: 'f4cagelock' },
     { type: 'golden', x: 17, y: 6 },
     { type: 'exit', x: 19, y: 6 },
   
@@ -627,7 +627,7 @@ const FLOOR_5 = {
     { type: 'encounter', x: 7, y: 5 },
     // ── SUMMIT: Absolute Zero's frozen throne ──
     { type: 'mathdoor', x: 15, y: 6, id: 'f5cagelock' },
-    { type: 'boss', x: 15, y: 4, enemyId: 'absolutezero' },
+    { type: 'boss', x: 15, y: 4, enemyId: 'absolutezero', lock: 'f5cagelock' },
     { type: 'golden', x: 14, y: 3 },
     { type: 'exit', x: 17, y: 3 },
     { type: 'chest', x: 12, y: 3, loot: { gold: 50 } },
@@ -746,7 +746,7 @@ const FLOOR_6 = {
     { type: 'encounter', x: 13, y: 6 },
     { type: 'encounter', x: 22, y: 20 },
     { type: 'encounter', x: 30, y: 8 },
-    { type: 'boss', x: 26, y: 22, enemyId: 'theprism' },
+    { type: 'boss', x: 26, y: 22, enemyId: 'theprism', lock: 'f6cagelock' },
     { type: 'golden', x: 25, y: 23 },
     { type: 'exit', x: 27, y: 23 },
   
@@ -850,7 +850,7 @@ const FLOOR_7 = {
     { type: 'potion', x: 2, y: 16 },
     // the mint vault: Duchess + the royal treasury
     { type: 'mathdoor', x: 9, y: 12, id: 'f7vault' },
-    { type: 'hero', x: 5, y: 11, id: 'hero-bunny-duchess', heroId: 'bunny-duchess', prison: 'vault' },
+    { type: 'hero', x: 5, y: 11, id: 'hero-bunny-duchess', heroId: 'bunny-duchess', prison: 'vault', lock: 'f7vault' },
     { type: 'chest', x: 7, y: 10, loot: { gold: 60 } },
     { type: 'gold', x: 4, y: 13 },
     { type: 'gold', x: 7, y: 13 },
@@ -867,7 +867,7 @@ const FLOOR_7 = {
     { type: 'encounter', x: 1, y: 1 },
     { type: 'encounter', x: 14, y: 30 },
     { type: 'encounter', x: 20, y: 19 },
-    { type: 'boss', x: 31, y: 4, enemyId: 'counterfeiter' },
+    { type: 'boss', x: 31, y: 4, enemyId: 'counterfeiter', lock: 'f7cagelock' },
     { type: 'golden', x: 30, y: 3 },
     { type: 'exit', x: 32, y: 3 },
   
@@ -983,7 +983,7 @@ const FLOOR_8 = {
     { type: 'potion', x: 33, y: 3 },
     // ── THEOREM SANCTUM: The Paradox ──
     { type: 'mathdoor', x: 19, y: 5, id: 'f8cagelock' },
-    { type: 'boss', x: 19, y: 3, enemyId: 'theparadox' },
+    { type: 'boss', x: 19, y: 3, enemyId: 'theparadox', lock: 'f8cagelock' },
     { type: 'golden', x: 17, y: 4 },
     { type: 'exit', x: 21, y: 4 },
   
@@ -1079,27 +1079,27 @@ const FLOOR_9 = {
     // ── NW wing: Garden & Tide memory (+ then −) ──
     { type: 'mathdoor', x: 8, y: 8, id: 'f9nw1', operator: '+' },
     { type: 'mathdoor', x: 6, y: 5, id: 'f9nw2', operator: '-' },
-    { type: 'fragment', x: 3, y: 7, drain: P_([[13, 5]]), drainMessage: 'The garden memory rests — the proof SIMPLIFIES! A shortcut opens.' },
+    { type: 'fragment', x: 3, y: 7, lock: 'f9nw2', drain: P_([[13, 5]]), drainMessage: 'The garden memory rests — the proof SIMPLIFIES! A shortcut opens.' },
     { type: 'encounter', x: 10, y: 4 },
-    { type: 'chest', x: 11, y: 7, loot: { gold: 40 } },
+    { type: 'chest', x: 11, y: 7, lock: 'f9nw1', loot: { gold: 40 } },
     // ── NE wing: Sky & Ember memory (× then ÷) ──
     { type: 'mathdoor', x: 33, y: 8, id: 'f9ne1', operator: '*' },
     { type: 'mathdoor', x: 35, y: 5, id: 'f9ne2', operator: '/' },
-    { type: 'fragment', x: 33, y: 3, drain: P_([[28, 5]]), drainMessage: 'The sky memory rests — another shortcut melts open!' },
+    { type: 'fragment', x: 33, y: 3, lock: 'f9ne2', drain: P_([[28, 5]]), drainMessage: 'The sky memory rests — another shortcut melts open!' },
     { type: 'encounter', x: 31, y: 4 },
-    { type: 'chest', x: 30, y: 7, loot: { gold: 45 } },
+    { type: 'chest', x: 30, y: 7, lock: 'f9ne1', loot: { gold: 45 } },
     // ── SW wing: Crystal & Market memory (geo then money) ──
     { type: 'mathdoor', x: 8, y: 27, id: 'f9sw1', operator: 'geo' },
     { type: 'mathdoor', x: 6, y: 30, id: 'f9sw2', operator: 'money' },
-    { type: 'fragment', x: 3, y: 28, drain: P_([[13, 30]]), drainMessage: 'The crystal memory rests — the walls remember doors!' },
+    { type: 'fragment', x: 3, y: 28, lock: 'f9sw2', drain: P_([[13, 30]]), drainMessage: 'The crystal memory rests — the walls remember doors!' },
     { type: 'encounter', x: 10, y: 31 },
-    { type: 'chest', x: 11, y: 28, loot: { gold: 50 } },
+    { type: 'chest', x: 11, y: 28, lock: 'f9sw1', loot: { gold: 50 } },
     // ── SE wing: Library memory (frac then word) ──
     { type: 'mathdoor', x: 33, y: 27, id: 'f9se1', operator: 'frac' },
     { type: 'mathdoor', x: 35, y: 30, id: 'f9se2', operator: 'word' },
-    { type: 'fragment', x: 30, y: 28 },   // FINAL fragment → the Grand Equation
+    { type: 'fragment', x: 30, y: 28, lock: 'f9se2' },   // FINAL fragment → the Grand Equation
     { type: 'encounter', x: 31, y: 31 },
-    { type: 'chest', x: 34, y: 32, loot: { gold: 55 } },
+    { type: 'chest', x: 34, y: 32, lock: 'f9se1', loot: { gold: 55 } },
     // ── Promenade dangers + riches ──
     { type: 'encounter', x: 6, y: 11 },
     { type: 'encounter', x: 35, y: 11 },
@@ -1125,7 +1125,7 @@ const FLOOR_9 = {
     { type: 'mathdoor', x: 20, y: 25, id: 'f9gate3' },
     // ── The dais: The Theorem ──
     { type: 'mathdoor', x: 20, y: 20, id: 'f9cagelock', operator: 'mixed' },
-    { type: 'boss', x: 20, y: 17, enemyId: 'theorem' },
+    { type: 'boss', x: 20, y: 17, enemyId: 'theorem', lock: ['f9gate1', 'f9gate2', 'f9gate3', 'f9cagelock'] },
     { type: 'golden', x: 19, y: 16 },
     { type: 'exit', x: 22, y: 16 },
   

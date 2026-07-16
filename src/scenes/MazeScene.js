@@ -1474,6 +1474,43 @@ export class MazeScene extends Phaser.Scene {
   // OBJECT INTERACTION
   // ================================================================
 
+  /**
+   * Interaction lock gate. An object may be sealed behind one or more math
+   * doors (`obj.lock` = a door id, or an array of ids answered in order). The
+   * object cannot be operated until every lock door is answered — so each lock
+   * is a TRUE gate on its content even though the door tile itself does not
+   * physically block the party, and even if the player reached the tile from an
+   * unintended direction. Answering a door by walking into it also opens it;
+   * either path works. Lock doors are plain math prompts, always answerable, so
+   * a lock can never make a floor unwinnable.
+   *
+   * Returns true if the interaction is still gated (a prompt was shown — the
+   * caller must `return`), false if all locks are open (proceed).
+   */
+  promptNextLock(obj, hint) {
+    if (!obj.lock) return false;
+    const ids = Array.isArray(obj.lock) ? obj.lock : [obj.lock];
+    for (const id of ids) {
+      const lockDoor = this.objects.find(o => o.id === id);
+      if (!lockDoor || lockDoor.open) continue;
+      const operator = lockDoor.operator || FLOOR_OPERATORS[this.floorId] || '+';
+      const q = generateRatedQuestion({
+        operator,
+        grade: getAdaptiveGrade(this.save, operator),
+        streak: 0,
+        floor: this.floorId,
+        targetStars: [2, 3],
+      });
+      // On a correct answer this door opens; re-run the interaction so the
+      // next unopened lock (or the now-unlocked object) is handled.
+      lockDoor.onOpen = () => this.checkObjectAt(obj.x, obj.y);
+      if (hint) this.showFloatText(obj.x, obj.y, hint, '#f0c040');
+      this.showMathDoorPrompt(q, lockDoor);
+      return true;
+    }
+    return false;
+  }
+
   checkObjectAt(x, y) {
     // Boss blocking — if player hasn't defeated the boss, they can't walk
     // past the boss tile to reach the golden chest or exit
@@ -1685,19 +1722,8 @@ export class MazeScene extends Phaser.Scene {
         return;
       }
       case 'chest': {
-        // A math-vault chest is gated by a lock door: you can't claim it until
-        // the lock is answered (same interaction gate as challenge items).
-        if (obj.lock) {
-          const lockDoor = this.objects.find(o => o.id === obj.lock);
-          if (lockDoor && !lockDoor.open) {
-            const operator = lockDoor.operator || FLOOR_OPERATORS[this.floorId] || '+';
-            const q = generateRatedQuestion({ operator, grade: getAdaptiveGrade(this.save, operator), streak: 0, floor: this.floorId, targetStars: [2, 3] });
-            lockDoor.onOpen = () => this.checkObjectAt(obj.x, obj.y);
-            this.showFloatText(obj.x, obj.y, '🔒 Answer the vault lock!', '#f0c040');
-            this.showMathDoorPrompt(q, lockDoor);
-            return;
-          }
-        }
+        // A vault chest may be gated by a lock door — answer it to claim it.
+        if (this.promptNextLock(obj, '🔒 Answer the vault lock!')) return;
         const gold = obj.loot?.gold ?? 10;
         this.save.gold += gold;
         writeSave(this.save, this.slot);
@@ -1723,6 +1749,8 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'hero': {
+        // A caged hero may sit behind a vault/cell lock — answer it to rescue.
+        if (this.promptNextLock(obj, '🔒 Answer the cell lock!')) return;
         // In-maze hero rescue — the level's special unlock moment.
         if (isHeroUnlocked(this.save, obj.heroId)) {
           // Already granted (boss-victory safety net on a re-entered floor):
@@ -1774,30 +1802,9 @@ export class MazeScene extends Phaser.Scene {
       case 'vaultseal':
       case 'chapterseal':
       case 'eqanchor': {
-        // Interaction lock: a challenge item may be gated by a math-door lock
-        // (obj.lock = door id). You cannot operate it until that lock is
-        // answered — so every lock is a true gate on its content even if the
-        // player found a way around the door tile itself. Answering the door
-        // by walking into it ALSO opens it; either path works.
-        if (obj.lock) {
-          const lockDoor = this.objects.find(o => o.id === obj.lock);
-          if (lockDoor && !lockDoor.open) {
-            const operator = lockDoor.operator || FLOOR_OPERATORS[this.floorId] || '+';
-            const q = generateRatedQuestion({
-              operator,
-              grade: getAdaptiveGrade(this.save, operator),
-              streak: 0,
-              floor: this.floorId,
-              targetStars: [2, 3],
-            });
-            // On a correct answer the door opens; re-run the interaction so the
-            // now-unlocked item activates.
-            lockDoor.onOpen = () => this.checkObjectAt(obj.x, obj.y);
-            this.showFloatText(obj.x, obj.y, '🔒 Answer the lock!', '#f0c040');
-            this.showMathDoorPrompt(q, lockDoor);
-            return;
-          }
-        }
+        // A challenge item may be sealed behind a math-door lock (see
+        // promptNextLock): answer it before the item can be operated.
+        if (this.promptNextLock(obj, '🔒 Answer the lock!')) return;
         const isPhase2 = this.phase2Active && this.floor.challenge?.phase2?.type === obj.type;
         if (isPhase2) {
           this.phase2Progress++;
@@ -1918,6 +1925,12 @@ export class MazeScene extends Phaser.Scene {
           this.showFloatText(obj.x, obj.y, `FIND ALL ${bch.phase2.label}S FIRST!`, '#e088c0');
           return;
         }
+        // Cage lock: the boss sits sealed behind its final math door(s) — a
+        // cagelock, and on Floor 9 the three-door "gauntlet of everything"
+        // ahead of it (obj.lock is an ordered list). The challenge is already
+        // complete here, so answering these only adds the final key-turns; it
+        // never makes the floor unwinnable.
+        if (this.promptNextLock(obj, '🔒 Break the seal!')) return;
         // Do NOT consume the boss before the battle — if the player loses,
         // the boss must still be present for a retry. The boss object is
         // consumed after victory when bossDefeated is set to true.

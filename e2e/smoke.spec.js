@@ -400,9 +400,11 @@ test('maze: player can move and reveal fog', async ({ page }) => {
     return { x: s.playerX, y: s.playerY };
   });
 
+  // Floor 1 starts at (2,10); the wall sits directly above (2,9), so the
+  // open direction from the spawn is DOWN into the paver corridor (2,11).
   await page.evaluate(() => {
     const s = window.__MW.game.scene.getScene('MazeScene');
-    s.tryMove({ dx: 0, dy: -1 });
+    s.tryMove({ dx: 0, dy: 1 });
   });
   await page.waitForTimeout(250);
 
@@ -412,6 +414,6 @@ test('maze: player can move and reveal fog', async ({ page }) => {
   });
 
   expect(after.x, 'player x should not change for vertical move').toEqual(before.x);
-  expect(after.y, 'player y should decrease (moved up)').toBeLessThan(before.y);
+  expect(after.y, 'player y should increase (moved down)').toBeGreaterThan(before.y);
   expect(errors).toEqual([]);
 });
