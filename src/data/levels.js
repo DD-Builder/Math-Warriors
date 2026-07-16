@@ -218,14 +218,14 @@ const FLOOR_2 = {
   objects: [
     // ── A Harbor Steps ──
     { type: 'mathdoor', x: 8, y: 7, id: 'f2sluice1lock' },
-    { type: 'valve', x: 10, y: 7, drain: P_([[12, 6], [13, 6]]), drainMessage: 'The Harbor Sluice opens — the sea falls to Market Row!' },
+    { type: 'valve', x: 10, y: 7, lock: 'f2sluice1lock', drain: P_([[12, 6], [13, 6]]), drainMessage: 'The Harbor Sluice opens — the sea falls to Market Row!' },
     { type: 'chest', x: 2, y: 2, loot: { gold: 20 } },   // secret cellar
     { type: 'potion', x: 3, y: 2 },
     { type: 'gold', x: 7, y: 9 },
     { type: 'encounter', x: 6, y: 5 },
     // ── B Market Row ──
     { type: 'mathdoor', x: 17, y: 10, id: 'f2sluice2lock' },
-    { type: 'valve', x: 18, y: 10, drain: P_([[18, 11], [18, 12], [18, 13], [18, 14]]), drainMessage: 'The Cistern Sluice opens — the sea falls to the Temple!' },
+    { type: 'valve', x: 18, y: 10, lock: 'f2sluice2lock', drain: P_([[18, 11], [18, 12], [18, 13], [18, 14]]), drainMessage: 'The Cistern Sluice opens — the sea falls to the Temple!' },
     { type: 'mathdoor', x: 16, y: 7, id: 'f2vault' },
     { type: 'chest', x: 16, y: 9, loot: { gold: 60 } },  // math-vault
     { type: 'gold', x: 24, y: 3 },
@@ -233,7 +233,7 @@ const FLOOR_2 = {
     { type: 'encounter', x: 15, y: 5 },
     // ── C Temple Terraces ──
     { type: 'mathdoor', x: 13, y: 20, id: 'f2sluice3lock' },
-    { type: 'valve', x: 12, y: 19, drain: P_([[25, 19], [26, 19]]), drainMessage: 'The Temple Floodgate opens — the sea falls to the Boulevard!' },
+    { type: 'valve', x: 12, y: 19, lock: 'f2sluice3lock', drain: P_([[25, 19], [26, 19]]), drainMessage: 'The Temple Floodgate opens — the sea falls to the Boulevard!' },
     { type: 'fountain', x: 20, y: 18, id: 'f2fount', uses: 3 },
     { type: 'chest', x: 23, y: 22, loot: { gold: 40 } },  // secret grotto
     { type: 'gold', x: 15, y: 22 },
@@ -241,7 +241,7 @@ const FLOOR_2 = {
     { type: 'encounter', x: 16, y: 22 },
     // ── D Sunken Boulevard ──
     { type: 'mathdoor', x: 30, y: 13, id: 'f2sluice4lock' },
-    { type: 'valve', x: 29, y: 13 },   // FINAL sluice — triggers the Deep Basin transform
+    { type: 'valve', x: 29, y: 13, lock: 'f2sluice4lock' },   // FINAL sluice — triggers the Deep Basin transform
     { type: 'chest', x: 32, y: 22, loot: { gold: 50 } },  // smuggler's cache (secret)
     { type: 'gold', x: 32, y: 21 },
     { type: 'potion', x: 28, y: 23 },
@@ -349,26 +349,26 @@ const FLOOR_3 = {
   objects: [
     // ── A: start isle (calm) ──
     { type: 'mathdoor', x: 6, y: 5, id: 'f3lock1' },
-    { type: 'beacon', x: 8, y: 5, drain: P_([[10, 5], [11, 5]]), drainMessage: 'One beacon — the light DOUBLES! A sky-bridge grows east!' },
+    { type: 'beacon', x: 8, y: 5, lock: 'f3lock1', drain: P_([[10, 5], [11, 5]]), drainMessage: 'One beacon — the light DOUBLES! A sky-bridge grows east!' },
     { type: 'encounter', x: 4, y: 8 },
     { type: 'gold', x: 2, y: 2 },            // sheep pen 1
     { type: 'potion', x: 8, y: 8 },
     // ── B: north isle ──
     { type: 'mathdoor', x: 14, y: 5, id: 'f3lock2' },
-    { type: 'beacon', x: 16, y: 5, drain: P_([[5, 10], [5, 11], [21, 8], [22, 8]]), drainMessage: 'TWO beacons — the light SPLITS! Bridges south AND east!' },
+    { type: 'beacon', x: 16, y: 5, lock: 'f3lock2', drain: P_([[5, 10], [5, 11], [21, 8], [22, 8]]), drainMessage: 'TWO beacons — the light SPLITS! Bridges south AND east!' },
     { type: 'chest', x: 13, y: 3, loot: { gold: 30 } },
     { type: 'gold', x: 19, y: 2 },           // sheep pen 2
     { type: 'encounter', x: 18, y: 7 },
     { type: 'encounter', x: 13, y: 7 },
     // ── C: south isle ──
     { type: 'mathdoor', x: 5, y: 14, id: 'f3lock3' },
-    { type: 'beacon', x: 5, y: 16, drain: P_([[6, 19], [7, 19], [7, 20], [8, 20], [8, 21], [9, 21], [9, 22], [10, 22]]), drainMessage: 'THREE beacons — EIGHT stairs of light climb to the sunset isle!' },
+    { type: 'beacon', x: 5, y: 16, lock: 'f3lock3', drain: P_([[6, 19], [7, 19], [7, 20], [8, 20], [8, 21], [9, 21], [9, 22], [10, 22]]), drainMessage: 'THREE beacons — EIGHT stairs of light climb to the sunset isle!' },
     { type: 'fountain', x: 4, y: 12, id: 'f3fount', uses: 3 },
     { type: 'encounter', x: 7, y: 17 },
     { type: 'gold', x: 3, y: 18 },
     // ── D: east isle — Paladin marooned with the final beacon ──
     { type: 'mathdoor', x: 24, y: 10, id: 'f3lock4' },
-    { type: 'beacon', x: 24, y: 12 },        // FINAL beacon → quad-bridge transform
+    { type: 'beacon', x: 24, y: 12, lock: 'f3lock4' },        // FINAL beacon → quad-bridge transform
     { type: 'hero', x: 26, y: 9, id: 'hero-knight-paladin', heroId: 'knight-paladin', prison: 'cloud' },
     { type: 'hero', x: 7, y: 4, id: 'hero-wizard-toadstool', heroId: 'wizard-toadstool', prison: 'cloud' },  // NW dawn terrace (moved from floor 1)
     { type: 'encounter', x: 26, y: 13 },
@@ -476,14 +476,14 @@ const FLOOR_4 = {
     { type: 'gold', x: 16, y: 27 },
     // ── West Galleries: vent 1 + Bookworm's hidden study ──
     { type: 'mathdoor', x: 7, y: 21, id: 'f4lock1' },
-    { type: 'vent', x: 4, y: 21, drain: P_([[5, 14], [5, 15], [5, 16]]), drainMessage: 'The fire DIVIDES in two — a cooled crossing to the west!' },
+    { type: 'vent', x: 4, y: 21, lock: 'f4lock1', drain: P_([[5, 14], [5, 15], [5, 16]]), drainMessage: 'The fire DIVIDES in two — a cooled crossing to the west!' },
     { type: 'hero', x: 3, y: 26, id: 'hero-wizard-bookworm', heroId: 'wizard-bookworm', prison: 'ember' },
     { type: 'encounter', x: 4, y: 19 },
     { type: 'potion', x: 2, y: 18 },
     { type: 'gold', x: 10, y: 26 },
     // ── East Forge: vent 2 + Berserker's cage ──
     { type: 'mathdoor', x: 30, y: 21, id: 'f4lock2' },
-    { type: 'vent', x: 33, y: 21, drain: P_([[32, 14], [32, 15], [32, 16]]), drainMessage: 'Divided AGAIN — four thin flows! A crossing cools east!' },
+    { type: 'vent', x: 33, y: 21, lock: 'f4lock2', drain: P_([[32, 14], [32, 15], [32, 16]]), drainMessage: 'Divided AGAIN — four thin flows! A crossing cools east!' },
     { type: 'hero', x: 27, y: 25, id: 'hero-knight-berserker', heroId: 'knight-berserker', prison: 'ember' },
     { type: 'encounter', x: 27, y: 20 },
     { type: 'encounter', x: 32, y: 25 },
@@ -492,13 +492,13 @@ const FLOOR_4 = {
     { type: 'potion', x: 35, y: 18 },
     // ── NW chamber: vent 3 breaches the west fall ──
     { type: 'mathdoor', x: 4, y: 9, id: 'f4lock3' },
-    { type: 'vent', x: 4, y: 6, drain: P_([[8, 8], [9, 8]]), drainMessage: 'The west fall parts — halved, and halved again!' },
+    { type: 'vent', x: 4, y: 6, lock: 'f4lock3', drain: P_([[8, 8], [9, 8]]), drainMessage: 'The west fall parts — halved, and halved again!' },
     { type: 'chest', x: 2, y: 2, loot: { gold: 35 } },
     { type: 'encounter', x: 3, y: 11 },
     { type: 'gold', x: 6, y: 3 },
     // ── NE chamber: vent 4 — the FINAL division ──
     { type: 'mathdoor', x: 33, y: 9, id: 'f4lock4' },
-    { type: 'vent', x: 33, y: 6 },   // final vent → caldera transform
+    { type: 'vent', x: 33, y: 6, lock: 'f4lock4' },   // final vent → caldera transform
     { type: 'encounter', x: 34, y: 11 },
     { type: 'potion', x: 36, y: 2 },
     { type: 'gold', x: 31, y: 3 },
@@ -596,20 +596,20 @@ const FLOOR_5 = {
   objects: [
     // ── T0 base camp: the Crystal of Sums (+) ──
     { type: 'mathdoor', x: 8, y: 32, id: 'f5lock1', operator: '+' },
-    { type: 'crystal', x: 5, y: 32, drain: P_([[14, 28], [14, 29], [15, 28], [15, 29]]), drainMessage: 'The Crystal of SUMS wakes — the first ice wall melts!' },
+    { type: 'crystal', x: 5, y: 32, lock: 'f5lock1', drain: P_([[14, 28], [14, 29], [15, 28], [15, 29]]), drainMessage: 'The Crystal of SUMS wakes — the first ice wall melts!' },
     { type: 'encounter', x: 20, y: 31 },
     { type: 'gold', x: 3, y: 34 },
     { type: 'potion', x: 26, y: 33 },
     // ── T1: the Crystal of Differences (−) + crevasse cache ──
     { type: 'mathdoor', x: 6, y: 25, id: 'f5lock2', operator: '-' },
-    { type: 'crystal', x: 4, y: 26, drain: P_([[22, 22], [22, 23], [23, 22], [23, 23]]), drainMessage: 'The Crystal of DIFFERENCES hums — another wall falls!' },
+    { type: 'crystal', x: 4, y: 26, lock: 'f5lock2', drain: P_([[22, 22], [22, 23], [23, 22], [23, 23]]), drainMessage: 'The Crystal of DIFFERENCES hums — another wall falls!' },
     { type: 'encounter', x: 12, y: 26 },
     { type: 'encounter', x: 25, y: 24 },
     { type: 'chest', x: 27, y: 27, loot: { gold: 35 } },   // crevasse cache (secret)
     { type: 'gold', x: 2, y: 24 },
     // ── T2: the Crystal of Products (×) + BLAZE frozen in the ice ──
     { type: 'mathdoor', x: 7, y: 19, id: 'f5lock3', operator: '*' },
-    { type: 'crystal', x: 5, y: 18, drain: P_([[8, 15], [8, 16], [9, 15], [9, 16]]), drainMessage: 'The Crystal of PRODUCTS blazes — the high pass opens!' },
+    { type: 'crystal', x: 5, y: 18, lock: 'f5lock3', drain: P_([[8, 15], [8, 16], [9, 15], [9, 16]]), drainMessage: 'The Crystal of PRODUCTS blazes — the high pass opens!' },
     { type: 'hero', x: 25, y: 18, id: 'hero-bunny-blaze', heroId: 'bunny-blaze', prison: 'ice', drain: P_([[24, 15], [24, 16], [25, 15], [25, 16]]), drainMessage: 'Blaze bursts free — his flame melts a hidden pass!' },
     { type: 'fountain', x: 17, y: 20, id: 'f5fount', uses: 3 },
     { type: 'encounter', x: 14, y: 18 },
@@ -617,7 +617,7 @@ const FLOOR_5 = {
     { type: 'potion', x: 2, y: 20 },
     // ── T3: the Crystal of Quotients (÷, the FINAL key) + echo cave ──
     { type: 'mathdoor', x: 20, y: 12, id: 'f5lock4', operator: '/' },
-    { type: 'crystal', x: 23, y: 12 },   // final crystal → summit transform
+    { type: 'crystal', x: 23, y: 12, lock: 'f5lock4' },   // final crystal → summit transform
     { type: 'chest', x: 2, y: 11, loot: { gold: 45 } },    // echo cave (secret)
     { type: 'gold', x: 3, y: 13 },
     { type: 'encounter', x: 6, y: 12 },
@@ -709,7 +709,7 @@ const FLOOR_6 = {
   objects: [
     // ── Entry hall (rectangle) ──
     { type: 'mathdoor', x: 14, y: 26, id: 'f6lock1' },
-    { type: 'geoshard', x: 16, y: 25, drain: P_([[13, 26]]), drainMessage: 'A beam of light cuts WEST — into the Triangle Hall!' },
+    { type: 'geoshard', x: 16, y: 25, lock: 'f6lock1', drain: P_([[13, 26]]), drainMessage: 'A beam of light cuts WEST — into the Triangle Hall!' },
     { type: 'encounter', x: 15, y: 28 },
     { type: 'gold', x: 20, y: 29 },
     // ── Geode Heart (secret) ──
@@ -717,7 +717,7 @@ const FLOOR_6 = {
     { type: 'gold', x: 24, y: 30 },
     // ── TRIANGLE hall: Great Helm sealed in crystal ──
     { type: 'mathdoor', x: 8, y: 19, id: 'f6lock2' },
-    { type: 'geoshard', x: 8, y: 18, drain: P_([[8, 17], [8, 16], [8, 15], [8, 14]]), drainMessage: 'A beam fires NORTH through the rock — to the Square Gallery!' },
+    { type: 'geoshard', x: 8, y: 18, lock: 'f6lock2', drain: P_([[8, 17], [8, 16], [8, 15], [8, 14]]), drainMessage: 'A beam fires NORTH through the rock — to the Square Gallery!' },
     { type: 'hero', x: 4, y: 26, id: 'hero-knight-greathelm', heroId: 'knight-greathelm', prison: 'crystal' },
     { type: 'encounter', x: 6, y: 24 },
     { type: 'encounter', x: 10, y: 22 },
@@ -725,7 +725,7 @@ const FLOOR_6 = {
     { type: 'potion', x: 3, y: 26 },
     // ── SQUARE gallery: Grand Mage sealed in crystal + Diamond Nook ──
     { type: 'mathdoor', x: 12, y: 10, id: 'f6lock3' },
-    { type: 'geoshard', x: 9, y: 9, drain: P_([[14, 10], [15, 10], [16, 10], [17, 10], [18, 10], [19, 10], [20, 10], [21, 10]]), drainMessage: 'A LONG beam fires EAST — eight tiles to the Hexagon Vault!' },
+    { type: 'geoshard', x: 9, y: 9, lock: 'f6lock3', drain: P_([[14, 10], [15, 10], [16, 10], [17, 10], [18, 10], [19, 10], [20, 10], [21, 10]]), drainMessage: 'A LONG beam fires EAST — eight tiles to the Hexagon Vault!' },
     { type: 'hero', x: 7, y: 12, id: 'hero-wizard-grandmage', heroId: 'wizard-grandmage', prison: 'crystal' },
     { type: 'fountain', x: 7, y: 7, id: 'f6fount', uses: 3 },
     { type: 'encounter', x: 11, y: 12 },
@@ -733,7 +733,7 @@ const FLOOR_6 = {
     { type: 'gold', x: 2, y: 9 },
     // ── HEXAGON vault: the final shard ──
     { type: 'mathdoor', x: 26, y: 13, id: 'f6lock4' },
-    { type: 'geoshard', x: 26, y: 9 },   // FINAL shard → octagon transform
+    { type: 'geoshard', x: 26, y: 9, lock: 'f6lock4' },   // FINAL shard → octagon transform
     { type: 'encounter', x: 24, y: 8 },
     { type: 'encounter', x: 28, y: 12 },
     { type: 'chest', x: 29, y: 9, loot: { gold: 45 } },
@@ -830,7 +830,7 @@ const FLOOR_7 = {
   objects: [
     // ── South market: token 1 + mimics among real gold ──
     { type: 'mathdoor', x: 8, y: 22, id: 'f7lock1' },
-    { type: 'token', x: 8, y: 21, drain: P_([[12, 17], [12, 18]]), drainMessage: 'A REAL token! A canal crossing drains to the north quarter!' },
+    { type: 'token', x: 8, y: 21, lock: 'f7lock1', drain: P_([[12, 17], [12, 18]]), drainMessage: 'A REAL token! A canal crossing drains to the north quarter!' },
     { type: 'encounter', x: 22, y: 25, disguise: 'gold' },   // mimic!
     { type: 'gold', x: 23, y: 26 },                          // ...next to real gold
     { type: 'encounter', x: 5, y: 21 },
@@ -842,7 +842,7 @@ const FLOOR_7 = {
     { type: 'chest', x: 28, y: 27, loot: { gold: 50 } },     // stall pocket (secret)
     // ── North quarter: token 2, the MINT, more mimics ──
     { type: 'mathdoor', x: 23, y: 12, id: 'f7lock2' },
-    { type: 'token', x: 25, y: 12, drain: P_([[20, 5], [20, 6]]), drainMessage: 'Two of three! A crossing drains to the bazaar strip!' },
+    { type: 'token', x: 25, y: 12, lock: 'f7lock2', drain: P_([[20, 5], [20, 6]]), drainMessage: 'Two of three! A crossing drains to the bazaar strip!' },
     { type: 'encounter', x: 15, y: 12, disguise: 'gold' },   // mimic!
     { type: 'gold', x: 16, y: 14 },
     { type: 'encounter', x: 31, y: 12 },
@@ -856,7 +856,7 @@ const FLOOR_7 = {
     { type: 'gold', x: 7, y: 13 },
     // ── Bazaar strip: token 3 (the FINAL) ──
     { type: 'mathdoor', x: 24, y: 3, id: 'f7lock3' },
-    { type: 'token', x: 26, y: 3 },   // final token → drawbridge transform
+    { type: 'token', x: 26, y: 3, lock: 'f7lock3' },   // final token → drawbridge transform
     { type: 'encounter', x: 16, y: 3, disguise: 'gold' },    // mimic!
     { type: 'encounter', x: 10, y: 3 },
     { type: 'chest', x: 4, y: 2, loot: { gold: 45 } },
@@ -948,7 +948,7 @@ const FLOOR_8 = {
   objects: [
     // ── Reading Floor: page 1 ──
     { type: 'mathdoor', x: 7, y: 31, id: 'f8lock1' },
-    { type: 'page', x: 4, y: 31, drain: P_([[8, 24], [8, 25]]), drainMessage: 'One page home — 1/4 of the Story Stair mends!' },
+    { type: 'page', x: 4, y: 31, lock: 'f8lock1', drain: P_([[8, 24], [8, 25]]), drainMessage: 'One page home — 1/4 of the Story Stair mends!' },
     { type: 'encounter', x: 25, y: 29 },
     { type: 'encounter', x: 12, y: 32 },
     { type: 'gold', x: 34, y: 32 },
@@ -956,7 +956,7 @@ const FLOOR_8 = {
     { type: 'potion', x: 33, y: 27 },
     // ── Shelf Stacks: page 2 + hidden Reading Room ──
     { type: 'mathdoor', x: 29, y: 20, id: 'f8lock2' },
-    { type: 'page', x: 32, y: 20, drain: P_([[28, 16], [28, 17]]), drainMessage: 'Two pages — 2/4! HALFWAY up the Story Stair!' },
+    { type: 'page', x: 32, y: 20, lock: 'f8lock2', drain: P_([[28, 16], [28, 17]]), drainMessage: 'Two pages — 2/4! HALFWAY up the Story Stair!' },
     { type: 'chest', x: 3, y: 20, loot: { gold: 45 } },   // hidden Reading Room
     { type: 'fountain', x: 34, y: 19, id: 'f8fount', uses: 3 },
     { type: 'encounter', x: 20, y: 22 },
@@ -964,7 +964,7 @@ const FLOOR_8 = {
     { type: 'gold', x: 15, y: 22 },
     // ── The Gallery: page 3 + the AUTHOR'S STUDY ──
     { type: 'mathdoor', x: 17, y: 12, id: 'f8lock3' },
-    { type: 'page', x: 19, y: 12, drain: P_([[12, 8], [12, 9]]), drainMessage: 'Three pages — 3/4! One quarter to go!' },
+    { type: 'page', x: 19, y: 12, lock: 'f8lock3', drain: P_([[12, 8], [12, 9]]), drainMessage: 'Three pages — 3/4! One quarter to go!' },
     { type: 'chest', x: 2, y: 12, loot: { gold: 70 } },   // the Author's Study
     { type: 'potion', x: 3, y: 13 },
     { type: 'encounter', x: 26, y: 12 },
@@ -972,7 +972,7 @@ const FLOOR_8 = {
     { type: 'gold', x: 33, y: 14 },
     // ── The Archive: page 4 (the FINAL quarter) ──
     { type: 'mathdoor', x: 28, y: 4, id: 'f8lock4' },
-    { type: 'page', x: 30, y: 4 },   // final page → sanctum transform
+    { type: 'page', x: 30, y: 4, lock: 'f8lock4' },   // final page → sanctum transform
     { type: 'encounter', x: 10, y: 4 },
     { type: 'encounter', x: 1, y: 1 },
     { type: 'encounter', x: 1, y: 20 },

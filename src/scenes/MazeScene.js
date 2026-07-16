@@ -1761,6 +1761,30 @@ export class MazeScene extends Phaser.Scene {
       case 'vaultseal':
       case 'chapterseal':
       case 'eqanchor': {
+        // Interaction lock: a challenge item may be gated by a math-door lock
+        // (obj.lock = door id). You cannot operate it until that lock is
+        // answered — so every lock is a true gate on its content even if the
+        // player found a way around the door tile itself. Answering the door
+        // by walking into it ALSO opens it; either path works.
+        if (obj.lock) {
+          const lockDoor = this.objects.find(o => o.id === obj.lock);
+          if (lockDoor && !lockDoor.open) {
+            const operator = lockDoor.operator || FLOOR_OPERATORS[this.floorId] || '+';
+            const q = generateRatedQuestion({
+              operator,
+              grade: getAdaptiveGrade(this.save, operator),
+              streak: 0,
+              floor: this.floorId,
+              targetStars: [2, 3],
+            });
+            // On a correct answer the door opens; re-run the interaction so the
+            // now-unlocked item activates.
+            lockDoor.onOpen = () => this.checkObjectAt(obj.x, obj.y);
+            this.showFloatText(obj.x, obj.y, '🔒 Answer the lock!', '#f0c040');
+            this.showMathDoorPrompt(q, lockDoor);
+            return;
+          }
+        }
         const isPhase2 = this.phase2Active && this.floor.challenge?.phase2?.type === obj.type;
         if (isPhase2) {
           this.phase2Progress++;
