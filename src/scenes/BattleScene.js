@@ -727,7 +727,10 @@ export class BattleScene extends Phaser.Scene {
     monsterShadowGfx.setDepth(11);
 
     this.enemySprites = [];
-    const w = 200;
+    // Name/HP plate width scales with how many enemies share the right zone,
+    // so 3 plates never run into each other in their narrower slots.
+    const zoneW = BATTLE_PERSPECTIVE.monsterZoneR - BATTLE_PERSPECTIVE.monsterZoneL;
+    const w = Math.min(200, Math.max(120, zoneW / count - 28));
     // Monster art sits centered in a 640px canvas with its visible feet
     // ~0.34 of the height below center. pos.y is the ground line, so raise
     // the sprite by that fraction to plant its feet on the ground.
@@ -742,9 +745,11 @@ export class BattleScene extends Phaser.Scene {
       const pos = positions[ei];
       const x = pos.x;
       // Bosses stand a little nearer the camera (lower) so they read as
-      // imposing without floating; everyone else stands on pos.y.
+      // imposing without floating; everyone else stands on pos.y. Scale comes
+      // from the formation (already width-capped to the monster zone) so a
+      // boss never bursts out of its side into the party or the POTION button.
       const feetY = enemy.isBoss ? pos.y + 55 : pos.y;   // ground line under the feet
-      let monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.10) : pos.scale;
+      let monsterScale = pos.scale;
       // Fit: the sprite is drawn origin 0.5, so its top edge sits at
       // feetY - CANVAS*scale*(FEET_FRAC + 0.5). Cap the scale so that top
       // never rises above TOP_MARGIN (bosses especially).
@@ -770,7 +775,7 @@ export class BattleScene extends Phaser.Scene {
 
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: count >= 3 ? '20px' : count === 2 ? '23px' : '28px',
+        fontSize: count >= 3 ? '17px' : count === 2 ? '23px' : '28px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.scarlet,
         strokeThickness: 4,

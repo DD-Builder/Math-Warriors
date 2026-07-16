@@ -106,6 +106,9 @@ function startSong(key, fadeSec) {
 
 export function musicHasSong(key) { return hasSong(key); }
 
+/** True while a song graph is live and scheduling notes. */
+export function isSongPlaying() { return !!_current; }
+
 export function playSong(key, { fadeSec = 0.8 } = {}) {
   hookVisibility();
   if (_current && _current.key === key) return;

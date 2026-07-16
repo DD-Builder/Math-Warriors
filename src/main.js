@@ -1,23 +1,35 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS, PAPER, PAPER_CSS, SCENES } from './config.js';
 import { checkForUpdate } from './systems/updateCheck.js';
-import { primeAudio } from './systems/music/audioGraph.js';
+import { primeAudio, audioState } from './systems/music/audioGraph.js';
 
 // iOS/iPadOS Web Audio unlock. The AudioContext starts SUSPENDED and only
 // starts if resume() runs synchronously inside a real DOM user gesture.
 // Phaser processes its input in the rAF game loop — OUTSIDE the gesture
 // stack — so unlocking via Phaser handlers silently fails on iPad. We attach
 // NATIVE capture-phase listeners on the document so the resume happens inside
-// the true gesture, retrying on every gesture until the context is running.
+// the true gesture.
+//
+// Critically, we keep these listeners ARMED for the whole session (they no-op
+// once the context is running). iOS re-suspends an AudioContext whenever the
+// app is backgrounded / tab-switched, and only a real gesture can resume it —
+// if we unhooked after the first success, audio would die on the next return
+// and never recover. We also re-prime on visibility change, and re-kick the
+// current music track once the context comes back (music requested while the
+// context was suspended never actually started).
+function kickAudioAlive() {
+  const running = primeAudio();
+  // resume() may settle a tick later; re-check and restart music when live.
+  const restart = () => { if (audioState() === 'running') audio.resumeMusic(); };
+  if (running) restart(); else setTimeout(restart, 60);
+}
 function installAudioUnlock() {
   const events = ['pointerdown', 'touchend', 'mousedown', 'keydown'];
-  const cleanup = () => events.forEach((ev) => document.removeEventListener(ev, unlock, true));
-  const unlock = () => {
-    if (primeAudio()) { cleanup(); return; }
-    // resume() resolves async — re-check on the next tick and unhook if running.
-    setTimeout(() => { if (primeAudio()) cleanup(); }, 0);
-  };
+  const unlock = () => { if (audioState() !== 'running') kickAudioAlive(); };
   events.forEach((ev) => document.addEventListener(ev, unlock, true));
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) kickAudioAlive();
+  });
 }
 installAudioUnlock();
 
@@ -85,6 +97,13 @@ const config = {
   // Input: touch + mouse, no keyboard lock
   input: {
     activePointers: 3,
+  },
+  // All game audio runs through our own single Web Audio graph
+  // (systems/music). Disable Phaser's sound manager so it doesn't create a
+  // SECOND AudioContext — on iOS two contexts compete and the OS suspends the
+  // one Phaser isn't driving (ours), silencing everything.
+  audio: {
+    noAudio: true,
   },
   scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PlacementScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene, EvolutionScene, GalleryScene, ProgressScene, TowerScene],
 };

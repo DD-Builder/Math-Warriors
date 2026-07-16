@@ -24,10 +24,13 @@ export const BATTLE_PERSPECTIVE = {
   vanishX: 720,
   minScale: 0.62,      // monsters are a touch smaller (slightly farther)
   maxScale: 0.90,      // heroes are larger (close to camera)
-  heroBaseX: 180,
+  heroBaseX: 170,
   heroSpacing: 100,
-  heroStaggerX: 170,
-  monsterBaseX: 820,   // centered-right; leaves the top-right POTION button clear
+  heroStaggerX: 150,   // compact left column so the party stays on its own side
+  // Monsters own a fixed zone on the RIGHT. The open gap between heroZoneR
+  // (~620) and monsterZoneL keeps the two sides visually separated.
+  monsterZoneL: 770,
+  monsterZoneR: 1330,  // right edge clears the top-right POTION button
   monsterSpacing: 90,
   monsterStaggerX: 100,
 };
@@ -119,26 +122,24 @@ export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
  */
 export function monsterFormation(enemyCount, config = BATTLE_PERSPECTIVE) {
   const positions = [];
-  // pos.y is the FEET/ground line where each monster stands. Monsters stand
-  // on the SAME meadow as the heroes — only slightly behind (higher up) so
-  // they read as farther without floating over the hills. baseY sits just
-  // above the hero row (groundBottomY) on the visible ground plane.
-  const baseY = config.groundBottomY - 60;   // ~600: on the meadow, just behind heroes
-  const cx = config.monsterBaseX;
-  if (enemyCount === 1) {
-    positions.push({ x: cx, y: baseY, scale: scaleForY(baseY, config), depth: Math.floor(baseY) });
-  } else {
-    // Wide spread + smaller scale so multiple (often wide) creatures sit
-    // side-by-side on the ground without overlapping or colliding plates.
-    const spread = enemyCount === 2 ? 330 : 270;
-    const mid = (enemyCount - 1) / 2;
-    for (let i = 0; i < enemyCount; i++) {
-      const off = i - mid;
-      const y = baseY + Math.abs(off) * 16;          // outer monsters slightly farther
-      const x = cx + off * spread;
-      const shrink = enemyCount >= 3 ? 0.48 : 0.60;
-      positions.push({ x, y, scale: scaleForY(y, config) * shrink, depth: Math.floor(y) });
-    }
+  // Monsters occupy a FIXED zone on the right, split into equal slots so any
+  // number of them stays on its own side with open space to the hero column.
+  // pos.y is the FEET/ground line; they stand on the meadow just behind the
+  // heroes. Each monster's scale is capped to its slot width so N creatures
+  // never overlap, however wide the art is.
+  const baseY = config.groundBottomY - 60;   // ~600: on the meadow, behind heroes
+  const zoneL = config.monsterZoneL;
+  const zoneR = config.monsterZoneR;
+  const n = Math.max(1, enemyCount);
+  const slotW = (zoneR - zoneL) / n;
+  // Art fills ~0.8 of its 640 canvas; leave a gap between slots.
+  const widthCap = (slotW * 0.82) / 640;
+  const mid = (n - 1) / 2;
+  for (let i = 0; i < n; i++) {
+    const x = zoneL + slotW * (i + 0.5);
+    const y = baseY + Math.abs(i - mid) * 14;        // outer ones a touch farther
+    const scale = Math.min(scaleForY(y, config), widthCap);
+    positions.push({ x, y, scale, depth: Math.floor(y) });
   }
   return positions;
 }
