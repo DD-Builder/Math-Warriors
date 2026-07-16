@@ -1685,6 +1685,19 @@ export class MazeScene extends Phaser.Scene {
         return;
       }
       case 'chest': {
+        // A math-vault chest is gated by a lock door: you can't claim it until
+        // the lock is answered (same interaction gate as challenge items).
+        if (obj.lock) {
+          const lockDoor = this.objects.find(o => o.id === obj.lock);
+          if (lockDoor && !lockDoor.open) {
+            const operator = lockDoor.operator || FLOOR_OPERATORS[this.floorId] || '+';
+            const q = generateRatedQuestion({ operator, grade: getAdaptiveGrade(this.save, operator), streak: 0, floor: this.floorId, targetStars: [2, 3] });
+            lockDoor.onOpen = () => this.checkObjectAt(obj.x, obj.y);
+            this.showFloatText(obj.x, obj.y, '🔒 Answer the vault lock!', '#f0c040');
+            this.showMathDoorPrompt(q, lockDoor);
+            return;
+          }
+        }
         const gold = obj.loot?.gold ?? 10;
         this.save.gold += gold;
         writeSave(this.save, this.slot);

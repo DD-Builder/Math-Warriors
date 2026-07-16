@@ -227,7 +227,7 @@ const FLOOR_2 = {
     { type: 'mathdoor', x: 17, y: 10, id: 'f2sluice2lock' },
     { type: 'valve', x: 18, y: 10, lock: 'f2sluice2lock', drain: P_([[18, 11], [18, 12], [18, 13], [18, 14]]), drainMessage: 'The Cistern Sluice opens — the sea falls to the Temple!' },
     { type: 'mathdoor', x: 16, y: 7, id: 'f2vault' },
-    { type: 'chest', x: 16, y: 9, loot: { gold: 60 } },  // math-vault
+    { type: 'chest', x: 16, y: 9, lock: 'f2vault', loot: { gold: 60 } },  // math-vault (gated by f2vault lock)
     { type: 'gold', x: 24, y: 3 },
     { type: 'encounter', x: 21, y: 3 },
     { type: 'encounter', x: 15, y: 5 },
@@ -957,7 +957,7 @@ const FLOOR_8 = {
     // ── Shelf Stacks: page 2 + hidden Reading Room ──
     { type: 'mathdoor', x: 29, y: 20, id: 'f8lock2' },
     { type: 'page', x: 32, y: 20, lock: 'f8lock2', drain: P_([[28, 16], [28, 17]]), drainMessage: 'Two pages — 2/4! HALFWAY up the Story Stair!' },
-    { type: 'chest', x: 3, y: 20, loot: { gold: 45 } },   // hidden Reading Room
+    { type: 'chest', x: 3, y: 22, loot: { gold: 45 } },   // Reading Room reward (relocated to a reachable tile)
     { type: 'fountain', x: 34, y: 19, id: 'f8fount', uses: 3 },
     { type: 'encounter', x: 20, y: 22 },
     { type: 'encounter', x: 8, y: 19 },
@@ -1115,10 +1115,10 @@ const FLOOR_9 = {
     { type: 'potion', x: 39, y: 34 },
     { type: 'potion', x: 2, y: 34 },
     // ── Memory pockets (secrets) ──
-    { type: 'chest', x: 2, y: 17, loot: { gold: 60 } },
-    { type: 'chest', x: 39, y: 17, loot: { gold: 60 } },
-    { type: 'gold', x: 3, y: 18 },
-    { type: 'gold', x: 38, y: 18 },
+    { type: 'chest', x: 2, y: 15, loot: { gold: 60 } },
+    { type: 'chest', x: 39, y: 15, loot: { gold: 60 } },
+    { type: 'gold', x: 3, y: 20 },
+    { type: 'gold', x: 38, y: 20 },
     // ── The final gauntlet: three doors of everything ──
     { type: 'mathdoor', x: 20, y: 27, id: 'f9gate1', operator: 'mixed' },
     { type: 'mathdoor', x: 20, y: 26, id: 'f9gate2', operator: 'word' },
