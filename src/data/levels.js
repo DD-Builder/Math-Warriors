@@ -117,7 +117,7 @@ const FLOOR_1 = {
     // rewards worth exploring for
     { type: 'chest', x: 18, y: 1, loot: { gold: 25 } },   // NE grove pocket
     { type: 'chest', x: 1, y: 8, loot: { gold: 20 } },
-    { type: 'fountain', x: 6, y: 8, id: 'f1fountain1', uses: 3 },
+    { type: 'fountain', x: 10, y: 8, id: 'f1fountain1', uses: 3 },   // central garden clearing
     { type: 'gold', x: 12, y: 1 },
     { type: 'gold', x: 3, y: 10 },
     { type: 'gold', x: 19, y: 13 },

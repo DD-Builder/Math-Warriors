@@ -53,7 +53,7 @@ export const ATTACK_REGISTRY = {
           scene.time.delayedCall(30, () => {
             playSlashArc(scene, ex, ey, { color: 0x6030c0, lineWidth: 4, alpha: 0.7, arcSpread: 70, duration: 250 });
           });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0x6030c0, endRadius: 50 });
           playSparkBurst(scene, ex, ey, { count: 18, colors: [0x6030c0, 0x3a1080, 0x201060] });
           enemyHitReaction(scene, target, result.modifiedDamage);
@@ -84,7 +84,7 @@ export const ATTACK_REGISTRY = {
             });
           }
           scene.time.delayedCall(240, () => {
-            hitPause(scene, { body: hero.body }, 80);
+            hitPause(scene, { body: hero.body }, 130);
             playImpactRing(scene, ex, ey, { color: 0x4020a0, endRadius: 100 });
             playShockwave(scene, ex, ey, { color: 0x6030c0, endRadius: 140 });
             scene.cameras.main.shake(150, 0.012);
@@ -128,7 +128,7 @@ export const ATTACK_REGISTRY = {
           playImpactRing(scene, ex, ey, { color: 0x9050f0, endRadius: 120 });
           playElementalBurst(scene, ex, ey, { count: 40, colors: [0x6030c0, 0x9050f0, 0x2a1050, 0x4020a0] });
           scene.cameras.main.shake(200, 0.02);
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           enemyHitReaction(scene, target, result.modifiedDamage);
           cb.onHit?.();
           scene.time.delayedCall(300, () => cb.onComplete?.());
@@ -149,7 +149,7 @@ export const ATTACK_REGISTRY = {
           scene.time.delayedCall(40, () => {
             playSlashArc(scene, ex, ey, { color: 0xfff8a0, lineWidth: 4, alpha: 0.8, arcSpread: 75, duration: 280 });
           });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0xf0e060, endRadius: 55 });
           playSparkBurst(scene, ex, ey, { count: 28, colors: [0xfff8a0, 0xf0e060, 0xffd040] });
           scene.cameras.main.shake(120, 0.008);
@@ -175,7 +175,7 @@ export const ATTACK_REGISTRY = {
         playShockwave(scene, ex, ey, { color: 0xfff8a0, endRadius: 130 });
         playElementalBurst(scene, ex, ey, { count: 40, colors: [0xf0e060, 0xfff8a0, 0xffd040] });
         scene.cameras.main.shake(180, 0.015);
-        hitPause(scene, { body: hero.body }, 80);
+        hitPause(scene, { body: hero.body }, 130);
         enemyHitReaction(scene, target, result.modifiedDamage);
         cb.onHit?.();
         scene.time.delayedCall(300, () => cb.onComplete?.());
@@ -206,7 +206,7 @@ export const ATTACK_REGISTRY = {
               playElementalBurst(scene, ex, ey, { count: 50, colors: [0xffd040, 0xfff8a0, 0xf0c020, 0xffffff] });
               playGroundCrack(scene, ex, ey + 20, { color: 0xffd040, length: 80, lineCount: 6 });
               scene.cameras.main.shake(250, 0.025);
-              hitPause(scene, { body: hero.body }, 80);
+              hitPause(scene, { body: hero.body }, 130);
               enemyHitReaction(scene, target, result.modifiedDamage);
               cb.onHit?.();
               scene.tweens.add({
@@ -228,7 +228,7 @@ export const ATTACK_REGISTRY = {
         targets: hero.body, x: ex - 60, duration: 300, ease: 'Back.out',
         onComplete: () => {
           playBeamTrail(scene, hero.x, hero.y, ex, ey, { color: 0xf0f0ff, trailColor: 0xa0c0f0, particleCount: 20, duration: 200 });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0xc0d8f0, endRadius: 50 });
           playSparkBurst(scene, ex, ey, { count: 22, colors: [0xf0f0ff, 0xc0d8f0, 0xa0c0f0] });
           scene.cameras.main.shake(100, 0.006);
@@ -251,7 +251,7 @@ export const ATTACK_REGISTRY = {
         scene.tweens.add({
           targets: hero.body, x: ex - 50, duration: 200, ease: 'Back.out',
           onComplete: () => {
-            hitPause(scene, { body: hero.body }, 80);
+            hitPause(scene, { body: hero.body }, 130);
             playScreenFlash(scene, { color: 0xc0d8f0, alpha: 0.3, duration: 150 });
             playShockwave(scene, ex, ey, { color: 0xc0d8f0, endRadius: 130, strokeWidth: 5 });
             playImpactRing(scene, ex, ey, { color: 0xf0f0ff, endRadius: 90 });
@@ -286,7 +286,7 @@ export const ATTACK_REGISTRY = {
           playElementalBurst(scene, ex, ey, { count: 55, colors: [0xf0f0ff, 0xc0d8f0, 0xa0c0f0, 0xffffff] });
           playGroundCrack(scene, ex, ey + 20, { color: 0xc0d8f0, length: 70, lineCount: 5 });
           scene.cameras.main.shake(250, 0.025);
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           enemyHitReaction(scene, target, result.modifiedDamage);
           cb.onHit?.();
           scene.time.delayedCall(300, () => cb.onComplete?.());
@@ -310,7 +310,7 @@ export const ATTACK_REGISTRY = {
               playSlashArc(scene, ex + ox, ey + oy, { color: 0xff4020, lineWidth: 5 + i, alpha: 0.9, duration: 250 });
             });
           }
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0xff4020, endRadius: 55 });
           playSparkBurst(scene, ex, ey, { count: 30, colors: [0xff4020, 0xff6030, 0xffa040] });
           scene.cameras.main.shake(140, 0.01);
@@ -344,7 +344,7 @@ export const ATTACK_REGISTRY = {
               });
             }
             scene.time.delayedCall(200, () => {
-              hitPause(scene, { body: hero.body }, 80);
+              hitPause(scene, { body: hero.body }, 130);
               playScreenFlash(scene, { color: 0xff2020, alpha: 0.3, duration: 180 });
               playImpactRing(scene, ex, ey, { color: 0xff4020, endRadius: 100 });
               playElementalBurst(scene, ex, ey, { count: 40, colors: [0xff4020, 0xff6030, 0xffa040, 0xffcc30] });
@@ -386,7 +386,7 @@ export const ATTACK_REGISTRY = {
                 playImpactRing(scene, ex, ey, { color: 0xffa040, endRadius: 150 });
                 playElementalBurst(scene, ex, ey, { count: 55, colors: [0xff4020, 0xff6030, 0xffa040, 0xffcc30] });
                 scene.cameras.main.shake(300, 0.03);
-                hitPause(scene, { body: hero.body }, 80);
+                hitPause(scene, { body: hero.body }, 130);
                 enemyHitReaction(scene, target, result.modifiedDamage);
                 cb.onHit?.();
                 if (hero.body) {
@@ -415,7 +415,7 @@ export const ATTACK_REGISTRY = {
         onComplete: () => {
           // Single massive slash arc
           playSlashArc(scene, ex, ey, { color: 0xd0d8e0, lineWidth: 8, alpha: 0.95, arcSpread: 100, duration: 300 });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0xd0d8e0, endRadius: 60, strokeWidth: 4 });
           playSparkBurst(scene, ex, ey, { count: 25, colors: [0xd0d8e0, 0xf0f0f0, 0xa0a8b0] });
           scene.cameras.main.shake(120, 0.008);
@@ -441,7 +441,7 @@ export const ATTACK_REGISTRY = {
           playShockwave(scene, ex, ey, { color: 0xf0f0f0, endRadius: 120 });
           playElementalBurst(scene, ex, ey, { count: 35, colors: [0xd0d8e0, 0xf0f0f0, 0xa0a8b0] });
           scene.cameras.main.shake(180, 0.015);
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           enemyHitReaction(scene, target, result.modifiedDamage);
           cb.onHit?.();
           scene.time.delayedCall(200, () => cb.onComplete?.());
@@ -471,7 +471,7 @@ export const ATTACK_REGISTRY = {
                 scene.time.delayedCall(80, () => playShockwave(scene, ex, ey, { color: 0xa0a8b0, endRadius: 250, strokeWidth: 4 }));
                 playElementalBurst(scene, ex, ey, { count: 50, colors: [0xd0d8e0, 0xa0a8b0, 0x8a7a60, 0xf0f0f0] });
                 scene.cameras.main.shake(350, 0.03);
-                hitPause(scene, { body: hero.body }, 80);
+                hitPause(scene, { body: hero.body }, 130);
                 enemyHitReaction(scene, target, result.modifiedDamage);
                 cb.onHit?.();
                 scene.tweens.add({
@@ -562,7 +562,7 @@ export const ATTACK_REGISTRY = {
           playImpactRing(scene, ex, ey, { color: 0xfff8c0, endRadius: 160 });
           playElementalBurst(scene, ex, ey, { count: 60, colors: [0xffe880, 0xfff8c0, 0x8060c0, 0x4020a0, 0xffffff] });
           scene.cameras.main.shake(300, 0.03);
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           enemyHitReaction(scene, target, result.modifiedDamage);
           cb.onHit?.();
           scene.time.delayedCall(350, () => cb.onComplete?.());
@@ -639,7 +639,7 @@ export const ATTACK_REGISTRY = {
           playImpactRing(scene, ex, ey, { color: 0xa040c0, endRadius: 150 });
           playElementalBurst(scene, ex, ey, { count: 55, colors: [0x60c040, 0x80d060, 0xa040c0, 0xc060e0, 0x40a020] });
           scene.cameras.main.shake(250, 0.025);
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           enemyHitReaction(scene, target, result.modifiedDamage);
           cb.onHit?.();
           scene.time.delayedCall(350, () => cb.onComplete?.());
@@ -657,7 +657,7 @@ export const ATTACK_REGISTRY = {
         onComplete: () => {
           playSlashArc(scene, ex, ey, { color: 0x60a0f0, lineWidth: 6, alpha: 0.9, duration: 280 });
           playSparkBurst(scene, ex, ey, { count: 20, colors: [0x60a0f0, 0xa0d0ff, 0x4080d0] });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0x60a0f0, endRadius: 50 });
           scene.cameras.main.shake(100, 0.006);
           enemyHitReaction(scene, target, result.modifiedDamage);
@@ -714,7 +714,7 @@ export const ATTACK_REGISTRY = {
               playImpactRing(scene, ex, ey, { color: 0xa0d0ff, endRadius: 130 });
               playElementalBurst(scene, ex, ey, { count: 50, colors: [0x60a0f0, 0xa0d0ff, 0x4080d0, 0xffffff] });
               scene.cameras.main.shake(250, 0.025);
-              hitPause(scene, { body: hero.body }, 80);
+              hitPause(scene, { body: hero.body }, 130);
               enemyHitReaction(scene, target, result.modifiedDamage);
               cb.onHit?.();
               scene.tweens.add({
@@ -803,7 +803,7 @@ export const ATTACK_REGISTRY = {
           playImpactRing(scene, ex, ey, { color: 0xc0a860, endRadius: 140 });
           playElementalBurst(scene, ex, ey, { count: 55, colors: [0xf0e8c0, 0xc0a860, 0xe0d0a0, 0xffffff] });
           scene.cameras.main.shake(250, 0.025);
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           enemyHitReaction(scene, target, result.modifiedDamage);
           cb.onHit?.();
           scene.time.delayedCall(300, () => cb.onComplete?.());
@@ -891,7 +891,7 @@ export const ATTACK_REGISTRY = {
           playElementalBurst(scene, ex, ey, { count: 65, colors: [0xff6020, 0x40c0f0, 0xf0e020, 0xc080f0, 0xffffff] });
           playGroundCrack(scene, ex, ey + 20, { color: 0xc080f0, length: 80, lineCount: 6 });
           scene.cameras.main.shake(350, 0.035);
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           enemyHitReaction(scene, target, result.modifiedDamage);
           cb.onHit?.();
           scene.time.delayedCall(350, () => cb.onComplete?.());
@@ -923,7 +923,7 @@ export const ATTACK_REGISTRY = {
             const ox = (jab - 1) * 15;
             playSparkBurst(scene, ex + ox, ey, { count: 8, colors: [0xe86898, 0xf090b0], duration: 200 });
             if (jab === 2) {
-              hitPause(scene, { body: hero.body }, 80);
+              hitPause(scene, { body: hero.body }, 130);
               playImpactRing(scene, ex, ey, { color: 0xe86898, endRadius: 45 });
               scene.cameras.main.shake(80, 0.005);
               enemyHitReaction(scene, target, result.modifiedDamage);
@@ -966,7 +966,7 @@ export const ATTACK_REGISTRY = {
                         playShockwave(scene, ex, ey, { color: 0xe86898, endRadius: 130 });
                         playElementalBurst(scene, ex, ey, { count: 40, colors: [0xe86898, 0xf090b0, 0xff80c0] });
                         scene.cameras.main.shake(120, 0.01);
-                        hitPause(scene, { body: hero.body }, 80);
+                        hitPause(scene, { body: hero.body }, 130);
                         enemyHitReaction(scene, target, result.modifiedDamage);
                         cb.onHit?.();
                         scene.time.delayedCall(200, () => cb.onComplete?.());
@@ -1018,7 +1018,7 @@ export const ATTACK_REGISTRY = {
                         playImpactRing(scene, ex, ey, { color: 0xff80c0, endRadius: 140 });
                         playElementalBurst(scene, ex, ey, { count: 55, colors: [0xe86898, 0xf090b0, 0xff80c0] });
                         scene.cameras.main.shake(200, 0.025);
-                        hitPause(scene, { body: hero.body }, 80);
+                        hitPause(scene, { body: hero.body }, 130);
                         enemyHitReaction(scene, target, result.modifiedDamage);
                         cb.onHit?.();
                         scene.time.delayedCall(300, () => cb.onComplete?.());
@@ -1055,7 +1055,7 @@ export const ATTACK_REGISTRY = {
         targets: hero.body, x: ex - 50, duration: 100, ease: 'Quad.out',
         onComplete: () => {
           playSparkBurst(scene, ex, ey, { count: 22, colors: [0xffe880, 0xfff8c0, 0xf0d040] });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0xffe880, endRadius: 45 });
           playScreenFlash(scene, { color: 0xfff8c0, alpha: 0.2, duration: 100 });
           scene.cameras.main.shake(80, 0.005);
@@ -1091,7 +1091,7 @@ export const ATTACK_REGISTRY = {
                 playImpactRing(scene, ex, ey, { color: 0xfff8c0, endRadius: 90 });
                 playElementalBurst(scene, ex, ey, { count: 40, colors: [0xffe880, 0xfff8c0, 0xf0d040] });
                 scene.cameras.main.shake(150, 0.012);
-                hitPause(scene, { body: hero.body }, 80);
+                hitPause(scene, { body: hero.body }, 130);
                 enemyHitReaction(scene, target, result.modifiedDamage);
                 cb.onHit?.();
                 scene.tweens.add({
@@ -1144,7 +1144,7 @@ export const ATTACK_REGISTRY = {
                         playImpactRing(scene, ex, ey, { color: 0xffffff, endRadius: 170 });
                         playElementalBurst(scene, ex, ey, { count: 60, colors: [0xffe880, 0xfff8c0, 0xf0d040, 0xffffff] });
                         scene.cameras.main.shake(300, 0.03);
-                        hitPause(scene, { body: hero.body }, 80);
+                        hitPause(scene, { body: hero.body }, 130);
                         enemyHitReaction(scene, target, result.modifiedDamage);
                         cb.onHit?.();
                         scene.time.delayedCall(350, () => cb.onComplete?.());
@@ -1182,7 +1182,7 @@ export const ATTACK_REGISTRY = {
         targets: hero.body, x: ex - 60, duration: 350, ease: 'Sine.out',
         onComplete: () => {
           playSlashArc(scene, ex, ey, { color: 0x8a7a60, lineWidth: 7, alpha: 0.9, duration: 300 });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0x8a7a60, endRadius: 55, strokeWidth: 4 });
           playSparkBurst(scene, ex, ey, { count: 20, colors: [0x8a7a60, 0xa09070, 0xc0b090] });
           playGroundCrack(scene, ex, ey + 20, { color: 0x8a7a60, length: 40, lineCount: 3 });
@@ -1214,7 +1214,7 @@ export const ATTACK_REGISTRY = {
               playGroundCrack(scene, ex, ey + 20, { color: 0x8a7a60, length: 70, lineCount: 6 });
               playElementalBurst(scene, ex, ey, { count: 35, colors: [0x8a7a60, 0xa09070, 0xc0b090] });
               scene.cameras.main.shake(200, 0.018);
-              hitPause(scene, { body: hero.body }, 80);
+              hitPause(scene, { body: hero.body }, 130);
               enemyHitReaction(scene, target, result.modifiedDamage);
               cb.onHit?.();
               scene.tweens.add({
@@ -1250,7 +1250,7 @@ export const ATTACK_REGISTRY = {
                 playImpactRing(scene, ex, ey, { color: 0xc0b090, endRadius: 160 });
                 playElementalBurst(scene, ex, ey, { count: 55, colors: [0x8a7a60, 0xa09070, 0xc0b090, 0x6a5a40] });
                 scene.cameras.main.shake(400, 0.035);
-                hitPause(scene, { body: hero.body }, 80);
+                hitPause(scene, { body: hero.body }, 130);
                 enemyHitReaction(scene, target, result.modifiedDamage);
                 cb.onHit?.();
                 scene.tweens.add({
@@ -1274,7 +1274,7 @@ export const ATTACK_REGISTRY = {
         onComplete: () => {
           playBeamTrail(scene, hero.x, hero.y, ex, ey, { color: 0xff6020, trailColor: 0xff4010, particleCount: 15, width: 15, duration: 200 });
           playSparkBurst(scene, ex, ey, { count: 22, colors: [0xff6020, 0xff8040, 0xffa060] });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0xff6020, endRadius: 50 });
           scene.cameras.main.shake(80, 0.005);
           enemyHitReaction(scene, target, result.modifiedDamage);
@@ -1309,7 +1309,7 @@ export const ATTACK_REGISTRY = {
                 playImpactRing(scene, ex, ey, { color: 0xff8040, endRadius: 90 });
                 playElementalBurst(scene, ex, ey, { count: 40, colors: [0xff6020, 0xff8040, 0xffa060, 0xffcc30] });
                 scene.cameras.main.shake(150, 0.012);
-                hitPause(scene, { body: hero.body }, 80);
+                hitPause(scene, { body: hero.body }, 130);
                 enemyHitReaction(scene, target, result.modifiedDamage);
                 cb.onHit?.();
                 scene.tweens.add({
@@ -1364,7 +1364,7 @@ export const ATTACK_REGISTRY = {
                           playImpactRing(scene, ex, ey, { color: 0xffa060, endRadius: 150 });
                           playElementalBurst(scene, ex, ey, { count: 55, colors: [0xff6020, 0xff8040, 0xffa060, 0xffcc30, 0xff4010] });
                           scene.cameras.main.shake(250, 0.025);
-                          hitPause(scene, { body: hero.body }, 80);
+                          hitPause(scene, { body: hero.body }, 130);
                           enemyHitReaction(scene, target, result.modifiedDamage);
                           cb.onHit?.();
                           scene.time.delayedCall(300, () => cb.onComplete?.());
@@ -1402,7 +1402,7 @@ export const ATTACK_REGISTRY = {
         targets: hero.body, x: ex - 55, duration: 280, ease: 'Back.out',
         onComplete: () => {
           playSparkBurst(scene, ex, ey, { count: 22, colors: [0xf0d040, 0xfff8c0, 0xe0c030] });
-          hitPause(scene, { body: hero.body }, 80);
+          hitPause(scene, { body: hero.body }, 130);
           playImpactRing(scene, ex, ey, { color: 0xf0d040, endRadius: 50 });
           playScreenFlash(scene, { color: 0xf0d040, alpha: 0.15, duration: 100 });
           scene.cameras.main.shake(100, 0.006);
@@ -1461,7 +1461,7 @@ export const ATTACK_REGISTRY = {
               playImpactRing(scene, ex, ey, { color: 0xe0c030, endRadius: 150 });
               playElementalBurst(scene, ex, ey, { count: 55, colors: [0xf0d040, 0xfff8c0, 0xe0c030, 0xffffff] });
               scene.cameras.main.shake(280, 0.028);
-              hitPause(scene, { body: hero.body }, 80);
+              hitPause(scene, { body: hero.body }, 130);
               enemyHitReaction(scene, target, result.modifiedDamage);
               cb.onHit?.();
               scene.tweens.add({
@@ -1984,6 +1984,25 @@ function sparkBurst(scene, x, y, count, colors, gravity = false) {
  * Universal enemy hit reaction — red tint, knockback shake, floating damage number.
  * Called on every attack type at the moment of impact.
  */
+/**
+ * The shared "a hit LANDED" burst — used by both hero→enemy (enemyHitReaction)
+ * and enemy→hero (BattleScene.flashHero) so every strike feels weighty. A white
+ * flash pop, an expanding ring + shockwave, a spark burst, and a camera shake
+ * scaled to the damage dealt. Number is drawn separately (floatDamageNumber) so
+ * it never doubles. Honors reduced-motion.
+ */
+export function impactFx(scene, x, y, damage = 0, opts = {}) {
+  if (!scene || scene.reducedMotion) return;
+  const flash = scene.add.circle(x, y, 46, opts.flashColor ?? 0xffffff, 0.82).setDepth(999);
+  scene.tweens.add({ targets: flash, scale: 1.8, alpha: 0, duration: 160, ease: 'Cubic.out', onComplete: () => flash.destroy() });
+  playImpactRing(scene, x, y, { color: opts.ringColor ?? 0xffffff, endRadius: 115, duration: 360 });
+  try { playShockwave(scene, x, y); } catch (e) { /* optional primitive */ }
+  playSparkBurst(scene, x, y, { count: opts.sparks ?? 24, colors: opts.colors });
+  if (scene.cameras?.main?.shake) {
+    scene.cameras.main.shake(190, 0.006 + Math.min((damage || 0) / 1000, 0.02));
+  }
+}
+
 function enemyHitReaction(scene, targetSprite, damage) {
   if (!targetSprite || !targetSprite.body) return;
   const enemy = targetSprite.body;
@@ -2006,25 +2025,9 @@ function enemyHitReaction(scene, targetSprite, damage) {
     onComplete: () => { if (enemy) enemy.x = ex; },
   });
 
-  // 3. Floating damage number
-  if (typeof damage === 'number' && damage > 0) {
-    const dmgText = scene.add.text(ex, ey - 30, `-${damage}`, {
-      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '28px',
-      fontStyle: 'bold',
-      color: '#ff4444',
-      stroke: '#1f4244',
-      strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(30);
-    scene.tweens.add({
-      targets: dmgText,
-      y: ey - 90,
-      alpha: 0,
-      duration: 600,
-      ease: 'Cubic.out',
-      onComplete: () => dmgText.destroy(),
-    });
-  }
+  // 3. Big shared impact burst (the number is drawn by flashEnemy →
+  // floatDamageNumber so it isn't rendered twice).
+  impactFx(scene, ex, ey - 10, damage, { ringColor: 0xffe14a, colors: [0xffe14a, 0xff8a3c, 0xffffff] });
 }
 
 /**

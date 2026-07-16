@@ -1134,17 +1134,40 @@ export class MazeScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * BFS flood-fill of every tile the player can currently WALK to from (sx,sy),
+   * over the live floor grid (walls + water block, same rule as LV_blocked).
+   * Used to guarantee spawned items land somewhere actually reachable.
+   */
+  reachableTiles(sx, sy) {
+    const t = this.floor.tiles, H = this.floor.height, W = this.floor.width;
+    const blocked = (v) => v === TILE.WALL || v === TILE.WATER;
+    const seen = new Set([`${sx},${sy}`]);
+    const q = [[sx, sy]];
+    while (q.length) {
+      const [x, y] = q.shift();
+      for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const k = `${nx},${ny}`;
+        if (seen.has(k) || blocked(t[ny][nx])) continue;
+        seen.add(k); q.push([nx, ny]);
+      }
+    }
+    return seen;
+  }
+
   spawnPhase2Items(phase2) {
     const occupied = new Set();
     occupied.add(`${this.playerX},${this.playerY}`);
     this.objects.forEach(o => { if (!o.consumed) occupied.add(`${o.x},${o.y}`); });
+    // Only spawn on tiles the player can actually WALK to right now — no more
+    // scattering rune stones into a walled-off pocket or the far side of a
+    // not-yet-open crossing (which made floor 1 feel unbeatable).
+    const reachable = this.reachableTiles(this.playerX, this.playerY);
     const candidates = [];
     for (let y = 0; y < this.floor.height; y++) {
       for (let x = 0; x < this.floor.width; x++) {
-        // Only spawn on genuinely walkable ground — walls AND water are
-        // impassable, so an item there would sit embedded/unreachable.
-        const tt = this.floor.tiles[y][x];
-        if (tt === TILE.WALL || tt === TILE.WATER) continue;
+        if (!reachable.has(`${x},${y}`)) continue;
         if (occupied.has(`${x},${y}`)) continue;
         if (Math.abs(x - this.playerX) + Math.abs(y - this.playerY) < 3) continue;
         candidates.push({ x, y });

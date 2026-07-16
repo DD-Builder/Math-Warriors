@@ -35,7 +35,7 @@ import { createParallaxBackground, shiftParallaxLayers, startAtmosphericParticle
 import { createEnvironmentState, updateEnvironment, destroyEnvironmentState } from '../systems/envResponsive.js';
 import { PaperPanel, PaperButton, PaperBar, paperRect, paintPaperRect, updatePaperBar, TEXT, safeArea } from '../ui/paperUI.js';
 import { createPanelDecorations, showPanelFx, hidePanelFx } from '../ui/mathPanelFx.js';
-import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnightSuper, playBunnySuper, playWizardSuper } from '../systems/attackAnimations.js';
+import { playFightAnimation, playMagicAnimation, playFizzleAnimation, playKnightSuper, playBunnySuper, playWizardSuper, impactFx } from '../systems/attackAnimations.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero, HERO_FEET_OFFSET } from '../ui/heroSprites.js';
 import { BATTLE_DEPTH } from '../ui/depths.js';
@@ -3291,9 +3291,10 @@ export class BattleScene extends Phaser.Scene {
         repeat: 1,
       });
     }
-    // Red floating damage number for enemy damage dealt to hero
+    // Same juicy impact the enemy gets — a red-tinted burst so a monster's
+    // hit on a hero lands with equal weight — plus the big damage number.
+    impactFx(this, s.x, s.y - 20, result.modifiedDamage, { flashColor: 0xff5a5a, ringColor: 0xff6a6a, colors: [0xff5a5a, 0xffb0b0, 0xffffff] });
     this.floatDamageNumber(s.x, s.y - 80, result.modifiedDamage, '#ff6060', '-');
-    this.burstParticles(s.x, s.y - 30, 0xc03030);
     // Flash hero HP bar red before updating
     this.flashHpBar(s.hpBarFill, 0xff0000);
   }
@@ -3320,23 +3321,35 @@ export class BattleScene extends Phaser.Scene {
    * @param {string} prefix  '+' for hero damage (gold), '-' for enemy damage (red)
    */
   floatDamageNumber(x, y, amount, color, prefix = '-') {
-    const t = this.add.text(x, y, `${prefix}${amount}`, {
+    // BIG, punchy, pop-and-HOLD — the damage number is the payoff, so it has
+    // to be readable and satisfying: large font, snap up to full size, hold a
+    // beat, then drift up and fade. Depth 1000 so an enemy body never hides it.
+    const big = amount >= 20;
+    const t = this.add.text(x + (Math.random() - 0.5) * 26, y, `${prefix}${amount}`, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-      fontSize: '28px',
+      fontSize: big ? '66px' : '52px',
       fontStyle: 'bold',
       color,
-      stroke: PAPER_CSS.shadow,
-      strokeThickness: 4,
-    }).setOrigin(0.5).setScale(0.5);
+      stroke: '#1f1206',
+      strokeThickness: 8,
+    }).setOrigin(0.5).setScale(0.2).setDepth(1000).setAngle((Math.random() - 0.5) * 12);
 
     this.tweens.add({
       targets: t,
-      y: y - 60,
-      alpha: 0,
-      scale: 1.2,
-      duration: 800,
-      ease: 'Cubic.out',
-      onComplete: () => t.destroy(),
+      scale: big ? 1.5 : 1.3,
+      duration: 150,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: t,
+          y: t.y - 72,
+          alpha: 0,
+          duration: 380,
+          delay: 340,
+          ease: 'Cubic.in',
+          onComplete: () => t.destroy(),
+        });
+      },
     });
   }
 
