@@ -1,6 +1,25 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS, PAPER, PAPER_CSS, SCENES } from './config.js';
 import { checkForUpdate } from './systems/updateCheck.js';
+import { primeAudio } from './systems/music/audioGraph.js';
+
+// iOS/iPadOS Web Audio unlock. The AudioContext starts SUSPENDED and only
+// starts if resume() runs synchronously inside a real DOM user gesture.
+// Phaser processes its input in the rAF game loop — OUTSIDE the gesture
+// stack — so unlocking via Phaser handlers silently fails on iPad. We attach
+// NATIVE capture-phase listeners on the document so the resume happens inside
+// the true gesture, retrying on every gesture until the context is running.
+function installAudioUnlock() {
+  const events = ['pointerdown', 'touchend', 'mousedown', 'keydown'];
+  const cleanup = () => events.forEach((ev) => document.removeEventListener(ev, unlock, true));
+  const unlock = () => {
+    if (primeAudio()) { cleanup(); return; }
+    // resume() resolves async — re-check on the next tick and unhook if running.
+    setTimeout(() => { if (primeAudio()) cleanup(); }, 0);
+  };
+  events.forEach((ev) => document.addEventListener(ev, unlock, true));
+}
+installAudioUnlock();
 
 // Auto-update: if this build is behind the deployed version.json, hard
 // reload once from a cache-busting URL so players never get stuck on a
