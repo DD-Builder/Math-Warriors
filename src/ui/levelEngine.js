@@ -227,7 +227,10 @@ function LV_blocked(t) {
 }
 
 function LV_walkable(wx, wy) {
-  var m = LV_TILE * 0.18;
+  // Larger collision margin (0.32 vs the old 0.18) keeps the party center a
+  // fuller tile away from walls/water so the full-tile hero sprite no longer
+  // visibly overhangs onto a pond or into a hedge.
+  var m = LV_TILE * 0.32;
   return !LV_blocked(LV_tileAt(wx - m, wy - m)) && !LV_blocked(LV_tileAt(wx + m, wy - m)) &&
          !LV_blocked(LV_tileAt(wx - m, wy + m)) && !LV_blocked(LV_tileAt(wx + m, wy + m));
 }
@@ -1704,7 +1707,7 @@ var _ART_THEMES = {
     flowers: ['#e07098', '#ecb964', '#a4c8d8', '#f2f0a0'],
     water: ['#2a5d74', '#3d84a0', '#7fc4d8', '#e0f2ee'],
   },
-  2: { bg: '#12262e', paperEdge: '#d8e4dc', paper: '#c3d6c9', ground: '#7fae9b', groundTone: '#6fa28e', stipple: '#5e9480',
+  2: { bg: '#284a55', paperEdge: '#d8e4dc', paper: '#c3d6c9', ground: '#7fae9b', groundTone: '#6fa28e', stipple: '#5e9480',
     path: '#dccfa8', pebble: '#b7a888', pebbleHi: '#e6dcc0', wallShadow: 'rgba(10,28,32,0.4)', wallDark: '#1e4a52', wallMid: '#2f6b74', crown: '#44909a', crownHi: '#63b3ba',
     face: '#153840', faceHi: '#255661', flowers: ['#e78f6c', '#ecb964', '#a4c8d8'], water: ['#183f58', '#2a6485', '#5aa3c0', '#cfeef0'] },
   3: { bg: '#26323e', paperEdge: '#e8ecf2', paper: '#d3dbe6', ground: '#9fb4cd', groundTone: '#8fa6c2', stipple: '#7e97b5',
@@ -2242,7 +2245,7 @@ function LV_draw(t) {
     // world reads as a papercut being revealed as you explore, and the
     // surround never mismatches the fogged map.
     _fogMaskG.clearRect(0, 0, _COLS, _ROWS);
-    _fogMaskG.globalAlpha = 0.97;
+    _fogMaskG.globalAlpha = 0.88;
     _fogMaskG.fillStyle = _artBackdrop;
     for (var fy2 = 0; fy2 < _ROWS; fy2++) for (var fx2 = 0; fx2 < _COLS; fx2++) {
       if (!_fog[fy2][fx2]) _fogMaskG.fillRect(fx2, fy2, 1, 1);

@@ -26,7 +26,12 @@ export const BATTLE_DEPTH = {
   TIMER: 30,         // question timer must never hide
   INTENT: 32,        // boss intent badge
   TOAST: 50,
-  PAUSE: 100,
-  HINT: 150,
-  END: 200,
+  // Full-screen overlays must sit ABOVE the actors. Actor bodies are
+  // depth-sorted by their Y coordinate (perspective.js → depth: Math.floor(y)),
+  // which puts them in the hundreds (~450-700). The old 100/150/200 sat
+  // BELOW that, so hero/monster sprites bled over the pause, hint and
+  // victory panels. These values clear the max actor depth.
+  PAUSE: 800,
+  HINT: 850,
+  END: 1000,
 };

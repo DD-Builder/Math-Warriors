@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { SCENES, COLORS_CSS, PAPER, PAPER_CSS, GAME_WIDTH, GAME_HEIGHT, mazeStateKey } from '../config.js';
 import { getFloor, TILE, getBattleSceneVariant } from '../data/floors.js';
-import { generateFloorMaze } from '../data/floors.js';
 import { getLevel } from '../data/levels.js';
 import { loadSave, writeSave, isHeroUnlocked, unlockHero, getActiveSlot } from '../systems/save.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
@@ -677,8 +676,10 @@ export class MazeScene extends Phaser.Scene {
     const hudH = 110;
     const hudCenterY = area.bottom - hudH / 2;
 
+    // Near-opaque so hidden-encounter blobs in the maze below can't bleed
+    // through the strip as stray dark shapes behind the party portraits.
     PaperPanel(this, area.cx, hudCenterY, GAME_WIDTH - 40, hudH, {
-      color: PAPER.inkTeal, alpha: 0.75, radius: 20,
+      color: PAPER.inkTeal, alpha: 0.96, radius: 20,
     });
 
     // Floor name — top-left of HUD
@@ -725,35 +726,39 @@ export class MazeScene extends Phaser.Scene {
     const labelStyle = { ...TEXT.stat(), fontSize: '16px', color: '#c0b090' };
     this.add.text(cardStartX + cardW / 2, cardY + cardH / 2 + 8, 'GOLD', labelStyle).setOrigin(0.5);
     this.add.text(px + cardW / 2, cardY + cardH / 2 + 8, 'POTIONS', labelStyle).setOrigin(0.5);
-    this.add.text(cx2 + (cardW + 20) / 2, cardY + cardH / 2 + 8, ch.label.toUpperCase(), labelStyle).setOrigin(0.5);
+    // Kept in a field so updateHud can keep it in sync with the active
+    // challenge (e.g. phase-2 "RUNE STONE" instead of the base "FAIRY").
+    this.hudChallengeLabel = this.add.text(cx2 + (cardW + 20) / 2, cardY + cardH / 2 + 8, ch.label.toUpperCase(), labelStyle).setOrigin(0.5);
 
-    // Party strip — center of HUD with mini hero sprites
+    // Party strip — center of HUD with mini hero sprites. Wide, centered
+    // spacing (200px) so "NAME Lv1" labels never run into each other.
     const partyCx = area.cx;
     const partyY = hudCenterY;
-    for (let i = 0; i < this.party.length; i++) {
+    const partyN = this.party.length;
+    for (let i = 0; i < partyN; i++) {
       const hero = this.party[i];
-      const x = partyCx - 120 + i * 110;
+      const x = partyCx + (i - (partyN - 1) / 2) * 200;
       const spriteScale = 0.35;
-      drawHeroSprite(this, x, partyY - 18, hero, { scale: spriteScale, equipment: this.save.equipment?.[hero.id] });
-      this.add.text(x, partyY + 26, `${hero.name}  Lv${hero.level || 1}`, {
-        ...TEXT.stat(), fontSize: '16px', color: '#3a2410',
+      drawHeroSprite(this, x, partyY - 20, hero, { scale: spriteScale, equipment: this.save.equipment?.[hero.id] });
+      this.add.text(x, partyY + 22, `${hero.name}  Lv${hero.level || 1}`, {
+        ...TEXT.stat(), fontSize: '15px', color: '#f0e4cc',
       }).setOrigin(0.5);
-      const pct = hero.hp / hero.maxHp;
+      const pct = Math.max(0, Math.min(1, hero.hp / hero.maxHp));
       const hpBg = this.add.graphics();
-      hpBg.fillStyle(0x3a2410, 0.4);
-      hpBg.fillRoundedRect(x - 30, partyY + 36, 60, 4, 2);
+      hpBg.fillStyle(0x1a2410, 0.5);
+      hpBg.fillRoundedRect(x - 34, partyY + 38, 68, 5, 2);
       hpBg.fillStyle(PAPER.forest, 1);
-      hpBg.fillRoundedRect(x - 30, partyY + 36, 60 * pct, 4, 2);
+      hpBg.fillRoundedRect(x - 34, partyY + 38, 68 * pct, 5, 2);
     }
 
-    const swapZone = this.add.rectangle(partyCx, partyY, 340, hudH - 10, 0xffffff, 0)
+    const swapZone = this.add.rectangle(partyCx, partyY, 640, hudH - 10, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
     swapZone.on('pointerdown', () => {
       audio.play('ui/click');
       this.showHeroSwapOverlay();
     });
 
-    PaperButton(this, area.right - 100, hudCenterY, 'WORLD MAP', {
+    PaperButton(this, area.right - 114, hudCenterY, 'WORLD MAP', {
       w: 180, h: 54, color: PAPER.forest, fontSize: 14,
       onClick: () => {
         audio.play('ui/back');
@@ -796,12 +801,15 @@ export class MazeScene extends Phaser.Scene {
     this.hudPotions.setText(`${this.save.potions}`);
     if (this.hudChallenge) {
       const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
+      const activeLabel = (this.phase2Active && ch.phase2) ? ch.phase2.label : ch.label;
       if (this.phase2Active && ch.phase2) {
         const p2 = ch.phase2;
         this.hudChallenge.setText(`${p2.label} ${this.phase2Progress}/${p2.count}`);
       } else {
         this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
       }
+      // Keep the small sublabel under the card in sync with the active phase.
+      if (this.hudChallengeLabel) this.hudChallengeLabel.setText(activeLabel.toUpperCase());
     }
     if (this.hudObjective) this.hudObjective.setText(this.currentObjectiveText());
   }
@@ -1119,7 +1127,10 @@ export class MazeScene extends Phaser.Scene {
     const candidates = [];
     for (let y = 0; y < this.floor.height; y++) {
       for (let x = 0; x < this.floor.width; x++) {
-        if (this.floor.tiles[y][x] === TILE.WALL) continue;
+        // Only spawn on genuinely walkable ground — walls AND water are
+        // impassable, so an item there would sit embedded/unreachable.
+        const tt = this.floor.tiles[y][x];
+        if (tt === TILE.WALL || tt === TILE.WATER) continue;
         if (occupied.has(`${x},${y}`)) continue;
         if (Math.abs(x - this.playerX) + Math.abs(y - this.playerY) < 3) continue;
         candidates.push({ x, y });
@@ -1163,7 +1174,10 @@ export class MazeScene extends Phaser.Scene {
     if (this._mathDoorActive) return;
     this._mathDoorActive = true;
     let answered = false;
-    const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5).setDepth(80).setScrollFactor(0).setInteractive();
+    // Depth 500+ sits ABOVE the maze foreground overlay (which rides up with
+    // the hero's tile depth and can exceed 100 mid-maze), so the prompt is
+    // never occluded by hedges. Dim the world firmly behind it.
+    const overlay = this.add.rectangle(GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.62).setDepth(500).setScrollFactor(0).setInteractive();
     // Format question text based on type — fractions/geometry/money/word
     // use their .text field; arithmetic uses a OP b = ?
     let qStr;
@@ -1173,26 +1187,33 @@ export class MazeScene extends Phaser.Scene {
       const opSymbol = question.op === '*' ? '×' : question.op === '/' ? '÷' : question.op;
       qStr = `${question.a} ${opSymbol} ${question.b} = ?`;
     }
-    const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.35, qStr, {
+    const qText = this.add.text(GAME_WIDTH/2, GAME_HEIGHT * 0.30, qStr, {
       fontFamily: '"Fredoka One", sans-serif',
       fontSize: '48px', color: '#f0e8d0',
       stroke: '#1a0e04', strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(81).setScrollFactor(0);
+    }).setOrigin(0.5).setDepth(502).setScrollFactor(0);
+    // Count-driven layout: render exactly as many tiles as the question has
+    // choices, centered and uniform — never a fixed 4 that leaves a stray tile.
+    const n = question.choices.length;
     const btnW = 180, btnH = 70, gap = 20;
-    const totalW = 4 * btnW + 3 * gap;
+    const totalW = n * btnW + (n - 1) * gap;
     const startX = GAME_WIDTH/2 - totalW/2 + btnW/2;
-    const btnY = GAME_HEIGHT * 0.55;
-    const elements = [overlay, qText];
-    for (let i = 0; i < 4; i++) {
+    const btnY = GAME_HEIGHT * 0.58;
+    // Solid backing panel so the band reads as one control strip and the
+    // dimmed maze/hero never shows through the (now opaque) answer tiles.
+    const bandPanel = this.add.rectangle(GAME_WIDTH/2, btnY, totalW + 56, btnH + 44, PAPER.inkTeal, 0.97)
+      .setStrokeStyle(3, PAPER.cream, 0.55).setDepth(500.5).setScrollFactor(0);
+    const elements = [overlay, bandPanel, qText];
+    for (let i = 0; i < n; i++) {
       const x = startX + i * (btnW + gap);
       const isCorrect = i === question.correctIndex;
       const ansText = String(question.choices[i]);
-      const bg = this.add.rectangle(x, btnY, btnW, btnH, PAPER.teal, 0.9).setDepth(81).setScrollFactor(0).setInteractive({ useHandCursor: true });
+      const bg = this.add.rectangle(x, btnY, btnW, btnH, PAPER.teal, 1).setDepth(501).setScrollFactor(0).setInteractive({ useHandCursor: true });
       const label = this.add.text(x, btnY, ansText, {
         fontFamily: '"Fredoka One", sans-serif',
         fontSize: '32px', color: '#ffffff',
         stroke: '#1f4244', strokeThickness: 2,
-      }).setOrigin(0.5).setDepth(82).setScrollFactor(0);
+      }).setOrigin(0.5).setDepth(502).setScrollFactor(0);
       elements.push(bg, label);
       bg.on('pointerdown', () => {
         if (answered) return;

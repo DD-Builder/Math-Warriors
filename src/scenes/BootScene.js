@@ -51,6 +51,21 @@ export class BootScene extends Phaser.Scene {
       this.scene.start(SCENES.MAZE, { floor });
       return;
     }
+    // Dev/testing shortcut: ?dev=battleN[-count] or ?dev=bossN drops straight
+    // into a battle on floor N so the encounter framing can be verified.
+    const devBattle = dev && dev.match(/^battle([1-9])(?:-([123]))?$/);
+    const devBoss = dev && dev.match(/^boss([1-9])$/);
+    if (devBattle || devBoss) {
+      const floor = Number((devBattle || devBoss)[1]);
+      this.registry.set('grade', 3);
+      this.scene.start(SCENES.BATTLE, {
+        floor,
+        grade: 3,
+        isBoss: !!devBoss,
+        devCount: devBattle && devBattle[2] ? Number(devBattle[2]) : undefined,
+      });
+      return;
+    }
 
     this.scene.start(SCENES.TITLE);
   }
