@@ -716,6 +716,19 @@ export class BattleScene extends Phaser.Scene {
     // No idle bob tween needed — the state machine's idle state handles breathing
   }
 
+  /**
+   * Fade out a defeated enemy's whole name/HP plate. Previously each death
+   * path faded name+bars+text but NOT hpStroke (the white outline), leaving an
+   * empty white bar floating where the enemy died. This fades every plate part
+   * (the body fade stays with each caller, since it has bespoke scale/ease).
+   */
+  fadeEnemyPlate(sprite, dur = 400) {
+    if (!sprite) return;
+    for (const part of ['name', 'hpBarBg', 'hpBarFill', 'hpStroke', 'hpText']) {
+      if (sprite[part]) this.tweens.add({ targets: sprite[part], alpha: 0, duration: dur });
+    }
+  }
+
   buildEnemySprite() {
     const count = this.enemies.length;
 
@@ -925,9 +938,14 @@ export class BattleScene extends Phaser.Scene {
     const noteCy = eqY;
     this.eqCenterY = eqY;
 
-    PaperPanel(this, noteCx, noteCy, noteW, noteH, {
-      color: 0xf5ead0, alpha: 0.92, radius: 18, shadowOff: 4, shadowAlpha: 0.2,
+    // Capture + depth the panel: the return was discarded, leaving its bg at
+    // the default depth 0 (behind the ground and actors), so the equation card
+    // read as faint/see-through. Pin it to the panel layer and make it solid.
+    const eqPanel = PaperPanel(this, noteCx, noteCy, noteW, noteH, {
+      color: 0xf7edd6, alpha: 1, radius: 18, shadowOff: 4, shadowAlpha: 0.28,
     });
+    if (eqPanel.bg) eqPanel.bg.setDepth(BATTLE_DEPTH.PANEL);
+    if (eqPanel.shadow) eqPanel.shadow.setDepth(BATTLE_DEPTH.PANEL_SHADOW);
 
     // Floor-themed math panel decorations
     this.panelFx = createPanelDecorations(this, this.floor, noteCx, noteCy, noteW, noteH);
@@ -1002,8 +1020,10 @@ export class BattleScene extends Phaser.Scene {
     // Coach "?" — pre-answer hint ladder (tip → scaffold). Sits at the
     // equation panel's right edge, hidden until a question is on screen.
     // Tapping it never blocks answering; each rung trades some power.
-    this._coachBtn = PaperButton(this, area.right - 44, eqY - 6, '?', {
-      w: 48, h: 48, color: PAPER.inkTeal, fontSize: 30, seed: 7777,
+    // Warm amber "hint" chip — the old near-black inkTeal square read as an
+    // off-style placeholder. Bigger touch target + friendly gold face.
+    this._coachBtn = PaperButton(this, area.right - 52, eqY - 6, '?', {
+      w: 58, h: 58, color: 0xf0a83c, fontSize: 34, textColor: '#3a2410', seed: 7777,
       onClick: () => this.onCoachHint(),
     });
     for (const el of [this._coachBtn.shadow, this._coachBtn.bg, this._coachBtn.label, this._coachBtn.zone]) {
@@ -1501,10 +1521,7 @@ export class BattleScene extends Phaser.Scene {
       // Check for kill
       if (targetEnemy.hp <= 0) {
         this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
-        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
-        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
-        if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 300 });
+        this.fadeEnemyPlate(targetSprite);
         if (this.allEnemiesDead()) {
           this.time.delayedCall(500, () => this.showVictory());
           return;
@@ -2213,10 +2230,7 @@ export class BattleScene extends Phaser.Scene {
         }
         if (enemy.hp <= 0 && sprite) {
           this.tweens.add({ targets: sprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-          if (sprite.name) this.tweens.add({ targets: sprite.name, alpha: 0, duration: 400 });
-          if (sprite.hpBarBg) this.tweens.add({ targets: sprite.hpBarBg, alpha: 0, duration: 400 });
-          if (sprite.hpBarFill) this.tweens.add({ targets: sprite.hpBarFill, alpha: 0, duration: 400 });
-          if (sprite.hpText) this.tweens.add({ targets: sprite.hpText, alpha: 0, duration: 300 });
+          this.fadeEnemyPlate(sprite);
         }
       });
       dotDelay += 200;
@@ -2800,10 +2814,7 @@ export class BattleScene extends Phaser.Scene {
         this.shakeCamera(0.012, 300);
         // Fade out the killed enemy sprite
         this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-        if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
-        if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
-        if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
-        if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 300 });
+        this.fadeEnemyPlate(targetSprite);
         // Check if ALL enemies are dead
         if (this.allEnemiesDead()) {
           this.time.delayedCall(400, () => this.showVictory());
@@ -3910,20 +3921,22 @@ export class BattleScene extends Phaser.Scene {
         }
         this.burstParticles(es.x, es.y, 0xe8a030);
         this.burstParticles(es.x, es.y, 0xf0d040);
-        if (es.name) this.tweens.add({ targets: es.name, alpha: 0, duration: 400 });
-        if (es.hpBarBg) this.tweens.add({ targets: es.hpBarBg, alpha: 0, duration: 400 });
-        if (es.hpBarFill) this.tweens.add({ targets: es.hpBarFill, alpha: 0, duration: 400 });
-        if (es.hpText) this.tweens.add({ targets: es.hpText, alpha: 0, duration: 400 });
+        if (es.body) this.tweens.add({ targets: es.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
+        this.fadeEnemyPlate(es);
       } catch (_) { /* defensive: don't let sprite cleanup prevent victory */ }
     }
 
     const accuracy = this.battleCorrect + this.battleWrong > 0
       ? Math.round((this.battleCorrect / (this.battleCorrect + this.battleWrong)) * 100) : 100;
 
-    // Build defeated names
-    const defeatedNames = this.enemies.length > 1
-      ? this.enemies.map(e => e.name).join(' & ')
-      : this.enemy.name;
+    // Build defeated names — collapse duplicates so three enemies don't read
+    // "Puffshroom & Puffshroom & Blossom Fiend"; a repeated name becomes
+    // "2× Puffshroom" instead.
+    const defeatedNames = (() => {
+      const counts = new Map();
+      for (const e of this.enemies) counts.set(e.name, (counts.get(e.name) || 0) + 1);
+      return Array.from(counts, ([name, n]) => (n > 1 ? `${n}× ${name}` : name)).join(' & ');
+    })();
 
     this.time.delayedCall(500, () => {
       this.endOverlay.titleText.setText('VICTORY!');
@@ -4252,7 +4265,7 @@ export class BattleScene extends Phaser.Scene {
     const area = safeArea(GAME_WIDTH, GAME_HEIGHT);
     this._specialNumpad = createNumpad(this, {
       x: area.cx, y: area.bottom - 250,
-      depth: BATTLE_DEPTH.COMMAND,
+      depth: BATTLE_DEPTH.NUMPAD,
       onSubmit: (v) => this.resolveSpecialAnswer(v),
     });
 
@@ -4418,10 +4431,7 @@ export class BattleScene extends Phaser.Scene {
     if (targetEnemy.hp <= 0) {
       this.burstParticles(targetSprite.body?.x || 900, targetSprite.body?.y || 400, 0xe8a030);
       if (targetSprite.body) this.tweens.add({ targets: targetSprite.body, alpha: 0, scaleX: 0.5, scaleY: 0.5, duration: 400, ease: 'Back.in' });
-      if (targetSprite.name) this.tweens.add({ targets: targetSprite.name, alpha: 0, duration: 400 });
-      if (targetSprite.hpBarBg) this.tweens.add({ targets: targetSprite.hpBarBg, alpha: 0, duration: 400 });
-      if (targetSprite.hpBarFill) this.tweens.add({ targets: targetSprite.hpBarFill, alpha: 0, duration: 400 });
-      if (targetSprite.hpText) this.tweens.add({ targets: targetSprite.hpText, alpha: 0, duration: 400 });
+      this.fadeEnemyPlate(targetSprite);
       if (this.allEnemiesDead()) {
         this.time.delayedCall(400, () => this.showVictory());
       } else {

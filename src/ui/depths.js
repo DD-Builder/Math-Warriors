@@ -26,6 +26,9 @@ export const BATTLE_DEPTH = {
   TIMER: 30,         // question timer must never hide
   INTENT: 32,        // boss intent badge
   TOAST: 50,
+  // Full-screen input surface (typed-answer numpad) — above the Y-sorted
+  // actors (~450-700) so the hero can't bleed over the keys.
+  NUMPAD: 780,
   // Full-screen overlays must sit ABOVE the actors. Actor bodies are
   // depth-sorted by their Y coordinate (perspective.js → depth: Math.floor(y)),
   // which puts them in the hundreds (~450-700). The old 100/150/200 sat

@@ -12,13 +12,25 @@ import { FLOOR_PALETTES } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawHeroSprite, createAnimatedHero } from '../ui/heroSprites.js';
-import { tileDepth } from '../systems/perspective.js';
 import { initLevel, updateLevel, drawLevel, getCanvas, getPartyTile, getGameState, setGameState, markDead, markActivated, markVisible, setFloorTheme, revealSecret, updateObjectUses, markDoorOpen, addObject, LV_setTransformed, LV_setTile, setSkipCanvasHero, drawForeground, getForegroundCanvas, moveObject, setObjectLook } from '../ui/levelEngine.js';
 
 // Bump whenever the maze save-state shape or level layouts change in an
 // incompatible way — stale device saves are silently discarded instead
 // of resurrecting an old broken layout.
 const MAZE_STATE_SCHEMA = 6;
+
+// Fixed maze world-layer depths. There are only three depth-sorted maze
+// sprites — the full level canvas, the hero, and the foreground-hedge overlay
+// that draws the "in front" hedges over the hero — so only their ORDER
+// matters, not any tile-based magnitude. Pinning them low (0 < hero < fg)
+// keeps the camera-fixed HUD (HUD_LAYER_DEPTH) and the maze modals (200+)
+// safely above the hedges no matter where the player stands. (A previous
+// build set these to tileDepth() which climbed into the hundreds deep in the
+// maze and overran the HUD — that was the "status bar behind hedges" bug.)
+const MAZE_LEVEL_DEPTH = 0;
+const MAZE_HERO_DEPTH = 10;
+const MAZE_FG_DEPTH = 20;
+const HUD_LAYER_DEPTH = 100;
 
 // Signature-secret interactables — all render as glyph medallions in
 // the engine ('secretobj') and are handled by the secret machinery.
@@ -361,13 +373,14 @@ export class MazeScene extends Phaser.Scene {
     this.textures.addCanvas('level-canvas', cv);
     this.levelImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'level-canvas');
     this.levelImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+    this.levelImage.setDepth(MAZE_LEVEL_DEPTH);
 
     // Animated hero sprite overlay (replaces static hero image)
     const heroLeader = this.party[0];
     if (heroLeader) {
       setSkipCanvasHero(true);
       this.heroSprite = createAnimatedHero(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, heroLeader, { scale: 0.45, floorId: this.floorId || 1, equipment: this.save.equipment?.[heroLeader.id] });
-      this.heroSprite.setDepth(10);
+      this.heroSprite.setDepth(MAZE_HERO_DEPTH);
       this.heroSprite.setIdle();
       this._heroWasMoving = false;
       this._lastPartyX = null;
@@ -383,7 +396,7 @@ export class MazeScene extends Phaser.Scene {
       this.textures.addCanvas('level-fg', fgCv);
       this.fgImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'level-fg');
       this.fgImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
-      this.fgImage.setDepth(20); // above hero (depth ~10) but below HUD
+      this.fgImage.setDepth(MAZE_FG_DEPTH); // above hero, below HUD (100)
     }
 
     this.buildHUD();
@@ -782,12 +795,10 @@ export class MazeScene extends Phaser.Scene {
     });
 
     // Fix all HUD elements to the camera so they don't scroll, and lift them
-    // to a depth well above the level layers. The maze renders as levelImage
-    // (depth 0), heroSprite (depth 10) and the foreground wall overlay
-    // fgImage (depth 20); without an explicit depth the HUD sits at the
-    // default 0 and the foreground hedges draw right over the status bar and
-    // party portraits. HUD_DEPTH keeps the whole bottom bar on top.
-    const HUD_DEPTH = 100;
+    // above every world layer. The maze sprites are pinned at fixed low depths
+    // (level 0 < hero 10 < fg 20), so HUD_DEPTH=100 clears the hedges no matter
+    // where the player stands, while the maze modals (200+) still sit above it.
+    const HUD_DEPTH = HUD_LAYER_DEPTH;
     const after = this.children.length;
     for (let i = before; i < after; i++) {
       const child = this.children.getAt(i);
@@ -802,11 +813,14 @@ export class MazeScene extends Phaser.Scene {
     if (this.hudChallenge) {
       const ch = this.floor.challenge || { count: 3, label: 'ITEM' };
       const activeLabel = (this.phase2Active && ch.phase2) ? ch.phase2.label : ch.label;
+      // Value line shows just the progress count — the sublabel underneath
+      // already names the challenge, so prefixing the label here repeated it
+      // ("RUNE STONE 0/2" over "RUNE STONE").
       if (this.phase2Active && ch.phase2) {
         const p2 = ch.phase2;
-        this.hudChallenge.setText(`${p2.label} ${this.phase2Progress}/${p2.count}`);
+        this.hudChallenge.setText(`${this.phase2Progress}/${p2.count}`);
       } else {
-        this.hudChallenge.setText(`${ch.label} ${this.challengeProgress}/${ch.count}`);
+        this.hudChallenge.setText(`${this.challengeProgress}/${ch.count}`);
       }
       // Keep the small sublabel under the card in sync with the active phase.
       if (this.hudChallengeLabel) this.hudChallengeLabel.setText(activeLabel.toUpperCase());
@@ -1349,13 +1363,13 @@ export class MazeScene extends Phaser.Scene {
         this.heroSprite.scaleX = Math.abs(this.heroSprite.scaleX || 1);
       }
 
-      // Depth based on tile row
-      const heroDepth = tileDepth(this.playerY, this.playerX, 5);
-      this.heroSprite.setDepth(heroDepth);
-
-      // Foreground wall overlay must always be above the hero
+      // Fixed low depths: the foreground-hedge canvas already contains exactly
+      // the hedges that should be in front of the hero, so it only needs to
+      // sit just above the hero — never at a tile-scaled magnitude that could
+      // overrun the HUD.
+      this.heroSprite.setDepth(MAZE_HERO_DEPTH);
       if (this.fgImage) {
-        this.fgImage.setDepth(heroDepth + 1);
+        this.fgImage.setDepth(MAZE_FG_DEPTH);
       }
     }
   }

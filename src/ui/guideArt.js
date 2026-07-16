@@ -64,7 +64,10 @@ export function drawGuidePortrait(scene, x, y, speaker, { r = 90, expression = '
   } else if (isVillain(name)) {
     drawVillainCrest(g, r, accent);
   } else {
-    drawInitialMedallion(scene, c, g, r, speaker, accent);
+    // Any other speaker (party heroes like Toadstool, misc NPCs) gets a
+    // friendly papercut character bust — never a bare initial letter.
+    bust(g, r, { robe: accent });
+    face(g, r, expression, { eye: PAPER.inkTeal });
   }
 
   // Mask everything inside the medallion? Papercut busts are drawn to
