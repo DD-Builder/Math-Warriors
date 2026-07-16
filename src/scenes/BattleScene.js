@@ -148,7 +148,7 @@ export class BattleScene extends Phaser.Scene {
       this.enemies = [spawnEnemy(bossDef.id, { grade: this.grade, isBoss: true })];
     } else {
       const roll = Math.random();
-      const count = roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3;
+      const count = data?.devCount || (roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3);
       const hpScale = count === 1 ? 1.0 : count === 2 ? 0.75 : 0.5;
       this.enemies = [];
       for (let i = 0; i < count; i++) {
@@ -234,6 +234,10 @@ export class BattleScene extends Phaser.Scene {
       hero.def += bondBonus.def || 0;
       hero.maxHp += bondBonus.hp || 0;
       hero.hp += bondBonus.hp || 0;
+      // Carry-over HP from a previous battle plus a smaller recomputed maxHp
+      // (bonuses differ between fights) could leave hp > maxHp, which shows as
+      // "54/50". Clamp so displayed and real HP never exceed the max.
+      hero.hp = Math.max(0, Math.min(hero.hp, hero.maxHp));
     }
 
     // --- Signature effects state ---
@@ -288,33 +292,38 @@ export class BattleScene extends Phaser.Scene {
     // at the far ground line, warm sage near the camera) grounds the
     // actors without any hard rectangular band.
     const groundGfx = this.add.graphics();
-    groundGfx.setDepth(10);
-    const gTop = BATTLE_PERSPECTIVE.groundTopY;      // far ground line (monster feet)
+    groundGfx.setDepth(9);
+    const gTop = 560;                                // horizon: meadow front / far ground line
     const gBot = GAME_HEIGHT;
     const gMid = BATTLE_PERSPECTIVE.groundBottomY;   // near ground line (hero feet)
 
-    // Meadow floor with a FEATHERED top edge (a soft fade over ~140px, not
-    // a hard line) so the grass reads as receding under the hills — the
-    // monster row and the hero row both clearly stand on it, no flat box.
-    groundGfx.fillGradientStyle(PAPER.sage, PAPER.sage, PAPER.sage, PAPER.sage, 0, 0, 0.30, 0.30);
-    groundGfx.fillRect(0, gTop - 70, GAME_WIDTH, 150);                 // soft fade-in: ~210 → 360
-    groundGfx.fillGradientStyle(PAPER.sage, PAPER.sage, PAPER.sageD, PAPER.sageD, 0.30, 0.30, 0.42, 0.42);
-    groundGfx.fillRect(0, gTop + 80, GAME_WIDTH, gBot - (gTop + 80));  // meadow body: 360 → bottom
+    // A CLEAR meadow floor: a soft feathered top edge blends into the hills,
+    // then a solid, well-defined body so the monster row (~y600) and the
+    // hero row (~y640) both plainly stand on grass — no faint wash, no float.
+    groundGfx.fillGradientStyle(PAPER.sage, PAPER.sage, PAPER.sage, PAPER.sage, 0, 0, 0.82, 0.82);
+    groundGfx.fillRect(0, gTop - 60, GAME_WIDTH, 90);                  // feather-in: 500 → 590
+    groundGfx.fillGradientStyle(PAPER.sage, PAPER.sage, PAPER.sageD, PAPER.sageD, 0.82, 0.82, 0.98, 0.98);
+    groundGfx.fillRect(0, gTop + 30, GAME_WIDTH, gBot - (gTop + 30));  // meadow body: 590 → bottom
 
-    // A soft, low-contrast path curving from the hero row up to the
-    // monster row so both rows clearly stand on a floor — blended, faint.
-    groundGfx.fillStyle(PAPER.creamD, 0.12);
+    // A soft crest line where the meadow meets the hills — a clear, readable
+    // horizon so the ground plane is unmistakable.
+    groundGfx.fillStyle(PAPER.leaf, 0.18);
+    groundGfx.fillRect(0, gTop + 26, GAME_WIDTH, 6);
+
+    // A soft, low-contrast path curving from the hero row up toward the
+    // monster row so both rows clearly stand on a floor.
+    groundGfx.fillStyle(PAPER.creamD, 0.14);
     groundGfx.fillPoints([
-      { x: 300, y: gMid + 10 }, { x: 520, y: gMid - 40 },
-      { x: 820, y: gTop + 40 }, { x: 940, y: gTop + 20 },
-      { x: 900, y: gTop + 70 }, { x: 560, y: gMid - 5 },
-      { x: 350, y: gMid + 34 },
+      { x: 300, y: gMid + 30 }, { x: 520, y: gMid - 20 },
+      { x: 780, y: gTop + 60 }, { x: 900, y: gTop + 44 },
+      { x: 860, y: gTop + 92 }, { x: 560, y: gMid + 12 },
+      { x: 350, y: gMid + 54 },
     ], true);
 
     // Grass tufts + a few blossoms across the near ground for texture.
     for (let gi = 0; gi < 34; gi++) {
       const gx = Math.random() * GAME_WIDTH;
-      const gy = gMid - 40 + Math.random() * (gBot - gMid + 20);
+      const gy = gTop + 20 + Math.random() * (gBot - gTop - 20);
       groundGfx.fillStyle(PAPER.leaf, 0.22 + Math.random() * 0.18);
       groundGfx.fillCircle(gx, gy, 3 + Math.random() * 5);
     }
@@ -691,7 +700,7 @@ export class BattleScene extends Phaser.Scene {
         .setOrigin(0, 0.5).setDepth(13);
       const hpStroke = this.add.rectangle(x, hpBarY, 150, 16)
         .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
-      const hpText = this.add.text(x, hpBarY, `${hero.hp}/${hero.maxHp}`, {
+      const hpText = this.add.text(x, hpBarY, `${Math.max(0, Math.min(hero.hp, hero.maxHp))}/${hero.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '13px',
         color: COLORS_CSS.paper,
@@ -724,15 +733,25 @@ export class BattleScene extends Phaser.Scene {
     // the sprite by that fraction to plant its feet on the ground.
     const MONSTER_CANVAS = 640;
     const FEET_FRAC = 0.38;
+    // No sprite's top edge may rise above this line — keeps the momentum bar
+    // and instruction banner clear and stops big bosses clipping off-screen.
+    const TOP_MARGIN = 172;
 
     for (let ei = 0; ei < count; ei++) {
       const enemy = this.enemies[ei];
       const pos = positions[ei];
       const x = pos.x;
-      const monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.02) : pos.scale;
+      // Bosses stand a little nearer the camera (lower) so they read as
+      // imposing without floating; everyone else stands on pos.y.
+      const feetY = enemy.isBoss ? pos.y + 55 : pos.y;   // ground line under the feet
+      let monsterScale = enemy.isBoss ? Math.max(pos.scale, 1.10) : pos.scale;
+      // Fit: the sprite is drawn origin 0.5, so its top edge sits at
+      // feetY - CANVAS*scale*(FEET_FRAC + 0.5). Cap the scale so that top
+      // never rises above TOP_MARGIN (bosses especially).
+      const fitScale = (feetY - TOP_MARGIN) / (MONSTER_CANVAS * (FEET_FRAC + 0.5));
+      monsterScale = Math.min(monsterScale, fitScale);
 
       const displayH = MONSTER_CANVAS * monsterScale;
-      const feetY = pos.y;                        // where the creature's feet rest
       const y = feetY - displayH * FEET_FRAC;     // sprite center that puts feet on feetY
 
       const body = drawMonsterSprite(this, x, y, enemy, { scale: monsterScale, floorId: this.floor });
@@ -743,26 +762,29 @@ export class BattleScene extends Phaser.Scene {
 
       // Name/HP bars anchored above the sprite's rendered bounds, clamped
       // below the top momentum panel so a tall enemy's plate is never hidden.
-      const nameY = Math.max(y - displayH * 0.42 - 14, 140);
-      const hpY = nameY + 20;
+      // Name plate ABOVE the sprite's top edge (never on the art), clamped
+      // below the momentum bar so it never collides with the top UI.
+      const nameY = Math.max(y - displayH * 0.5 - 20, TOP_MARGIN - 12);
+      const hpY = nameY + 22;
       const hpTextY = hpY + 16;
 
       const name = this.add.text(x, nameY, enemy.name.toUpperCase(), {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: count >= 3 ? '20px' : '26px',
+        fontSize: count >= 3 ? '20px' : count === 2 ? '23px' : '28px',
         color: COLORS_CSS.paper,
         stroke: COLORS_CSS.scarlet,
         strokeThickness: 4,
       }).setOrigin(0.5).setDepth(14);
 
+      const hpFrac = Math.max(0, Math.min(1, enemy.hp / enemy.maxHp));
       const hpBarBg = this.add.rectangle(x, hpY, w + 20, 20, COLORS.ink)
         .setStrokeStyle(2, COLORS.paperD).setDepth(13);
-      const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * (enemy.hp / enemy.maxHp), 14, 0xc04030)
+      const hpBarFill = this.add.rectangle(x - (w + 20) / 2 + 2, hpY, (w + 20 - 4) * hpFrac, 14, 0xc04030)
         .setOrigin(0, 0.5).setDepth(13);
       // 1px white stroke around HP bar for clarity
       const hpStroke = this.add.rectangle(x, hpY, w + 20, 20)
         .setStrokeStyle(1, 0xffffff, 0.5).setFillStyle(0, 0).setDepth(14);
-      const hpText = this.add.text(x, hpTextY, `${enemy.hp}/${enemy.maxHp}`, {
+      const hpText = this.add.text(x, hpTextY, `${Math.max(0, Math.min(enemy.hp, enemy.maxHp))}/${enemy.maxHp}`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '16px',
         color: '#fff8e0',
@@ -1036,14 +1058,14 @@ export class BattleScene extends Phaser.Scene {
     this._pauseElements = [];
 
     const pauseBg = this.add.rectangle(pcx, pcy, GAME_WIDTH, GAME_HEIGHT, COLORS.ink, 0.85)
-      .setDepth(100).setInteractive().setVisible(false);
+      .setDepth(BATTLE_DEPTH.PAUSE).setInteractive().setVisible(false);
     this._pauseElements.push(pauseBg);
 
     const pausePanel = PaperPanel(this, pcx, pcy, 400, 360, {
       color: 0xfff4e0, alpha: 0.95, radius: 24,
     });
-    if (pausePanel.bg) { pausePanel.bg.setDepth(101).setVisible(false); this._pauseElements.push(pausePanel.bg); }
-    if (pausePanel.shadow) { pausePanel.shadow.setDepth(100).setVisible(false); this._pauseElements.push(pausePanel.shadow); }
+    if (pausePanel.bg) { pausePanel.bg.setDepth(BATTLE_DEPTH.PAUSE + 1).setVisible(false); this._pauseElements.push(pausePanel.bg); }
+    if (pausePanel.shadow) { pausePanel.shadow.setDepth(BATTLE_DEPTH.PAUSE).setVisible(false); this._pauseElements.push(pausePanel.shadow); }
 
     const pauseTitle = this.add.text(pcx, pcy - 130, 'PAUSED', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -1051,7 +1073,7 @@ export class BattleScene extends Phaser.Scene {
       color: '#3a2410',
       stroke: '#f0d060',
       strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(102).setVisible(false);
+    }).setOrigin(0.5).setDepth(BATTLE_DEPTH.PAUSE + 2).setVisible(false);
     this._pauseElements.push(pauseTitle);
 
     const resumeBtn = PaperButton(this, pcx, pcy - 50, 'RESUME', {
@@ -1059,7 +1081,7 @@ export class BattleScene extends Phaser.Scene {
       onClick: () => this.hidePauseOverlay(),
     });
     [resumeBtn.bg, resumeBtn.shadow, resumeBtn.label, resumeBtn.zone].forEach(el => {
-      if (el) { el.setDepth(102).setVisible(false); this._pauseElements.push(el); }
+      if (el) { el.setDepth(BATTLE_DEPTH.PAUSE + 2).setVisible(false); this._pauseElements.push(el); }
     });
 
     const potionCount = this.save.potions || 0;
@@ -1073,7 +1095,7 @@ export class BattleScene extends Phaser.Scene {
     this._pausePotionLabel = potionBtn.label;
     this._pausePotionBtn = potionBtn;
     [potionBtn.bg, potionBtn.shadow, potionBtn.label, potionBtn.zone].forEach(el => {
-      if (el) { el.setDepth(102).setVisible(false); this._pauseElements.push(el); }
+      if (el) { el.setDepth(BATTLE_DEPTH.PAUSE + 2).setVisible(false); this._pauseElements.push(el); }
     });
 
     const retreatBtn = PaperButton(this, pcx, pcy + 110, 'RETREAT', {
@@ -1084,7 +1106,7 @@ export class BattleScene extends Phaser.Scene {
       },
     });
     [retreatBtn.bg, retreatBtn.shadow, retreatBtn.label, retreatBtn.zone].forEach(el => {
-      if (el) { el.setDepth(102).setVisible(false); this._pauseElements.push(el); }
+      if (el) { el.setDepth(BATTLE_DEPTH.PAUSE + 2).setVisible(false); this._pauseElements.push(el); }
     });
 
     // Toast (floats above the UI panel)
@@ -1129,7 +1151,7 @@ export class BattleScene extends Phaser.Scene {
     });
 
     // End overlay (hidden by default)
-    this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(200);
+    this.endOverlay = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2).setVisible(false).setDepth(BATTLE_DEPTH.END);
     const overlayBg = this.add.rectangle(0, 0, GAME_WIDTH * 2, GAME_HEIGHT * 2, COLORS.ink, 0.92);
     const endTitle = this.add.text(0, -160, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -1144,12 +1166,15 @@ export class BattleScene extends Phaser.Scene {
       color: COLORS_CSS.paper,
       align: 'center',
     }).setOrigin(0.5);
-    const endRewards = this.add.text(0, 30, '', {
+    // Top-anchored (origin 0.5, 0) so the block grows DOWNWARD from a fixed
+    // top edge — never upward into the subtitle. showVictory measures its
+    // height and flows the XP bar + CONTINUE button below it.
+    const endRewards = this.add.text(0, -18, '', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
       fontSize: '22px',
       color: COLORS_CSS.goldL,
       align: 'center',
-    }).setOrigin(0.5);
+    }).setOrigin(0.5, 0);
     const endBtnBg = this.add.rectangle(0, 140, 380, 80, COLORS.scarlet)
       .setStrokeStyle(4, COLORS.ink)
       .setInteractive({ useHandCursor: true });
@@ -1176,6 +1201,10 @@ export class BattleScene extends Phaser.Scene {
     this.endOverlay.titleText = endTitle;
     this.endOverlay.subText = endSub;
     this.endOverlay.rewardsText = endRewards;
+    // Stored so showVictory can flow the CONTINUE button below the (variable
+    // height) rewards block instead of a fixed y that the text overruns.
+    this.endOverlay.continueBg = endBtnBg;
+    this.endOverlay.continueLabel = endBtnLabel;
   }
 
   // ================================================================
@@ -3485,12 +3514,12 @@ export class BattleScene extends Phaser.Scene {
     this.locked = true;
 
     const overlayBg = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAPER.shadow, 0.5)
-      .setDepth(150).setInteractive();
+      .setDepth(BATTLE_DEPTH.HINT).setInteractive();
     const panel = PaperPanel(this, area.cx, area.cy - 20, 620, 200, {
       color: 0xf5ead0, alpha: 0.97, radius: 20,
     });
-    if (panel.bg) panel.bg.setDepth(151);
-    if (panel.shadow) panel.shadow.setDepth(150);
+    if (panel.bg) panel.bg.setDepth(BATTLE_DEPTH.HINT + 1);
+    if (panel.shadow) panel.shadow.setDepth(BATTLE_DEPTH.HINT);
 
     const hintLabel = this.add.text(area.cx, area.cy - 30, hintText, {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -3498,15 +3527,15 @@ export class BattleScene extends Phaser.Scene {
       color: '#3a2410',
       align: 'center',
       wordWrap: { width: 560 },
-    }).setOrigin(0.5).setDepth(152);
+    }).setOrigin(0.5).setDepth(BATTLE_DEPTH.HINT + 2);
 
     const gotItBtn = PaperButton(this, area.cx, area.cy + 55, 'GOT IT', {
       w: 200, h: 54, color: 0x4aa848, fontSize: 22,
     });
-    if (gotItBtn.bg) gotItBtn.bg.setDepth(153);
-    if (gotItBtn.shadow) gotItBtn.shadow.setDepth(153);
-    if (gotItBtn.label) gotItBtn.label.setDepth(154);
-    if (gotItBtn.zone) gotItBtn.zone.setDepth(154);
+    if (gotItBtn.bg) gotItBtn.bg.setDepth(BATTLE_DEPTH.HINT + 3);
+    if (gotItBtn.shadow) gotItBtn.shadow.setDepth(BATTLE_DEPTH.HINT + 3);
+    if (gotItBtn.label) gotItBtn.label.setDepth(BATTLE_DEPTH.HINT + 4);
+    if (gotItBtn.zone) gotItBtn.zone.setDepth(BATTLE_DEPTH.HINT + 4);
 
     const elements = [overlayBg, hintLabel];
     if (panel.bg) elements.push(panel.bg);
@@ -3900,7 +3929,7 @@ export class BattleScene extends Phaser.Scene {
         const confettiColors = [0xe84040, 0x3888d8, 0x4aa848, 0xf0c040, 0x9050c8];
         for (let ci = 0; ci < 30; ci++) {
           const cc = confettiColors[ci % confettiColors.length];
-          const rect = this.add.rectangle(0, -160, 4, 8, cc).setDepth(201);
+          const rect = this.add.rectangle(0, -160, 4, 8, cc).setDepth(BATTLE_DEPTH.END + 1);
           const angle = (ci / 30) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
           const speed = 120 + Math.random() * 180;
           const vx = Math.cos(angle) * speed;
@@ -3923,7 +3952,7 @@ export class BattleScene extends Phaser.Scene {
       const bestStreak = save.stats.bestStreak || this.streak;
       let rewardText = `Accuracy: ${accuracy}%`;
       rewardText += `\nBest Streak: ${bestStreak}`;
-      rewardText += `\n+${goldEarned} GOLD  •  +${xpEarned} XP`;
+      rewardText += `\n+${goldEarned} GOLD`;   // XP shown once, on the animated bar below
       if (leveledUp.length > 0) {
         rewardText += `\nLEVELED UP: ${leveledUp.join(' & ')}`;
         // The moment: a burst and flying stat gains over each leveler
@@ -3965,16 +3994,29 @@ export class BattleScene extends Phaser.Scene {
       this.endOverlay.setVisible(true);
       this.endOverlay.setAlpha(1);
 
+      // Flow everything below the rewards block by its MEASURED height so a
+      // long list (level-ups, bond ranks, gear) never overlaps the XP bar or
+      // gets clipped under the CONTINUE button.
+      const rewardsBottom = this.endOverlay.rewardsText.y + this.endOverlay.rewardsText.height;
+
       // XP filling bar animation below rewards text
       const barW = 280, barH = 16;
-      const barBg = this.add.rectangle(0, 90, barW, barH, 0x3a2410, 0.7).setOrigin(0.5);
-      const barFill = this.add.rectangle(-barW / 2, 90, 0, barH - 4, 0xf0c040).setOrigin(0, 0.5);
-      const xpLabel = this.add.text(0, 110, `+${xpEarned} XP`, {
+      const barY = rewardsBottom + 30;
+      const barBg = this.add.rectangle(0, barY, barW, barH, 0x3a2410, 0.7).setOrigin(0.5);
+      const barFill = this.add.rectangle(-barW / 2, barY, 0, barH - 4, 0xf0c040).setOrigin(0, 0.5);
+      const xpLabel = this.add.text(0, barY + 22, `+${xpEarned} XP`, {
         fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
         fontSize: '16px',
         color: COLORS_CSS.goldL,
       }).setOrigin(0.5);
       this.endOverlay.add([barBg, barFill, xpLabel]);
+
+      // Position the CONTINUE button below the XP bar (it lived at a fixed
+      // y=140 that the rewards text could overrun).
+      const continueY = barY + 74;
+      if (this.endOverlay.continueBg) this.endOverlay.continueBg.y = continueY;
+      if (this.endOverlay.continueLabel) this.endOverlay.continueLabel.y = continueY;
+      this._victoryContinueY = continueY;
       // Animate XP bar filling
       this.tweens.add({
         targets: barFill,
@@ -3984,10 +4026,11 @@ export class BattleScene extends Phaser.Scene {
         delay: 200,
       });
 
-      // Show newly unlocked achievements with gold badge icons
+      // Show newly unlocked achievements with gold badge icons, flowed below
+      // the (repositioned) CONTINUE button so they never sit on top of it.
       if (newAchievements.length > 0) {
         newAchievements.forEach((ach, i) => {
-          const ay = 200 + i * 36;
+          const ay = continueY + 56 + i * 36;
           const badge = this.add.circle(-120, ay, 10, 0xf0c040);
           const star = this.add.text(-120, ay, '*', {
             fontFamily: '"Fredoka One", "Baloo 2", sans-serif',

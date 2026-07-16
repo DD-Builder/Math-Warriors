@@ -22,12 +22,12 @@ export const BATTLE_PERSPECTIVE = {
   groundTopY: 280,     // where monsters stand (far from camera)
   groundBottomY: 660,  // where heroes stand (near camera)
   vanishX: 720,
-  minScale: 0.55,      // monsters are smaller (far away)
+  minScale: 0.62,      // monsters are a touch smaller (slightly farther)
   maxScale: 0.90,      // heroes are larger (close to camera)
   heroBaseX: 180,
   heroSpacing: 100,
   heroStaggerX: 170,
-  monsterBaseX: 950,
+  monsterBaseX: 820,   // centered-right; leaves the top-right POTION button clear
   monsterSpacing: 90,
   monsterStaggerX: 100,
 };
@@ -119,21 +119,24 @@ export function heroFormation(heroCount, config = BATTLE_PERSPECTIVE) {
  */
 export function monsterFormation(enemyCount, config = BATTLE_PERSPECTIVE) {
   const positions = [];
-  // pos.y is the FEET/ground line where each monster stands. Monsters line
-  // up along the far ground with only a gentle depth stagger for the outer
-  // ones, so they read as standing side-by-side rather than stacked.
-  const baseY = config.groundTopY + 175;
+  // pos.y is the FEET/ground line where each monster stands. Monsters stand
+  // on the SAME meadow as the heroes — only slightly behind (higher up) so
+  // they read as farther without floating over the hills. baseY sits just
+  // above the hero row (groundBottomY) on the visible ground plane.
+  const baseY = config.groundBottomY - 60;   // ~600: on the meadow, just behind heroes
   const cx = config.monsterBaseX;
   if (enemyCount === 1) {
     positions.push({ x: cx, y: baseY, scale: scaleForY(baseY, config), depth: Math.floor(baseY) });
   } else {
-    const spread = enemyCount === 2 ? 185 : 220;
+    // Wide spread + smaller scale so multiple (often wide) creatures sit
+    // side-by-side on the ground without overlapping or colliding plates.
+    const spread = enemyCount === 2 ? 330 : 270;
     const mid = (enemyCount - 1) / 2;
     for (let i = 0; i < enemyCount; i++) {
       const off = i - mid;
-      const y = baseY + Math.abs(off) * 24;          // outer monsters a touch further back
+      const y = baseY + Math.abs(off) * 16;          // outer monsters slightly farther
       const x = cx + off * spread;
-      const shrink = enemyCount >= 3 ? 0.70 : 0.86;
+      const shrink = enemyCount >= 3 ? 0.48 : 0.60;
       positions.push({ x, y, scale: scaleForY(y, config) * shrink, depth: Math.floor(y) });
     }
   }

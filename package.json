@@ -1,6 +1,6 @@
 {
   "name": "math-warriors",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "private": true,
   "description": "An educational math RPG for kids K-5, built with Phaser 3. 15 heroes, 9 floors, turn-based battles powered by math mastery.",
   "author": "DD-Builder",
