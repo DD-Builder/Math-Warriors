@@ -148,4 +148,31 @@ describe('scheduler', () => {
     const after = got.filter(b => b > 0);
     assert.ok(after.every(b => b >= 60), `burst-scheduled past beats: ${after}`);
   });
+
+  test('backlog guard self-heals a clock leap even with no resync() call', () => {
+    // The real iOS failure: the AudioContext resumes and its clock jumps
+    // forward, but no visibilitychange fires (or it lost the race), so
+    // resync() never runs. The tick must still refuse to flush the whole
+    // skipped span as one wall of past-due notes (the screech).
+    const tl = buildTimeline(song);
+    let now = 0;
+    const clock = { now: () => now };
+    const got = [];
+    let tickFn = null;
+    const sched = createScheduler({
+      clock, onEvent: (w, ev) => got.push({ absBeat: ev.absBeat, when: w }),
+      setIntervalFn: (fn) => { tickFn = fn; return 1; }, clearIntervalFn: () => {},
+    });
+    sched.start(tl, 0);
+    now = 0.1; tickFn();          // schedules beat 0 normally
+    now = 30;                     // clock leaps 30s (= 60 beats), NO resync
+    tickFn();
+    const after = got.filter(g => g.absBeat > 0);
+    assert.ok(after.every(g => g.absBeat >= 60),
+      `flushed a backlog of past-due notes: ${after.map(g => g.absBeat)}`);
+    // the post-leap notes land at/after the live clock edge, not piled in the
+    // past (which is what the audio hardware would play at once as a screech)
+    for (const g of after) assert.ok(g.when >= now - 0.5, `note scheduled ${now - g.when}s in the past`);
+    sched.stop();
+  });
 });

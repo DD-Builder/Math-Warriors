@@ -14,7 +14,7 @@
 
 import { beatsToSec, secToBeats, eventsBetween } from './songCursor.js';
 
-export function createScheduler({ clock, onEvent, tickMs = 25, lookaheadSec = 0.12, setIntervalFn, clearIntervalFn }) {
+export function createScheduler({ clock, onEvent, tickMs = 25, lookaheadSec = 0.12, maxCatchupSec = 0.5, setIntervalFn, clearIntervalFn }) {
   const _setInterval = setIntervalFn || ((fn, ms) => setInterval(fn, ms));
   const _clearInterval = clearIntervalFn || ((id) => clearInterval(id));
 
@@ -28,8 +28,21 @@ export function createScheduler({ clock, onEvent, tickMs = 25, lookaheadSec = 0.
     const now = clock.now();
     const targetSec = now + lookaheadSec - startAtSec;
     if (targetSec < 0) return;
-    const targetBeat = secToBeats(targetSec, timeline.bpm);
+    let targetBeat = secToBeats(targetSec, timeline.bpm);
     if (targetBeat <= horizonBeat) return;
+    // Backlog guard. Between ticks the clock should only advance ~tickMs. If
+    // it leaps ahead — a throttled background timer waking up, or the iOS
+    // AudioContext resuming after a suspend — scheduling every event in that
+    // gap would emit a wall of notes all timestamped in the past, which the
+    // audio hardware plays at once as a screech. When the gap exceeds a sane
+    // catch-up bound, SKIP the stale span (jump the horizon to the live edge)
+    // instead of flushing it: the music simply resumes at "now," never dumps.
+    const horizonSec = beatsToSec(horizonBeat, timeline.bpm);
+    if (targetSec - horizonSec > maxCatchupSec) {
+      const liveSec = now - startAtSec; // drop everything already overdue
+      horizonBeat = secToBeats(Math.max(0, liveSec), timeline.bpm);
+      if (targetBeat <= horizonBeat) { return; }
+    }
     for (const ev of eventsBetween(timeline, horizonBeat, targetBeat)) {
       const when = startAtSec + beatsToSec(ev.absBeat, timeline.bpm);
       onEvent(when, ev);
