@@ -18,6 +18,7 @@
 
 let _ctx = null;
 let _master = null;
+let _limiter = null;
 let _music = null;
 let _sfx = null;
 let _muted = false;
@@ -36,9 +37,25 @@ export function getCtx() {
 function ensureGraph() {
   const ctx = getCtx();
   if (_master) return;
+  // Brick-wall limiter on the very last stage before the speakers. The
+  // procedural voices are fire-and-forget and can briefly pile up — a chord
+  // plus its FX-delay tail, a stinger ducking over the score, or (the nasty
+  // one) a batch of notes that all land on the same instant when the iOS
+  // AudioContext resumes after being suspended. Summed, those peaks used to
+  // exceed ±1 and Web Audio HARD-CLIPS them into a digital screech. A
+  // compressor with a high ratio and low threshold catches the peaks so the
+  // worst case is "briefly loud," never "screeching." Transparent at normal
+  // levels (nothing reaches the threshold until voices stack).
+  _limiter = ctx.createDynamicsCompressor();
+  _limiter.threshold.value = -6;   // dB — start reining in before 0 dBFS
+  _limiter.knee.value = 0;         // hard knee = true limiting, no soft bend
+  _limiter.ratio.value = 20;       // ≈ brick wall
+  _limiter.attack.value = 0.003;   // catch transients fast
+  _limiter.release.value = 0.25;
+  _limiter.connect(ctx.destination);
   _master = ctx.createGain();
   _master.gain.value = _muted ? 0 : 0.9;
-  _master.connect(ctx.destination);
+  _master.connect(_limiter);
   _music = ctx.createGain();
   _music.gain.value = _musicVol;
   _music.connect(_master);
