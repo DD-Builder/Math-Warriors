@@ -29,17 +29,10 @@ describe('getQuestionTimer', () => {
     assert.ok(geo > plain && geo < frac);
   });
 
-  test('K and grade 1 get NO timer in normal battles', () => {
-    assert.equal(getQuestionTimer({ grade: 0, format: '+', isBoss: false }), null);
-    assert.equal(getQuestionTimer({ grade: 1, format: 'word', isBoss: false }), null);
-  });
-
-  test('grades 2-5 get a soft timer in normal battles, longer than boss', () => {
-    for (let g = 2; g <= 5; g++) {
-      const soft = getQuestionTimer({ grade: g, format: '+', isBoss: false });
-      const hard = getQuestionTimer({ grade: g, format: '+', isBoss: true });
-      assert.equal(soft.hard, false);
-      assert.ok(soft.ms > hard.ms, 'soft timers must be longer than boss timers');
+  test('normal battles have NO timer at any grade — only bosses are timed', () => {
+    for (let g = 0; g <= 5; g++) {
+      assert.equal(getQuestionTimer({ grade: g, format: '+', isBoss: false }), null);
+      assert.equal(getQuestionTimer({ grade: g, format: 'word', isBoss: false }), null);
     }
   });
 

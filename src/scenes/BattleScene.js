@@ -145,7 +145,11 @@ export class BattleScene extends Phaser.Scene {
     } else if (this.isBoss) {
       const bossId = data?.enemyId || FLOOR_BOSS[this.floor] || 'briarking';
       const bossDef = getEnemyById(bossId) || safePick();
-      this.enemies = [spawnEnemy(bossDef.id, { grade: this.grade, isBoss: true })];
+      const boss = spawnEnemy(bossDef.id, { grade: this.grade, isBoss: true });
+      // Bosses carry 10% more HP — a longer, more climactic final stand.
+      boss.maxHp = Math.max(1, Math.round(boss.maxHp * 1.10));
+      boss.hp = boss.maxHp;
+      this.enemies = [boss];
     } else {
       const roll = Math.random();
       const count = data?.devCount || (roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3);

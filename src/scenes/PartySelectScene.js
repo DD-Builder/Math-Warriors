@@ -171,7 +171,7 @@ export class PartySelectScene extends Phaser.Scene {
     const save = loadSave(this.slot);
     const fresh = makeDefaultSave();
     save.grade = this.grade;
-    save.party = party.map((h) => ({ id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp }));
+    save.party = party.map((h) => ({ id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp, xp: 0, level: 1 }));
     save.floors = fresh.floors;
     save.gold = 0;
     save.potions = 2;
@@ -597,7 +597,7 @@ export class PartySelectScene extends Phaser.Scene {
 
     const fresh = makeDefaultSave();
     save.grade = this.grade;
-    save.party = party.map((h) => ({ id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp }));
+    save.party = party.map((h) => ({ id: h.id, name: h.name, hp: h.maxHp, maxHp: h.maxHp, xp: 0, level: 1 }));
     save.floors = fresh.floors;
     save.gold = 0;
     save.potions = 2;
