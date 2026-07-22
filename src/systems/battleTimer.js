@@ -9,9 +9,8 @@
  *    and fractions take longer to read than 3+4. Star ratings never
  *    touch the clock.
  *  - Boss battles: a hard timer (timeout = wrong answer), generous.
- *  - Normal battles: grades K-1 get NO timer at all; grades 2-5 get a
- *    soft "bonus" timer — running out is harmless, beating it earns a
- *    little momentum. Pace without punishment.
+ *  - Normal battles: NO timer at all, any grade. Regular monster fights
+ *    are for practice without clock pressure; only bosses are timed.
  */
 
 // Base milliseconds by grade index (K, 1, 2, 3, 4, 5) for BOSS fights.
@@ -30,22 +29,18 @@ export const FORMAT_MULT = {
   mixed: 1.15,
 };
 
-const SOFT_MULT = 1.5; // normal-battle bonus timers run longer than boss
-
 /**
  * @returns {{ms: number, hard: boolean} | null}
- *   null   → no timer at all (K-1 normal battles)
- *   hard   → timeout auto-answers wrong (boss fights)
- *   !hard  → timeout is harmless; answering in time grants bonus momentum
+ *   null   → no timer at all (every non-boss battle)
+ *   hard   → timeout auto-answers wrong (boss fights only)
  */
 export function getQuestionTimer({ grade = 0, format = '+', isBoss = false }) {
+  // Only bosses are timed now. Regular monster battles have no clock so kids
+  // can work at their own pace; the pressure is reserved for the boss.
+  if (!isBoss) return null;
   const g = Math.max(0, Math.min(BOSS_BASE_MS.length - 1, grade | 0));
   const mult = FORMAT_MULT[format] ?? 1.2;
-  if (isBoss) {
-    return { ms: Math.round(BOSS_BASE_MS[g] * mult), hard: true };
-  }
-  if (g <= 1) return null;
-  return { ms: Math.round(BOSS_BASE_MS[g] * mult * SOFT_MULT), hard: false };
+  return { ms: Math.round(BOSS_BASE_MS[g] * mult), hard: true };
 }
 
 /** Momentum granted for beating a soft timer. */

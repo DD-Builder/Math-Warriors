@@ -2393,7 +2393,10 @@ function LV_drawObjects(camX, camY, ts, t) {
     else if (o.type === 'potion') LV_drawPotion(osx, osy, ts, t);
     else if (o.type === 'gold') LV_drawGold(osx, osy, ts, o);
     else if (o.type === 'monster' && o.alive && !o.hidden) LV_drawMonster(osx, osy, ts, o, t);
-    else if (o.type === 'monster' && o.alive && o.hidden) LV_drawEncounterIndicator(osx, osy, ts, o, t);
+    // Hidden encounters draw NOTHING — no telegraph. Monsters are unknown and
+    // the player only discovers them by walking onto the tile. (The old
+    // pulsing "?" indicator is intentionally not drawn; disguised mimics still
+    // render as their bait via their disguise type above.)
     else if (o.type === 'boss' && o.alive) LV_drawBoss(osx, osy, ts, o, t);
     else if (o.type === 'exit') LV_drawExit(osx, osy, ts, t);
     else if (o.type === 'doorway') LV_drawDoorway(osx, osy, ts, o, t);

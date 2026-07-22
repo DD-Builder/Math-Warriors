@@ -114,6 +114,11 @@ export class MazeScene extends Phaser.Scene {
         h.atk += bonus.atk;
         h.def += bonus.def;
         h.hp = s.hp ?? h.maxHp;
+        // Carry level + XP onto the live hero so the maze HUD and the battle
+        // both show the REAL level (not always "L1"), and so any later write
+        // back to save.party round-trips the progress instead of erasing it.
+        h.level = level;
+        h.xp = s.xp || 0;
         return h;
       })
       .filter(Boolean);
@@ -183,6 +188,10 @@ export class MazeScene extends Phaser.Scene {
         id: o.id || `${o.type}-${o.x}-${o.y}-${idx}`,
         consumed: false,
       }));
+      // Monsters are unknown + random: replace the hand-placed plain encounters
+      // with ~15% more, scattered onto random reachable tiles. Only done on a
+      // FRESH floor entry — a restored mazeState already holds its scatter.
+      this.scatterEncounters();
     }
 
     // Movement state
@@ -1023,8 +1032,12 @@ export class MazeScene extends Phaser.Scene {
     const spawned = spawnHero(newHero.id);
     if (!spawned) return;
     spawned.hp = spawned.maxHp;
+    // A freshly rescued hero joins at level 1 — but keep the fields present so
+    // every save.party entry carries xp/level and later writes never drop them.
+    spawned.level = spawned.level ?? 1;
+    spawned.xp = spawned.xp ?? 0;
     this.party[slotIdx] = spawned;
-    this.save.party[slotIdx] = { id: spawned.id, name: spawned.name, hp: spawned.hp, maxHp: spawned.maxHp };
+    this.save.party[slotIdx] = { id: spawned.id, name: spawned.name, hp: spawned.hp, maxHp: spawned.maxHp, xp: spawned.xp, level: spawned.level };
     writeSave(this.save, this.slot);
 
     overlayObjects.forEach(o => o.destroy());
@@ -1154,6 +1167,46 @@ export class MazeScene extends Phaser.Scene {
       }
     }
     return seen;
+  }
+
+  /**
+   * Monsters are unknown AND random. Take the floor's hand-placed plain
+   * encounters (the mimics — disguised encounters — are left exactly where
+   * they are, since their whole point is visible bait), bump the count by 15%,
+   * and scatter that many onto random reachable, walkable, unoccupied tiles a
+   * few steps away from the spawn (no instant ambush). With the map marker
+   * removed too, the player never knows where a fight waits.
+   */
+  scatterEncounters() {
+    const plain = this.objects.filter(o => o.type === 'encounter' && !o.disguise);
+    if (plain.length === 0) return;
+    const target = Math.round(plain.length * 1.15);
+
+    // Drop the old plain encounters; keep everything else (mimics included).
+    this.objects = this.objects.filter(o => !(o.type === 'encounter' && !o.disguise));
+
+    // Candidate tiles: reachable + walkable, not on/next to spawn, not on any
+    // other object.
+    const reachable = this.reachableTiles(this.playerX, this.playerY);
+    const occupied = new Set(this.objects.map(o => `${o.x},${o.y}`));
+    const near = (x, y) => Math.abs(x - this.playerX) + Math.abs(y - this.playerY) <= 2;
+    const candidates = [];
+    for (const key of reachable) {
+      const [x, y] = key.split(',').map(Number);
+      if (occupied.has(key) || near(x, y)) continue;
+      candidates.push([x, y]);
+    }
+
+    // Fisher–Yates shuffle, then take the first `target` tiles.
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    const n = Math.min(target, candidates.length);
+    for (let i = 0; i < n; i++) {
+      const [x, y] = candidates[i];
+      this.objects.push({ type: 'encounter', x, y, id: `enc-rand-${i}`, consumed: false });
+    }
   }
 
   spawnPhase2Items(phase2) {
@@ -1715,7 +1768,7 @@ export class MazeScene extends Phaser.Scene {
         } else {
           this.showToast(`Already at full HP! (${obj.uses} uses left)`, '#40c0e0');
         }
-        this.save.party = this.party.map(h => ({ id: h.id, name: h.name, hp: h.hp, maxHp: h.maxHp }));
+        this.save.party = this.party.map(h => ({ id: h.id, name: h.name, hp: h.hp, maxHp: h.maxHp, xp: h.xp ?? 0, level: h.level ?? 1 }));
         writeSave(this.save, this.slot);
         this.updateHud();
         this.saveMazeState();
