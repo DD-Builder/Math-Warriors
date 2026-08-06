@@ -179,6 +179,14 @@ export function blendWeather(a, b, u, out = createWeatherParams()) {
   const f = u <= 0 ? 0 : u >= 1 ? 1 : u;
   out.name = f >= 0.5 ? b.name : a.name;
   out.tint = lerpColor(a.tint, b.tint, f);
+  // Endpoints must be EXACT, not `a + (b-a)*1`: a settled blender feeds the
+  // fog uniforms directly, and a state that is 0.06000000000000005 instead of
+  // 0.06 makes two screenshots of the same "rain" differ in the last bit.
+  const src = f === 0 ? a : f === 1 ? b : null;
+  if (src) {
+    for (const k of NUMERIC_FIELDS) out[k] = src[k];
+    return out;
+  }
   for (const k of NUMERIC_FIELDS) out[k] = a[k] + (b[k] - a[k]) * f;
   return out;
 }
