@@ -3,8 +3,35 @@
 // The sandbox already has a Chromium binary at /opt/pw-browsers. We
 // point Playwright at that directly rather than downloading a fresh
 // one (which the sandbox blocks).
+//
+// TWO PROJECTS, because the 2D game and the 3D overworld want opposite
+// renderer setups:
+//
+//   '2d'  — the original flags (GPU + software rasterizer both off). Phaser
+//           falls back to Canvas2D, which is FAST headless. Every pre-existing
+//           spec was written against this speed; the timing-sensitive ones
+//           (battle victory overlays, answer loops, scene screenshots) need
+//           frames to actually elapse inside their waits.
+//   '3d'  — SwiftShader software WebGL. Three.js has no canvas fallback, so
+//           the overworld specs need a real GL context. It is ~10x slower,
+//           which is fine there because the overworld harness is state-based
+//           and frame-rate independent by design (fixed-step sim + frozen
+//           poses), but it would break the 2D suite's wall-clock assumptions.
 
 import { defineConfig } from '@playwright/test';
+
+const CHROMIUM = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+  || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+
+const BASE_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-extensions',
+];
+
+// Specs that require a real WebGL context (the Three.js overworld).
+const OVERWORLD_SPECS = /overworld-.*\.spec\.js/;
 
 export default defineConfig({
   testDir: './e2e',
@@ -17,7 +44,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: process.env.PW_BASE_URL || 'http://127.0.0.1:4173',
     headless: true,
     viewport: { width: 1280, height: 800 },
     trace: 'off',
@@ -25,23 +52,31 @@ export default defineConfig({
     // reach them and they'd hang the test indefinitely on page load.
     // Our game degrades gracefully to system fonts.
     serviceWorkers: 'block',
-    launchOptions: {
-      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-        || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        // Software WebGL via SwiftShader — the 3D overworld needs a real GL
-        // context in headless runs (probed: gives full WebGL2 + instancing).
-        // Phaser also picks up WebGL under these flags, which is CLOSER to
-        // what real devices run than the old canvas2d fallback.
-        '--use-angle=swiftshader',
-        '--enable-unsafe-swiftshader',
-        '--disable-extensions',
-      ],
-    },
   },
+  projects: [
+    {
+      name: '2d',
+      testIgnore: OVERWORLD_SPECS,
+      use: {
+        launchOptions: {
+          executablePath: CHROMIUM,
+          args: [...BASE_ARGS, '--disable-gpu', '--disable-software-rasterizer'],
+        },
+      },
+    },
+    {
+      name: '3d',
+      testMatch: OVERWORLD_SPECS,
+      use: {
+        launchOptions: {
+          executablePath: CHROMIUM,
+          // Probed in this sandbox: gives full WebGL2 + instancing + float
+          // textures via ANGLE/SwiftShader.
+          args: [...BASE_ARGS, '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+        },
+      },
+    },
+  ],
   webServer: {
     command: 'npm run preview -- --host 127.0.0.1 --port 4173',
     url: 'http://127.0.0.1:4173',

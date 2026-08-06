@@ -475,8 +475,8 @@ describe('hero unlock system', () => {
       'cutscene queue excludes the hero rescued in-maze');
   });
 
-  test('save version is 5', () => {
-    assert.equal(CURRENT_VERSION, 5);
+  test('save version is 6', () => {
+    assert.equal(CURRENT_VERSION, 6);
   });
 
   test('v4 slot-keyed equipment migrates to hero-id keys', () => {
@@ -499,7 +499,7 @@ describe('hero unlock system', () => {
     };
     storage.setItem(STORAGE_KEY, JSON.stringify(v4));
     const loaded = loadSave();
-    assert.equal(loaded.version, 5);
+    assert.equal(loaded.version, CURRENT_VERSION);
     assert.equal(loaded.equipment['bunny-pepper'].weapon, 'iron_sword');
     assert.equal(loaded.equipment['knight-shadow'].armor, 'wooden_shield');
     assert.equal(loaded.equipment.hero0, undefined);
@@ -530,7 +530,7 @@ describe('hero unlock system', () => {
     };
     storage.setItem(STORAGE_KEY, JSON.stringify(v2));
     const loaded = loadSave();
-    assert.equal(loaded.version, 5);
+    assert.equal(loaded.version, CURRENT_VERSION);
     assert.ok(Array.isArray(loaded.unlockedHeroes));
     // Starters + floor-2 unlocks (floors 1 & 2 complete; floor 3 is not, so
     // its rescue Toadstool must NOT be unlocked yet).
@@ -554,5 +554,94 @@ describe('hero unlock system', () => {
     assert.ok(reloaded.floors[0].complete);
     assert.ok(reloaded.floors[1].unlocked);
     assert.ok(isHeroUnlocked(reloaded, 'knight-crusader'));
+  });
+});
+
+// ------------------------------------------------------------------
+// v6: OVERWORLD STATE
+// ------------------------------------------------------------------
+
+describe('save v6 overworld', () => {
+  let storage;
+  beforeEach(() => {
+    storage = makeMockStorage();
+    __setStorage(storage);
+  });
+
+  test('default save has overworld state and overworldEnabled setting', () => {
+    const save = makeDefaultSave();
+    assert.deepEqual(save.overworld, { pos: null, yaw: 0, portalId: null, collected: [] });
+    assert.equal(save.settings.overworldEnabled, true);
+  });
+
+  test('v5 save migrates to v6 with the new fields', () => {
+    const v5 = {
+      version: 5,
+      grade: 3,
+      party: [],
+      gold: 250,
+      settings: { musicVolume: 0.5 },
+      stats: {},
+      floors: [],
+    };
+    storage.setItem(STORAGE_KEY, JSON.stringify(v5));
+    const loaded = loadSave();
+    assert.equal(loaded.version, 6);
+    assert.deepEqual(loaded.overworld, { pos: null, yaw: 0, portalId: null, collected: [] });
+    assert.equal(loaded.settings.overworldEnabled, true);
+    assert.equal(loaded.gold, 250);                    // migration preserves data
+    assert.equal(loaded.settings.musicVolume, 0.5);
+  });
+
+  test('v5 save with junk overworld data normalizes clean', () => {
+    const v5 = {
+      version: 5,
+      grade: 3,
+      party: [],
+      gold: 0,
+      // Hand-edited garbage: every field the wrong type, pos missing an axis.
+      overworld: {
+        pos: { x: 12, z: 'north' },
+        yaw: 'a lot',
+        portalId: 42,
+        collected: ['ow-garden-1', 7, null, 'ow-sky-2'],
+      },
+      settings: { overworldEnabled: 'yes please' },
+      stats: {},
+      floors: [],
+    };
+    storage.setItem(STORAGE_KEY, JSON.stringify(v5));
+    const loaded = loadSave();
+    assert.equal(loaded.overworld.pos, null);          // partial pos collapses
+    assert.equal(loaded.overworld.yaw, 0);
+    assert.equal(loaded.overworld.portalId, null);
+    assert.deepEqual(loaded.overworld.collected, ['ow-garden-1', 'ow-sky-2']);
+    assert.equal(loaded.settings.overworldEnabled, true); // non-boolean -> default
+  });
+
+  test('valid overworld state round-trips through write/load', () => {
+    const save = makeDefaultSave();
+    save.overworld = {
+      pos: { x: 6, y: 2.5, z: 158 },
+      yaw: Math.PI,
+      portalId: 'portal-f1',
+      collected: ['ow-garden-1'],
+    };
+    writeSave(save);
+    const loaded = loadSave();
+    assert.deepEqual(loaded.overworld, {
+      pos: { x: 6, y: 2.5, z: 158 },
+      yaw: Math.PI,
+      portalId: 'portal-f1',
+      collected: ['ow-garden-1'],
+    });
+  });
+
+  test('overworldEnabled false round-trips', () => {
+    const save = makeDefaultSave();
+    save.settings.overworldEnabled = false;
+    writeSave(save);
+    const loaded = loadSave();
+    assert.equal(loaded.settings.overworldEnabled, false);
   });
 });

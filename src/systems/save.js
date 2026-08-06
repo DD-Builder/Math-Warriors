@@ -10,7 +10,7 @@ import { ALL_HEROES } from '../data/heroes.js';
 const LEGACY_KEY = 'mathwarriors.save';
 const SLOT_PREFIX = 'mathwarriors.save.';
 const META_KEY = 'mathwarriors.slots';
-const CURRENT_VERSION = 5;
+const CURRENT_VERSION = 6;
 const MAX_SLOTS = 3;
 
 const STARTER_HEROES = ['knight-shadow', 'wizard-stargazer', 'bunny-pepper'];
@@ -71,6 +71,10 @@ export function makeDefaultSave() {
     ownedSkins: [],
     viewedHeroes: [],
     pendingRescueDialogue: [],
+    // 3D overworld snapshot (v6+): pos null means "spawn fresh at the
+    // island spawn point"; collected holds overworld pickup ids so loot
+    // never respawns across sessions.
+    overworld: { pos: null, yaw: 0, portalId: null, collected: [] },
     settings: {
       musicVolume: 0.8,
       sfxVolume: 1.0,
@@ -78,6 +82,7 @@ export function makeDefaultSave() {
       colorblindMode: false,
       ttsEnabled: false,
       sessionTimer: 0,
+      overworldEnabled: true,
     },
     problemHistory: [],
     stats: {
@@ -169,6 +174,16 @@ const MIGRATIONS = [
       }
       return { ...save, equipment };
     },
+  },
+  {
+    from: 5, to: 6,
+    // 3D overworld hub: runtime snapshot + settings toggle. Pre-v6 saves
+    // simply never visited the overworld, so defaults are always correct.
+    migrate: (s) => ({
+      ...s,
+      overworld: s.overworld || { pos: null, yaw: 0, portalId: null, collected: [] },
+      settings: { ...s.settings, overworldEnabled: s.settings?.overworldEnabled ?? true },
+    }),
   },
 ];
 
@@ -301,6 +316,26 @@ function normalize(save) {
   if (!Array.isArray(out.pendingRescueDialogue)) {
     out.pendingRescueDialogue = [];
   }
+
+  // Overworld snapshot: pos must be null or a FULL numeric {x,y,z} — a
+  // partial point would drop the player through the terrain, so anything
+  // malformed collapses to null (spawn fresh). collected keeps strings only.
+  const rawOverworld = (save.overworld && typeof save.overworld === 'object' && !Array.isArray(save.overworld))
+    ? save.overworld : {};
+  const rawPos = rawOverworld.pos;
+  const posValid = rawPos && typeof rawPos === 'object' && !Array.isArray(rawPos) &&
+    [rawPos.x, rawPos.y, rawPos.z].every((n) => typeof n === 'number' && Number.isFinite(n));
+  out.overworld = {
+    pos: posValid ? { x: rawPos.x, y: rawPos.y, z: rawPos.z } : null,
+    yaw: toNumber(rawOverworld.yaw, 0),
+    portalId: typeof rawOverworld.portalId === 'string' ? rawOverworld.portalId : null,
+    collected: Array.isArray(rawOverworld.collected)
+      ? rawOverworld.collected.filter((id) => typeof id === 'string')
+      : [],
+  };
+  out.settings.overworldEnabled = typeof out.settings.overworldEnabled === 'boolean'
+    ? out.settings.overworldEnabled
+    : true;
 
   out.version = CURRENT_VERSION;
 
