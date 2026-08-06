@@ -110,6 +110,22 @@ const HEIGHT_TO_SHORE = 2.2;   // metres of altitude -> metres of "shore-ness"
 const SHORE_GUARD = 18;    // skip the shoreDistance() call outside this |h|
 const CLIFF_KEEPS_ROCK = 0.7;  // sea cliffs stay cliff paper, not beach
 
+// Wet sand — the band the swash keeps damp between waves.
+//
+// This is the cue that glues the water sheet to the beach. Without it the
+// ocean is a coloured plane LAID ON the island; with it the island is visibly
+// wet where the sea has just been, and the eye reads one continuous surface.
+// It has to live here rather than in the water shader because the wet paper is
+// *land*: it must still be there when the swash has drawn back off it.
+//
+// Damp paper goes darker and COOLER, so the tint leans toward PAPER.tealD —
+// the palette law's shadow family. Darkening toward grey (what a photograph
+// would do) is exactly the move that would break the papercut read.
+const WET_BAND = 2.8;      // metres of shore-ness that stay damp
+const WET_MIX = 0.45;      // strength at the waterline
+const WET_TEAL = 0.55;     // how far damp sand leans into the teal shadow
+const WET_LOW = -1.6;      // below this the seabed tint already owns the colour
+
 // Cliff strata — what actually sells "cut paper geology". Steep faces are
 // banded by altitude, each band hashed to one of three sheets: the accent as
 // laid, a pale sheet, or a pull back toward the biome ground paper. Two like
@@ -226,6 +242,8 @@ export function createTerrain(heightfield, opts = {}) {
   const SAND = linearRGB(PAPER.sand);
   const SEABED = linearRGB(PAPER.tealD);
   const CREAM = linearRGB(PAPER.cream);   // the pale stratum
+  // Damp sand: the beach paper leaning into the teal shadow family.
+  const WETSAND = SAND.map((v, i) => v + (SEABED[i] - v) * WET_TEAL);
 
   // ── Triangle corner order, one table per resolution ──
   // Diagonals alternate in a checkerboard so the facets do not form a
@@ -435,6 +453,18 @@ export function createTerrain(heightfield, opts = {}) {
             if (sand > 0) {
               const t = sand * SHORE_MIX;
               r += (SAND[0] - r) * t; g += (SAND[1] - g) * t; bl += (SAND[2] - bl) * t;
+            }
+            // Wet sand. Keyed to the SAME `d` the beach uses, so the damp band
+            // and the water shader's foam bands are measured off one shoreline
+            // and cannot drift apart. The upper edge of the smoothstep is the
+            // high-tide line, which is what makes the beach read as a beach
+            // rather than as a strip of pale ground.
+            if (h > WET_LOW) {
+              const wet = (1 - smoothstep(0.25, WET_BAND, d)) * (1 - steep * CLIFF_KEEPS_ROCK);
+              if (wet > 0) {
+                const t = wet * WET_MIX;
+                r += (WETSAND[0] - r) * t; g += (WETSAND[1] - g) * t; bl += (WETSAND[2] - bl) * t;
+              }
             }
           }
 

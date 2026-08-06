@@ -88,17 +88,17 @@ const TREE_MIN_GAP = 2.9;      // metres between trunks inside a grove
 // ── Ground-cover sectors + distance LOD ─────────────────────────────────
 // 60 m cells: big enough that a frame only ever touches ~20 of them, small
 // enough that the LOD step between neighbouring cells is invisible.
-// 72 m cells: the LOD is graded by distance to the CELL, so smaller cells
+// 80 m cells: the LOD is graded by distance to the CELL, so smaller cells
 // grade more finely — but every extra cell is another draw call, and the call
 // budget is the binding constraint. 72 m is where the two curves cross for a
-// 480 m island: ~30 land cells, ~12 of them inside the cull radius at once.
-const COVER_CELL = 72;
+// 480 m island: ~26 land cells, ~10 of them inside the cull radius at once.
+const COVER_CELL = 80;
 const COVER_CELLS = Math.max(1, Math.round(WORLD.SIZE / COVER_CELL));
 const LOD_FULL = 30;     // <= this: every instance in the sector draws
 const LOD_MID = 60;
 const LOD_CULL = 112;    // > this: the sector is hidden outright
-const LOD_MID_F = 0.42;
-const LOD_FAR_F = 0.10;
+const LOD_MID_F = 0.36;
+const LOD_FAR_F = 0.085;
 
 // Height cache. sampleHeight is ~40 flops of noise; the scatter rejects far
 // more candidates than it keeps, so every REJECTION is served from a 2 m
@@ -281,7 +281,8 @@ const ROOT = shade(0.54);
 const MID = shade(0.80);
 const TIP = shade(1.07);
 const DRYTIP = shade(1.14);
-const HEART = [1.0, 0.80, 0.46];   // warm centre of a bloom
+const BRIGHT = shade(1.24);   // flat leaves face the sun square-on
+const HEART = [1.06, 0.94, 0.70];  // warm PALE centre of a bloom
 
 /** A tuft of single-triangle blades — the papercut blade IS a triangle. */
 function buildBladeTuft({ blades, h, hVar, w, lean, tip = TIP, phase = 0.55 }) {
@@ -310,16 +311,16 @@ function buildBladeTuft({ blades, h, hVar, w, lean, tip = TIP, phase = 0.55 }) {
  */
 function buildCloverGeo() {
   const s = sink();
-  const L = 0.25, W = 0.17;
+  const L = 0.17, W = 0.118;
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * TAU + 0.4;
     const dx = Math.sin(a), dz = Math.cos(a);
     const px = -dz, pz = dx;
     tri(s,
-      [0, 0.035, 0],
-      [dx * L + px * W, 0.085, dz * L + pz * W],
-      [dx * L - px * W, 0.085, dz * L + -pz * W],
-      [dx * 0.18, 0.98, dz * 0.18], MID, TIP, TIP);
+      [0, 0.03, 0],
+      [dx * L + px * W, 0.07, dz * L + pz * W],
+      [dx * L - px * W, 0.07, dz * L - pz * W],
+      [dx * 0.18, 0.98, dz * 0.18], TIP, BRIGHT, BRIGHT);
   }
   return bake(s);
 }
@@ -351,14 +352,14 @@ function buildFernGeo() {
 /** Small bush: three crossed plies, each a lower body and a lighter crown. */
 function buildShrubGeo() {
   const s = sink();
-  const H = 0.78, W = 0.40;
+  const H = 0.72, W = 0.42, TW = 0.20;
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI + 0.3;
     const dx = Math.cos(a), dz = Math.sin(a);
     const nrm = [dz * 0.3, 0.94, -dx * 0.3];
-    tri(s, [-dx * W, 0.02, -dz * W], [dx * W, 0.02, dz * W], [0, H, 0], nrm, ROOT, ROOT, MID);
-    tri(s, [-dx * W * 0.6, H * 0.5, -dz * W * 0.6], [dx * W * 0.6, H * 0.5, dz * W * 0.6],
-      [0, H * 1.16, 0], nrm, MID, MID, TIP);
+    const p = (u, y) => [dx * u, y, dz * u];
+    tri(s, p(-W, 0.02), p(W, 0.02), p(TW, H), nrm, ROOT, ROOT, TIP);
+    tri(s, p(-W, 0.02), p(TW, H), p(-TW, H), nrm, ROOT, TIP, TIP);
   }
   return bake(s);
 }
@@ -381,11 +382,11 @@ function buildPebbleGeo() {
  */
 function buildFallenPetalGeo() {
   const s = sink();
-  for (let k = 0; k < 3; k++) {
-    const a = k * 2.2 + 0.4;
-    const ox = Math.cos(a) * 0.10, oz = Math.sin(a) * 0.10;
-    const b = a * 1.7, r = 0.085;
-    const tilt = 0.42;                       // radians of prop
+  for (let k = 0; k < 4; k++) {
+    const a = k * 1.75 + 0.4;
+    const ox = Math.cos(a) * 0.085, oz = Math.sin(a) * 0.085;
+    const b = a * 1.7, r = 0.062;
+    const tilt = 0.62;                       // radians of prop
     const lx = Math.cos(b), lz = Math.sin(b);   // hinge axis of this scrap
     const pt = (ang, lift) => {
       const px = Math.cos(ang) * r, pz2 = Math.sin(ang) * r;
@@ -410,10 +411,10 @@ function buildFallenPetalGeo() {
  */
 function buildBloomGeo() {
   const s = sink();
-  const PET = 5, RIN = 0.075, ROUT = 0.235, WI = 0.055, WO = 0.165, Y = 0.23;
+  const PET = 5, RIN = 0.028, ROUT = 0.165, WI = 0.026, WO = 0.118, Y = 0.19;
   const up = [0, 0.94, 0.34];
-  tri(s, [-0.017, 0, 0], [0.017, 0, 0], [0, Y, 0], [0, 0.4, 0.92],
-    shade(0.38), shade(0.38), shade(0.5));
+  tri(s, [-0.026, 0, 0], [0.026, 0, 0], [0, Y, 0], [0, 0.4, 0.92],
+    shade(0.30), shade(0.30), shade(0.50));
   for (let i = 0; i < PET; i++) {
     const a = (i / PET) * TAU + 0.3;
     const dx = Math.cos(a), dz = Math.sin(a);
@@ -437,7 +438,7 @@ function buildBloomGeo() {
 /** One airborne blossom petal: two triangles with a folded crease. */
 function buildFlyingPetalGeo(topReach) {
   const s = sink();
-  const L = 0.11, W = 0.062;
+  const L = 0.15, W = 0.085;
   tri(s, [0, 0, -L * 0.7], [-W, 0.018, L * 0.5], [0, 0, L * 0.5], [0.35, 0.93, 0], TIP, TIP, MID);
   tri(s, [0, 0, -L * 0.7], [0, 0, L * 0.5], [W, 0.018, L * 0.5], [-0.35, 0.93, 0], TIP, MID, TIP);
   const geo = bake(s);
@@ -454,15 +455,27 @@ function buildFlyingPetalGeo(topReach) {
  * Ground-cover archetype table. `tris` is documentation for the budget review;
  * `wind` picks which material (and therefore which sway) an archetype rides.
  */
+/**
+ * Ground-cover archetype table.
+ *
+ * `s0`/`sv` are the per-instance scale band (s0 .. s0+sv). They are per
+ * ARCHETYPE, not global, because these things are not the same size in life: a
+ * grass tuft may double and still be grass, while a flower head at twice its
+ * size stops being a flower and becomes a hubcap. `stretch` says whether the
+ * instance may also be squashed or drawn out vertically — right for anything
+ * that grows, wrong for a stone or a fallen petal, which would just look
+ * melted. `tris` is documentation for the budget review; `mat` picks which
+ * material (and therefore which sway) the archetype rides.
+ */
 export const GROUND_ARCHETYPES = {
-  tuft: { tris: 5, mat: 'plant', build: () => buildBladeTuft({ blades: 5, h: 0.50, hVar: 0.18, w: 0.062, lean: 0.22 }) },
-  reed: { tris: 3, mat: 'plant', build: () => buildBladeTuft({ blades: 3, h: 0.86, hVar: 0.2, w: 0.034, lean: 0.1, tip: DRYTIP, phase: 1.1 }) },
-  clover: { tris: 4, mat: 'plant', build: buildCloverGeo },
-  fern: { tris: 8, mat: 'plant', build: buildFernGeo },
-  shrub: { tris: 6, mat: 'plant', build: buildShrubGeo },
-  bloom: { tris: 11, mat: 'plant', build: buildBloomGeo },
-  petal: { tris: 3, mat: 'plant', build: buildFallenPetalGeo },
-  pebble: { tris: 8, mat: 'rock', build: buildPebbleGeo },
+  tuft: { tris: 5, mat: 'plant', s0: 0.80, sv: 0.85, stretch: true, build: () => buildBladeTuft({ blades: 5, h: 0.50, hVar: 0.18, w: 0.062, lean: 0.22 }) },
+  reed: { tris: 3, mat: 'plant', s0: 0.72, sv: 0.62, stretch: true, build: () => buildBladeTuft({ blades: 3, h: 0.86, hVar: 0.2, w: 0.034, lean: 0.1, tip: DRYTIP, phase: 1.1 }) },
+  clover: { tris: 4, mat: 'plant', s0: 0.72, sv: 0.66, stretch: false, build: buildCloverGeo },
+  fern: { tris: 8, mat: 'plant', s0: 0.76, sv: 0.72, stretch: true, build: buildFernGeo },
+  shrub: { tris: 6, mat: 'plant', s0: 0.80, sv: 0.80, stretch: true, build: buildShrubGeo },
+  bloom: { tris: 11, mat: 'plant', s0: 0.66, sv: 0.42, stretch: false, build: buildBloomGeo },
+  petal: { tris: 4, mat: 'plant', s0: 0.70, sv: 0.55, stretch: false, build: buildFallenPetalGeo },
+  pebble: { tris: 8, mat: 'rock', s0: 0.66, sv: 0.80, stretch: false, build: buildPebbleGeo },
 };
 
 const ARCH_NAMES = Object.keys(GROUND_ARCHETYPES);
@@ -544,8 +557,8 @@ const TREE_SPECIES = {
     trunk: { color: PAPER.sand, shade: 0.90, rTop: 0.22, rBot: 0.30, h: 2.1, sides: 7 },
     slabs: [
       { y: 1.90, r: 2.30, h: 0.56, taper: 0.82, color: PAPER.rose, spin: 0.0 },
-      { y: 2.62, r: 1.95, h: 0.50, taper: 0.78, color: PAPER.peach, spin: 0.5 },
-      { y: 3.24, r: 1.30, h: 0.46, taper: 0.62, color: PAPER.white, spin: 1.0 },
+      { y: 2.62, r: 1.95, h: 0.50, taper: 0.78, color: PAPER.white, spin: 0.5 },
+      { y: 3.24, r: 1.30, h: 0.46, taper: 0.62, color: PAPER.peach, spin: 1.0 },
     ],
     variants: [
       { s: 1.00, wide: 1.06, tall: 0.96, lean: 0.05, tone: [1.00, 1.00, 1.00] },
@@ -576,8 +589,8 @@ const TREE_SPECIES = {
     ],
     // Weeping curtains: tapered plies hung from the crown rim, wide end up.
     droops: {
-      count: 7, attachR: 1.85, attachY: 3.70, len: 2.7, tilt: 2.42,
-      rTop: 0.15, rBot: 0.56, sides: 5,
+      count: 9, attachR: 1.85, attachY: 3.70, len: 2.8, tilt: 2.42,
+      rTop: 0.11, rBot: 0.40, sides: 5,
       colors: [PAPER.forest, PAPER.leaf, PAPER.forestL],
     },
     variants: [
@@ -702,8 +715,8 @@ const BIOME_FLORA = {
   },
   meadow: {
     trees: 70, treeMix: [['blossom', 0.46], ['broadleaf', 0.34], ['willow', 0.20]],
-    cover: 12500, mix: [['tuft', 0.46], ['bloom', 0.30], ['petal', 0.24]],
-    tintA: PAPER.sage, tintB: PAPER.sageD,
+    cover: 14000, mix: [['tuft', 0.40], ['bloom', 0.24], ['clover', 0.18], ['petal', 0.18]],
+    tintA: PAPER.sageD, tintB: PAPER.leaf,
     petals: [PAPER.rose, PAPER.white, PAPER.lavender],
     grove: 0.66, clusters: 12, glades: 5, hero: 1,
   },
@@ -983,7 +996,9 @@ export function createVegetation(heightfield, opts = {}) {
   const treeMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
   const plantMat = trackMat(toonMaterial(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
   const rockMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
-  const petalMat = trackMat(toonMaterial(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
+  const petalMat = trackMat(new THREE.MeshBasicMaterial({
+    vertexColors: true, side: THREE.DoubleSide, fog: true,
+  }));
   const heroMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
 
   patchPlantWind(treeMat, {
@@ -1125,7 +1140,10 @@ export function createVegetation(heightfield, opts = {}) {
         if (shore > 0) col.lerp(SANDC, shore * 0.62);
         if (dry > 0) col.lerp(PALEC, dry * 0.24);
       }
-      col.multiplyScalar(0.90 + it.c * 0.18);
+      // Two scales of jitter: a fine per-instance one plus a 6 m noise, so the
+      // field mottles at arm's length as well as across the meadow.
+      col.multiplyScalar((0.86 + it.c * 0.28)
+        * (0.94 + patchNoise(it.x * 0.17, it.z * 0.17, seed ^ 0x2f) * 0.13));
       it.arch = arch;
       it.r = col.r; it.g = col.g; it.bl = col.b;
       it.shore = shore;
@@ -1218,10 +1236,16 @@ export function createVegetation(heightfield, opts = {}) {
   trees.push({ x: LANDMARK.x, y: landY, z: LANDMARK.z, r: 1.5 });
 
   // ── Meshes: falling petals ─────────────────────────────────────────────
-  // One InstancedMesh per emitter, so a swarm the camera is not looking at is
-  // one frustum test rather than one draw call.
-  const petalGeos = new Map();
-  const petalMats = new Map([[LANDMARK.petalTop, petalMat]]);
+  // Grouped by CANOPY HEIGHT, not by tree. The fall height is a GLSL literal
+  // (it never animates, and a literal lets the compiler fold the whole
+  // expression), so each distinct height is one program, one geometry and one
+  // material — and therefore one draw call for every hero tree that shares it.
+  //
+  // The alternative, one mesh per tree, buys per-tree frustum culling for six
+  // swarms of ~150 two-triangle scraps. That trade is backwards: it spends five
+  // draw calls out of the worst-case budget to save about two thousand
+  // triangles, and the worst case is the number the scene budget is written
+  // against.
   const petalMeshes = [];
   let petalCount = 0;
   const emitters = [
@@ -1230,37 +1254,45 @@ export function createVegetation(heightfield, opts = {}) {
       hues: [PAPER.white, PAPER.rose, PAPER.peach] },
     ...heroTrees,
   ];
+  const petalGroups = new Map();
   for (const e of emitters) {
-    const n = Math.max(8, Math.round(e.petals * density));
-    let geo = petalGeos.get(e.top);
-    if (!geo) { geo = track(buildFlyingPetalGeo(e.top)); petalGeos.set(e.top, geo); }
-    // One material per distinct canopy height: the fall height is baked into
-    // the shader as a literal (it never animates, and a literal lets the
-    // compiler fold it), so two canopy heights are two programs — but a dozen
-    // trees of the same height still share one.
-    let mat = petalMats.get(e.top);
-    if (!mat) {
-      mat = trackMat(toonMaterial(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
-      patchPetalFall(mat, { top: e.top, spread: 1.1, fall: 0.06, swirl: 1.4 });
+    let grp = petalGroups.get(e.top);
+    if (!grp) { grp = []; petalGroups.set(e.top, grp); }
+    grp.push(e);
+  }
+  for (const [top, group_] of petalGroups) {
+    const counts = group_.map((e) => Math.max(8, Math.round(e.petals * density)));
+    const total = counts.reduce((a, b) => a + b, 0);
+    const geo = track(buildFlyingPetalGeo(top));
+    let mat;
+    if (top === LANDMARK.petalTop) {
+      mat = petalMat;
+    } else {
+      mat = trackMat(new THREE.MeshBasicMaterial({
+        vertexColors: true, side: THREE.DoubleSide, fog: true,
+      }));
+      patchPetalFall(mat, { top, spread: 1.1, fall: 0.06, swirl: 1.4 });
       applyPapercut(mat, { grain: 0.06, normal: 0, roughnessLike: 0, scale: 0.3, triplanar: false, space: 'local' });
-      petalMats.set(e.top, mat);
     }
-    const im = new THREE.InstancedMesh(geo, mat, n);
-    im.name = 'petal-fall';
-    for (let i = 0; i < n; i++) {
-      const a = rng() * TAU;
-      const r = e.spread * Math.sqrt(rng());
-      const px = e.x + Math.cos(a) * r;
-      const pz = e.z + Math.sin(a) * r;
-      _q4.setFromAxisAngle(AXIS_Y, rng() * TAU);
-      _v3.set(px, sampleHeight(px, pz) + 0.1, pz);
-      const sc = 0.8 + rng() * 0.7;
-      _s3.set(sc, sc, sc);
-      _m4.compose(_v3, _q4, _s3);
-      im.setMatrixAt(i, _m4);
-      im.setColorAt(i, _col.setHex(e.hues[i % e.hues.length], THREE.SRGBColorSpace)
-        .multiplyScalar(0.94 + (i % 5) * 0.03));
-    }
+    const im = new THREE.InstancedMesh(geo, mat, total);
+    im.name = `petal-fall-${Math.round(top * 10)}`;
+    let w = 0;
+    group_.forEach((e, gi) => {
+      for (let i = 0; i < counts[gi]; i++, w++) {
+        const a = rng() * TAU;
+        const r = e.spread * Math.sqrt(rng());
+        const px = e.x + Math.cos(a) * r;
+        const pz = e.z + Math.sin(a) * r;
+        _q4.setFromAxisAngle(AXIS_Y, rng() * TAU);
+        _v3.set(px, sampleHeight(px, pz) + 0.1, pz);
+        const sc = 0.8 + rng() * 0.7;
+        _s3.set(sc, sc, sc);
+        _m4.compose(_v3, _q4, _s3);
+        im.setMatrixAt(w, _m4);
+        im.setColorAt(w, _col.setHex(e.hues[i % e.hues.length], THREE.SRGBColorSpace)
+          .multiplyScalar(0.94 + (i % 5) * 0.03));
+      }
+    });
     _s3.set(1, 1, 1);
     im.instanceMatrix.needsUpdate = true;
     if (im.instanceColor) im.instanceColor.needsUpdate = true;
@@ -1269,7 +1301,7 @@ export function createVegetation(heightfield, opts = {}) {
     im.computeBoundingSphere();
     group.add(im);
     petalMeshes.push(im);
-    petalCount += n;
+    petalCount += total;
   }
 
   // ── Meshes: ground cover ───────────────────────────────────────────────
@@ -1285,11 +1317,12 @@ export function createVegetation(heightfield, opts = {}) {
     im.name = `cover-${arch}`;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
     bucket.forEach((it, i) => {
-      // Scale: blooms and pebbles keep their proportions, foliage stretches.
-      const s = 0.82 + it.d * 0.86;
+      const sc = spec.s0 + it.d * spec.sv;
       _q4.setFromAxisAngle(AXIS_Y, it.a * TAU);
       _v3.set(it.x, it.y - 0.02, it.z);
-      _s3.set(s, s * (0.84 + it.b * 0.52), s);
+      // Foliage is drawn out or squashed vertically; a stone or a fallen petal
+      // is not, because a non-uniform stone reads as a melted stone.
+      _s3.set(sc, spec.stretch ? sc * (0.84 + it.b * 0.52) : sc * (0.94 + it.b * 0.14), sc);
       _m4.compose(_v3, _q4, _s3);
       im.setMatrixAt(i, _m4);
       im.setColorAt(i, _col.setRGB(it.r, it.g, it.bl, THREE.LinearSRGBColorSpace));
@@ -1322,8 +1355,10 @@ export function createVegetation(heightfield, opts = {}) {
   // ── update ─────────────────────────────────────────────────────────────
   // One shared clock write, then a distance-graded instance count per sector.
   // No allocation, no matrix writes, no buffer uploads.
-  function update(simTime, playerPos) {
-    WIND.value = simTime;
+  // See props.js: the wind runs on its own weather-scaled clock, defaulting
+  // to the sim clock.
+  function update(simTime, playerPos, windTime = simTime) {
+    WIND.value = windTime;
     const px = playerPos ? (playerPos.x ?? 0) : 0;
     const pz = playerPos ? (playerPos.z ?? 0) : 0;
     for (let i = 0; i < covers.length; i++) {

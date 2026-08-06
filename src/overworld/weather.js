@@ -32,6 +32,8 @@
 import { PAPER } from '../config.js';
 import { lerpColor, COLOR_FIELDS } from './timeOfDay.js';
 
+const mix = lerpColor;
+
 /**
  * @typedef {object} WeatherState
  * @property {string} name
@@ -64,7 +66,7 @@ export const WEATHER = [
     fogHeightKMul: 1.0,
     fogBaseY: 0,
     fogStart: 9,
-    fogDesat: 0.50,
+    fogDesat: 0.68,
     fogSunAmtMul: 1.0,
     fogMax: 1.0,
     tint: PAPER.sky,
@@ -86,7 +88,7 @@ export const WEATHER = [
     fogHeightKMul: 1.10,
     fogBaseY: 0,
     fogStart: 11,
-    fogDesat: 0.46,
+    fogDesat: 0.62,
     fogSunAmtMul: 1.25,
     fogMax: 1.0,
     tint: PAPER.sky,
@@ -104,23 +106,27 @@ export const WEATHER = [
     // Overcast downpour: key light collapses, fill RISES, the palette walks
     // toward deep teal. Cooler and darker — never grey, never black.
     name: 'rain',
-    fogDensityMul: 2.35,
+    fogDensityMul: 2.9,
     fogHeightKMul: 0.72,
     fogBaseY: 0,
     fogStart: 5,
-    fogDesat: 0.62,
+    fogDesat: 0.78,
     fogSunAmtMul: 0.12,
     fogMax: 1.0,
-    tint: PAPER.tealD,
-    tintAmt: 0.34,
-    skyTintAmt: 0.30,
-    sunMul: 0.60,
-    hemiMul: 1.06,
-    bounceMul: 0.70,
+    // NOT PAPER.tealD on its own: a pure teal reads tropical, not overcast.
+    // Half a step toward lavenderD lands on a slate blue-teal that says
+    // "rain sky" while staying a lerp of two palette constants — so the
+    // inkTeal floor still holds by construction.
+    tint: mix(PAPER.tealD, PAPER.lavenderD, 0.45),
+    tintAmt: 0.46,
+    skyTintAmt: 0.56,
+    sunMul: 0.50,
+    hemiMul: 0.88,
+    bounceMul: 0.62,
     shaftMul: 0.06,
     rain: 1.0,
     wind: 2.8,
-    cloudTintAmt: 0.42,
+    cloudTintAmt: 0.64,
   },
   {
     // Thick low banks. The high fogHeightK is the whole effect: density is
@@ -131,7 +137,7 @@ export const WEATHER = [
     fogHeightKMul: 2.9,
     fogBaseY: 1.5,
     fogStart: 3,
-    fogDesat: 0.72,
+    fogDesat: 0.82,
     fogSunAmtMul: 2.2,
     fogMax: 1.0,
     tint: PAPER.cream,
@@ -219,8 +225,8 @@ export function createRenderFrame() {
 // light far more than its hue); fog and the dome take the full lean.
 const TINT_WEIGHTS = {
   sunColor: 0.45,
-  hemiSky: 0.75,
-  hemiGround: 0.35,
+  hemiSky: 0.95,
+  hemiGround: 0.75,
   fogColor: 1.0,
   skyTop: 0,      // handled by skyTintAmt
   skyMid: 0,

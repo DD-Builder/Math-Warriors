@@ -54,6 +54,7 @@
 import * as THREE from 'three';
 import { PAPER } from '../../config.js';
 import { paperFiber, paperTooth, cavityTint } from './textures.js';
+import { applyAerialFog } from './aerialFog.js';
 
 let _ramp = null;
 
@@ -94,7 +95,12 @@ export function toonMaterial(color, opts = {}) {
     fog: true,
     ...opts,
   });
-  return mat;
+  // Every lit surface in the world is born here, so this is the one place the
+  // aerial-perspective atmosphere (./aerialFog.js) has to be hooked up for
+  // terrain, props, vegetation and the hero to share one sky. Materials built
+  // elsewhere (the handful of MeshBasicMaterial banners and the water shader)
+  // are swept once at assembly time by applyAerialFogToTree.
+  return applyAerialFog(mat);
 }
 
 /** Convert a PAPER int to a THREE.Color (convenience for lights/fog/sky). */
@@ -139,6 +145,18 @@ const CAVITY = cavityTint();
  * surface, and every instance sharing one grain is invisible where world-space
  * grain would be a swimming artefact.
  */
+/**
+ * WHY this reads the `normal` ATTRIBUTE and not three's `objectNormal`:
+ * `objectNormal` only exists in shaders that included `<beginnormal_vertex>`,
+ * which lit materials do unconditionally but MeshBasicMaterial does only
+ * `#if defined( USE_ENVMAP ) || defined( USE_SKINNING )` — so patching an
+ * unlit material (falling petals, banners) with the same surface produced
+ * `'objectNormal' : undeclared identifier` and silently dropped that draw
+ * call. `attribute vec3 normal` is declared in EVERY vertex shader three
+ * compiles, and for this world's static, unskinned, unmorphed geometry it is
+ * the same vector. Geometry with no normal attribute at all reads (0,0,0),
+ * which the epsilon below turns into "up" — the right default for a flat card.
+ */
 function vertexPatch(space) {
   // ONE varying, not two. The projection blend only ever needs how UP-facing
   // the surface is, which is a single number, and this world's normals are
@@ -148,9 +166,9 @@ function vertexPatch(space) {
   const pars = `
 varying vec4 vPaper;   // xyz = grain-space position, w = up-facing weight`;
   const body = space === 'local' ? `
-	vPaper = vec4( position, smoothstep( 0.30, 0.82, abs( normalize( objectNormal + vec3( 0.0, 1e-6, 0.0 ) ).y ) ) );` : `
+	vPaper = vec4( position, smoothstep( 0.30, 0.82, abs( normalize( normal + vec3( 0.0, 1e-6, 0.0 ) ).y ) ) );` : `
 	vec4 mwPaperP = vec4( transformed, 1.0 );
-	vec3 mwPaperN = objectNormal;
+	vec3 mwPaperN = normal;
 	#ifdef USE_INSTANCING
 		mwPaperP = instanceMatrix * mwPaperP;
 		mwPaperN = mat3( instanceMatrix ) * mwPaperN;

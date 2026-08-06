@@ -1,5 +1,6 @@
 /**
- * Papercut sky: gradient dome + soft sun + one InstancedMesh of cut-paper clouds.
+ * Papercut sky: gradient dome (+ stars) + sun/moon body + light shafts + one
+ * InstancedMesh of cut-paper clouds. Four draw calls for the entire firmament.
  *
  * WHY a hand-rolled dome instead of scene.background: the time-of-day rig
  * (./timeOfDay.js) hands us three PAPER-derived stops per frame, and a flat
@@ -13,6 +14,29 @@
  * or per-frame matrix rebuilds. Drift is a slow rigid Y rotation of the whole
  * InstancedMesh plus a hashed per-instance bob in the vertex shader — zero
  * allocations in update().
+ *
+ * WHY the stars live in the DOME's fragment shader instead of a point cloud:
+ * a starfield is the one thing in this world that is genuinely infinitely far
+ * away, so it belongs to the surface that already covers the sky — zero extra
+ * draw calls, zero geometry, and no parallax bug when the camera moves. The
+ * field is a hashed 3D cell grid sampled along the view direction, gated by a
+ * `uNight` UNIFORM branch so the whole block is skipped outright during the
+ * day (a uniform branch is perfectly coherent — it costs nothing, which
+ * matters because the dome covers every pixel and our screenshot harness
+ * rasterises on the CPU).
+ *
+ * WHY the god rays are geometry and not post-processing: post is banned here
+ * (see TECH LAW), and radial blur would fight the flat papercut look anyway.
+ * A fan of soft additive blades pinned to the key light, sitting 300 m out and
+ * depth-TESTED, gets the effect honestly: hills and canopies occlude the
+ * blades, so the rays break up exactly where something stands in front of the
+ * sun. That is what "shafts through canopy gaps" physically is.
+ *
+ * WHY the sun and the moon are ONE billboard: timeOfDay's `sunDir` is the KEY
+ * LIGHT direction, whatever body is providing it. Cross-fading one quad's
+ * disc radius, halo falloff and colour from sun to moon on the `night` field
+ * keeps the sky body and the shadow direction in permanent agreement, and
+ * costs one draw call instead of two.
  *
  * WHY every sky material is opaque-with-depthWrite-off rather than
  * transparent: three sorts `transparent` materials into a pass that runs
@@ -30,16 +54,23 @@ import { PAPER } from '../config.js';
 // Dome must sit inside the scene camera far plane (600 in index.js).
 const SKY_RADIUS = 480;
 const SUN_DIST = 360;
+// Shafts sit well inside the world so terrain and canopy can occlude them.
+const SHAFT_DIST = 300;
+const SHAFT_SPAN = 210;
 
 // Render ordering inside the opaque pass. Lower draws first.
 const ORDER_DOME = -100;
 const ORDER_CLOUD = -90;
-const ORDER_SUN = -80;   // transparent pass; still ahead of water (0)
+const ORDER_SUN = -80;    // transparent pass; still ahead of water (0)
+const ORDER_SHAFT = -75;  // over the disc, under the clouds' silhouette
 
 // Scratch objects — update() must never allocate.
 const _sunDir = new THREE.Vector3();
 const _c0 = new THREE.Color();
 const _c1 = new THREE.Color();
+const _c2 = new THREE.Color();
+
+const lerp = (a, b, u) => a + (b - a) * u;
 
 /** Deterministic PRNG so the cloudscape is identical across sessions/devices. */
 function mulberry32(seed) {
@@ -135,7 +166,21 @@ const DOME_FRAG = /* glsl */`
   uniform vec3 uHorizon;
   uniform float uBandStrength;
   uniform float uBandCount;
+  uniform float uNight;
+  uniform float uTime;
+  uniform float uStarScale;
+  uniform vec3 uStarCool;
+  uniform vec3 uStarWarm;
   varying vec3 vDir;
+
+  // Cheap 3D value hash. No texture fetch, no derivatives — identical under
+  // SwiftShader and on an iPad, which is the whole reason it is written by
+  // hand rather than sampled.
+  float mwHash31(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
 
   void main() {
     float h = clamp(vDir.y, -1.0, 1.0);
@@ -149,6 +194,31 @@ const DOME_FRAG = /* glsl */`
     vec3 col = mix(uHorizon, uBottom, smoothstep(-0.22, 0.0, h));
     col = mix(col, uMid, hb);
     col = mix(col, uTop, ht);
+
+    // ── Stars ────────────────────────────────────────────────────────────
+    // One hashed point per occupied cell of a grid laid over the view
+    // direction. Uniform branch: costs nothing before dusk.
+    if (uNight > 0.004) {
+      vec3 sp = vDir * uStarScale;
+      vec3 cell = floor(sp);
+      vec3 frc = fract(sp);
+      float pick = mwHash31(cell);
+      vec3 jit = vec3(
+        mwHash31(cell + 11.3),
+        mwHash31(cell + 27.7),
+        mwHash31(cell + 41.1)
+      );
+      // ~10% of cells hold a star, and the ramp gives them varying magnitude.
+      float star = smoothstep(0.855, 0.995, pick)
+                 * (1.0 - smoothstep(0.0, 0.21, length(frc - jit)));
+      // Slow independent twinkle, a soft galactic band so the field is not
+      // uniform, and a fade into the horizon haze.
+      float twinkle = 0.62 + 0.38 * sin(uTime * (0.9 + pick * 3.0) + pick * 60.0);
+      float band = 0.55 + 0.45 * (1.0 - smoothstep(0.0, 0.34, abs(vDir.y - 0.32 - vDir.x * 0.20)));
+      star *= twinkle * band * smoothstep(-0.02, 0.22, h) * uNight * 1.35;
+      col += mix(uStarCool, uStarWarm, jit.x) * star;
+    }
+
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
@@ -183,6 +253,76 @@ const SUN_FRAG = /* glsl */`
     #include <colorspace_fragment>
   }
 `;
+
+// ── God rays ───────────────────────────────────────────────────────────
+// A fan of tapered blades radiating from the key light. uv.x runs ACROSS a
+// blade (soft edges), uv.y runs ALONG it (fade in off the disc, fade out at
+// the tip); aPhase decorrelates their breathing so the fan never pulses as one.
+const SHAFT_VERT = /* glsl */`
+  attribute float aPhase;
+  varying vec2 vShaftUv;
+  varying float vShaftPh;
+  void main() {
+    vShaftUv = uv;
+    vShaftPh = aPhase;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const SHAFT_FRAG = /* glsl */`
+  uniform vec3 uColor;
+  uniform float uStrength;
+  uniform float uTime;
+  varying vec2 vShaftUv;
+  varying float vShaftPh;
+
+  void main() {
+    float across = abs(vShaftUv.x * 2.0 - 1.0);
+    float body = pow(max(0.0, 1.0 - across), 3.4);
+    float root = smoothstep(0.0, 0.24, vShaftUv.y);        // off the disc
+    float tip = 1.0 - smoothstep(0.14, 0.92, vShaftUv.y);  // into nothing
+    float breathe = 0.70 + 0.30 * sin(uTime * 0.37 + vShaftPh * 6.2832);
+    // Additive blending multiplies rgb by alpha, so the colour is handed over
+    // straight and the whole shaping lives in alpha.
+    gl_FragColor = vec4(uColor, body * root * tip * breathe * uStrength);
+    #include <colorspace_fragment>
+  }
+`;
+
+/**
+ * Build the shaft fan as ONE geometry: `blades` quads in the z=0 plane,
+ * radiating from the origin, each one widening as it goes (a light shaft
+ * diverges — parallel-sided beams read as cardboard).
+ */
+function buildShaftGeometry(rand, blades = 9) {
+  const pos = new Float32Array(blades * 6 * 3);
+  const uvs = new Float32Array(blades * 6 * 2);
+  const phase = new Float32Array(blades * 6);
+  let p = 0, t = 0, f = 0;
+  const QUV = [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]];
+  for (let i = 0; i < blades; i++) {
+    // Jittered even spread: a perfectly regular fan reads as a logo.
+    const th = ((i + rand() * 0.75) / blades) * Math.PI * 2;
+    const half = 0.055 + rand() * 0.075;   // angular half-width at the root
+    const taper = 1.7 + rand() * 1.4;      // how much it opens by the tip
+    const r0 = 0.05 + rand() * 0.06;
+    const r1 = 0.50 + rand() * 0.50;
+    const ph = rand();
+    const at = (r, a) => [Math.cos(th + a) * r, Math.sin(th + a) * r];
+    const c = [at(r0, -half), at(r0, half), at(r1, half * taper), at(r1, -half * taper)];
+    const quad = [c[0], c[1], c[2], c[0], c[2], c[3]];
+    for (let k = 0; k < 6; k++) {
+      pos[p++] = quad[k][0]; pos[p++] = quad[k][1]; pos[p++] = 0;
+      uvs[t++] = QUV[k][0]; uvs[t++] = QUV[k][1];
+      phase[f++] = ph;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
+  return geo;
+}
 
 // aSeed: x,y = silhouette warp phases, z = bob phase, w = tint amount.
 // The warp harmonics are integer multiples of the polar angle so the shape
@@ -262,6 +402,13 @@ export function createSky(opts = {}) {
       uHorizon: { value: new THREE.Color(PAPER.cream) },
       uBandStrength: { value: bandStrength },
       uBandCount: { value: 7 },
+      uNight: { value: 0 },
+      uTime: { value: 0 },
+      // Cell density of the star grid. 58 puts a few hundred stars in a 4:3
+      // frame — a sky, not a snowstorm.
+      uStarScale: { value: 58 },
+      uStarCool: { value: new THREE.Color(PAPER.white) },
+      uStarWarm: { value: new THREE.Color(PAPER.gold) },
     },
     vertexShader: DOME_VERT,
     fragmentShader: DOME_FRAG,
@@ -300,6 +447,34 @@ export function createSky(opts = {}) {
   sun.renderOrder = ORDER_SUN;
   sun.frustumCulled = false;
   group.add(sun);
+
+  // ── Light shafts ───────────────────────────────────────────────────────
+  const shaftGeo = buildShaftGeometry(rand);
+  const shaftMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color(PAPER.gold) },
+      uStrength: { value: 0 },
+      uTime: { value: 0 },
+    },
+    vertexShader: SHAFT_VERT,
+    fragmentShader: SHAFT_FRAG,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    // depthTest ON is the point: terrain and canopy occlude the blades, which
+    // is what turns a flat fan into rays breaking through what is in front of
+    // the light.
+    depthTest: true,
+    side: THREE.DoubleSide,
+    fog: false,
+    toneMapped: false,
+  });
+  const shafts = new THREE.Mesh(shaftGeo, shaftMat);
+  shafts.scale.setScalar(SHAFT_SPAN);
+  shafts.renderOrder = ORDER_SHAFT;
+  shafts.frustumCulled = false;
+  shafts.visible = false;
+  group.add(shafts);
 
   // ── Clouds: one geometry, one draw call, per-instance silhouette warp ──
   const cloudGeo = new THREE.ShapeGeometry(buildCloudShape(rand));
@@ -357,36 +532,69 @@ export function createSky(opts = {}) {
   group.add(clouds);
 
   /**
-   * @param {object} frame  timeOfDay() frame: skyTop/skyMid/skyBottom/fogColor/
-   *                        sunColor as 0xRRGGBB ints, sunDir as [x,y,z].
+   * @param {object} frame  a weather-folded lighting frame (see weather.js
+   *   createRenderFrame): skyTop/skyMid/skyBottom/fogColor/sunColor as
+   *   0xRRGGBB ints, sunDir as [x,y,z], plus night / shaft / cloudTint /
+   *   cloudTintAmt drives.
    * @param {number} simTime deterministic seconds from the renderer rig.
    */
   function update(frame, simTime) {
     if (frame) {
+      const night = frame.night ?? 0;
+
       domeMat.uniforms.uTop.value.setHex(frame.skyTop);
       domeMat.uniforms.uMid.value.setHex(frame.skyMid);
       domeMat.uniforms.uBottom.value.setHex(frame.skyBottom);
       domeMat.uniforms.uHorizon.value.setHex(frame.fogColor);
+      domeMat.uniforms.uNight.value = night;
+      // Thick air eats the stars — rain and mist keep the dome plain.
+      domeMat.uniforms.uStarCool.value.setHex(PAPER.white)
+        .lerp(_c1.setHex(frame.fogColor), (frame.cloudTintAmt ?? 0) * 1.6);
 
-      // Sun core stays near-white paper; the halo carries the hour's warmth.
       _c0.setHex(frame.sunColor);
+      // Sun -> moon. The disc shrinks and hardens while the halo pulls in, so
+      // one quad reads as a blazing sun at noon and a crisp warm moon at 3am.
       sunMat.uniforms.uGlow.value.copy(_c0);
-      sunMat.uniforms.uCore.value.setHex(PAPER.white).lerp(_c0, 0.35);
+      // The moon's own paper is WARM even though the light it casts is cool
+      // lilac — that contrast is what keeps a kids' night inviting.
+      _c2.setHex(PAPER.cream).lerp(_c1.setHex(PAPER.gold), 0.30);
+      sunMat.uniforms.uCore.value.setHex(PAPER.white).lerp(_c0, 0.35).lerp(_c2, night);
+      sunMat.uniforms.uDiscR.value = lerp(0.17, 0.34, night);
+      sunMat.uniforms.uGlowPow.value = lerp(3.2, 5.4, night);
+      sunMat.uniforms.uGlowStrength.value = lerp(0.42, 0.26, night);
+      sun.scale.setScalar(lerp(120, 62, night));
 
       const d = frame.sunDir;
       _sunDir.set(d[0], d[1], d[2]).normalize();
       sun.position.copy(_sunDir).multiplyScalar(SUN_DIST);
       sun.lookAt(group.position.x, group.position.y, group.position.z);
 
+      // Shafts share the body's anchor and colour, and die entirely at night
+      // and under cloud (the `shaft` drive already carries both).
+      const shaft = frame.shaft ?? 0;
+      shafts.visible = shaft > 0.004;
+      if (shafts.visible) {
+        shaftMat.uniforms.uStrength.value = shaft;
+        shaftMat.uniforms.uColor.value.setHex(PAPER.white).lerp(_c0, 0.72);
+        shafts.position.copy(_sunDir).multiplyScalar(SHAFT_DIST);
+        shafts.lookAt(group.position.x, group.position.y, group.position.z);
+      }
+
       // Cloud plies ride the hour: body warms toward the sun, underside keeps
-      // a teal lean (papercut law: undersides go teal, never gray).
+      // a teal lean (papercut law: undersides go teal, never gray). Weather
+      // pulls the whole stack toward its tint; night sinks it into the fog so
+      // clouds become soft silhouettes rather than glowing paper.
       _c1.setHex(frame.fogColor);
-      cloudMat.uniforms.uBody.value.setHex(PAPER.cream).lerp(_c0, 0.22);
-      cloudMat.uniforms.uCrest.value.setHex(PAPER.white).lerp(_c0, 0.14);
-      cloudMat.uniforms.uUnder.value.setHex(PAPER.tealL).lerp(_c1, 0.40);
+      _c2.setHex(frame.cloudTint ?? frame.fogColor);
+      const wt = frame.cloudTintAmt ?? 0;
+      cloudMat.uniforms.uBody.value.setHex(PAPER.cream).lerp(_c0, 0.22).lerp(_c2, wt).lerp(_c1, night * 0.88);
+      cloudMat.uniforms.uCrest.value.setHex(PAPER.white).lerp(_c0, 0.14).lerp(_c2, wt * 0.7).lerp(_c1, night * 0.80);
+      cloudMat.uniforms.uUnder.value.setHex(PAPER.tealL).lerp(_c1, 0.40 + night * 0.55);
       cloudMat.uniforms.uWarm.value.copy(_c1);
     }
     cloudMat.uniforms.uTime.value = simTime;
+    domeMat.uniforms.uTime.value = simTime;
+    shaftMat.uniforms.uTime.value = simTime;
     // Rigid drift: inward-facing cards stay inward-facing under a Y spin, so
     // the whole sky turns for free with no instance-matrix rebuild.
     clouds.rotation.y = simTime * 0.0045;
@@ -394,11 +602,13 @@ export function createSky(opts = {}) {
   }
 
   function dispose() {
-    group.remove(dome, sun, clouds);
+    group.remove(dome, sun, shafts, clouds);
     domeGeo.dispose();
     domeMat.dispose();
     sunGeo.dispose();
     sunMat.dispose();
+    shaftGeo.dispose();
+    shaftMat.dispose();
     cloudGeo.dispose();
     cloudMat.dispose();
     clouds.dispose();

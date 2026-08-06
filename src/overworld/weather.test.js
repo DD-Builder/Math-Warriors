@@ -42,10 +42,17 @@ describe('WEATHER table', () => {
     assert.ok(by('mist').fogHeightKMul > 2);
   });
 
-  test('rain drops the key light but keeps the fill (overcast softbox)', () => {
+  test('rain flattens the key:fill ratio (overcast softbox)', () => {
+    // The signature of overcast is not "everything darker" — it is that the
+    // KEY collapses much further than the fill, so shadows go soft and shallow
+    // instead of black. Asserting the ratio rather than the absolute keeps
+    // that intent stable while the two are tuned against screenshots.
     const rain = weatherByName('rain');
-    assert.ok(rain.sunMul < 0.7);
-    assert.ok(rain.hemiMul >= 1.0);
+    const clear = weatherByName('clear');
+    assert.ok(rain.sunMul < 0.7, 'key light collapses');
+    assert.ok(rain.hemiMul / rain.sunMul > (clear.hemiMul / clear.sunMul) * 1.5,
+      `fill:key ratio must rise sharply (got ${rain.hemiMul / rain.sunMul})`);
+    assert.ok(rain.hemiMul < 1.0, 'but the world still dims overall');
     assert.ok(rain.shaftMul < 0.1, 'no god rays under cloud');
     assert.equal(rain.rain, 1);
     assert.ok(rain.wind > 2, 'rain drives the wind harder');

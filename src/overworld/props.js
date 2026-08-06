@@ -58,6 +58,7 @@ import { toonMaterial, applyPapercut, PAPER } from './materials/toon.js';
 import { deckleDisc } from './materials/textures.js';
 import { g, lin, mixHex, shade, trs, sink, stamp, bake, fanXY } from './geobuild.js';
 import { createVegetation } from './vegetation.js';
+import { resolvePonds } from './water.js';
 
 const TAU = Math.PI * 2;
 const AXIS_Y = new THREE.Vector3(0, 1, 0);
@@ -550,6 +551,14 @@ export function createProps(heightfield, opts = {}) {
     plantClear.push(x, z, rPlant);
   };
   addClear(SPAWN.x, SPAWN.z, CLEAR_SPAWN, CLEAR_SPAWN * 0.6);
+  // Inland pools. water.js fits them to the terrain, and resolvePonds() is a
+  // pure re-run of exactly that fit — so a pool and its clearing can never end
+  // up in different places. Plants stop a hair outside the deckle rim (the
+  // outline wobbles +-17%, hence the 1.25); trees keep well back so no trunk
+  // grows out of the water.
+  for (const p of resolvePonds(heightfield)) {
+    addClear(p.x, p.z, p.radius * 2.0, p.radius * 1.25);
+  }
 
   // ═══ 1. PORTAL GATES ═══
   const portalEntries = PORTALS.map((p) => {
@@ -766,9 +775,12 @@ export function createProps(heightfield, opts = {}) {
   // where they were rather than recomputed.
   const ANIM_RANGE2 = 130 * 130;
 
-  function update(simTime, playerPos) {
-    WIND.value = simTime;
-    veg.update(simTime, playerPos);
+  // `windTime` is a SEPARATE clock so weather can drive the foliage harder
+  // (see weather.js `wind`) without also spinning coins and pulsing portals
+  // faster. It defaults to simTime, so every existing caller is unaffected.
+  function update(simTime, playerPos, windTime = simTime) {
+    WIND.value = windTime;
+    veg.update(simTime, playerPos, windTime);
     const px = playerPos ? (playerPos.x ?? 0) : 0;
     const pz = playerPos ? (playerPos.z ?? 0) : 0;
     let coinDirty = false, potionDirty = false;

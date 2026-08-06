@@ -56,11 +56,12 @@ test('vegetation: four or more tree species actually get planted', () => {
 test('vegetation: draw calls stay inside the vegetation budget', () => {
   // Worst case: every sector inside the cull radius, nothing frustum-culled.
   // The whole scene's hard cap is 250 (see e2e/overworld-boot.spec.js) and
-  // terrain alone is 64 chunks, so vegetation may not spend more than ~100.
-  assert.ok(s.drawCalls <= 100, `vegetation worst-case draw calls ${s.drawCalls}`);
+  // terrain alone is 64 chunks, so vegetation may not spend more than ~90.
+  assert.ok(s.drawCalls <= 90, `vegetation worst-case draw calls ${s.drawCalls}`);
   // Trees and petals are unsectored and therefore always resident.
   assert.ok(s.treeMeshes <= 12, `tree meshes ${s.treeMeshes}`);
-  assert.ok(s.petalMeshes <= 12, `petal meshes ${s.petalMeshes}`);
+  // Petal swarms are grouped by canopy height, not by tree.
+  assert.ok(s.petalMeshes <= 4, `petal meshes ${s.petalMeshes}`);
 });
 
 test('vegetation: nothing grows in the sea or on a cliff', () => {
