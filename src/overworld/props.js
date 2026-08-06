@@ -25,18 +25,26 @@
  * zeroes the backing instance matrices. Callers keep their one-liner; we keep
  * the draw-call budget.
  *
- * WHY vegetation is sectorised: an InstancedMesh has one bounding sphere. A
- * single 14 k-instance grass mesh spanning the island can never be culled, so
- * grass is split into a 4x4 world grid (flowers 3x3) and three's
- * Frustum.intersectsObject uses InstancedMesh.computeBoundingSphere() per
- * sector automatically. Typical view = 4-6 of 16 sectors.
+ * WHY vegetation lives next door: ground cover and trees are measured in tens
+ * of thousands of instances and need their own machinery (cached height grid,
+ * clustered scatter, per-sector distance LOD, layered wind) that none of the
+ * landmarks here want. ./vegetation.js owns all of it; this module hands it
+ * the clearings it must respect and folds its stats and its trunk colliders
+ * back into the contract the caller already has.
  *
- * WIND: one shared `uWindTime` uniform object patched into the plant and tree
- * materials via onBeforeCompile. The offset is two summed sines at
- * incommensurate rates (0.55 / 0.225 Hz-ish) phased by a hash of the instance
- * origin, weighted by (height above the sway base)^2 — soft, rhythmic, never
- * jittery, and zero CPU cost. Trees get the same patch on a customDepthMaterial
- * so the shadow map sways with the canopy instead of tearing away from it.
+ * PAPER SURFACE: every lit material here is run through applyPapercut (see
+ * materials/toon.js), which layers the procedural fibre grain and pressed
+ * tooth from materials/textures.js on top of the baked vertex colours. It
+ * chains onto the wind/pulse patches below rather than replacing them, and it
+ * costs one shared texture pair for the whole island. Static landmarks sample
+ * that paper in WORLD space (so no two gates wear the same patch of sheet);
+ * anything that moves samples it in LOCAL space, because grain that stays put
+ * while its surface travels is the one way this effect reads as wrong.
+ *
+ * PULSE: one shared `uWindTime` uniform object patched into the glowing portal
+ * page, the pickup discs and the banners via onBeforeCompile — one number
+ * written per frame, no extra draw state. (Vegetation runs its own clock; see
+ * ./vegetation.js.)
  *
  * Constraints honoured: three r170 only (no examples/ imports), no
  * post-processing, no depth-texture reads, no fwidth/derivative tricks, no
@@ -46,8 +54,10 @@
  */
 import * as THREE from 'three';
 import { WORLD, BIOMES, PORTALS, BUILDINGS, COLLECTIBLES, SPAWN } from './worldSpec.js';
-import { toonMaterial, PAPER } from './materials/toon.js';
-import { makeRng } from '../systems/rng.js';
+import { toonMaterial, applyPapercut, PAPER } from './materials/toon.js';
+import { deckleDisc } from './materials/textures.js';
+import { g, lin, mixHex, shade, trs, sink, stamp, bake, fanXY } from './geobuild.js';
+import { createVegetation } from './vegetation.js';
 
 const TAU = Math.PI * 2;
 const AXIS_Y = new THREE.Vector3(0, 1, 0);
@@ -65,121 +75,47 @@ const ARCH_VOUSSOIRS = 11;
 const BANNER_Y = 12.2;
 const PORTAL_RADIUS = 3;        // trigger radius handed back to the caller
 
-// ── Vegetation gates ────────────────────────────────────────────────────
-const PLANT_MIN_H = WORLD.WATER_Y + 0.3;   // never on water (spec)
-const TREE_MIN_H = WORLD.WATER_Y + 0.9;
-const MAX_SLOPE_NY = Math.cos(40 * Math.PI / 180);  // ~0.766, no cliff faces
-const GRASS_SECTORS = 4;   // 4x4 = 120 m cells
-const FLOWER_SECTORS = 3;  // 3x3 = 160 m cells
-
 // Clearings so landmarks keep clean silhouettes and approaches stay walkable.
+// Handed to ./vegetation.js, which respects them for every scatter it runs.
 const CLEAR_PORTAL_TREE = 11, CLEAR_PORTAL_PLANT = 6.0;
 const CLEAR_BUILDING_TREE = 13, CLEAR_BUILDING_PLANT = 8.0;
 const CLEAR_SPAWN = 7;
 
-// ── Small helpers ───────────────────────────────────────────────────────
-
-/** GLSL float literal (never emits an int — "1" would fail to compile). */
-const g = (n) => Number(n).toFixed(4);
-
-/** PAPER int -> linear-space rgb triple, optionally scaled (layer shading). */
-function lin(hex, scale = 1) {
-  const c = new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
-  if (scale !== 1) c.multiplyScalar(scale);
-  return [c.r, c.g, c.b];
-}
-
-// Scratch for mixHex — it runs once per grass instance during the build, and
-// every caller hands the result straight to setColorAt (which copies), so a
-// shared colour saves ~30 k allocations at load with no aliasing risk.
-const _mixA = new THREE.Color();
-const _mixB = new THREE.Color();
-
-/** Linear-space blend of two PAPER ints. Returns SHARED scratch — copy it. */
-function mixHex(a, b, t) {
-  _mixA.setHex(a, THREE.SRGBColorSpace);
-  _mixB.setHex(b, THREE.SRGBColorSpace);
-  return _mixA.lerp(_mixB, t);
-}
-
-/** Relative layer shade (multiplied by instanceColor at draw time). */
-const shade = (v) => [v, v, v];
-
-// Build-time only (never called from update) — allocation here is free.
-function trs(px, py, pz, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
-  return new THREE.Matrix4().compose(
-    new THREE.Vector3(px, py, pz),
-    new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)),
-    new THREE.Vector3(sx, sy, sz),
-  );
-}
-
-// ── Geometry sink: merge primitives into one buffer with baked colours ──
-// Hand-rolled because BufferGeometryUtils lives in three/examples and this
-// build only imports the `three` package proper.
-
-function sink(withAlpha = false) {
-  return { pos: [], nrm: [], col: [], alpha: withAlpha };
-}
-
 /**
- * Stamp a primitive into the sink. CONSUMES `geo` (disposes it) — every call
- * site constructs the primitive inline, so nothing leaks.
+ * Ground glow disc under a pickup, flat in XZ (normal +Y), carrying UVs.
+ *
+ * Built by hand rather than through the sink because it is the one shape here
+ * that needs a UV channel: its rim is cut by the deckle mask from
+ * materials/textures.js, which is what turns a perfect CG circle into a torn
+ * ply of glowing paper. The vertex alpha therefore stops at a plateau instead
+ * of feathering to zero — if the geometry faded out on its own the torn edge
+ * would land where the disc is already invisible and nobody would ever see it.
+ *
+ * UVs put the geometric rim at mask radius 1.0, so the mask's mean tear (0.84)
+ * bites comfortably inside the triangles.
  */
-function stamp(s, geo, matrix, rgb, a = 1) {
-  const ni = geo.index ? geo.toNonIndexed() : geo;
-  if (matrix) ni.applyMatrix4(matrix);
-  const p = ni.attributes.position.array;
-  const n = ni.attributes.normal.array;
-  for (let i = 0; i < p.length; i += 3) {
-    s.pos.push(p[i], p[i + 1], p[i + 2]);
-    s.nrm.push(n[i], n[i + 1], n[i + 2]);
-    if (s.alpha) s.col.push(rgb[0], rgb[1], rgb[2], a);
-    else s.col.push(rgb[0], rgb[1], rgb[2]);
+function buildAuraDiscGeo(radius, segments, aCentre, aRim) {
+  const pos = [], nrm = [], col = [], uv = [];
+  const push = (x, z, a) => {
+    pos.push(x, 0, z);
+    nrm.push(0, 1, 0);
+    col.push(1, 1, 1, a);
+    uv.push(x / (2 * radius) + 0.5, z / (2 * radius) + 0.5);
+  };
+  for (let i = 0; i < segments; i++) {
+    const a0 = (i / segments) * TAU, a1 = ((i + 1) / segments) * TAU;
+    push(0, 0, aCentre);
+    push(Math.cos(a0) * radius, Math.sin(a0) * radius, aRim);
+    push(Math.cos(a1) * radius, Math.sin(a1) * radius, aRim);
   }
-  if (ni !== geo) ni.dispose();
-  geo.dispose();
-}
-
-function bake(s) {
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(s.pos), 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(s.nrm), 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(s.col), s.alpha ? 4 : 3));
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nrm), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 4));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv), 2));
   geo.computeBoundingSphere();
   geo.computeBoundingBox();
   return geo;
-}
-
-/**
- * Fan a closed 2D outline into triangles around a centre point, in the XY
- * plane (normal +Z). `pts` is [[x,y], ...] in order. Alpha ramps centre->rim,
- * which is how the glow gets its soft edge with no texture and no derivatives.
- */
-function fanXY(s, pts, cx, cy, z, rgb, aCentre, aRim) {
-  const n = pts.length;
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[i], p1 = pts[(i + 1) % n];
-    s.pos.push(cx, cy, z, p0[0], p0[1], z, p1[0], p1[1], z);
-    for (let k = 0; k < 3; k++) s.nrm.push(0, 0, 1);
-    s.col.push(rgb[0], rgb[1], rgb[2], aCentre);
-    s.col.push(rgb[0], rgb[1], rgb[2], aRim);
-    s.col.push(rgb[0], rgb[1], rgb[2], aRim);
-  }
-}
-
-/** Same idea, flat in XZ (normal +Y) — the ground glow discs under pickups. */
-function fanXZ(s, radius, segments, y, rgb, aCentre, aRim) {
-  for (let i = 0; i < segments; i++) {
-    const a0 = (i / segments) * TAU, a1 = ((i + 1) / segments) * TAU;
-    s.pos.push(0, y, 0);
-    s.pos.push(Math.cos(a0) * radius, y, Math.sin(a0) * radius);
-    s.pos.push(Math.cos(a1) * radius, y, Math.sin(a1) * radius);
-    for (let k = 0; k < 3; k++) s.nrm.push(0, 1, 0);
-    s.col.push(rgb[0], rgb[1], rgb[2], aCentre);
-    s.col.push(rgb[0], rgb[1], rgb[2], aRim);
-    s.col.push(rgb[0], rgb[1], rgb[2], aRim);
-  }
 }
 
 // ── Shader patches ──────────────────────────────────────────────────────
@@ -189,34 +125,6 @@ function fanXZ(s, radius, segments, y, rgb, aCentre, aRim) {
  * uniforms map, so update() writes a single number per frame.
  */
 const WIND = { value: 0 };
-
-/**
- * Soft rhythmic wind. Two summed sines at incommensurate rates never repeat
- * visibly and never snap; the phase is a hash of the instance origin so a
- * field does not breathe in unison. Weight is (height above base)^2 → the
- * root stays planted, the tip carries the motion.
- */
-function patchWind(material, { base, span, amp, lean = 0.55, speed = 0.55 }) {
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uWindTime = WIND;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uWindTime;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-  #ifdef USE_INSTANCING
-    vec2 mwSeed = instanceMatrix[3].xz;
-  #else
-    vec2 mwSeed = vec2( 0.0 );
-  #endif
-  float mwW = clamp( ( transformed.y - ${g(base)} ) / ${g(span)}, 0.0, 1.0 );
-  mwW *= mwW;
-  float mwPh = dot( mwSeed, vec2( 0.21, 0.13 ) );
-  float mwS = sin( uWindTime * ${g(speed)} + mwPh ) * 0.68
-            + sin( uWindTime * ${g(speed * 0.41)} + mwPh * 1.7 + 1.3 ) * 0.32;
-  transformed.x += mwS * ${g(amp)} * mwW;
-  transformed.z += mwS * ${g(amp * lean)} * mwW;`);
-  };
-  material.customProgramCacheKey = () => `mw-wind|${base}|${span}|${amp}|${lean}|${speed}`;
-}
 
 /**
  * Gentle glow breathing for the portal pages and pickup discs. Rides on the
@@ -288,74 +196,6 @@ const BIOME_INK = {
   library: PAPER.coralD,
   palace: PAPER.lavenderD,
   meadow: PAPER.forestD,
-};
-
-/**
- * Vegetation character per biome. Counts are ATTEMPTS — water, slope and
- * clearing rejections trim them, and the realised totals are reported back.
- * The mix is the art direction: garden/meadow lush, market a town (bare),
- * frost sparse, palace formal (blossom avenues only).
- */
-const BIOME_FLORA = {
-  garden: { trees: 95, grass: 3200, flowers: 1000, species: ['broadleaf', 'broadleaf', 'blossom'], grassTint: PAPER.leaf, petals: [PAPER.white, PAPER.rose, PAPER.gold] },
-  meadow: { trees: 45, grass: 2800, flowers: 1200, species: ['blossom', 'broadleaf'], grassTint: PAPER.sageD, petals: [PAPER.rose, PAPER.white, PAPER.lavender] },
-  tidepool: { trees: 40, grass: 1400, flowers: 300, species: ['broadleaf'], grassTint: PAPER.leaf, petals: [PAPER.white, PAPER.tealL] },
-  sky: { trees: 35, grass: 1300, flowers: 220, species: ['conifer'], grassTint: PAPER.sage, petals: [PAPER.white, PAPER.sky] },
-  ember: { trees: 55, grass: 1000, flowers: 200, species: ['ember', 'ember', 'conifer'], grassTint: PAPER.sageD, petals: [PAPER.orange, PAPER.gold] },
-  frost: { trees: 22, grass: 600, flowers: 90, species: ['frostpine'], grassTint: PAPER.tealL, petals: [PAPER.white, PAPER.sky] },
-  crystal: { trees: 40, grass: 1100, flowers: 380, species: ['frostpine', 'blossom'], grassTint: PAPER.sage, petals: [PAPER.lavender, PAPER.white] },
-  market: { trees: 12, grass: 450, flowers: 200, species: ['broadleaf'], grassTint: PAPER.sageD, petals: [PAPER.gold, PAPER.peach] },
-  library: { trees: 55, grass: 1300, flowers: 230, species: ['broadleaf', 'conifer'], grassTint: PAPER.sageD, petals: [PAPER.cream, PAPER.gold] },
-  palace: { trees: 26, grass: 800, flowers: 500, species: ['blossom'], grassTint: PAPER.leaf, petals: [PAPER.gold, PAPER.white, PAPER.lavender], formal: true },
-};
-
-/**
- * Tree species. A tree is a small trunk plus 2-3 stacked flat canopy slabs of
- * slightly different greens — the classic papercut tree. Slabs are low-sided
- * tapered cylinders because a 7-gon disc reads as hand-cut paper where a
- * smooth cone reads as CG.
- */
-const TREE_SPECIES = {
-  broadleaf: {
-    trunk: [PAPER.sand, 0.86], trunkR: [0.34, 0.25], trunkH: 2.3, sides: 7,
-    slabs: [
-      { y: 2.0, r: 2.35, h: 0.60, taper: 0.74, color: PAPER.forest, spin: 0.0 },
-      { y: 3.05, r: 1.85, h: 0.55, taper: 0.72, color: PAPER.forestL, spin: 0.4 },
-      { y: 3.95, r: 1.20, h: 0.50, taper: 0.60, color: PAPER.leaf, spin: 0.8 },
-    ],
-  },
-  conifer: {
-    trunk: [PAPER.sand, 0.70], trunkR: [0.30, 0.22], trunkH: 2.0, sides: 7,
-    slabs: [
-      { y: 1.70, r: 1.95, h: 1.55, taper: 0.42, color: PAPER.forestD, spin: 0.0 },
-      { y: 3.00, r: 1.50, h: 1.40, taper: 0.38, color: PAPER.forest, spin: 0.45 },
-      { y: 4.15, r: 1.00, h: 1.25, taper: 0.14, color: PAPER.forestL, spin: 0.9 },
-    ],
-  },
-  frostpine: {
-    trunk: [PAPER.creamD, 0.78], trunkR: [0.30, 0.22], trunkH: 2.0, sides: 7,
-    slabs: [
-      { y: 1.70, r: 1.90, h: 1.50, taper: 0.42, color: PAPER.tealD, spin: 0.0 },
-      { y: 2.95, r: 1.45, h: 1.35, taper: 0.38, color: PAPER.teal, spin: 0.45 },
-      { y: 4.05, r: 0.95, h: 1.20, taper: 0.14, color: PAPER.white, spin: 0.9 },
-    ],
-  },
-  blossom: {
-    trunk: [PAPER.sand, 0.90], trunkR: [0.30, 0.22], trunkH: 2.2, sides: 7,
-    slabs: [
-      { y: 1.95, r: 2.10, h: 0.55, taper: 0.76, color: PAPER.rose, spin: 0.0 },
-      { y: 2.85, r: 1.65, h: 0.50, taper: 0.74, color: PAPER.peach, spin: 0.5 },
-      { y: 3.60, r: 1.05, h: 0.45, taper: 0.62, color: PAPER.white, spin: 1.0 },
-    ],
-  },
-  ember: {
-    trunk: [PAPER.coralD, 0.80], trunkR: [0.32, 0.24], trunkH: 2.4, sides: 7,
-    slabs: [
-      { y: 2.10, r: 2.20, h: 0.58, taper: 0.75, color: PAPER.coralD, spin: 0.0 },
-      { y: 3.05, r: 1.70, h: 0.52, taper: 0.72, color: PAPER.coral, spin: 0.45 },
-      { y: 3.85, r: 1.10, h: 0.46, taper: 0.60, color: PAPER.gold, spin: 0.9 },
-    ],
-  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -509,78 +349,6 @@ function buildBannerAtlas(entries) {
   return { texture: tex, cols: COLS, rows: ROWS };
 }
 
-/** One papercut tree: trunk + stacked canopy slabs, absolute PAPER colours. */
-function buildTree(spec) {
-  const s = sink();
-  stamp(s, new THREE.CylinderGeometry(spec.trunkR[1], spec.trunkR[0], spec.trunkH, spec.sides),
-    trs(0, spec.trunkH / 2, 0), lin(spec.trunk[0], spec.trunk[1]));
-  for (const sl of spec.slabs) {
-    stamp(s, new THREE.CylinderGeometry(sl.r * sl.taper, sl.r, sl.h, spec.sides),
-      trs(0, sl.y, 0, 0, sl.spin, 0), lin(sl.color));
-  }
-  return bake(s);
-}
-
-/**
- * Grass tuft: four single-triangle blades. A triangle IS the papercut blade
- * shape, and at 14 k instances the vertex count is the budget — 12 verts and
- * 4 triangles per tuft. Normals are hand-authored toward +Y so blades pick up
- * the lit ramp step instead of reading as dark verticals.
- */
-function buildGrassTuft() {
-  const BLADES = 4;
-  const pos = [], nrm = [], col = [];
-  for (let k = 0; k < BLADES; k++) {
-    const a = (k / BLADES) * TAU + 0.55;
-    const lean = 0.15 + (k % 2) * 0.06;
-    const h = 0.40 + (k % 3) * 0.05;
-    const w = 0.055;
-    const dx = Math.sin(a), dz = Math.cos(a);
-    pos.push(-dz * w, 0, dx * w, dz * w, 0, -dx * w, dx * lean, h, dz * lean);
-    const nx = dx * 0.45, nz = dz * 0.45;
-    const inv = 1 / Math.hypot(nx, 0.9, nz);
-    for (let v = 0; v < 3; v++) nrm.push(nx * inv, 0.9 * inv, nz * inv);
-    col.push(0.56, 0.56, 0.56, 0.56, 0.56, 0.56, 1.0, 1.0, 1.0);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nrm), 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
-  geo.computeBoundingSphere();
-  return geo;
-}
-
-/**
- * Flower: a six-petal star fan, tilted and lifted in GEOMETRY space (not in
- * the instance matrix) for two reasons — the wind weight reads transformed.y,
- * and a baked tilt plus a random instance yaw gives every blossom a different
- * facing for free. Centre vertex is a warm multiplier of the petal colour, so
- * one instanceColor yields petal + heart.
- */
-function buildFlower() {
-  const PET = 6, RIN = 0.13, ROUT = 0.30;
-  const pos = [0, 0, 0], col = [1.0, 0.82, 0.48], idx = [];
-  const n = PET * 2;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * TAU;
-    const r = (i % 2 === 0) ? ROUT : RIN;
-    pos.push(Math.cos(a) * r, 0, Math.sin(a) * r);
-    col.push(1, 1, 1);
-  }
-  for (let i = 0; i < n; i++) idx.push(0, 1 + i, 1 + ((i + 1) % n));
-  const nrm = [];
-  for (let i = 0; i <= n; i++) nrm.push(0, 1, 0);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nrm), 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
-  geo.setIndex(idx);
-  geo.rotateX(0.55);
-  geo.translate(0, 0.26, 0);
-  geo.computeBoundingSphere();
-  return geo;
-}
-
 /** Spinning papercut coin: a flat 14-gon disc with an inset face ply. */
 function buildCoin() {
   const s = sink();
@@ -602,9 +370,7 @@ function buildPotion() {
 
 /** Soft glow disc that sits on the ground under a pickup. */
 function buildAuraDisc() {
-  const s = sink(true);
-  fanXZ(s, 0.95, 16, 0, shade(1.0), 0.55, 0.0);
-  return bake(s);
+  return buildAuraDiscGeo(0.95, 20, 0.52, 0.24);
 }
 
 // ── Buildings ───────────────────────────────────────────────────────────
@@ -708,61 +474,6 @@ function footprintY(sampleHeight, x, z, radius) {
   return y;
 }
 
-/**
- * Rejection-sample `count` points inside a biome disc. Two forward-difference
- * height samples give the slope gate (3 sampleHeight calls per accepted
- * candidate) — a full sampleNormal would be 5, and at ~20 k plants that
- * difference is the whole load-time budget.
- */
-function scatter(rng, cx, cz, radius, count, minH, clearings, sampleHeight, out) {
-  const maxTries = count * 6 + 256;
-  let placed = 0;
-  for (let t = 0; t < maxTries && placed < count; t++) {
-    const a = rng() * TAU;
-    const r = radius * Math.sqrt(rng());
-    const x = cx + Math.cos(a) * r;
-    const z = cz + Math.sin(a) * r;
-
-    let blocked = false;
-    for (let i = 0; i < clearings.length; i += 3) {
-      const dx = x - clearings[i], dz = z - clearings[i + 1];
-      const cr = clearings[i + 2];
-      if (dx * dx + dz * dz < cr * cr) { blocked = true; break; }
-    }
-    if (blocked) continue;
-
-    const h = sampleHeight(x, z);
-    if (h <= minH) continue;
-    const e = 1.2;
-    const gx = (sampleHeight(x + e, z) - h) / e;
-    const gz = (sampleHeight(x, z + e) - h) / e;
-    if (1 / Math.sqrt(gx * gx + 1 + gz * gz) < MAX_SLOPE_NY) continue;
-
-    out.push({ x, y: h, z, a: rng(), b: rng(), c: rng() });
-    placed++;
-  }
-  return placed;
-}
-
-/**
- * Build one InstancedMesh per non-empty world sector so the frustum can throw
- * most of the vegetation away. three's Frustum.intersectsObject calls
- * InstancedMesh.computeBoundingSphere() for us, so sectoring is all it takes.
- */
-function sectorise(items, sectors) {
-  const buckets = new Map();
-  const cell = WORLD.SIZE / sectors;
-  for (const it of items) {
-    const sx = Math.min(sectors - 1, Math.max(0, Math.floor((it.x + WORLD.HALF) / cell)));
-    const sz = Math.min(sectors - 1, Math.max(0, Math.floor((it.z + WORLD.HALF) / cell)));
-    const key = sz * sectors + sx;
-    let b = buckets.get(key);
-    if (!b) { b = []; buckets.set(key, b); }
-    b.push(it);
-  }
-  return [...buckets.values()];
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // createProps
 // ═══════════════════════════════════════════════════════════════════════
@@ -793,29 +504,44 @@ export function createProps(heightfield, opts = {}) {
   const track = (geo) => { geometries.push(geo); return geo; };
   const trackMat = (m) => { materials.push(m); return m; };
 
-  // ── Materials (8 total; every repeated shape shares one) ──
+  // ── Materials (every repeated shape shares one) ──
   const structMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
-  const treeMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
-  const plantMat = trackMat(toonMaterial(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
   const pickupMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
-  const auraMat = trackMat(new THREE.MeshBasicMaterial({
+  // The glowing arch page and the pickup ground-glow used to share one
+  // material. They are split now because only the disc carries UVs, and an
+  // alphaMap on a geometry without them would sample one corner texel and
+  // silently erase the portal glow. Separate meshes already, so the split
+  // costs zero draw calls.
+  const pageMat = trackMat(new THREE.MeshBasicMaterial({
     vertexColors: true, transparent: true, depthWrite: false,
     side: THREE.DoubleSide, fog: true,
+  }));
+  const discMat = trackMat(new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, depthWrite: false,
+    side: THREE.DoubleSide, fog: true,
+    alphaMap: deckleDisc(),          // shared instance — never disposed here
   }));
   const bannerMat = trackMat(new THREE.MeshBasicMaterial({
     transparent: false, side: THREE.FrontSide, fog: true,
   }));
 
-  patchWind(treeMat, { base: 1.4, span: 3.2, amp: 0.22, lean: 0.5, speed: 0.42 });
-  patchWind(plantMat, { base: 0.0, span: 0.42, amp: 0.10, lean: 0.6, speed: 0.62 });
-  patchPulse(auraMat, { amp: 0.26, speed: 1.0 });
+  patchPulse(pageMat, { amp: 0.26, speed: 1.0 });
+  patchPulse(discMat, { amp: 0.26, speed: 1.0 });
   patchBanner(bannerMat);
 
-  // Trees sway in the shadow map too, or the canopy shadow tears off the tree.
-  const treeDepthMat = trackMat(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }));
-  patchWind(treeDepthMat, { base: 1.4, span: 3.2, amp: 0.22, lean: 0.5, speed: 0.42 });
-
-  const biomeById = new Map(BIOMES.map((b) => [b.id, b]));
+  // ── Paper surface (chains onto the wind/pulse patches above) ──
+  // Scales are per-object-class, in world metres per texture tile, chosen so
+  // the fibre reads at the size the thing actually is: a 9 m gate wants a
+  // coarser weave than a 0.4 m coin or the grain becomes invisible on one and
+  // a pattern on the other.
+  //
+  // Space is the load-bearing choice. Landmarks are static, so WORLD space
+  // gives every gate and every building its own patch of paper for free.
+  // Anything that moves — a tree in the wind, a spinning coin, a swaying blade
+  // — takes LOCAL space, because world-space grain on a moving surface crawls
+  // across it, which is the one way this effect can look wrong.
+  applyPapercut(structMat, { grain: 0.10, normal: 0.14, roughnessLike: 0.22, scale: 1.6, space: 'world' });
+  applyPapercut(pickupMat, { grain: 0.07, normal: 0.09, roughnessLike: 0.16, scale: 0.42, space: 'local' });
 
   // ── Clearings, filled as landmarks are placed ──
   const treeClear = [], plantClear = [];
@@ -848,7 +574,7 @@ export function createProps(heightfield, opts = {}) {
   const nP = portalEntries.length;
   const archStone = new THREE.InstancedMesh(track(buildArchStone()), structMat, nP);
   const archTrim = new THREE.InstancedMesh(track(buildArchTrim()), structMat, nP);
-  const archPage = new THREE.InstancedMesh(track(buildArchPage()), auraMat, nP);
+  const archPage = new THREE.InstancedMesh(track(buildArchPage()), pageMat, nP);
   const banners = atlas
     ? new THREE.InstancedMesh(track(buildBannerGeo(atlas.cols, atlas.rows)), bannerMat, nP)
     : null;
@@ -961,163 +687,22 @@ export function createProps(heightfield, opts = {}) {
   // pass by leaving material.color white; nothing else is needed.
 
   // ═══ 3. VEGETATION ═══
-  const treeGeos = {};
-  const treeItems = {};
-  for (const name of Object.keys(TREE_SPECIES)) {
-    treeGeos[name] = track(buildTree(TREE_SPECIES[name]));
-    treeItems[name] = [];
-  }
-  const grassItems = [];
-  const flowerItems = [];
-
-  const rng = makeRng(seed ^ 0x5eed17);
-
-  for (const biome of BIOMES) {
-    const flora = BIOME_FLORA[biome.id];
-    if (!flora) continue;
-    const [cx, cz] = biome.center;
-    const R = biome.radius;
-
-    // --- trees ---
-    const nTrees = Math.round(flora.trees * density);
-    const raw = [];
-    if (flora.formal) {
-      // Palace: a formal avenue — evenly spaced rings, tiny jitter. Order and
-      // rhythm are the read here, not scatter.
-      const rings = [R * 0.55, R * 0.82];
-      let made = 0;
-      for (let ri = 0; ri < rings.length && made < nTrees; ri++) {
-        const per = Math.ceil(nTrees / rings.length);
-        for (let k = 0; k < per && made < nTrees; k++) {
-          const a = (k / per) * TAU + ri * 0.32;
-          const x = cx + Math.cos(a) * rings[ri] + (rng() - 0.5) * 3;
-          const z = cz + Math.sin(a) * rings[ri] + (rng() - 0.5) * 3;
-          const h = sampleHeight(x, z);
-          if (h <= TREE_MIN_H) continue;
-          // Same slope gate as scatter(): the palace flanks are the steepest
-          // ground on the island and a formal ring must not walk up a cliff.
-          const e = 1.2;
-          const gx = (sampleHeight(x + e, z) - h) / e;
-          const gz = (sampleHeight(x, z + e) - h) / e;
-          if (1 / Math.sqrt(gx * gx + 1 + gz * gz) < MAX_SLOPE_NY) continue;
-          let blocked = false;
-          for (let i = 0; i < treeClear.length; i += 3) {
-            const dx = x - treeClear[i], dz = z - treeClear[i + 1];
-            if (dx * dx + dz * dz < treeClear[i + 2] * treeClear[i + 2]) { blocked = true; break; }
-          }
-          if (blocked) continue;
-          raw.push({ x, y: h, z, a: rng(), b: rng(), c: rng() });
-          made++;
-        }
-      }
-    } else {
-      scatter(rng, cx, cz, R * 0.94, nTrees, TREE_MIN_H, treeClear, sampleHeight, raw);
-    }
-    for (const it of raw) {
-      const sp = flora.species[Math.floor(it.a * flora.species.length) % flora.species.length];
-      treeItems[sp].push(it);
-    }
-
-    // --- grass + flowers ---
-    const gStart = grassItems.length;
-    scatter(rng, cx, cz, R, Math.round(flora.grass * density), PLANT_MIN_H, plantClear, sampleHeight, grassItems);
-    for (let i = gStart; i < grassItems.length; i++) grassItems[i].tint = flora.grassTint;
-
-    const fStart = flowerItems.length;
-    scatter(rng, cx, cz, R, Math.round(flora.flowers * density), PLANT_MIN_H, plantClear, sampleHeight, flowerItems);
-    for (let i = fStart; i < flowerItems.length; i++) {
-      flowerItems[i].tint = flora.petals[Math.floor(flowerItems[i].b * flora.petals.length) % flora.petals.length];
-    }
-  }
-
-  const vegMeshes = [];
-  // Trunk footprints handed to the collision world. Only the trunk, only the
-  // realised (post-rejection) instances, and radius scales with the instance
-  // — a canopy is not a wall, and this is a kids' game.
-  const trees = [];
-  let treeCount = 0;
-  for (const name of Object.keys(treeGeos)) {
-    const items = treeItems[name];
-    if (!items.length) continue;   // geometry is already tracked for dispose()
-    const trunkR = TREE_SPECIES[name].trunkR[0];
-    const im = new THREE.InstancedMesh(treeGeos[name], treeMat, items.length);
-    im.name = `trees-${name}`;
-    items.forEach((it, i) => {
-      const s = 0.80 + it.b * 0.55;
-      trees.push({ x: it.x, y: it.y, z: it.z, r: trunkR * s });
-      _q4.setFromAxisAngle(AXIS_Y, it.a * TAU);
-      _v3.set(it.x, it.y - 0.15, it.z);
-      _s3.set(s, s * (0.92 + it.c * 0.22), s);
-      _m4.compose(_v3, _q4, _s3);
-      im.setMatrixAt(i, _m4);
-      // Near-neutral tone jitter only: instanceColor multiplies the WHOLE
-      // tree, so anything hue-shifted would drag the trunk with it.
-      const tone = 0.90 + it.c * 0.14;
-      im.setColorAt(i, _col.setRGB(tone, tone, tone, THREE.LinearSRGBColorSpace));
-    });
-    _s3.set(1, 1, 1);
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-    im.castShadow = castShadow;
-    im.receiveShadow = true;
-    if (castShadow) im.customDepthMaterial = treeDepthMat;
-    group.add(im);
-    vegMeshes.push(im);
-    treeCount += items.length;
-  }
-
-  const grassGeo = track(buildGrassTuft());
-  const grassSectors = sectorise(grassItems, GRASS_SECTORS);
-  for (const bucket of grassSectors) {
-    const im = new THREE.InstancedMesh(grassGeo, plantMat, bucket.length);
-    im.name = 'grass';
-    bucket.forEach((it, i) => {
-      const s = 0.75 + it.b * 0.75;
-      _q4.setFromAxisAngle(AXIS_Y, it.a * TAU);
-      _v3.set(it.x, it.y - 0.02, it.z);
-      _s3.set(s, s * (0.85 + it.c * 0.5), s);
-      _m4.compose(_v3, _q4, _s3);
-      im.setMatrixAt(i, _m4);
-      im.setColorAt(i, mixHex(it.tint, PAPER.sageD, it.c * 0.30).multiplyScalar(0.92 + it.b * 0.16));
-    });
-    _s3.set(1, 1, 1);
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-    im.castShadow = false;
-    im.receiveShadow = false;
-    group.add(im);
-    vegMeshes.push(im);
-  }
-
-  const flowerGeo = track(buildFlower());
-  const flowerSectors = sectorise(flowerItems, FLOWER_SECTORS);
-  for (const bucket of flowerSectors) {
-    const im = new THREE.InstancedMesh(flowerGeo, plantMat, bucket.length);
-    im.name = 'flowers';
-    bucket.forEach((it, i) => {
-      const s = 0.80 + it.c * 0.55;
-      _q4.setFromAxisAngle(AXIS_Y, it.a * TAU);
-      _v3.set(it.x, it.y - 0.02, it.z);
-      _s3.set(s, s, s);
-      _m4.compose(_v3, _q4, _s3);
-      im.setMatrixAt(i, _m4);
-      im.setColorAt(i, _col.setHex(it.tint, THREE.SRGBColorSpace).multiplyScalar(0.94 + it.a * 0.12));
-    });
-    _s3.set(1, 1, 1);
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-    im.castShadow = false;
-    im.receiveShadow = false;
-    group.add(im);
-    vegMeshes.push(im);
-  }
+  // Ground cover, trees and the hero set-pieces live in ./vegetation.js — see
+  // that module for why they need a cached height grid, a clustered scatter and
+  // a per-sector distance LOD that nothing else on the island does. All this
+  // module owes them is the clearing list it just finished filling in.
+  const veg = createVegetation(heightfield, {
+    seed, density, castShadow, treeClear, plantClear,
+  });
+  group.add(veg.group);
+  const trees = veg.trees;
 
   // ═══ 4. COLLECTIBLES ═══
   const golds = COLLECTIBLES.filter((c) => c.kind === 'gold');
   const potionsSpec = COLLECTIBLES.filter((c) => c.kind !== 'gold');
   const coinMesh = golds.length ? new THREE.InstancedMesh(track(buildCoin()), pickupMat, golds.length) : null;
   const potionMesh = potionsSpec.length ? new THREE.InstancedMesh(track(buildPotion()), pickupMat, potionsSpec.length) : null;
-  const auraMesh = new THREE.InstancedMesh(track(buildAuraDisc()), auraMat, COLLECTIBLES.length);
+  const auraMesh = new THREE.InstancedMesh(track(buildAuraDisc()), discMat, COLLECTIBLES.length);
   if (coinMesh) coinMesh.name = 'pickup-coin';
   if (potionMesh) potionMesh.name = 'pickup-potion';
   auraMesh.name = 'pickup-aura';
@@ -1183,6 +768,7 @@ export function createProps(heightfield, opts = {}) {
 
   function update(simTime, playerPos) {
     WIND.value = simTime;
+    veg.update(simTime, playerPos);
     const px = playerPos ? (playerPos.x ?? 0) : 0;
     const pz = playerPos ? (playerPos.z ?? 0) : 0;
     let coinDirty = false, potionDirty = false;
@@ -1208,28 +794,32 @@ export function createProps(heightfield, opts = {}) {
   }
 
   // ── stats ───────────────────────────────────────────────────────────
-  const shadowCalls = castShadow ? (2 + buildingMeshes.length + Object.keys(treeItems).filter((k) => treeItems[k].length).length) : 0;
-  const colorCalls = 3 + (banners ? 1 : 0) + buildingMeshes.length + vegMeshes.length
+  // Landmark calls are exact (these meshes are always resident). Vegetation
+  // reports its own worst case — every ground-cover sector inside the LOD cull
+  // radius, nothing frustum-culled — which is roughly twice what a real frame
+  // pays.
+  const shadowCalls = castShadow ? (2 + buildingMeshes.length) : 0;
+  const colorCalls = 3 + (banners ? 1 : 0) + buildingMeshes.length
     + (coinMesh ? 1 : 0) + (potionMesh ? 1 : 0) + 1;
   const stats = {
     portals: portals.length,
     buildings: buildingMeshes.length,
-    trees: treeCount,
-    treesBySpecies: Object.fromEntries(Object.entries(treeItems).map(([k, v]) => [k, v.length])),
-    grass: grassItems.length,
-    flowers: flowerItems.length,
-    groundCover: grassItems.length + flowerItems.length,
     coins: golds.length,
     potions: potionsSpec.length,
-    grassSectors: grassSectors.length,
-    flowerSectors: flowerSectors.length,
-    drawCalls: colorCalls + shadowCalls,
-    colorPassCalls: colorCalls,
-    shadowPassCalls: shadowCalls,
-    materials: materials.length,
+    vegetation: veg.stats,
+    trees: veg.stats.trees,
+    treesBySpecies: veg.stats.treesBySpecies,
+    groundCover: veg.stats.groundCover,
+    groundCoverByArchetype: veg.stats.groundCoverByArchetype,
+    petals: veg.stats.petals,
+    drawCalls: colorCalls + shadowCalls + veg.stats.drawCalls,
+    colorPassCalls: colorCalls + veg.stats.colorPassCalls,
+    shadowPassCalls: shadowCalls + veg.stats.shadowPassCalls,
+    materials: materials.length + veg.stats.materials,
   };
 
   function dispose() {
+    veg.dispose();
     for (const geo of geometries) geo.dispose();
     geometries.length = 0;
     for (const m of materials) m.dispose();

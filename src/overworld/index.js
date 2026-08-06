@@ -35,7 +35,8 @@
  */
 import * as THREE from 'three';
 import { createRenderer } from './renderer.js';
-import { toonMaterial, paperColor, PAPER } from './materials/toon.js';
+import { papercutMaterial, paperColor, PAPER } from './materials/toon.js';
+import { deckleDisc, preloadPaperTextures, textureStats, disposePaperTextures } from './materials/textures.js';
 import { WORLD, SPAWN } from './worldSpec.js';
 import { createHeightfield } from './heightfield.js';
 import { createCollisionWorld } from './collision.js';
@@ -88,6 +89,13 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     onContextRestored: () => hooks.onContextRestored?.(),
   });
   const { renderer } = rig;
+
+  // ── Shared paper surfaces ──────────────────────────────────────────────
+  // Generated once, up front, before any material asks for one: the fibre and
+  // tooth fields cost ~40 ms of CPU and are handed to a dozen materials by
+  // reference, so paying for them here keeps the cost off whichever subsystem
+  // happens to be built first.
+  preloadPaperTextures();
 
   // ── World logic ────────────────────────────────────────────────────────
   const heightfield = createHeightfield(WORLD.SEED);
@@ -164,7 +172,12 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   const heroMats = [];
   const addHeroPart = (geo, colorInt, y) => {
     heroGeos.push(geo);
-    const mat = toonMaterial(colorInt);
+    // Local space and a small tile: the hero is always the closest thing to
+    // the camera, so this is where paper grain is most visible — and world
+    // space would slide the grain over him as he runs.
+    const mat = papercutMaterial(colorInt, {
+      grain: 0.075, normal: 0.10, roughnessLike: 0.17, scale: 0.45, space: 'local',
+    });
     heroMats.push(mat);
     const m = new THREE.Mesh(geo, mat);
     m.position.y = y;
@@ -177,10 +190,14 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   addHeroPart(new THREE.CylinderGeometry(0.36, 0.36, 0.13, 10), PAPER.gold, 1.19);
   addHeroPart(new THREE.SphereGeometry(0.30, 12, 10), PAPER.peach, 1.45);
   addHeroPart(new THREE.ConeGeometry(0.38, 0.34, 9), PAPER.coral, 1.76);
-  // Grounding disc: teal-tinted, never a black blob (papercut law).
-  const blobGeo = new THREE.CircleGeometry(0.52, 18);
+  // Grounding disc: teal-tinted, never a black blob (papercut law), and cut
+  // with the deckle mask so the one shape that follows the hero everywhere is
+  // a torn scrap of shadow-paper rather than a perfect vector circle.
+  // CircleGeometry already carries the UVs the alphaMap needs.
+  const blobGeo = new THREE.CircleGeometry(0.56, 20);
   const blobMat = new THREE.MeshBasicMaterial({
-    color: paperColor(PAPER.shadow), transparent: true, opacity: 0.22, depthWrite: false, fog: true,
+    color: paperColor(PAPER.shadow), transparent: true, opacity: 0.24, depthWrite: false, fog: true,
+    alphaMap: deckleDisc(),
   });
   heroGeos.push(blobGeo);
   heroMats.push(blobMat);
@@ -453,6 +470,9 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
         terrain: { chunks: terrain.chunkCount, triangles: terrain.triangleCount },
         props: props.stats,
         colliders: props.trees.length + props.buildings.length + props.portals.length * 2,
+        // Live, not the boot snapshot: a critique run wants to know what is
+        // actually resident, including anything generated after boot.
+        textures: textureStats(),
       };
     },
   };
@@ -502,6 +522,11 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       heroGeos.length = 0;
       heroMats.length = 0;
       hero.clear();
+      // Shared textures are owned here, not by the subsystems that borrow
+      // them, so they are released exactly once — after every material that
+      // referenced them is already gone. The cache repopulates on demand, so a
+      // second createOverworld() boots clean.
+      disposePaperTextures();
       pending.length = 0;
       if (typeof window !== 'undefined' && window.__MW_OVERWORLD === api) delete window.__MW_OVERWORLD;
     },

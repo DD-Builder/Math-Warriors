@@ -1,0 +1,1417 @@
+/**
+ * The living half of the island: ground cover, trees, hero set-pieces.
+ *
+ * Split out of props.js because vegetation is the only subsystem whose budget
+ * is measured in HUNDREDS OF THOUSANDS of instances rather than in dozens of
+ * objects, and it needs its own machinery to survive that: a cached height
+ * grid, a clustered scatter, a per-sector distance LOD and a layered wind. The
+ * gates, buildings and pickups next door have none of those problems.
+ *
+ * ── WHY ~90 k ground-cover items instead of ~18 k ────────────────────────
+ * A field of grass reads as a field only when the blades OVERLAP. Below about
+ * one item per square metre the eye resolves individual sprites standing on
+ * bare paint and the whole island looks like a prototype. So the island is
+ * seeded at ~1.2 items/m² of habitable ground and the cost is paid back at
+ * DRAW time, not at build time:
+ *
+ *   SECTORS   every archetype is bucketed into a 60 m world grid, so three's
+ *             frustum test throws away everything behind the camera for free
+ *             (one bounding sphere per sector, computed once at build).
+ *   PREFIX    each sector's instances are SHUFFLED at build, which makes any
+ *             prefix of the buffer a uniform random subset of the sector. So
+ *             thinning a distant sector to 10 % costs one integer write to
+ *             `mesh.count` — no re-upload, no re-sort, no allocation.
+ *   CULL      past 112 m a sector is simply hidden. The fog wall is at ~120 m
+ *             at the default time of day and a 0.4 m blade is sub-pixel long
+ *             before that.
+ *
+ * Net: ~90 k instances resident, ~20-30 k rasterised, and the number of draw
+ * calls a frame actually issues is the number of sectors in the frustum — a
+ * few dozen — not the number of instances.
+ *
+ * ── WHY clustered scatter instead of uniform ─────────────────────────────
+ * Uniform rejection sampling produces the one thing nature never does: even
+ * spacing. Real ground cover is groves and glades. Every field here is drawn
+ * from a mixture — ~75 % of samples fall inside one of a handful of blob
+ * "clusters", the rest are uniform — and a set of "glade" discs punch clearings
+ * back out. Trees additionally run a min-distance rejection through a spatial
+ * hash, so a grove is dense but never interpenetrating. The result has
+ * texture at every scale: thickets, meadows, and lone trees on open ground.
+ *
+ * ── WHY the colour varies with the ground, not just the biome ────────────
+ * Ground cover that ignores what it grows on is stickers on a map. Each item's
+ * tint is: the biome's two greens blended by a low-frequency patch noise (so
+ * the field mottles), pulled toward SAND near the waterline (drier, sandier
+ * beaches — the same cue terrainMesh.js paints the ground with, so the two
+ * agree), pulled toward pale cream on steep ground (thin, dry soil), then
+ * jittered per instance. Near the shore the SPECIES change too, not just the
+ * hue: ferns and clover give way to reeds and pebbles.
+ *
+ * ── WHY the wind is three layers ─────────────────────────────────────────
+ * One sine is a jitter. Grass reads as WIND when a large-scale gust front
+ * travels across the island and the field ripples in bands as it passes. So
+ * every plant material sums:
+ *
+ *   gust     a plane wave in world XZ (wavelength ~60 m) travelling at a few
+ *            m/s, squared so the field is mostly calm with sharp pulses;
+ *   sway     two incommensurate sines phased by a hash of the instance origin
+ *            — the body of the motion, never in unison, never repeating;
+ *   flutter  a fast small sine on a different phase multiplier — the leaf-edge
+ *            chatter that sells scale.
+ *
+ * All three ride a (height above base)² weight so roots stay planted. Cost:
+ * ~10 ALU in the vertex shader, zero CPU, zero allocation.
+ *
+ * Constraints honoured: three r170 package only, no post-processing, no
+ * depth-texture reads, no fwidth/derivative tricks (the screenshot harness is
+ * software GL and must match the device), InstancedMesh for everything
+ * repeated, zero allocation in update(), every colour resolves from PAPER,
+ * shadows come from the shared teal-tinted toon ramp — never black, never
+ * grey, no outlines. Everything created here is released by dispose().
+ */
+import * as THREE from 'three';
+import { WORLD, BIOMES } from './worldSpec.js';
+import { toonMaterial, applyPapercut, PAPER } from './materials/toon.js';
+import { g, lin, mixHex, shade, trs, sink, stamp, tri, bake } from './geobuild.js';
+import { makeRng } from '../systems/rng.js';
+
+const TAU = Math.PI * 2;
+const AXIS_Y = new THREE.Vector3(0, 1, 0);
+
+// ── Placement gates ─────────────────────────────────────────────────────
+export const PLANT_MIN_H = WORLD.WATER_Y + 0.26;   // never on water (spec)
+export const TREE_MIN_H = WORLD.WATER_Y + 0.9;
+const MAX_SLOPE_NY = Math.cos(42 * Math.PI / 180);  // ground cover: ~0.743
+const TREE_SLOPE_NY = Math.cos(34 * Math.PI / 180); // trees: ~0.829, no cliffs
+const TREE_MIN_GAP = 2.9;      // metres between trunks inside a grove
+
+// ── Ground-cover sectors + distance LOD ─────────────────────────────────
+// 60 m cells: big enough that a frame only ever touches ~20 of them, small
+// enough that the LOD step between neighbouring cells is invisible.
+// 72 m cells: the LOD is graded by distance to the CELL, so smaller cells
+// grade more finely — but every extra cell is another draw call, and the call
+// budget is the binding constraint. 72 m is where the two curves cross for a
+// 480 m island: ~30 land cells, ~12 of them inside the cull radius at once.
+const COVER_CELL = 72;
+const COVER_CELLS = Math.max(1, Math.round(WORLD.SIZE / COVER_CELL));
+const LOD_FULL = 30;     // <= this: every instance in the sector draws
+const LOD_MID = 60;
+const LOD_CULL = 112;    // > this: the sector is hidden outright
+const LOD_MID_F = 0.42;
+const LOD_FAR_F = 0.10;
+
+// Height cache. sampleHeight is ~40 flops of noise; the scatter rejects far
+// more candidates than it keeps, so every REJECTION is served from a 2 m
+// bilinear grid (58 k samples, built once) and only ACCEPTED points pay for an
+// exact evaluation. That is the difference between a 0.4 s and a 3 s build.
+const GRID_STEP = 2;
+
+// ── Wind ────────────────────────────────────────────────────────────────
+// Shared clock object handed to every patched shader's uniform map, so
+// update() writes exactly one number per frame.
+const WIND = { value: 0 };
+// Prevailing wind bearing. Gust fronts travel along it; every material uses
+// the same one, so trees, grass and petals lean together.
+const GUST_DIR = [Math.cos(0.62), Math.sin(0.62)];
+
+// ── Small helpers ───────────────────────────────────────────────────────
+
+function smoothstep(a, b, t) {
+  const u = Math.min(1, Math.max(0, (t - a) / (b - a)));
+  return u * u * (3 - 2 * u);
+}
+
+/** Integer lattice hash -> [0,1). Local copy: the heightfield's is private and
+ *  its noise stream must not be perturbed. */
+function hash2(ix, iz, seed) {
+  let h = (Math.imul(ix, 0x27d4eb2d) ^ Math.imul(iz, 0x165667b1) ^ Math.imul(seed, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/** Bilinear value noise -> [0,1). Used only for tonal patch mottling. */
+function patchNoise(x, z, seed) {
+  const ix = Math.floor(x), iz = Math.floor(z);
+  const fx = x - ix, fz = z - iz;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uz = fz * fz * (3 - 2 * fz);
+  const a = hash2(ix, iz, seed);
+  const b = hash2(ix + 1, iz, seed);
+  const c = hash2(ix, iz + 1, seed);
+  const d = hash2(ix + 1, iz + 1, seed);
+  return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Shader patches
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Layered plant wind: travelling gust front x rhythmic sway x fast flutter.
+ * See the module header for why all three exist. `base`/`span` define the
+ * height window over which the (squared) weight ramps from planted root to
+ * fully mobile tip.
+ *
+ * `mwSeed` is the instance's world XZ (instanceMatrix column 3) — vegetation
+ * is placed in world coordinates under a group at the origin, so it doubles as
+ * both the per-instance phase hash AND the position the gust wave is sampled
+ * at. That is what makes the ripple travel across the field instead of every
+ * blade pulsing in place.
+ */
+function patchPlantWind(material, o) {
+  const {
+    base, span, amp, lean = 0.55, speed = 0.55,
+    flutter = 0.2, flutterSpeed = 3.2,
+    gust = 0.55, gustLen = 60, gustSpeed = 9,
+  } = o;
+  const k = TAU / gustLen;
+  const calm = 1 - gust;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uWindTime = WIND;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWindTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+  #ifdef USE_INSTANCING
+    vec2 mwSeed = instanceMatrix[3].xz;
+  #else
+    vec2 mwSeed = vec2( 0.0 );
+  #endif
+  float mwW = clamp( ( transformed.y - ${g(base)} ) / ${g(span)}, 0.0, 1.0 );
+  mwW *= mwW;
+  float mwPh = dot( mwSeed, vec2( 0.21, 0.13 ) );
+  float mwG = sin( ( dot( mwSeed, vec2( ${g(GUST_DIR[0])}, ${g(GUST_DIR[1])} ) )
+                     - uWindTime * ${g(gustSpeed)} ) * ${g(k)} ) * 0.5 + 0.5;
+  mwG = ${g(calm)} + ${g(gust)} * mwG * mwG;
+  float mwS = sin( uWindTime * ${g(speed)} + mwPh ) * 0.68
+            + sin( uWindTime * ${g(speed * 0.41)} + mwPh * 1.7 + 1.3 ) * 0.32;
+  float mwF = sin( uWindTime * ${g(flutterSpeed)} + mwPh * 4.7 ) * ${g(flutter)};
+  float mwA = ( mwS + mwF ) * mwG;
+  transformed.x += mwA * ${g(amp)} * mwW;
+  transformed.z += mwA * ${g(amp * lean)} * mwW;`);
+  };
+  material.customProgramCacheKey = () =>
+    `mw-wind2|${base}|${span}|${amp}|${lean}|${speed}|${flutter}|${flutterSpeed}|${gust}|${gustLen}|${gustSpeed}`;
+}
+
+/**
+ * Falling blossom petals, entirely in the vertex shader.
+ *
+ * Each instance is a PARKED COLUMN: its matrix puts it on the ground somewhere
+ * under a hero tree, and the shader lifts it to `top` and lets it fall on a
+ * loop whose phase is a linear hash of that world position. `transformed` is
+ * scaled by a fade window first (the petal shrinks to nothing at both ends of
+ * the loop, so nothing ever pops), then swirled, then dropped.
+ *
+ * The phase hash is a plain dot product, NOT the usual `fract(sin(dot(…)) *
+ * 43758.5)`: that idiom's result depends on the precision of `sin` at huge
+ * arguments, which differs between the software GL the screenshot harness runs
+ * and a real mobile GPU. A linear hash over coordinates bounded by ±240 is
+ * exactly reproducible on both.
+ */
+function patchPetalFall(material, { top = 6, spread = 1.4, fall = 0.055, swirl = 1.3 }) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uWindTime = WIND;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWindTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+  #ifdef USE_INSTANCING
+    vec2 mwSeed = instanceMatrix[3].xz;
+  #else
+    vec2 mwSeed = vec2( 0.0 );
+  #endif
+  float mwH = fract( dot( mwSeed, vec2( 0.1031, 0.11369 ) ) );
+  float mwK = fract( mwH + uWindTime * ${g(fall)} );
+  float mwFade = smoothstep( 0.0, 0.12, mwK ) * smoothstep( 1.0, 0.86, mwK );
+  float mwSw = uWindTime * ${g(swirl)} + mwH * 37.0;
+  transformed *= mwFade;
+  transformed.xz += vec2( sin( mwSw ), cos( mwSw * 0.83 ) ) * ${g(spread)} * ( 1.0 - mwK );
+  transformed.y += ${g(top)} * ( 1.0 - mwK );`);
+  };
+  material.customProgramCacheKey = () => `mw-petalfall|${top}|${spread}|${fall}|${swirl}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Height grid
+// ═══════════════════════════════════════════════════════════════════════
+
+let _gx = 0, _gz = 0;   // gradient written by gridAt (build-time only)
+
+function makeHeightGrid(sampleHeight) {
+  const n = Math.round(WORLD.SIZE / GRID_STEP) + 1;
+  const h = new Float32Array(n * n);
+  for (let j = 0; j < n; j++) {
+    const z = -WORLD.HALF + j * GRID_STEP;
+    for (let i = 0; i < n; i++) {
+      h[j * n + i] = sampleHeight(-WORLD.HALF + i * GRID_STEP, z);
+    }
+  }
+  return { n, h };
+}
+
+/** Bilinear height at (x,z); also writes the local gradient to _gx/_gz. */
+function gridAt(G, x, z) {
+  const n = G.n;
+  const fx = (x + WORLD.HALF) / GRID_STEP;
+  const fz = (z + WORLD.HALF) / GRID_STEP;
+  let i = Math.floor(fx), j = Math.floor(fz);
+  if (i < 0) i = 0; else if (i > n - 2) i = n - 2;
+  if (j < 0) j = 0; else if (j > n - 2) j = n - 2;
+  const tx = Math.min(1, Math.max(0, fx - i));
+  const tz = Math.min(1, Math.max(0, fz - j));
+  const a = G.h[j * n + i], b = G.h[j * n + i + 1];
+  const c = G.h[(j + 1) * n + i], d = G.h[(j + 1) * n + i + 1];
+  const ab = a + (b - a) * tx;
+  const cd = c + (d - c) * tx;
+  _gx = ((b - a) + ((d - c) - (b - a)) * tz) / GRID_STEP;
+  _gz = (cd - ab) / GRID_STEP;
+  return ab + (cd - ab) * tz;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Ground-cover archetypes
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Relative layer shades only: instanceColor carries the hue, the vertex colour
+// carries the ply. Root plies are dark so a tuft has its own contact shadow
+// without costing a shadow-map draw; tips run slightly over 1.0 so a lit blade
+// reads above the ground it stands on.
+
+const ROOT = shade(0.54);
+const MID = shade(0.80);
+const TIP = shade(1.07);
+const DRYTIP = shade(1.14);
+const HEART = [1.0, 0.80, 0.46];   // warm centre of a bloom
+
+/** A tuft of single-triangle blades — the papercut blade IS a triangle. */
+function buildBladeTuft({ blades, h, hVar, w, lean, tip = TIP, phase = 0.55 }) {
+  const s = sink();
+  for (let k = 0; k < blades; k++) {
+    const a = (k / blades) * TAU + phase;
+    const ln = lean * (0.68 + (k % 3) * 0.24);
+    const hh = h * (1 + ((k % 3) - 1) * hVar);
+    const dx = Math.sin(a), dz = Math.cos(a);
+    const nx = dx * 0.42, nz = dz * 0.42;
+    const inv = 1 / Math.hypot(nx, 0.9, nz);
+    tri(s,
+      [-dz * w, 0, dx * w],
+      [dz * w, 0, -dx * w],
+      [dx * ln, hh, dz * ln],
+      [nx * inv, 0.9 * inv, nz * inv], ROOT, ROOT, tip);
+  }
+  return bake(s);
+}
+
+/**
+ * Ground-hugging clover: four fan leaflets, wide edge outward, wide enough
+ * that neighbouring leaflets nearly meet. This is the archetype that CLOSES
+ * the field — tufts alone leave bare paint between them however many you
+ * scatter, because a tuft is vertical and the gaps are horizontal.
+ */
+function buildCloverGeo() {
+  const s = sink();
+  const L = 0.25, W = 0.17;
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * TAU + 0.4;
+    const dx = Math.sin(a), dz = Math.cos(a);
+    const px = -dz, pz = dx;
+    tri(s,
+      [0, 0.035, 0],
+      [dx * L + px * W, 0.085, dz * L + pz * W],
+      [dx * L - px * W, 0.085, dz * L + -pz * W],
+      [dx * 0.18, 0.98, dz * 0.18], MID, TIP, TIP);
+  }
+  return bake(s);
+}
+
+/** Arching fern frond: leaflets hung alternately off a rising spine curve. */
+function buildFernGeo() {
+  const s = sink();
+  const FRONDS = 2, SEG = 4, R = 0.42, H = 0.52;
+  for (let f = 0; f < FRONDS; f++) {
+    const a = f * 2.45 + 0.7;
+    const dx = Math.sin(a), dz = Math.cos(a);
+    const px = -dz, pz = dx;
+    const sp = (t) => [dx * R * t, 0.06 + H * Math.sin(t * 1.28), dz * R * t];
+    for (let i = 0; i < SEG; i++) {
+      const t0 = i / SEG, t1 = (i + 1) / SEG, tm = (t0 + t1) * 0.5;
+      const w = 0.17 * (1 - tm * 0.62);
+      const side = (i % 2 === 0) ? 1 : -1;
+      const A = sp(t0), B = sp(t1), M = sp(tm);
+      const inv = 1 / Math.hypot(px * side * 0.32, 0.9, pz * side * 0.32);
+      tri(s, A, B,
+        [M[0] + px * w * side, M[1] - 0.02, M[2] + pz * w * side],
+        [px * side * 0.32 * inv, 0.9 * inv, pz * side * 0.32 * inv],
+        MID, TIP, TIP);
+    }
+  }
+  return bake(s);
+}
+
+/** Small bush: three crossed plies, each a lower body and a lighter crown. */
+function buildShrubGeo() {
+  const s = sink();
+  const H = 0.78, W = 0.40;
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI + 0.3;
+    const dx = Math.cos(a), dz = Math.sin(a);
+    const nrm = [dz * 0.3, 0.94, -dx * 0.3];
+    tri(s, [-dx * W, 0.02, -dz * W], [dx * W, 0.02, dz * W], [0, H, 0], nrm, ROOT, ROOT, MID);
+    tri(s, [-dx * W * 0.6, H * 0.5, -dz * W * 0.6], [dx * W * 0.6, H * 0.5, dz * W * 0.6],
+      [0, H * 1.16, 0], nrm, MID, MID, TIP);
+  }
+  return bake(s);
+}
+
+/** Two faceted paper stones. Open cones: four triangles each, no wasted base. */
+function buildPebbleGeo() {
+  const s = sink();
+  stamp(s, new THREE.ConeGeometry(0.115, 0.13, 4, 1, true),
+    trs(0, 0.05, 0, 0.14, 0.6, 0, 1, 0.72, 1.15), shade(1.0));
+  stamp(s, new THREE.ConeGeometry(0.075, 0.10, 4, 1, true),
+    trs(0.135, 0.035, -0.085, -0.1, 1.9, 0.08, 1.1, 0.7, 1), shade(0.84));
+  return bake(s);
+}
+
+/**
+ * Fallen petals: three scraps propped at a slight angle rather than lying
+ * dead flat. A perfectly flat triangle is invisible from a standing camera and
+ * reads as a stray dash at a grazing one; a 25-degree prop gives each scrap a
+ * lit face and a soft edge, which is what a petal on grass actually looks like.
+ */
+function buildFallenPetalGeo() {
+  const s = sink();
+  for (let k = 0; k < 3; k++) {
+    const a = k * 2.2 + 0.4;
+    const ox = Math.cos(a) * 0.10, oz = Math.sin(a) * 0.10;
+    const b = a * 1.7, r = 0.085;
+    const tilt = 0.42;                       // radians of prop
+    const lx = Math.cos(b), lz = Math.sin(b);   // hinge axis of this scrap
+    const pt = (ang, lift) => {
+      const px = Math.cos(ang) * r, pz2 = Math.sin(ang) * r;
+      // Height rises with distance from the hinge line, so the scrap tips up.
+      const across = px * -lz + pz2 * lx;
+      return [ox + px, 0.012 + lift + Math.abs(across) * tilt, oz + pz2];
+    };
+    tri(s, pt(b, 0), pt(b + 2.094, 0.004), pt(b + 4.188, 0.002),
+      [-lz * 0.34, 0.94, lx * 0.34], TIP, MID, TIP);
+  }
+  return bake(s);
+}
+
+/**
+ * Five-petal bloom on a short dark stalk, tilted so it catches the lit step.
+ *
+ * Each petal is a QUAD, not a wedge: a wedge running from a single centre
+ * point out to a wide rim is geometrically a pinwheel, and at this scale that
+ * is exactly what the eye calls it. A paddle — narrow inner edge, wide rounded
+ * outer edge, wide enough that neighbours overlap at the rim — reads as a
+ * flower from any angle for one extra triangle.
+ */
+function buildBloomGeo() {
+  const s = sink();
+  const PET = 5, RIN = 0.075, ROUT = 0.235, WI = 0.055, WO = 0.165, Y = 0.23;
+  const up = [0, 0.94, 0.34];
+  tri(s, [-0.017, 0, 0], [0.017, 0, 0], [0, Y, 0], [0, 0.4, 0.92],
+    shade(0.38), shade(0.38), shade(0.5));
+  for (let i = 0; i < PET; i++) {
+    const a = (i / PET) * TAU + 0.3;
+    const dx = Math.cos(a), dz = Math.sin(a);
+    const px = -dz, pz = dx;
+    const inA = [dx * RIN + px * WI, Y + 0.004, dz * RIN + pz * WI];
+    const inB = [dx * RIN - px * WI, Y + 0.004, dz * RIN - pz * WI];
+    const outA = [dx * ROUT + px * WO, Y + 0.016, dz * ROUT + pz * WO];
+    const outB = [dx * ROUT - px * WO, Y + 0.016, dz * ROUT - pz * WO];
+    // The warm heart is painted on the INNER vertices rather than built as a
+    // separate centre disc: the petal bases already meet over the stalk, so a
+    // disc would be three triangles buying a colour we can have for free.
+    tri(s, inA, outA, outB, up, HEART, TIP, TIP);
+    tri(s, inA, outB, inB, up, HEART, TIP, HEART);
+  }
+  const geo = bake(s);
+  geo.rotateX(0.36);
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/** One airborne blossom petal: two triangles with a folded crease. */
+function buildFlyingPetalGeo(topReach) {
+  const s = sink();
+  const L = 0.11, W = 0.062;
+  tri(s, [0, 0, -L * 0.7], [-W, 0.018, L * 0.5], [0, 0, L * 0.5], [0.35, 0.93, 0], TIP, TIP, MID);
+  tri(s, [0, 0, -L * 0.7], [0, 0, L * 0.5], [W, 0.018, L * 0.5], [-0.35, 0.93, 0], TIP, MID, TIP);
+  const geo = bake(s);
+  // The shader lifts each petal up to `topReach` above its parked origin, and
+  // three sizes an InstancedMesh's bounding sphere from the GEOMETRY's. Without
+  // this the whole swarm would be culled the moment the tree's base left the
+  // frustum, which is exactly when the petals are most visible.
+  geo.boundingSphere.center.set(0, topReach * 0.5, 0);
+  geo.boundingSphere.radius = topReach * 0.5 + 2;
+  return geo;
+}
+
+/**
+ * Ground-cover archetype table. `tris` is documentation for the budget review;
+ * `wind` picks which material (and therefore which sway) an archetype rides.
+ */
+export const GROUND_ARCHETYPES = {
+  tuft: { tris: 5, mat: 'plant', build: () => buildBladeTuft({ blades: 5, h: 0.50, hVar: 0.18, w: 0.062, lean: 0.22 }) },
+  reed: { tris: 3, mat: 'plant', build: () => buildBladeTuft({ blades: 3, h: 0.86, hVar: 0.2, w: 0.034, lean: 0.1, tip: DRYTIP, phase: 1.1 }) },
+  clover: { tris: 4, mat: 'plant', build: buildCloverGeo },
+  fern: { tris: 8, mat: 'plant', build: buildFernGeo },
+  shrub: { tris: 6, mat: 'plant', build: buildShrubGeo },
+  bloom: { tris: 11, mat: 'plant', build: buildBloomGeo },
+  petal: { tris: 3, mat: 'plant', build: buildFallenPetalGeo },
+  pebble: { tris: 8, mat: 'rock', build: buildPebbleGeo },
+};
+
+const ARCH_NAMES = Object.keys(GROUND_ARCHETYPES);
+// Archetypes whose instanceColor is a FLOWER hue rather than a foliage green.
+const BLOOM_ARCH = new Set(['bloom', 'petal']);
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tree species
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A tree is a trunk plus stacked flat plies of slightly different greens — the
+// classic papercut tree. Low-sided (7-gon) discs read as hand-cut paper where a
+// smooth cone reads as CG. Species differ by SILHOUETTE, which is the only
+// difference the eye actually registers at 60 m:
+//
+//   broadleaf  round dome        conifer/frostpine  tall narrow spire
+//   blossom    low wide dome     ember              broad warm dome
+//   willow     weeping curtains  umbrella           bare pole, flat parasol
+//
+// Every species then carries a VARIANT table (scale / proportion / tone), and a
+// per-instance continuous jitter rides on top of that, so neighbouring trees of
+// the same species never present the same outline.
+
+/** @returns {THREE.Matrix4} a transform whose local +Y leans `tilt` toward bearing `dir`. */
+function leanM(px, py, pz, dir, tilt, sx = 1, sy = 1, sz = 1) {
+  const axis = new THREE.Vector3(Math.sin(dir), 0, -Math.cos(dir));
+  const q = new THREE.Quaternion().setFromAxisAngle(axis, tilt);
+  return new THREE.Matrix4().compose(
+    new THREE.Vector3(px, py, pz), q, new THREE.Vector3(sx, sy, sz));
+}
+
+const TREE_SPECIES = {
+  broadleaf: {
+    trunk: { color: PAPER.sand, shade: 0.86, rTop: 0.25, rBot: 0.34, h: 2.3, sides: 7 },
+    slabs: [
+      { y: 2.05, r: 2.50, h: 0.62, taper: 0.80, color: PAPER.forest, spin: 0.0 },
+      { y: 3.00, r: 2.10, h: 0.58, taper: 0.78, color: PAPER.forestL, spin: 0.4 },
+      { y: 3.85, r: 1.52, h: 0.52, taper: 0.66, color: PAPER.leaf, spin: 0.8 },
+      { y: 4.48, r: 0.84, h: 0.44, taper: 0.50, color: PAPER.leaf, spin: 1.2 },
+    ],
+    variants: [
+      { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.03, tone: [1.00, 1.00, 1.00] },
+      { s: 1.24, wide: 1.10, tall: 0.92, lean: 0.05, tone: [0.94, 0.99, 0.93] },
+      { s: 0.82, wide: 0.90, tall: 1.14, lean: 0.08, tone: [1.05, 1.00, 0.92] },
+      { s: 1.06, wide: 0.86, tall: 1.06, lean: 0.02, tone: [0.96, 1.02, 1.00] },
+    ],
+  },
+  conifer: {
+    trunk: { color: PAPER.sand, shade: 0.70, rTop: 0.22, rBot: 0.30, h: 2.0, sides: 7 },
+    slabs: [
+      { y: 1.60, r: 2.05, h: 1.60, taper: 0.40, color: PAPER.forestD, spin: 0.0 },
+      { y: 2.85, r: 1.66, h: 1.50, taper: 0.38, color: PAPER.forest, spin: 0.45 },
+      { y: 3.95, r: 1.24, h: 1.35, taper: 0.34, color: PAPER.forestL, spin: 0.9 },
+    ],
+    cones: [{ y: 5.10, r: 0.86, h: 1.55, color: PAPER.leaf, spin: 1.3 }],
+    variants: [
+      { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.02, tone: [1.00, 1.00, 1.00] },
+      { s: 1.30, wide: 0.92, tall: 1.16, lean: 0.01, tone: [0.93, 0.98, 0.95] },
+      { s: 0.78, wide: 1.10, tall: 0.88, lean: 0.05, tone: [1.06, 1.01, 0.94] },
+      { s: 1.10, wide: 1.04, tall: 1.06, lean: 0.03, tone: [0.98, 1.00, 1.04] },
+    ],
+  },
+  frostpine: {
+    trunk: { color: PAPER.creamD, shade: 0.78, rTop: 0.22, rBot: 0.30, h: 2.0, sides: 7 },
+    slabs: [
+      { y: 1.65, r: 1.95, h: 1.52, taper: 0.42, color: PAPER.tealD, spin: 0.0 },
+      { y: 2.90, r: 1.52, h: 1.38, taper: 0.38, color: PAPER.teal, spin: 0.45 },
+      { y: 3.95, r: 1.05, h: 1.24, taper: 0.30, color: PAPER.tealL, spin: 0.9 },
+    ],
+    cones: [{ y: 4.95, r: 0.72, h: 1.30, color: PAPER.white, spin: 1.3 }],
+    variants: [
+      { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.02, tone: [1.00, 1.00, 1.00] },
+      { s: 1.22, wide: 0.94, tall: 1.12, lean: 0.01, tone: [0.96, 1.00, 1.02] },
+      { s: 0.80, wide: 1.08, tall: 0.90, lean: 0.04, tone: [1.04, 1.01, 0.97] },
+      { s: 1.08, wide: 1.00, tall: 1.04, lean: 0.02, tone: [0.99, 1.03, 1.03] },
+    ],
+  },
+  blossom: {
+    trunk: { color: PAPER.sand, shade: 0.90, rTop: 0.22, rBot: 0.30, h: 2.1, sides: 7 },
+    slabs: [
+      { y: 1.90, r: 2.30, h: 0.56, taper: 0.82, color: PAPER.rose, spin: 0.0 },
+      { y: 2.62, r: 1.95, h: 0.50, taper: 0.78, color: PAPER.peach, spin: 0.5 },
+      { y: 3.24, r: 1.30, h: 0.46, taper: 0.62, color: PAPER.white, spin: 1.0 },
+    ],
+    variants: [
+      { s: 1.00, wide: 1.06, tall: 0.96, lean: 0.05, tone: [1.00, 1.00, 1.00] },
+      { s: 1.26, wide: 1.16, tall: 0.90, lean: 0.07, tone: [1.02, 0.96, 0.98] },
+      { s: 0.84, wide: 0.94, tall: 1.10, lean: 0.09, tone: [0.97, 1.00, 1.03] },
+      { s: 1.08, wide: 1.00, tall: 1.02, lean: 0.04, tone: [1.03, 1.01, 0.96] },
+    ],
+  },
+  ember: {
+    trunk: { color: PAPER.coralD, shade: 0.80, rTop: 0.24, rBot: 0.32, h: 2.4, sides: 7 },
+    slabs: [
+      { y: 2.15, r: 2.35, h: 0.58, taper: 0.78, color: PAPER.coralD, spin: 0.0 },
+      { y: 3.05, r: 1.85, h: 0.52, taper: 0.74, color: PAPER.coral, spin: 0.45 },
+      { y: 3.82, r: 1.14, h: 0.46, taper: 0.58, color: PAPER.gold, spin: 0.9 },
+    ],
+    variants: [
+      { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.04, tone: [1.00, 1.00, 1.00] },
+      { s: 1.22, wide: 1.12, tall: 0.94, lean: 0.06, tone: [1.03, 0.98, 0.94] },
+      { s: 0.80, wide: 0.90, tall: 1.12, lean: 0.09, tone: [0.96, 0.99, 1.00] },
+      { s: 1.06, wide: 0.96, tall: 1.04, lean: 0.03, tone: [1.01, 1.02, 0.97] },
+    ],
+  },
+  willow: {
+    trunk: { color: PAPER.sand, shade: 0.92, rTop: 0.20, rBot: 0.30, h: 3.5, sides: 7 },
+    slabs: [
+      { y: 3.85, r: 2.45, h: 0.72, taper: 0.52, color: PAPER.forestL, spin: 0.0 },
+      { y: 4.40, r: 1.35, h: 0.50, taper: 0.44, color: PAPER.leaf, spin: 0.6 },
+    ],
+    // Weeping curtains: tapered plies hung from the crown rim, wide end up.
+    droops: {
+      count: 7, attachR: 1.85, attachY: 3.70, len: 2.7, tilt: 2.42,
+      rTop: 0.15, rBot: 0.56, sides: 5,
+      colors: [PAPER.forest, PAPER.leaf, PAPER.forestL],
+    },
+    variants: [
+      { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.05, tone: [1.00, 1.00, 1.00] },
+      { s: 1.20, wide: 1.08, tall: 1.06, lean: 0.03, tone: [0.95, 1.00, 0.95] },
+      { s: 0.84, wide: 0.94, tall: 0.94, lean: 0.09, tone: [1.05, 1.00, 0.94] },
+      { s: 1.06, wide: 1.02, tall: 1.10, lean: 0.06, tone: [0.98, 1.01, 1.02] },
+    ],
+  },
+  umbrella: {
+    trunk: { color: PAPER.sand, shade: 0.88, rTop: 0.22, rBot: 0.32, h: 3.6, sides: 7 },
+    slabs: [
+      { y: 3.60, r: 3.55, h: 0.40, taper: 0.88, color: PAPER.forest, spin: 0.0 },
+      { y: 4.05, r: 2.65, h: 0.36, taper: 0.80, color: PAPER.forestL, spin: 0.5 },
+      { y: 4.42, r: 1.45, h: 0.32, taper: 0.68, color: PAPER.leaf, spin: 1.0 },
+    ],
+    variants: [
+      { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.06, tone: [1.00, 1.00, 1.00] },
+      { s: 1.24, wide: 1.14, tall: 0.94, lean: 0.09, tone: [0.95, 0.99, 0.94] },
+      { s: 0.82, wide: 0.92, tall: 1.10, lean: 0.11, tone: [1.05, 1.00, 0.93] },
+      { s: 1.08, wide: 1.06, tall: 1.02, lean: 0.04, tone: [0.98, 1.02, 1.01] },
+    ],
+  },
+};
+
+export const TREE_SPECIES_NAMES = Object.keys(TREE_SPECIES);
+
+/** One papercut tree, absolute PAPER colours, merged into a single buffer. */
+function buildTreeGeo(spec) {
+  const s = sink();
+  const t = spec.trunk;
+  stamp(s, new THREE.CylinderGeometry(t.rTop, t.rBot, t.h, t.sides),
+    trs(0, t.h / 2, 0), lin(t.color, t.shade));
+  for (const sl of spec.slabs || []) {
+    stamp(s, new THREE.CylinderGeometry(sl.r * sl.taper, sl.r, sl.h, t.sides),
+      trs(0, sl.y, 0, 0, sl.spin, 0), lin(sl.color));
+  }
+  for (const c of spec.cones || []) {
+    stamp(s, new THREE.ConeGeometry(c.r, c.h, t.sides),
+      trs(0, c.y + c.h / 2, 0, 0, c.spin, 0), lin(c.color));
+  }
+  const d = spec.droops;
+  if (d) {
+    const dirY = Math.cos(d.tilt), dirR = Math.sin(d.tilt);
+    for (let k = 0; k < d.count; k++) {
+      const a = (k / d.count) * TAU + 0.31;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      // Hang each curtain from the crown rim: walk half its length down the
+      // tilted axis so the wide end meets the canopy instead of floating.
+      const cx = ca * d.attachR + ca * dirR * d.len * 0.5;
+      const cz = sa * d.attachR + sa * dirR * d.len * 0.5;
+      const cy = d.attachY + dirY * d.len * 0.5;
+      stamp(s, new THREE.CylinderGeometry(d.rTop, d.rBot, d.len, d.sides),
+        leanM(cx, cy, cz, a, d.tilt), lin(d.colors[k % d.colors.length]));
+    }
+  }
+  return bake(s);
+}
+
+/**
+ * The garden landmark. Not instanced, not repeated, deliberately 3x the mass
+ * of anything around it: the spawn vista needs ONE object in the middle
+ * distance that establishes the scale of everything behind it, and a field of
+ * identical 5 m trees cannot do that job.
+ */
+function buildLandmarkTreeGeo() {
+  const s = sink();
+  // Buttress roots, so a 14 m tree meets the ground instead of stopping at it.
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * TAU + 0.4;
+    stamp(s, new THREE.CylinderGeometry(0.30, 0.72, 1.9, 5),
+      leanM(Math.cos(a) * 0.72, 0.72, Math.sin(a) * 0.72, a, 0.42), lin(PAPER.sand, 0.80));
+  }
+  stamp(s, new THREE.CylinderGeometry(0.72, 1.28, 5.4, 9), trs(0, 2.7, 0), lin(PAPER.sand, 0.88));
+  // Two boughs reaching out of the trunk break the lathe-turned read.
+  for (const [a, tl] of [[0.9, 0.85], [3.7, 0.72]]) {
+    stamp(s, new THREE.CylinderGeometry(0.22, 0.46, 3.4, 6),
+      leanM(Math.cos(a) * 1.25, 5.1, Math.sin(a) * 1.25, a, tl), lin(PAPER.sand, 0.84));
+  }
+  const canopy = [
+    { y: 5.9, r: 7.6, h: 1.30, taper: 0.86, color: PAPER.forestD, spin: 0.0 },
+    { y: 7.3, r: 8.3, h: 1.20, taper: 0.90, color: PAPER.forest, spin: 0.42 },
+    { y: 8.7, r: 7.2, h: 1.10, taper: 0.84, color: PAPER.forestL, spin: 0.84 },
+    { y: 10.0, r: 5.5, h: 1.00, taper: 0.74, color: PAPER.leaf, spin: 1.26 },
+    { y: 11.1, r: 3.5, h: 0.90, taper: 0.60, color: PAPER.leaf, spin: 1.68 },
+    { y: 12.0, r: 1.9, h: 0.80, taper: 0.44, color: PAPER.sage, spin: 2.1 },
+  ];
+  for (const c of canopy) {
+    stamp(s, new THREE.CylinderGeometry(c.r * c.taper, c.r, c.h, 11),
+      trs(0, c.y, 0, 0, c.spin, 0), lin(c.color));
+  }
+  // Blossom clusters caught in the canopy — this is the tree the petals fall
+  // from, so the source has to be visible in the silhouette.
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * TAU + 0.7;
+    const rr = 4.4 + (k % 3) * 1.3;
+    const yy = 6.6 + (k % 4) * 1.35;
+    stamp(s, new THREE.CylinderGeometry(0.62, 0.86, 0.46, 6),
+      trs(Math.cos(a) * rr, yy, Math.sin(a) * rr, 0, a, 0),
+      lin(k % 3 === 0 ? PAPER.white : (k % 3 === 1 ? PAPER.rose : PAPER.peach)));
+  }
+  return bake(s);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Biome flora tables
+// ═══════════════════════════════════════════════════════════════════════
+//
+// `cover` and `trees` are ATTEMPTS — water, slope, clearing and min-distance
+// rejections trim them, and the realised totals are what stats reports.
+// `mix` entries are [archetype, weight]; weights are normalised at build.
+// `grove` is the fraction of samples that land inside a cluster rather than
+// uniformly, i.e. how thicket-y the biome is.
+
+const BIOME_FLORA = {
+  garden: {
+    trees: 145, treeMix: [['broadleaf', 0.40], ['willow', 0.18], ['blossom', 0.20], ['umbrella', 0.12], ['conifer', 0.10]],
+    cover: 19000, mix: [['tuft', 0.44], ['clover', 0.21], ['fern', 0.20], ['bloom', 0.15]],
+    tintA: PAPER.leaf, tintB: PAPER.forestL,
+    petals: [PAPER.white, PAPER.rose, PAPER.gold],
+    grove: 0.74, clusters: 16, glades: 6, hero: 2,
+  },
+  meadow: {
+    trees: 70, treeMix: [['blossom', 0.46], ['broadleaf', 0.34], ['willow', 0.20]],
+    cover: 12500, mix: [['tuft', 0.46], ['bloom', 0.30], ['petal', 0.24]],
+    tintA: PAPER.sage, tintB: PAPER.sageD,
+    petals: [PAPER.rose, PAPER.white, PAPER.lavender],
+    grove: 0.66, clusters: 12, glades: 5, hero: 1,
+  },
+  tidepool: {
+    trees: 62, treeMix: [['umbrella', 0.44], ['broadleaf', 0.36], ['willow', 0.20]],
+    cover: 10000, mix: [['tuft', 0.44], ['reed', 0.30], ['pebble', 0.26]],
+    tintA: PAPER.leaf, tintB: PAPER.sage,
+    petals: [PAPER.white, PAPER.tealL],
+    grove: 0.7, clusters: 11, glades: 4, hero: 0,
+  },
+  sky: {
+    trees: 56, treeMix: [['conifer', 0.68], ['frostpine', 0.20], ['broadleaf', 0.12]],
+    cover: 7500, mix: [['tuft', 0.50], ['pebble', 0.26], ['shrub', 0.24]],
+    tintA: PAPER.sage, tintB: PAPER.sageD,
+    petals: [PAPER.white, PAPER.sky],
+    grove: 0.72, clusters: 10, glades: 5, hero: 0,
+  },
+  ember: {
+    trees: 82, treeMix: [['ember', 0.56], ['conifer', 0.26], ['umbrella', 0.18]],
+    cover: 7500, mix: [['tuft', 0.42], ['reed', 0.30], ['shrub', 0.28]],
+    tintA: PAPER.sageD, tintB: PAPER.sage,
+    petals: [PAPER.orange, PAPER.gold],
+    grove: 0.78, clusters: 12, glades: 5, hero: 0,
+  },
+  frost: {
+    trees: 36, treeMix: [['frostpine', 0.82], ['conifer', 0.18]],
+    cover: 4600, mix: [['tuft', 0.52], ['pebble', 0.30], ['shrub', 0.18]],
+    tintA: PAPER.tealL, tintB: PAPER.sage,
+    petals: [PAPER.white, PAPER.sky],
+    grove: 0.8, clusters: 8, glades: 6, hero: 0,
+  },
+  crystal: {
+    trees: 62, treeMix: [['frostpine', 0.44], ['blossom', 0.34], ['conifer', 0.22]],
+    cover: 7500, mix: [['tuft', 0.44], ['bloom', 0.30], ['pebble', 0.26]],
+    tintA: PAPER.sage, tintB: PAPER.tealL,
+    petals: [PAPER.lavender, PAPER.white],
+    grove: 0.76, clusters: 10, glades: 5, hero: 1,
+  },
+  market: {
+    trees: 22, treeMix: [['broadleaf', 0.56], ['umbrella', 0.44]],
+    cover: 3800, mix: [['tuft', 0.48], ['clover', 0.28], ['pebble', 0.24]],
+    tintA: PAPER.sageD, tintB: PAPER.sage,
+    petals: [PAPER.gold, PAPER.peach],
+    grove: 0.5, clusters: 7, glades: 6, hero: 0,
+  },
+  library: {
+    trees: 84, treeMix: [['broadleaf', 0.40], ['conifer', 0.26], ['umbrella', 0.22], ['willow', 0.12]],
+    cover: 8200, mix: [['tuft', 0.42], ['fern', 0.32], ['shrub', 0.26]],
+    tintA: PAPER.sageD, tintB: PAPER.forestL,
+    petals: [PAPER.cream, PAPER.gold],
+    grove: 0.76, clusters: 11, glades: 5, hero: 0,
+  },
+  palace: {
+    trees: 44, treeMix: [['blossom', 0.62], ['conifer', 0.24], ['broadleaf', 0.14]],
+    cover: 9500, mix: [['tuft', 0.42], ['clover', 0.24], ['bloom', 0.20], ['petal', 0.14]],
+    tintA: PAPER.leaf, tintB: PAPER.sage,
+    petals: [PAPER.gold, PAPER.white, PAPER.lavender],
+    grove: 0.42, clusters: 9, glades: 4, formal: true, hero: 2,
+  },
+};
+
+/** Landmark tree: garden, mid-ground of the spawn vista, west of the axis. */
+const LANDMARK = { x: -18, z: 126, clearTree: 13, clearPlant: 5.5, petals: 260, petalTop: 13.5, petalSpread: 7.2 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// Scatter
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Normalise a [name, weight] mix into a cumulative table. */
+function cumulative(mix) {
+  let total = 0;
+  for (const m of mix) total += m[1];
+  const names = [], cdf = [];
+  let acc = 0;
+  for (const m of mix) { acc += m[1] / total; names.push(m[0]); cdf.push(acc); }
+  cdf[cdf.length - 1] = 1;
+  return { names, cdf };
+}
+
+function pick(table, u) {
+  const { names, cdf } = table;
+  for (let i = 0; i < cdf.length; i++) if (u <= cdf[i]) return names[i];
+  return names[names.length - 1];
+}
+
+/** Blob centres a field concentrates into, and the clearings it avoids. */
+function makeBlobs(rng, cx, cz, R, n, rMin, rMax) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = rng() * TAU;
+    const r = R * 0.86 * Math.sqrt(rng());
+    out.push({
+      x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r,
+      r: R * (rMin + rng() * (rMax - rMin)), w: 0.55 + rng(),
+    });
+  }
+  return out;
+}
+
+/**
+ * Clustered rejection sampler.
+ *
+ * A candidate is drawn either from inside one of `clusters` (weighted, with a
+ * radius^0.7 profile so blobs are dense in the middle and feather at the edge)
+ * or uniformly over the biome disc. `glades` then punch it back out. Height,
+ * slope, authored clearings and — for trees — a min-distance spatial hash do
+ * the rest of the filtering.
+ *
+ * Rejections are answered from the cached height grid; only survivors pay for
+ * an exact sampleHeight. `out` is appended in place.
+ */
+function scatterField(rng, o) {
+  const {
+    cx, cz, R, count, minH, slopeNy, clearings, clusters, glades,
+    grove, grid, sampleHeight, minGap, out,
+  } = o;
+  const maxTries = count * 5 + 512;
+  const gapCells = minGap ? new Map() : null;
+  const gapCell = minGap || 1;
+  let placed = 0;
+
+  for (let t = 0; t < maxTries && placed < count; t++) {
+    let x, z;
+    if (clusters.length && rng() < grove) {
+      // Weighted blob pick, then a concentrated radial sample inside it.
+      let u = rng() * clusters.length;
+      const b = clusters[Math.min(clusters.length - 1, Math.floor(u))];
+      u = rng();
+      if (u > b.w * 0.62) continue;              // per-blob density weighting
+      const a = rng() * TAU;
+      const r = b.r * Math.pow(rng(), 0.7);
+      x = b.x + Math.cos(a) * r;
+      z = b.z + Math.sin(a) * r;
+      const dx0 = x - cx, dz0 = z - cz;
+      if (dx0 * dx0 + dz0 * dz0 > R * R) continue;
+    } else {
+      const a = rng() * TAU;
+      const r = R * Math.sqrt(rng());
+      x = cx + Math.cos(a) * r;
+      z = cz + Math.sin(a) * r;
+    }
+
+    let blocked = false;
+    for (let i = 0; i < glades.length; i++) {
+      const gl = glades[i];
+      const dx = x - gl.x, dz = z - gl.z;
+      if (dx * dx + dz * dz < gl.r * gl.r) { blocked = true; break; }
+    }
+    if (blocked) continue;
+    for (let i = 0; i < clearings.length; i += 3) {
+      const dx = x - clearings[i], dz = z - clearings[i + 1];
+      const cr = clearings[i + 2];
+      if (dx * dx + dz * dz < cr * cr) { blocked = true; break; }
+    }
+    if (blocked) continue;
+
+    // Cheap gates first, off the cached grid.
+    const hg = gridAt(grid, x, z);
+    if (hg <= minH + 0.15) continue;
+    const gx = _gx, gz = _gz;
+    if (1 / Math.sqrt(gx * gx + 1 + gz * gz) < slopeNy) continue;
+
+    if (gapCells) {
+      const ci = Math.floor(x / gapCell), cj = Math.floor(z / gapCell);
+      let tooClose = false;
+      for (let dj = -1; dj <= 1 && !tooClose; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          const bucket = gapCells.get((cj + dj) * 4093 + (ci + di));
+          if (!bucket) continue;
+          for (let k = 0; k < bucket.length; k += 2) {
+            const dx = x - bucket[k], dz = z - bucket[k + 1];
+            if (dx * dx + dz * dz < minGap * minGap) { tooClose = true; break; }
+          }
+          if (tooClose) break;
+        }
+      }
+      if (tooClose) continue;
+      const key = cj * 4093 + ci;
+      let bucket = gapCells.get(key);
+      if (!bucket) { bucket = []; gapCells.set(key, bucket); }
+      bucket.push(x, z);
+    }
+
+    // Survivor: pay for the exact height so nothing floats or sinks.
+    const h = sampleHeight(x, z);
+    if (h <= minH) continue;
+    out.push({ x, y: h, z, gx, gz, a: rng(), b: rng(), c: rng(), d: rng() });
+    placed++;
+  }
+  return placed;
+}
+
+/** Even rings with a small jitter — order and rhythm, not scatter. */
+function formalRings(rng, o) {
+  const { cx, cz, R, count, minH, slopeNy, clearings, grid, sampleHeight, minGap, out } = o;
+  const rings = [R * 0.55, R * 0.82];
+  const per = Math.ceil(count / rings.length);
+  let placed = 0;
+  for (let ri = 0; ri < rings.length && placed < count; ri++) {
+    for (let k = 0; k < per && placed < count; k++) {
+      const a = (k / per) * TAU + ri * 0.32;
+      const x = cx + Math.cos(a) * rings[ri] + (rng() - 0.5) * 3;
+      const z = cz + Math.sin(a) * rings[ri] + (rng() - 0.5) * 3;
+      let blocked = false;
+      for (let i = 0; i < clearings.length; i += 3) {
+        const dx = x - clearings[i], dz = z - clearings[i + 1];
+        if (dx * dx + dz * dz < clearings[i + 2] * clearings[i + 2]) { blocked = true; break; }
+      }
+      if (blocked) continue;
+      const hg = gridAt(grid, x, z);
+      if (hg <= minH + 0.15) continue;
+      const gx = _gx, gz = _gz;
+      if (1 / Math.sqrt(gx * gx + 1 + gz * gz) < slopeNy) continue;
+      if (minGap && out.length) {
+        let tooClose = false;
+        for (let i = out.length - 1, n = 0; i >= 0 && n < 24; i--, n++) {
+          const dx = x - out[i].x, dz = z - out[i].z;
+          if (dx * dx + dz * dz < minGap * minGap) { tooClose = true; break; }
+        }
+        if (tooClose) continue;
+      }
+      const h = sampleHeight(x, z);
+      if (h <= minH) continue;
+      out.push({ x, y: h, z, gx, gz, a: rng(), b: rng(), c: rng(), d: rng() });
+      placed++;
+    }
+  }
+  return placed;
+}
+
+/** Fisher-Yates. Makes any PREFIX of a sector a uniform subset of it. */
+function shuffle(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = (rng() * (i + 1)) | 0;
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+}
+
+const cellIndex = (v) => {
+  const i = Math.floor((v + WORLD.HALF) / COVER_CELL);
+  return i < 0 ? 0 : (i > COVER_CELLS - 1 ? COVER_CELLS - 1 : i);
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// createVegetation
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * @param {{sampleHeight:Function, seed?:number}} heightfield
+ * @param {{seed?:number, density?:number, castShadow?:boolean,
+ *          treeClear?:number[], plantClear?:number[]}} [opts]
+ *   treeClear / plantClear are flat [x, z, radius, ...] triples the caller has
+ *   already reserved for landmarks (gates, buildings, the spawn apron).
+ * @returns {{ group:THREE.Group, trees:Array<{x,y,z,r}>, stats:object,
+ *             update:(simTime:number, playerPos:object)=>void, dispose:Function }}
+ */
+export function createVegetation(heightfield, opts = {}) {
+  const { sampleHeight } = heightfield;
+  const seed = (opts.seed ?? heightfield.seed ?? WORLD.SEED) | 0;
+  const density = opts.density ?? 1;
+  const castShadow = opts.castShadow !== false;
+  const treeClear = opts.treeClear ? opts.treeClear.slice() : [];
+  const plantClear = opts.plantClear ? opts.plantClear.slice() : [];
+
+  const group = new THREE.Group();
+  group.name = 'vegetation';
+  const geometries = [];
+  const materials = [];
+  const track = (geo) => { geometries.push(geo); return geo; };
+  const trackMat = (m) => { materials.push(m); return m; };
+
+  // ── Materials ──────────────────────────────────────────────────────────
+  // Four, and only four: foliage that sways as a canopy, ground cover that
+  // ripples as a field, stone that does neither, and petals that fall. Every
+  // sector and every species shares them, so the material count has no bearing
+  // on the draw-call budget — mesh count does.
+  const treeMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
+  const plantMat = trackMat(toonMaterial(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
+  const rockMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
+  const petalMat = trackMat(toonMaterial(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
+  const heroMat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
+
+  patchPlantWind(treeMat, {
+    base: 1.4, span: 3.6, amp: 0.26, lean: 0.5, speed: 0.40,
+    flutter: 0.10, flutterSpeed: 1.9, gust: 0.5, gustLen: 92, gustSpeed: 12,
+  });
+  patchPlantWind(plantMat, {
+    base: 0.02, span: 0.50, amp: 0.13, lean: 0.6, speed: 0.72,
+    flutter: 0.22, flutterSpeed: 3.4, gust: 0.6, gustLen: 58, gustSpeed: 9,
+  });
+  patchPlantWind(heroMat, {
+    base: 4.0, span: 9.0, amp: 0.46, lean: 0.45, speed: 0.31,
+    flutter: 0.08, flutterSpeed: 1.5, gust: 0.45, gustLen: 110, gustSpeed: 13,
+  });
+  patchPetalFall(petalMat, {
+    top: LANDMARK.petalTop, spread: 1.6, fall: 0.045, swirl: 1.2,
+  });
+
+  // Paper surface. Trees and stones are solid enough to carry the pressed
+  // tooth; blades and petals are two-triangle scraps where a normal map would
+  // only fight the toon ramp, so they take pigment grain alone on one top-down
+  // projection (a single fetch across ~90 k instances).
+  applyPapercut(treeMat, { grain: 0.075, normal: 0.10, roughnessLike: 0.18, scale: 1.1, space: 'local' });
+  applyPapercut(heroMat, { grain: 0.08, normal: 0.11, roughnessLike: 0.19, scale: 2.4, space: 'local' });
+  applyPapercut(rockMat, { grain: 0.09, normal: 0.13, roughnessLike: 0.2, scale: 0.3, space: 'local' });
+  applyPapercut(plantMat, { grain: 0.07, normal: 0, roughnessLike: 0, scale: 0.7, triplanar: false, space: 'local' });
+  applyPapercut(petalMat, { grain: 0.06, normal: 0, roughnessLike: 0, scale: 0.3, triplanar: false, space: 'local' });
+
+  // Canopies must sway in the shadow map too, or the shadow tears off the tree.
+  const treeDepthMat = trackMat(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }));
+  patchPlantWind(treeDepthMat, {
+    base: 1.4, span: 3.6, amp: 0.26, lean: 0.5, speed: 0.40,
+    flutter: 0.10, flutterSpeed: 1.9, gust: 0.5, gustLen: 92, gustSpeed: 12,
+  });
+  const heroDepthMat = trackMat(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }));
+  patchPlantWind(heroDepthMat, {
+    base: 4.0, span: 9.0, amp: 0.46, lean: 0.45, speed: 0.31,
+    flutter: 0.08, flutterSpeed: 1.5, gust: 0.45, gustLen: 110, gustSpeed: 13,
+  });
+
+  const matFor = { plant: plantMat, rock: rockMat };
+
+  // ── Placement ──────────────────────────────────────────────────────────
+  const rng = makeRng(seed ^ 0x5eed17);
+  const grid = makeHeightGrid(sampleHeight);
+
+  // The landmark reserves its own clearing before anything else is scattered.
+  treeClear.push(LANDMARK.x, LANDMARK.z, LANDMARK.clearTree);
+  plantClear.push(LANDMARK.x, LANDMARK.z, LANDMARK.clearPlant);
+
+  /** @type {Record<string, Array>} */
+  const treeItems = {};
+  for (const name of TREE_SPECIES_NAMES) treeItems[name] = [];
+  /** @type {Map<string, Array>} */
+  const coverBuckets = new Map();   // `${arch}|${cell}` -> items
+  const heroTrees = [];             // blossom set-pieces that shed petals
+
+  const SANDC = new THREE.Color().setHex(PAPER.sand, THREE.SRGBColorSpace);
+  const PALEC = new THREE.Color().setHex(PAPER.creamD, THREE.SRGBColorSpace);
+  let coverTotal = 0;
+  const coverByArch = Object.fromEntries(ARCH_NAMES.map((k) => [k, 0]));
+
+  for (const biome of BIOMES) {
+    const flora = BIOME_FLORA[biome.id];
+    if (!flora) continue;
+    const [cx, cz] = biome.center;
+    const R = biome.radius;
+
+    // ---- trees ----
+    const nTrees = Math.round(flora.trees * density);
+    const raw = [];
+    const treeGlades = makeBlobs(rng, cx, cz, R, flora.glades, 0.10, 0.19);
+    if (flora.formal) {
+      formalRings(rng, {
+        cx, cz, R, count: nTrees, minH: TREE_MIN_H, slopeNy: TREE_SLOPE_NY,
+        clearings: treeClear, grid, sampleHeight, minGap: TREE_MIN_GAP, out: raw,
+      });
+    } else {
+      scatterField(rng, {
+        cx, cz, R: R * 0.94, count: nTrees, minH: TREE_MIN_H, slopeNy: TREE_SLOPE_NY,
+        clearings: treeClear, clusters: makeBlobs(rng, cx, cz, R, flora.clusters, 0.09, 0.17),
+        glades: treeGlades, grove: flora.grove, grid, sampleHeight,
+        minGap: TREE_MIN_GAP, out: raw,
+      });
+    }
+    const treeTable = cumulative(flora.treeMix);
+    for (const it of raw) {
+      const sp = pick(treeTable, it.a);
+      it.species = sp;
+      treeItems[sp].push(it);
+    }
+    // Hero blossoms: the biggest, most spread-out blossom trees in the biome
+    // get scaled up and given a petal fall. Chosen by stride rather than at
+    // random so they never clump.
+    if (flora.hero > 0) {
+      const pool = raw.filter((it) => it.species === 'blossom' || it.species === 'willow');
+      const stride = Math.max(1, Math.floor(pool.length / (flora.hero + 1)));
+      for (let k = 1; k <= flora.hero && k * stride < pool.length; k++) {
+        const it = pool[k * stride];
+        it.hero = true;
+        heroTrees.push({ x: it.x, y: it.y, z: it.z, petals: 150, top: 7.4, spread: 3.4, hues: flora.petals });
+      }
+    }
+
+    // ---- ground cover ----
+    const cover = [];
+    scatterField(rng, {
+      cx, cz, R, count: Math.round(flora.cover * density), minH: PLANT_MIN_H,
+      slopeNy: MAX_SLOPE_NY, clearings: plantClear,
+      clusters: makeBlobs(rng, cx, cz, R, flora.clusters + 6, 0.12, 0.26),
+      glades: makeBlobs(rng, cx, cz, R, flora.glades, 0.07, 0.14),
+      grove: flora.grove * 0.86, grid, sampleHeight, minGap: 0, out: cover,
+    });
+
+    const coverTable = cumulative(flora.mix);
+    for (let i = 0; i < cover.length; i++) {
+      const it = cover[i];
+      // Shore-ness and dryness drive BOTH the species and the tint, which is
+      // what makes a beach read as a beach rather than as green grass that
+      // happens to be near water.
+      const shore = 1 - smoothstep(1.3, 8.5, it.y);
+      const slope = Math.sqrt(it.gx * it.gx + it.gz * it.gz);
+      const dry = Math.min(1, slope * 0.8);
+      let arch = pick(coverTable, it.b);
+      if (shore > 0.6 && (arch === 'fern' || arch === 'clover' || arch === 'bloom')) {
+        arch = it.c < 0.5 ? 'reed' : 'pebble';
+      } else if (dry > 0.7 && arch === 'fern') {
+        arch = 'tuft';
+      }
+
+      let col;
+      if (arch === 'pebble') {
+        col = mixHex(PAPER.sand, PAPER.creamD, patchNoise(it.x * 0.06, it.z * 0.06, seed ^ 0x9a1));
+      } else if (BLOOM_ARCH.has(arch)) {
+        const hues = flora.petals;
+        col = mixHex(hues[Math.floor(it.d * hues.length) % hues.length], PAPER.white, it.a * 0.22);
+      } else {
+        col = mixHex(flora.tintA, flora.tintB, patchNoise(it.x * 0.042, it.z * 0.042, seed ^ 0x51));
+        if (shore > 0) col.lerp(SANDC, shore * 0.62);
+        if (dry > 0) col.lerp(PALEC, dry * 0.24);
+      }
+      col.multiplyScalar(0.90 + it.c * 0.18);
+      it.arch = arch;
+      it.r = col.r; it.g = col.g; it.bl = col.b;
+      it.shore = shore;
+
+      const key = `${arch}|${cellIndex(it.z) * COVER_CELLS + cellIndex(it.x)}`;
+      let bucket = coverBuckets.get(key);
+      if (!bucket) { bucket = []; coverBuckets.set(key, bucket); }
+      bucket.push(it);
+      coverByArch[arch]++;
+      coverTotal++;
+    }
+    cover.length = 0;
+  }
+
+  // ── Meshes: trees ──────────────────────────────────────────────────────
+  const _m4 = new THREE.Matrix4();
+  const _v3 = new THREE.Vector3();
+  const _q4 = new THREE.Quaternion();
+  const _q5 = new THREE.Quaternion();
+  const _s3 = new THREE.Vector3(1, 1, 1);
+  const _ax = new THREE.Vector3();
+  const _col = new THREE.Color();
+
+  const trees = [];
+  const treeMeshes = [];
+  let treeCount = 0;
+  for (const name of TREE_SPECIES_NAMES) {
+    const items = treeItems[name];
+    if (!items.length) continue;
+    const spec = TREE_SPECIES[name];
+    const geo = track(buildTreeGeo(spec));
+    const im = new THREE.InstancedMesh(geo, treeMat, items.length);
+    im.name = `trees-${name}`;
+    const nv = spec.variants.length;
+    items.forEach((it, i) => {
+      const v = spec.variants[Math.floor(it.b * nv) % nv];
+      const hero = it.hero ? 1.55 : 1;
+      const s = v.s * (0.86 + it.c * 0.30) * hero;
+      const sx = s * v.wide * (0.94 + it.d * 0.13);
+      const sy = s * v.tall * (0.92 + it.a * 0.20);
+      trees.push({ x: it.x, y: it.y, z: it.z, r: spec.trunk.rBot * sx });
+      // Yaw, then a small lean about a random bearing: a forest of perfectly
+      // vertical poles is the tell that nothing here grew.
+      _q4.setFromAxisAngle(AXIS_Y, it.c * TAU);
+      const dir = it.d * TAU;
+      _ax.set(Math.sin(dir), 0, -Math.cos(dir));
+      _q5.setFromAxisAngle(_ax, v.lean * (0.4 + it.a));
+      _q4.multiply(_q5);
+      _v3.set(it.x, it.y - 0.15, it.z);
+      _s3.set(sx, sy, sx);
+      _m4.compose(_v3, _q4, _s3);
+      im.setMatrixAt(i, _m4);
+      // Near-neutral only: instanceColor multiplies the WHOLE tree, so a real
+      // hue shift would drag the trunk with it.
+      const t = v.tone, k = 0.93 + it.a * 0.13;
+      im.setColorAt(i, _col.setRGB(t[0] * k, t[1] * k, t[2] * k, THREE.LinearSRGBColorSpace));
+    });
+    _s3.set(1, 1, 1);
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = castShadow;
+    im.receiveShadow = true;
+    if (castShadow) im.customDepthMaterial = treeDepthMat;
+    im.computeBoundingSphere();
+    group.add(im);
+    treeMeshes.push(im);
+    treeCount += items.length;
+  }
+
+  // ── Mesh: the landmark tree ────────────────────────────────────────────
+  // An InstancedMesh of one. It costs the same single draw call as a Mesh and
+  // it inherits the instanced wind path (which reads instanceMatrix for its
+  // world-space gust phase) instead of needing a second shader variant.
+  const landY = sampleHeight(LANDMARK.x, LANDMARK.z);
+  const landmark = new THREE.InstancedMesh(track(buildLandmarkTreeGeo()), heroMat, 1);
+  landmark.name = 'landmark-tree';
+  _q4.setFromAxisAngle(AXIS_Y, 0.7);
+  _v3.set(LANDMARK.x, landY - 0.4, LANDMARK.z);
+  _s3.set(1, 1, 1);
+  _m4.compose(_v3, _q4, _s3);
+  landmark.setMatrixAt(0, _m4);
+  landmark.setColorAt(0, _col.setRGB(1, 1, 1, THREE.LinearSRGBColorSpace));
+  landmark.instanceMatrix.needsUpdate = true;
+  if (landmark.instanceColor) landmark.instanceColor.needsUpdate = true;
+  landmark.castShadow = castShadow;
+  landmark.receiveShadow = true;
+  if (castShadow) landmark.customDepthMaterial = heroDepthMat;
+  landmark.computeBoundingSphere();
+  group.add(landmark);
+  trees.push({ x: LANDMARK.x, y: landY, z: LANDMARK.z, r: 1.5 });
+
+  // ── Meshes: falling petals ─────────────────────────────────────────────
+  // One InstancedMesh per emitter, so a swarm the camera is not looking at is
+  // one frustum test rather than one draw call.
+  const petalGeos = new Map();
+  const petalMats = new Map([[LANDMARK.petalTop, petalMat]]);
+  const petalMeshes = [];
+  let petalCount = 0;
+  const emitters = [
+    { x: LANDMARK.x, y: landY, z: LANDMARK.z, petals: LANDMARK.petals,
+      top: LANDMARK.petalTop, spread: LANDMARK.petalSpread,
+      hues: [PAPER.white, PAPER.rose, PAPER.peach] },
+    ...heroTrees,
+  ];
+  for (const e of emitters) {
+    const n = Math.max(8, Math.round(e.petals * density));
+    let geo = petalGeos.get(e.top);
+    if (!geo) { geo = track(buildFlyingPetalGeo(e.top)); petalGeos.set(e.top, geo); }
+    // One material per distinct canopy height: the fall height is baked into
+    // the shader as a literal (it never animates, and a literal lets the
+    // compiler fold it), so two canopy heights are two programs — but a dozen
+    // trees of the same height still share one.
+    let mat = petalMats.get(e.top);
+    if (!mat) {
+      mat = trackMat(toonMaterial(0xffffff, { vertexColors: true, side: THREE.DoubleSide }));
+      patchPetalFall(mat, { top: e.top, spread: 1.1, fall: 0.06, swirl: 1.4 });
+      applyPapercut(mat, { grain: 0.06, normal: 0, roughnessLike: 0, scale: 0.3, triplanar: false, space: 'local' });
+      petalMats.set(e.top, mat);
+    }
+    const im = new THREE.InstancedMesh(geo, mat, n);
+    im.name = 'petal-fall';
+    for (let i = 0; i < n; i++) {
+      const a = rng() * TAU;
+      const r = e.spread * Math.sqrt(rng());
+      const px = e.x + Math.cos(a) * r;
+      const pz = e.z + Math.sin(a) * r;
+      _q4.setFromAxisAngle(AXIS_Y, rng() * TAU);
+      _v3.set(px, sampleHeight(px, pz) + 0.1, pz);
+      const sc = 0.8 + rng() * 0.7;
+      _s3.set(sc, sc, sc);
+      _m4.compose(_v3, _q4, _s3);
+      im.setMatrixAt(i, _m4);
+      im.setColorAt(i, _col.setHex(e.hues[i % e.hues.length], THREE.SRGBColorSpace)
+        .multiplyScalar(0.94 + (i % 5) * 0.03));
+    }
+    _s3.set(1, 1, 1);
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = false;
+    im.receiveShadow = false;
+    im.computeBoundingSphere();
+    group.add(im);
+    petalMeshes.push(im);
+    petalCount += n;
+  }
+
+  // ── Meshes: ground cover ───────────────────────────────────────────────
+  const coverGeos = {};
+  /** @type {Array<{mesh:THREE.InstancedMesh,total:number,x0:number,z0:number,x1:number,z1:number}>} */
+  const covers = [];
+  for (const [key, bucket] of coverBuckets) {
+    const arch = key.slice(0, key.indexOf('|'));
+    const spec = GROUND_ARCHETYPES[arch];
+    if (!coverGeos[arch]) coverGeos[arch] = track(spec.build());
+    shuffle(bucket, rng);
+    const im = new THREE.InstancedMesh(coverGeos[arch], matFor[spec.mat], bucket.length);
+    im.name = `cover-${arch}`;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    bucket.forEach((it, i) => {
+      // Scale: blooms and pebbles keep their proportions, foliage stretches.
+      const s = 0.82 + it.d * 0.86;
+      _q4.setFromAxisAngle(AXIS_Y, it.a * TAU);
+      _v3.set(it.x, it.y - 0.02, it.z);
+      _s3.set(s, s * (0.84 + it.b * 0.52), s);
+      _m4.compose(_v3, _q4, _s3);
+      im.setMatrixAt(i, _m4);
+      im.setColorAt(i, _col.setRGB(it.r, it.g, it.bl, THREE.LinearSRGBColorSpace));
+      if (it.x < x0) x0 = it.x;
+      if (it.x > x1) x1 = it.x;
+      if (it.z < z0) z0 = it.z;
+      if (it.z > z1) z1 = it.z;
+    });
+    _s3.set(1, 1, 1);
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = false;
+    // Ground cover RECEIVES: lush grass that stays bright inside a tree's
+    // shadow is the tell that the plants and the light belong to different
+    // renderers. It costs shader work, never a draw call — these meshes are
+    // never in the shadow pass.
+    im.receiveShadow = true;
+    // Computed ONCE, at full count, and never invalidated: update() only ever
+    // SHRINKS mesh.count, and a prefix's true extent is inside the whole
+    // sector's. If this were recomputed after a thinning the sector would
+    // start culling itself at the edges of the frame.
+    im.computeBoundingSphere();
+    group.add(im);
+    covers.push({ mesh: im, total: bucket.length, x0, z0, x1, z1 });
+    bucket.length = 0;
+  }
+  coverBuckets.clear();
+  for (const name of TREE_SPECIES_NAMES) treeItems[name].length = 0;
+
+  // ── update ─────────────────────────────────────────────────────────────
+  // One shared clock write, then a distance-graded instance count per sector.
+  // No allocation, no matrix writes, no buffer uploads.
+  function update(simTime, playerPos) {
+    WIND.value = simTime;
+    const px = playerPos ? (playerPos.x ?? 0) : 0;
+    const pz = playerPos ? (playerPos.z ?? 0) : 0;
+    for (let i = 0; i < covers.length; i++) {
+      const c = covers[i];
+      const dx = px < c.x0 ? c.x0 - px : (px > c.x1 ? px - c.x1 : 0);
+      const dz = pz < c.z0 ? c.z0 - pz : (pz > c.z1 ? pz - c.z1 : 0);
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d >= LOD_CULL) {
+        if (c.mesh.visible) c.mesh.visible = false;
+        continue;
+      }
+      if (!c.mesh.visible) c.mesh.visible = true;
+      let f;
+      if (d <= LOD_FULL) f = 1;
+      else if (d <= LOD_MID) f = 1 + (LOD_MID_F - 1) * ((d - LOD_FULL) / (LOD_MID - LOD_FULL));
+      else f = LOD_MID_F + (LOD_FAR_F - LOD_MID_F) * ((d - LOD_MID) / (LOD_CULL - LOD_MID));
+      const n = f >= 1 ? c.total : (c.total * f) | 0;
+      c.mesh.count = n < 1 ? 1 : n;
+    }
+  }
+
+  // ── stats ──────────────────────────────────────────────────────────────
+  // `visibleCoverCalls` is the honest worst case a frame can pay for ground
+  // cover: every sector whose nearest corner is inside LOD_CULL, with nothing
+  // frustum-culled. Real frames run about half of it.
+  const cellSpan = COVER_CELL;
+  const reach = LOD_CULL + cellSpan * Math.SQRT1_2;
+  let worstCover = 0;
+  {
+    // Count the sectors a single point could see, by walking the actual mesh
+    // list from the densest spot on the island rather than guessing.
+    let best = 0;
+    for (const probe of covers) {
+      const cx = (probe.x0 + probe.x1) * 0.5, cz = (probe.z0 + probe.z1) * 0.5;
+      let n = 0;
+      for (const c of covers) {
+        const dx = cx < c.x0 ? c.x0 - cx : (cx > c.x1 ? cx - c.x1 : 0);
+        const dz = cz < c.z0 ? c.z0 - cz : (cz > c.z1 ? cz - c.z1 : 0);
+        if (dx * dx + dz * dz < LOD_CULL * LOD_CULL) n++;
+      }
+      if (n > best) best = n;
+    }
+    worstCover = best;
+  }
+
+  const treeTris = treeMeshes.reduce(
+    (a, m) => a + (m.geometry.attributes.position.count / 3) * m.count, 0);
+  let coverTris = 0;
+  for (const c of covers) coverTris += GROUND_ARCHETYPES[c.mesh.name.slice(6)].tris * c.total;
+
+  const stats = {
+    groundCover: coverTotal,
+    groundCoverByArchetype: coverByArch,
+    coverSectors: covers.length,
+    coverCellMetres: cellSpan,
+    coverCullMetres: LOD_CULL,
+    coverReachMetres: reach,
+    trees: treeCount + 1,
+    treesBySpecies: Object.fromEntries(TREE_SPECIES_NAMES.map(
+      (k) => [k, treeMeshes.find((m) => m.name === `trees-${k}`)?.count ?? 0])),
+    heroTrees: heroTrees.length + 1,
+    petals: petalCount,
+    petalMeshes: petalMeshes.length,
+    treeMeshes: treeMeshes.length + 1,
+    meshes: treeMeshes.length + 1 + petalMeshes.length + covers.length,
+    // Draw-call accounting. Trees and petals are unsectored (they are sparse
+    // and big), so they always cost their mesh count; ground cover costs only
+    // the sectors within LOD_CULL.
+    visibleCoverCalls: worstCover,
+    colorPassCalls: treeMeshes.length + 1 + petalMeshes.length + worstCover,
+    shadowPassCalls: castShadow ? treeMeshes.length + 1 : 0,
+    resolvedTris: coverTris + treeTris,
+    materials: materials.length,
+  };
+  stats.drawCalls = stats.colorPassCalls + stats.shadowPassCalls;
+
+  function dispose() {
+    for (const geo of geometries) geo.dispose();
+    geometries.length = 0;
+    for (const m of materials) m.dispose();
+    materials.length = 0;
+    group.traverse((o) => { if (o.isInstancedMesh) o.dispose(); });
+    group.clear();
+    covers.length = 0;
+    treeMeshes.length = 0;
+    petalMeshes.length = 0;
+    trees.length = 0;
+  }
+
+  return { group, trees, stats, update, dispose };
+}

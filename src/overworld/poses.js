@@ -63,23 +63,34 @@ export const POSES = [
     tod: 0.34,
   },
   {
-    // Sky Cliffs summit (~30 m) looking east off the drop to the sea. Tests
-    // fog layering and aerial perspective across the whole depth range.
+    // Sky Cliffs, seen from out over the water looking back WEST at the wall.
+    //
+    // The old framing stood on top and looked down the drop, which worked when
+    // the biome was a 30 m dome. It is a table mountain now — a 47 m plateau
+    // whose eastern face steps 46 m down to the sea in four bands — and the
+    // only way to read that is side-on. From 28 m above open water the lip
+    // sits 19 deg above the view axis and the base 23 deg below it, so the
+    // whole wall fills the frame; the hero stands on the brink for scale, and
+    // the 74 m of air between camera and cliff is exactly the depth range the
+    // fog curve is supposed to be tested over.
     name: 'sky-cliff-vista',
-    playerPos: { x: 158, z: 0 },
-    yaw: -Math.PI / 2,
-    camPos: { x: 130, y: 48, z: 14 },
-    camLook: { x: 196, y: 2, z: -6 },
+    playerPos: { x: 166, z: 0 },
+    yaw: Math.PI / 2,
+    camPos: { x: 240, y: 28, z: -14 },
+    camLook: { x: 176, y: 22, z: 0 },
     tod: 0.28,
   },
   {
     // Ember Slopes into the low western sun. tod 0.85 is the dusk keyframe:
-    // golden-lavender, never night.
+    // golden-lavender, never night. The hero sits ~25 m down the view axis
+    // and 13 deg off it, which clears the Floor 4 arch (6.7 deg half-width at
+    // its 40 m range) instead of hiding behind it. Camera and look point drop
+    // together so the pitch — and therefore the horizon line — is unchanged.
     name: 'ember-dusk',
-    playerPos: { x: 122, z: -122 },
+    playerPos: { x: 127, z: -130 },
     yaw: -Math.PI * 0.75,
-    camPos: { x: 150, y: 28, z: -140 },
-    camLook: { x: 80, y: 20, z: -110 },
+    camPos: { x: 150, y: 22, z: -140 },
+    camLook: { x: 80, y: 14, z: -110 },
     tod: 0.85,
   },
   {
@@ -96,11 +107,19 @@ export const POSES = [
     // Looking UP the palace flank at the summit and the Floor 9 gate. The
     // only pose with a positive camera pitch — it exists to test silhouette
     // against sky rather than against ground.
+    //
+    // The hero stands on the second terrace of the mesa (~30 m, a 19 deg
+    // bench), not on the old z=30 which the reshaped landform turned into a
+    // 72 deg cliff face. From here the frame stacks all four cliff bands
+    // between the hero and the crown: summit rim is 12 deg above the view
+    // axis, hero 17 deg below, both well inside the 25 deg half-angle, and
+    // the sight line to the rim clears the intervening shoulder by ~1.5 m —
+    // the crown breaks the horizon exactly where it should.
     name: 'palace-approach',
-    playerPos: { x: 0, z: 30 },
+    playerPos: { x: 0, z: 46 },
     yaw: Math.PI,
-    camPos: { x: 4, y: 38, z: 70 },
-    camLook: { x: 0, y: 46, z: 2 },
+    camPos: { x: 11, y: 38, z: 86 },
+    camLook: { x: 0, y: 46, z: 14 },
     tod: 0.31,
   },
   {

@@ -51,3 +51,6 @@ android/
 # Misc
 *.log
 .claude/
+
+# Agent scratch space (temporary analysis scripts, not part of the build)
+.scratch/

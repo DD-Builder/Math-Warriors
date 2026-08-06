@@ -1,10 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { DAY_KEYS, timeOfDay, lerpColor } from './timeOfDay.js';
+import { DAY_KEYS, COLOR_FIELDS, SCALAR_FIELDS, timeOfDay, lerpColor, isNight } from './timeOfDay.js';
 import { PAPER } from '../config.js';
-
-const COLOR_FIELDS = ['sunColor', 'hemiSky', 'hemiGround', 'fogColor', 'skyTop', 'skyMid', 'skyBottom'];
-const SCALAR_FIELDS = ['sunIntensity', 'hemiIntensity', 'fogNear', 'fogFar'];
 
 function channels(c) {
   return [(c >> 16) & 0xff, (c >> 8) & 0xff, c & 0xff];
@@ -26,11 +23,31 @@ function adjacentKeys(u) {
 }
 
 describe('DAY_KEYS', () => {
-  test('four wrapping keyframes at the mandated times', () => {
-    assert.equal(DAY_KEYS.length, 4);
-    assert.deepEqual(DAY_KEYS.map(k => k.t), [0.0, 0.3, 0.62, 0.85]);
+  test('eight wrapping keyframes at the mandated times', () => {
+    assert.equal(DAY_KEYS.length, 8);
+    assert.deepEqual(DAY_KEYS.map(k => k.t), [0.0, 0.14, 0.32, 0.62, 0.76, 0.84, 0.90, 0.96]);
   });
 
+  test('keyframe times are strictly ascending and start at zero', () => {
+    assert.equal(DAY_KEYS[0].t, 0);
+    for (let i = 1; i < DAY_KEYS.length; i++) {
+      assert.ok(DAY_KEYS[i].t > DAY_KEYS[i - 1].t, `key ${i} out of order`);
+      assert.ok(DAY_KEYS[i].t < 1, `key ${i} must stay below 1`);
+    }
+  });
+
+  test('every keyframe declares every interpolated field', () => {
+    for (const key of DAY_KEYS) {
+      for (const f of [...COLOR_FIELDS, ...SCALAR_FIELDS]) {
+        assert.equal(typeof key[f], 'number', `t=${key.t} missing ${f}`);
+      }
+      assert.equal(key.sunDir.length, 3, `t=${key.t} sunDir`);
+    }
+  });
+
+  // THE papercut law, and the reason "real night" here is deep teal-indigo
+  // rather than darkness: PAPER.inkTeal is the floor for every channel of
+  // every colour the light rig can ever produce.
   test('no keyframe color channel darker than PAPER.inkTeal (papercut law)', () => {
     const [ir, ig, ib] = channels(PAPER.inkTeal);
     for (const key of DAY_KEYS) {
@@ -39,6 +56,27 @@ describe('DAY_KEYS', () => {
         assert.ok(r >= ir && g >= ig && b >= ib, `t=${key.t} ${f} 0x${key[f].toString(16)}`);
       }
     }
+  });
+
+  test('the cycle actually reaches night, and noon is fully day', () => {
+    const nights = DAY_KEYS.map(k => k.night);
+    assert.ok(Math.max(...nights) === 1, 'some keyframe is full night');
+    assert.equal(DAY_KEYS.find(k => k.t === 0.32).night, 0, 'noon is day');
+  });
+
+  test('night keyframes still light the world (moon is a key light)', () => {
+    for (const key of DAY_KEYS) {
+      if (key.night < 0.5) continue;
+      assert.ok(key.sunIntensity >= 0.25, `t=${key.t} moonlight too weak to navigate by`);
+      assert.ok(key.hemiIntensity >= 0.4, `t=${key.t} fill too weak`);
+    }
+  });
+
+  test('fog is denser at night and thinnest at noon', () => {
+    const noon = DAY_KEYS.find(k => k.t === 0.32);
+    const deepNight = DAY_KEYS.find(k => k.t === 0.96);
+    assert.ok(noon.fogDensity < deepNight.fogDensity);
+    for (const key of DAY_KEYS) assert.ok(key.fogDensity > 0 && key.fogHeightK > 0, `t=${key.t}`);
   });
 });
 
@@ -51,7 +89,7 @@ describe('timeOfDay', () => {
 
   test('random t bounded component-wise by adjacent keyframes', () => {
     const rand = makeRand(20260717);
-    for (let n = 0; n < 32; n++) {
+    for (let n = 0; n < 64; n++) {
       const t = rand();
       const frame = timeOfDay(t);
       const [a, b] = adjacentKeys(t);
@@ -69,7 +107,22 @@ describe('timeOfDay', () => {
     }
   });
 
-  test('sunDir always normalized with y > 0.05 (sun never sets)', () => {
+  // Because every keyframe is inside the palette and interpolation is
+  // component-wise, EVERY frame of the cycle is too — including the ones
+  // between dusk and night, which is where a naive rig goes black.
+  test('no interpolated frame drops below PAPER.inkTeal either', () => {
+    const [ir, ig, ib] = channels(PAPER.inkTeal);
+    for (let n = 0; n <= 400; n++) {
+      const t = n / 400;
+      const frame = timeOfDay(t);
+      for (const f of COLOR_FIELDS) {
+        const [r, g, b] = channels(frame[f]);
+        assert.ok(r >= ir && g >= ig && b >= ib, `t=${t.toFixed(3)} ${f} 0x${frame[f].toString(16)}`);
+      }
+    }
+  });
+
+  test('sunDir always normalized with y > 0.05 (key light never sets)', () => {
     const rand = makeRand(42);
     const ts = [...DAY_KEYS.map(k => k.t)];
     for (let n = 0; n < 100; n++) ts.push(rand());
@@ -80,13 +133,29 @@ describe('timeOfDay', () => {
     }
   });
 
-  test('wraps: t just above 0.85 blends dusk toward morning', () => {
-    const frame = timeOfDay(0.925); // halfway through the wrap segment
-    const dusk = DAY_KEYS[3], morning = DAY_KEYS[0];
-    assert.ok(Math.abs(frame.sunIntensity - (dusk.sunIntensity + morning.sunIntensity) / 2) < 1e-9);
-    assert.ok(Math.abs(frame.fogNear - (dusk.fogNear + morning.fogNear) / 2) < 1e-9);
+  test('night rises and falls exactly once across the cycle', () => {
+    // Sampled coarsely: day in the middle, night at the wrap.
+    assert.equal(timeOfDay(0.32).night, 0);
+    assert.equal(timeOfDay(0.50).night, 0);
+    assert.ok(timeOfDay(0.86).night > 0.6);
+    assert.equal(timeOfDay(0.93).night, 1);
+    assert.ok(timeOfDay(0.99).night > 0.2, 'still dark just before dawn');
+    assert.ok(timeOfDay(0.05).night < 0.22, 'dawn is burning the stars off');
+  });
+
+  test('isNight agrees with the night field', () => {
+    assert.equal(isNight(0.32), false);
+    assert.equal(isNight(0.92), true);
+    assert.equal(isNight(timeOfDay(0.92)), true);
+  });
+
+  test('wraps: t just past the last key blends deep night toward dawn', () => {
+    const frame = timeOfDay(0.98); // halfway through the wrap segment
+    const deep = DAY_KEYS[7], dawn = DAY_KEYS[0];
+    assert.ok(Math.abs(frame.sunIntensity - (deep.sunIntensity + dawn.sunIntensity) / 2) < 1e-9);
+    assert.ok(Math.abs(frame.fogDensity - (deep.fogDensity + dawn.fogDensity) / 2) < 1e-9);
     // negative t also wraps into the same segment
-    assert.deepEqual(timeOfDay(-0.075), frame);
+    assert.deepEqual(timeOfDay(-0.02), frame);
   });
 
   test('lerpColor endpoints are exact', () => {
