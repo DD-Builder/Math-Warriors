@@ -1,20 +1,30 @@
 import Phaser from 'phaser';
-import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS } from '../config.js';
-import { loadSave, getActiveSlot } from '../systems/save.js';
+import { SCENES, GAME_WIDTH, GAME_HEIGHT, PAPER, PAPER_CSS, mazeStateKey } from '../config.js';
+import { loadSave, writeSave, getActiveSlot } from '../systems/save.js';
 import { audio } from '../systems/audio.js';
 import { PaperButton } from '../ui/paperUI.js';
 import { transitionTo } from '../ui/sceneHelpers.js';
 import { webglAvailable } from '../ui/hubRouter.js';
+import { DIALOGUE } from '../data/dialogue.js';
+import { routePortal } from '../overworld/portals.js';
+import { collectItem } from '../overworld/collectibles.js';
+import { toSave } from '../overworld/state.js';
 
 /**
  * OverworldScene — the Phaser bridge to the Three.js 3D overworld hub.
  *
  * The 3D world renders on the #mw-overworld canvas UNDERNEATH this scene's
  * (transparent) Phaser canvas. This scene owns everything 2D and everything
- * Phaser: the HUD, the virtual joystick + keyboard input, scene transitions
- * (Phaser irises/fades are opaque and cover the 3D canvas below), and the 3D
- * app's lifecycle (dynamic import — three.js never loads until a player
- * actually enters the overworld).
+ * Phaser: the HUD, the virtual joystick + keyboard input, the portal prompt,
+ * scene transitions (Phaser irises/fades are opaque and cover the 3D canvas
+ * below), and the 3D app's lifecycle (dynamic import — three.js never loads
+ * until a player actually enters the overworld).
+ *
+ * WHY portal entry routes through overworld/portals.js instead of duplicating
+ * WorldMapScene.enterFloor: two doors into the same floor that drift apart is
+ * a bug factory. routePortal is the pure decision (party gate, lock gate,
+ * entry cutscene); this scene supplies only the two impure lookups it can't
+ * make — the registry/localStorage maze-in-progress probe and DIALOGUE.
  *
  * If WebGL is unavailable (Lockdown Mode, no-GL headless, context death) it
  * routes straight to the fully-intact 2D WorldMapScene. The overworld is an
@@ -31,6 +41,8 @@ export class OverworldScene extends Phaser.Scene {
     this._entryData = data || {};
     this.app = null;
     this._destroyed = false;
+    this._nearPortal = null;
+    this._entering = false;
   }
 
   create() {
@@ -49,6 +61,12 @@ export class OverworldScene extends Phaser.Scene {
       this.scene.start(SCENES.WORLD_MAP, this._entryData);
       return;
     }
+
+    // The hub launches no battles of its own, and a stale return target left
+    // by a previous scene would send a later victory somewhere dead.
+    // MazeScene/TowerScene/BossRushScene each set this before every launch.
+    this.registry.remove('battleReturnScene');
+    this.registry.remove('battleReturnData');
 
     this._boot();
 
@@ -69,6 +87,9 @@ export class OverworldScene extends Phaser.Scene {
           onFirstFrame: () => this._revealWorld(),
           onContextLost: () => { this.app?.pause(); },
           onContextRestored: () => { this.app?.resume(); },
+          onPortalNear: (portal) => this._showPortalPrompt(portal),
+          onPortalLeave: () => this._hidePortalPrompt(),
+          onCollect: (spec) => this._onCollect(spec),
         },
       });
     } catch (err) {
@@ -93,10 +114,10 @@ export class OverworldScene extends Phaser.Scene {
     });
   }
 
-  // ── Input: WASD/arrows + virtual joystick + jump ──
+  // ── Input: WASD/arrows + virtual joystick + jump + run + interact ──
   _buildInput() {
     this.cursors = this.input.keyboard?.createCursorKeys();
-    this.wasd = this.input.keyboard?.addKeys('W,A,S,D,SPACE');
+    this.wasd = this.input.keyboard?.addKeys('W,A,S,D,SPACE,SHIFT,E,ENTER');
 
     // Virtual joystick (bottom-left). First continuous-drag input in the
     // game: pointerdown anchors the stick, pointermove supplies an analog
@@ -154,7 +175,7 @@ export class OverworldScene extends Phaser.Scene {
     this._jumpBtn.on('pointerdown', () => { this._jumpQueued = true; });
   }
 
-  // ── Minimal Phase-0 HUD (hubHUD extraction lands in Phase 1) ──
+  // ── HUD: title, map escape hatch, gold/potion chips ──
   _buildHud() {
     this.add.text(40, 30, 'THE REALM', {
       fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
@@ -162,11 +183,125 @@ export class OverworldScene extends Phaser.Scene {
       stroke: PAPER_CSS.inkTeal, strokeThickness: 5,
     }).setDepth(95).setScrollFactor(0);
 
+    this._goldChip = this._makeChip(60, 96, PAPER.gold, '#3a2410', `${this.save.gold || 0}`);
+    this._potionChip = this._makeChip(230, 96, PAPER.coral, PAPER_CSS.cream, `${this.save.potions || 0}`);
+
     const mapBtn = new PaperButton(this, GAME_WIDTH - 130, 56, 'MAP VIEW', {
       w: 180, h: 56, color: PAPER.teal, fontSize: 18,
-      onClick: () => transitionTo(this, SCENES.WORLD_MAP, {}, 250, 'fade'),
+      onClick: () => {
+        this.saveMazeState();
+        transitionTo(this, SCENES.WORLD_MAP, {}, 250, 'fade');
+      },
     });
     [mapBtn.bg, mapBtn.shadow, mapBtn.label, mapBtn.zone].forEach((o) => o?.setDepth(95).setScrollFactor(0));
+  }
+
+  /** One papercut HUD counter. Returns { plate, label } for pulsing. */
+  _makeChip(x, y, color, textColor, value) {
+    const plate = this.add.rectangle(x, y, 150, 52, color, 0.92)
+      .setOrigin(0, 0.5).setDepth(94).setScrollFactor(0);
+    const label = this.add.text(x + 75, y, value, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '26px', color: textColor,
+    }).setOrigin(0.5).setDepth(95).setScrollFactor(0);
+    return { plate, label };
+  }
+
+  /** Grow-and-settle pulse on a chip when its count changes. */
+  _pulseChip(chip, value) {
+    if (!chip) return;
+    chip.label.setText(String(value));
+    this.tweens.killTweensOf([chip.plate, chip.label]);
+    chip.plate.setScale(1);
+    chip.label.setScale(1);
+    this.tweens.add({
+      targets: [chip.plate, chip.label],
+      scaleX: 1.22, scaleY: 1.22,
+      duration: 130, yoyo: true, ease: 'Back.out',
+    });
+  }
+
+  // ── Pickups ──
+  _onCollect(spec) {
+    const res = collectItem(this.save, spec);
+    if (!res.granted) return;
+    writeSave(this.save, this.slot);
+    audio.play('world/gold');
+    if (spec.kind === 'gold') this._pulseChip(this._goldChip, this.save.gold || 0);
+    else this._pulseChip(this._potionChip, this.save.potions || 0);
+  }
+
+  // ── Portal prompt ──
+  _showPortalPrompt(portal) {
+    this._nearPortal = portal;
+    if (this._promptBtn) this._destroyPrompt();
+    const btn = new PaperButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 150, `ENTER — FLOOR ${portal.floorId}`, {
+      w: 460, h: 88, color: PAPER.gold, textColor: '#3a2410', fontSize: 30,
+      seed: 4200 + portal.floorId,
+      onClick: () => this._enterPortal(),
+    });
+    [btn.bg, btn.shadow, btn.label, btn.zone].forEach((o) => o?.setDepth(96).setScrollFactor(0));
+    this._promptBtn = btn;
+  }
+
+  _hidePortalPrompt() {
+    this._nearPortal = null;
+    this._destroyPrompt();
+  }
+
+  _destroyPrompt() {
+    if (!this._promptBtn) return;
+    const b = this._promptBtn;
+    this._promptBtn = null;
+    [b.bg, b.shadow, b.label, b.zone].forEach((o) => o?.destroy());
+  }
+
+  /** True when this floor has a maze already in progress (registry first). */
+  _hasMazeState(floorId) {
+    if (this.registry.get(mazeStateKey(floorId))) return true;
+    try { return !!localStorage.getItem(`mw_maze_${floorId}`); } catch { return false; }
+  }
+
+  _enterPortal() {
+    const portal = this._nearPortal;
+    if (!portal || this._entering) return;
+
+    const lines = DIALOGUE[`floor${portal.floorId}_entry`];
+    const route = routePortal({
+      save: this.save,
+      floorId: portal.floorId,
+      hasMazeState: this._hasMazeState(portal.floorId),
+      hasEntryDialogue: !!(lines && lines.length > 0),
+    });
+
+    if (route.block === 'no-party') {
+      audio.play('ui/back');
+      this.saveMazeState();
+      this.scene.start(SCENES.PARTY_SELECT, { grade: this.save.grade });
+      return;
+    }
+    if (route.block === 'locked') {
+      audio.play('ui/back');
+      this._flash('That gate is still sealed.');
+      return;
+    }
+
+    this._entering = true;
+    audio.play('ui/confirm');
+    this.app?.notePortalUsed(portal.id);
+    this.saveMazeState();
+    this._destroyPrompt();
+    transitionTo(this, route.sceneKey, route.data, 300, 'circle');
+  }
+
+  _flash(message) {
+    const t = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 260, message, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '26px', color: PAPER_CSS.cream,
+      backgroundColor: PAPER_CSS.inkTeal,
+      padding: { x: 18, y: 10 },
+    }).setOrigin(0.5).setDepth(97).setScrollFactor(0);
+    this.tweens.add({ targets: t, alpha: 0, delay: 1600, duration: 400, onComplete: () => t.destroy() });
   }
 
   update() {
@@ -180,13 +315,33 @@ export class OverworldScene extends Phaser.Scene {
     const jump = this._jumpQueued ||
       Phaser.Input.Keyboard.JustDown(this.wasd?.SPACE ?? { isDown: false });
     this._jumpQueued = false;
+    const run = !!(this.wasd?.SHIFT?.isDown);
     // Screen-space stick → world: up on the stick is "away from camera".
-    this.app.setInput({ x, y: -y, jump });
+    this.app.setInput({ x, y: -y, jump, run });
+
+    // E / Enter is the keyboard twin of tapping the ENTER prompt.
+    if (this._nearPortal && !this._entering) {
+      const e = this.wasd?.E;
+      const ent = this.wasd?.ENTER;
+      if ((e && Phaser.Input.Keyboard.JustDown(e)) || (ent && Phaser.Input.Keyboard.JustDown(ent))) {
+        this._enterPortal();
+      }
+    }
   }
 
-  /** Called by main.js on visibilitychange — persist position (save v6, Phase 1). */
+  /**
+   * Called by main.js on visibilitychange, and before every scene exit that
+   * leaves the hub — persists position/yaw/last-portal/pickups into
+   * save.overworld (v6) so re-entry drops the player where they stood.
+   */
   saveMazeState() {
-    // Phase 1: write save.overworld.pos/yaw. No-op for Phase 0.
+    if (!this.app || !this.save) return;
+    try {
+      this.save.overworld = toSave(this.app.getPlayerState());
+      writeSave(this.save, this.slot);
+    } catch (err) {
+      console.warn('[overworld] save failed:', err);
+    }
   }
 
   /** Called by main.js before drawing the session-timer overlay. */
@@ -196,6 +351,7 @@ export class OverworldScene extends Phaser.Scene {
 
   _teardown() {
     this._destroyed = true;
+    this._destroyPrompt();
     if (this.app) {
       this.app.dispose();
       this.app = null;

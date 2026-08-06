@@ -1,19 +1,85 @@
 /**
  * Overworld assembly — the ONE module OverworldScene dynamically imports.
  *
- * createOverworld({ game, save, hooks }) builds the Three.js world on the
- * #mw-overworld canvas and returns a small control surface for the Phaser
- * bridge scene. Phase 0 scope: papercut-toon ground, light rig with
- * teal-tinted shading, fog, sky clear color, a controllable hero proxy and
- * follow camera — the socket every later phase (terrain, water, sky,
- * vegetation, character rig) plugs into.
+ * createOverworld({ game, save, hooks }) wires the pure world modules
+ * (heightfield -> collision -> controller) to the three.js modules (terrain,
+ * sky, water, props) on the #mw-overworld canvas and hands the Phaser bridge
+ * scene a small control surface.
  *
- * Everything here is browser-only. Pure logic (heightfield, collision,
- * controller, portals) lives in sibling modules with zero three imports.
+ * WHY the assembly lives here and nowhere else: every module below is either
+ * pure logic with no three import (testable in plain Node) or a self-contained
+ * visual subsystem that knows nothing about gameplay. The wiring — which
+ * colliders exist, what the sun follows, when a portal prompt fires — is the
+ * only code that needs to know about all of them, so it is the only code in
+ * this file. Anything that could be pure logic belongs in a sibling.
+ *
+ * WHY the sun rides the player: the shadow map is 2048 over a ~70 unit ortho
+ * box (≈7 cm/texel). That is console-class contact shadowing, and it is only
+ * possible because the box never has to cover more than the player's
+ * neighbourhood. A world-sized shadow frustum at this resolution would be mush.
+ *
+ * WHY the follow camera samples the ground under ITSELF: a boom that only
+ * offsets from the player buries the camera inside every hill the player walks
+ * along. Raising the eye to a floor of (terrain, water) + margin keeps the
+ * horizon line — and therefore the composition — intact on a 50 m palace flank.
+ *
+ * WHY the day clock is quantised: timeOfDay() allocates a frame object, and
+ * the update loops must not allocate. The clock advances every fixed step but
+ * a new lighting frame is only built when the day has actually moved
+ * (~0.5 s of wall time), then reused by reference by sky, water and the rig.
+ *
+ * Constraints honoured: three r170 package only, no post-processing, no
+ * depth-texture reads, no fwidth tricks, InstancedMesh for everything
+ * repeated, zero allocation in step()/draw(), every colour from PAPER, and
+ * dispose() releases everything created here.
  */
 import * as THREE from 'three';
 import { createRenderer } from './renderer.js';
 import { toonMaterial, paperColor, PAPER } from './materials/toon.js';
+import { WORLD, SPAWN } from './worldSpec.js';
+import { createHeightfield } from './heightfield.js';
+import { createCollisionWorld } from './collision.js';
+import { createController } from './controller.js';
+import { createTerrain } from './terrainMesh.js';
+import { createSky } from './sky.js';
+import { createWater } from './water.js';
+import { createProps } from './props.js';
+import { timeOfDay } from './timeOfDay.js';
+import { fromSave } from './state.js';
+import { POSES, poseByName } from './poses.js';
+
+// Bright late morning: the world's default first impression.
+const DEFAULT_TOD = 0.28;
+// One full day over eight minutes of play — perceptible across a session,
+// never distracting inside a single errand.
+const DAY_SECONDS = 480;
+// Rebuild the lighting frame only after the day has moved this far (~0.5 s).
+const TOD_EPS = 0.001;
+
+// Third-person boom.
+const CAM = {
+  dist: 11.5,
+  height: 6.0,
+  lookAhead: 3.0,
+  lookUp: 1.5,
+  minAbove: 2.6,   // eye floor above terrain/water under the camera itself
+  lerp: 0.12,
+};
+
+const SHADOW_ORTHO = 70;
+const SUN_DIST = 150;
+
+// Pickup grab radius. Generous on purpose — a 5-year-old aims with a thumb.
+const PICKUP_RADIUS = 1.6;
+// Extra slack on the portal trigger so the prompt appears before the arch
+// fills the screen.
+const PORTAL_PAD = 2.2;
+
+// Animation phase used while a pose is active. The rig's simTime depends on
+// how long boot took, so a pose that fed it through would give coins, grass
+// and clouds a different phase on every run — and a critique loop can only
+// compare images that are actually comparable.
+const POSE_TIME = 12;
 
 export async function createOverworld({ game, save = null, hooks = {} }) {
   const rig = createRenderer({
@@ -23,141 +89,293 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   });
   const { renderer } = rig;
 
-  // ── Scene, atmosphere ──
+  // ── World logic ────────────────────────────────────────────────────────
+  const heightfield = createHeightfield(WORLD.SEED);
+  const collisionWorld = createCollisionWorld(heightfield);
+  const controller = createController(collisionWorld);
+
+  // ── Scene + atmosphere ─────────────────────────────────────────────────
   const scene = new THREE.Scene();
-  scene.background = paperColor(PAPER.sky);
-  scene.fog = new THREE.Fog(paperColor(PAPER.cream), 60, 240);
+  scene.background = paperColor(PAPER.cream);
+  scene.fog = new THREE.Fog(paperColor(PAPER.cream), 120, 430);
 
-  const camera = new THREE.PerspectiveCamera(50, 4 / 3, 0.1, 600);
+  // far 600 is the contract sky.js sizes its dome (480) and sun (360) against.
+  const camera = new THREE.PerspectiveCamera(50, 4 / 3, 0.4, 600);
 
-  // ── Light rig: warm sun + teal-leaning hemisphere fill ──
-  const hemi = new THREE.HemisphereLight(paperColor(PAPER.sky), paperColor(PAPER.sageD), 0.55);
+  // ── Light rig (values are driven by timeOfDay each frame) ──────────────
+  const hemi = new THREE.HemisphereLight(paperColor(PAPER.sky), paperColor(PAPER.sage), 0.6);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(paperColor(PAPER.cream), 1.35);
-  sun.position.set(40, 60, 25);
+  const sun = new THREE.DirectionalLight(paperColor(PAPER.cream), 1.1);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  const S = 60;
-  sun.shadow.camera.left = -S; sun.shadow.camera.right = S;
-  sun.shadow.camera.top = S; sun.shadow.camera.bottom = -S;
-  sun.shadow.camera.near = 1; sun.shadow.camera.far = 200;
-  sun.shadow.bias = -0.0005;
+  sun.shadow.camera.left = -SHADOW_ORTHO;
+  sun.shadow.camera.right = SHADOW_ORTHO;
+  sun.shadow.camera.top = SHADOW_ORTHO;
+  sun.shadow.camera.bottom = -SHADOW_ORTHO;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = SUN_DIST * 2.2;
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.05;
   scene.add(sun);
   scene.add(sun.target);
 
-  // ── Phase-0 ground: big sage plane (terrain lands in Phase 1) ──
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(480, 480, 1, 1),
-    toonMaterial(PAPER.sage),
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
+  // ── Visual subsystems ──────────────────────────────────────────────────
+  const terrain = createTerrain(heightfield);
+  scene.add(terrain.group);
 
-  // A few papercut landmarks so boot screenshots have depth cues.
-  const landmarks = new THREE.Group();
-  const shapes = [
-    { geo: new THREE.ConeGeometry(3, 8, 6), color: PAPER.forest, x: 12, z: -14 },
-    { geo: new THREE.ConeGeometry(2.2, 6, 6), color: PAPER.leaf, x: -10, z: -8 },
-    { geo: new THREE.BoxGeometry(4, 3, 4), color: PAPER.coral, x: -16, z: 10 },
-    { geo: new THREE.SphereGeometry(2.4, 12, 8), color: PAPER.lavender, x: 18, z: 12 },
-    { geo: new THREE.ConeGeometry(4, 12, 6), color: PAPER.forestD, x: 2, z: -30 },
-  ];
-  for (const s of shapes) {
-    const m = new THREE.Mesh(s.geo, toonMaterial(s.color));
-    m.position.set(s.x, s.geo.parameters.height ? s.geo.parameters.height / 2 : 2.4, s.z);
+  const sky = createSky({ camera, seed: WORLD.SEED });
+  scene.add(sky.group);
+
+  const water = createWater(heightfield);
+  scene.add(water.mesh);
+
+  const props = createProps(heightfield);
+  scene.add(props.group);
+
+  // ── Prop colliders ─────────────────────────────────────────────────────
+  // Circles only, all forgiving: an arch is two pillars (you walk THROUGH the
+  // opening — that is the whole point of a gate), a building is one disc well
+  // inside its awnings, a tree is its trunk and not its canopy.
+  for (const p of props.portals) {
+    const s = Math.sin(p.yaw);
+    const c = Math.cos(p.yaw);
+    for (const side of [-1, 1]) {
+      const ox = side * p.pillarOffset;
+      collisionWorld.addCollider({
+        id: `${p.id}-pillar${side > 0 ? 'R' : 'L'}`,
+        kind: 'circle',
+        x: p.x + ox * c,
+        z: p.z - ox * s,
+        r: p.pillarRadius,
+      });
+    }
+  }
+  for (const b of props.buildings) {
+    collisionWorld.addCollider({ id: `building-${b.id}`, kind: 'circle', x: b.x, z: b.z, r: b.r });
+  }
+  props.trees.forEach((t, i) => {
+    collisionWorld.addCollider({ id: `tree-${i}`, kind: 'circle', x: t.x, z: t.z, r: t.r });
+  });
+
+  // ── Hero proxy (paper-doll rig lands in Phase 3) ───────────────────────
+  const hero = new THREE.Group();
+  hero.name = 'hero';
+  const heroGeos = [];
+  const heroMats = [];
+  const addHeroPart = (geo, colorInt, y) => {
+    heroGeos.push(geo);
+    const mat = toonMaterial(colorInt);
+    heroMats.push(mat);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = y;
     m.castShadow = true;
     m.receiveShadow = true;
-    landmarks.add(m);
-  }
-  scene.add(landmarks);
-
-  // ── Hero proxy (paper-doll rig replaces this in Phase 3) ──
-  const hero = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.4, 0.8, 4, 8),
-    toonMaterial(PAPER.teal),
-  );
-  body.position.y = 0.8;
-  body.castShadow = true;
-  hero.add(body);
-  // Grounding blob shadow (soft dark-teal disc, papercut style)
-  const blob = new THREE.Mesh(
-    new THREE.CircleGeometry(0.55, 20),
-    new THREE.MeshBasicMaterial({ color: paperColor(PAPER.shadow), transparent: true, opacity: 0.25, depthWrite: false }),
-  );
+    hero.add(m);
+    return m;
+  };
+  addHeroPart(new THREE.CapsuleGeometry(0.34, 0.62, 4, 10), PAPER.teal, 0.80);
+  addHeroPart(new THREE.CylinderGeometry(0.36, 0.36, 0.13, 10), PAPER.gold, 1.19);
+  addHeroPart(new THREE.SphereGeometry(0.30, 12, 10), PAPER.peach, 1.45);
+  addHeroPart(new THREE.ConeGeometry(0.38, 0.34, 9), PAPER.coral, 1.76);
+  // Grounding disc: teal-tinted, never a black blob (papercut law).
+  const blobGeo = new THREE.CircleGeometry(0.52, 18);
+  const blobMat = new THREE.MeshBasicMaterial({
+    color: paperColor(PAPER.shadow), transparent: true, opacity: 0.22, depthWrite: false, fog: true,
+  });
+  heroGeos.push(blobGeo);
+  heroMats.push(blobMat);
+  const blob = new THREE.Mesh(blobGeo, blobMat);
   blob.rotation.x = -Math.PI / 2;
-  blob.position.y = 0.02;
+  blob.position.y = 0.03;
+  blob.renderOrder = 1;
   hero.add(blob);
   scene.add(hero);
 
-  // ── Simulation state (fixed-step; Phase 1 swaps in controller.js) ──
-  const state = {
-    pos: new THREE.Vector3(0, 0, 0),
-    yaw: 0,
-    vy: 0,
-    grounded: true,
-  };
-  const input = { x: 0, y: 0, jump: false };
-  const SPEED = 6, GRAV = 22, JUMP_V = 8.5;
+  // ── Player state ───────────────────────────────────────────────────────
+  const restored = fromSave(save?.overworld);
+  let player = restored.pos
+    ? controller.spawnState({ x: restored.pos.x, z: restored.pos.z, yaw: restored.yaw })
+    : controller.spawnState(SPAWN);
+  let lastPortalId = restored.portalId;
 
-  function step(dt) {
-    const len = Math.hypot(input.x, input.y);
-    if (len > 0.01) {
-      const nx = input.x / Math.max(1, len);
-      const nz = input.y / Math.max(1, len);
-      state.pos.x += nx * SPEED * dt;
-      state.pos.z += nz * SPEED * dt;
-      state.yaw = Math.atan2(nx, nz);
-    }
-    if (input.jump && state.grounded) { state.vy = JUMP_V; state.grounded = false; }
-    input.jump = false;
-    if (!state.grounded) {
-      state.vy -= GRAV * dt;
-      state.pos.y += state.vy * dt;
-      if (state.pos.y <= 0) { state.pos.y = 0; state.vy = 0; state.grounded = true; }
-    }
-    // Keep the proxy on the Phase-0 plane
-    state.pos.x = THREE.MathUtils.clamp(state.pos.x, -230, 230);
-    state.pos.z = THREE.MathUtils.clamp(state.pos.z, -230, 230);
+  const input = { x: 0, y: 0, jump: false, run: false };
+  let jumpLatch = false;
+
+  // ── Collectibles: hide what the save already granted ───────────────────
+  const pending = [];
+  const collectedIds = new Set(restored.collected);
+  for (const c of props.collectibles) {
+    if (collectedIds.has(c.id)) c.mesh.visible = false;
+    else pending.push(c);
   }
 
-  // ── Follow camera ──
-  const camBoom = { dist: 11, height: 6.5, lookAhead: 2.0 };
-  function camTarget() {
-    return new THREE.Vector3(
-      state.pos.x - Math.sin(state.yaw) * camBoom.dist,
-      state.pos.y + camBoom.height,
-      state.pos.z - Math.cos(state.yaw) * camBoom.dist,
-    );
+  // ── Time of day ────────────────────────────────────────────────────────
+  let todT = DEFAULT_TOD;
+  let todFrozen = false;
+  let frameT = NaN;
+  let lightFrame = null;
+  const _bg = scene.background;
+  const _fog = scene.fog;
+
+  function applyLight(frame) {
+    sun.color.setHex(frame.sunColor);
+    sun.intensity = frame.sunIntensity;
+    hemi.color.setHex(frame.hemiSky);
+    hemi.groundColor.setHex(frame.hemiGround);
+    hemi.intensity = frame.hemiIntensity;
+    _fog.color.setHex(frame.fogColor);
+    _fog.near = frame.fogNear;
+    _fog.far = frame.fogFar;
+    _bg.setHex(frame.fogColor);
   }
-  function camLook() {
-    return new THREE.Vector3(
-      state.pos.x + Math.sin(state.yaw) * camBoom.lookAhead,
-      state.pos.y + 1.2,
-      state.pos.z + Math.cos(state.yaw) * camBoom.lookAhead,
-    );
+
+  /** Rebuild the lighting frame only when the day has actually moved. */
+  function syncLight(force) {
+    if (!force && Math.abs(todT - frameT) < TOD_EPS) return;
+    frameT = todT;
+    lightFrame = timeOfDay(todT);
+    applyLight(lightFrame);
   }
+  syncLight(true);
+
+  // ── Camera ─────────────────────────────────────────────────────────────
+  const _camWant = new THREE.Vector3();
+  const _camLook = new THREE.Vector3();
+  const _size = new THREE.Vector2();
+  /** @type {{pos:THREE.Vector3, look:THREE.Vector3}|null} */
+  let poseCam = null;
+
+  /** Never let the eye sink into terrain (or under the ocean plane). */
+  function liftAboveGround(v) {
+    const gy = heightfield.sampleHeight(v.x, v.z);
+    const floorY = (gy > WORLD.WATER_Y ? gy : WORLD.WATER_Y) + CAM.minAbove;
+    if (v.y < floorY) v.y = floorY;
+  }
+
+  function computeBoom() {
+    const s = Math.sin(player.yaw);
+    const c = Math.cos(player.yaw);
+    _camWant.set(player.pos.x - s * CAM.dist, player.pos.y + CAM.height, player.pos.z - c * CAM.dist);
+    liftAboveGround(_camWant);
+    _camLook.set(player.pos.x + s * CAM.lookAhead, player.pos.y + CAM.lookUp, player.pos.z + c * CAM.lookAhead);
+  }
+
   function updateCamera() {
-    camera.position.lerp(camTarget(), 0.08);
-    camera.lookAt(camLook());
+    if (poseCam) {
+      camera.position.copy(poseCam.pos);
+      liftAboveGround(camera.position);
+      camera.lookAt(poseCam.look);
+      return;
+    }
+    computeBoom();
+    camera.position.lerp(_camWant, CAM.lerp);
+    liftAboveGround(camera.position);
+    camera.lookAt(_camLook);
   }
-  /** Hard-place the camera at its follow position — boot and teleports must
-   *  never show the lerp swinging in from wherever the camera last was. */
+
+  /** Hard-place the camera — boot, teleport and pose must never show a swing. */
   function snapCamera() {
-    camera.position.copy(camTarget());
-    camera.lookAt(camLook());
+    if (poseCam) {
+      camera.position.copy(poseCam.pos);
+      liftAboveGround(camera.position);
+      camera.lookAt(poseCam.look);
+      return;
+    }
+    computeBoom();
+    camera.position.copy(_camWant);
+    camera.lookAt(_camLook);
   }
   snapCamera();
 
+  // ── Proximity triggers ─────────────────────────────────────────────────
+  let nearPortal = null;
+  let currentPose = null;
+
+  /** Drop any live portal prompt (teleport/pose relocate the player). */
+  function clearNearPortal() {
+    if (!nearPortal) return;
+    nearPortal = null;
+    hooks.onPortalLeave?.();
+  }
+
+  function checkPortals() {
+    let found = null;
+    let best = Infinity;
+    for (const p of props.portals) {
+      const dx = player.pos.x - p.x;
+      const dz = player.pos.z - p.z;
+      const d2 = dx * dx + dz * dz;
+      const reach = p.radius + PORTAL_PAD;
+      if (d2 < reach * reach && d2 < best) { best = d2; found = p; }
+    }
+    if (found === nearPortal) return;
+    nearPortal = found;
+    if (found) hooks.onPortalNear?.(found);
+    else hooks.onPortalLeave?.();
+  }
+
+  function checkCollectibles() {
+    for (let i = pending.length - 1; i >= 0; i--) {
+      const c = pending[i];
+      const dx = player.pos.x - c.x;
+      const dz = player.pos.z - c.z;
+      if (dx * dx + dz * dz > PICKUP_RADIUS * PICKUP_RADIUS) continue;
+      pending.splice(i, 1);
+      collectedIds.add(c.id);
+      c.mesh.visible = false;
+      hooks.onCollect?.({ id: c.id, kind: c.kind, amount: c.amount });
+    }
+  }
+
+  // ── Fixed-step simulation ──────────────────────────────────────────────
+  function step(dt) {
+    if (jumpLatch) { input.jump = true; jumpLatch = false; }
+    player = controller.step(player, input, dt);
+    input.jump = false;
+    if (!todFrozen) {
+      todT += dt / DAY_SECONDS;
+      if (todT >= 1) todT -= 1;
+    }
+    checkPortals();
+    checkCollectibles();
+  }
+
+  // ── Draw ───────────────────────────────────────────────────────────────
   let firstFrame = false;
+
   function draw(simTime) {
-    hero.position.copy(state.pos);
-    hero.rotation.y = state.yaw;
-    // Sun follows the hero so the tight shadow frustum stays useful
-    sun.position.set(state.pos.x + 40, 60, state.pos.z + 25);
-    sun.target.position.set(state.pos.x, 0, state.pos.z);
+    renderer.getSize(_size);
+    if (_size.y > 0) {
+      const a = _size.x / _size.y;
+      if (Math.abs(a - camera.aspect) > 1e-4) {
+        camera.aspect = a;
+        camera.updateProjectionMatrix();
+      }
+    }
+
+    syncLight(false);
+
+    hero.position.set(player.pos.x, player.pos.y, player.pos.z);
+    hero.rotation.y = player.yaw;
+
+    // Sun rides the player so the tight shadow ortho always covers what the
+    // camera can see up close.
+    const d = lightFrame.sunDir;
+    sun.position.set(
+      player.pos.x + d[0] * SUN_DIST,
+      player.pos.y + d[1] * SUN_DIST,
+      player.pos.z + d[2] * SUN_DIST,
+    );
+    sun.target.position.set(player.pos.x, player.pos.y, player.pos.z);
+    sun.target.updateMatrixWorld();
+
     updateCamera();
+    // A frozen pose pins the animation phase; live play uses the sim clock.
+    const animT = currentPose ? POSE_TIME : simTime;
+    sky.update(lightFrame, animT);
+    water.update(lightFrame, animT);
+    props.update(animT, player.pos);
+
     renderer.render(scene, camera);
     if (!firstFrame) {
       firstFrame = true;
@@ -167,15 +385,80 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
 
   rig.setLoop(step, draw);
 
-  // ── Debug / determinism API (Phase 2 adds POSES + timeOfDay) ──
+  // ── Debug / determinism API — the screenshot critique loop drives this ──
   const api = {
     ready: false,
     freeze(on = true) { rig.setFrozen(on); },
-    teleport(x, z, yaw = 0) { state.pos.set(x, 0, z); state.yaw = yaw; snapCamera(); api.renderOnce(); },
+    teleport(x, z, yaw = 0) {
+      poseCam = null;
+      player = controller.spawnState({ x, z, yaw });
+      clearNearPortal();
+      snapCamera();
+      api.renderOnce();
+    },
     renderOnce() { rig.renderOnce(); },
     stats() { return { ...rig.stats(), simTime: rig.simTime }; },
-    _state: state,
+
+    /** Freeze the day at t and relight immediately. */
+    setTimeOfDay(t) {
+      todT = ((t % 1) + 1) % 1;
+      todFrozen = true;
+      syncLight(true);
+      api.renderOnce();
+      return todT;
+    },
+    /** Let the day drift again from wherever it is. */
+    resumeTimeOfDay() { todFrozen = false; },
+    getTimeOfDay() { return todT; },
+
+    POSES: POSES.map((p) => p.name),
+    getPose() { return currentPose; },
+    /**
+     * Deterministically place player AND camera, freeze both clocks, render.
+     * Returns the pose so a harness can log what it shot.
+     */
+    setPose(name) {
+      const pose = poseByName(name);
+      if (!pose) return null;
+      currentPose = pose.name;
+      player = controller.spawnState({ x: pose.playerPos.x, z: pose.playerPos.z, yaw: pose.yaw });
+      clearNearPortal();
+      todT = pose.tod;
+      todFrozen = true;
+      syncLight(true);
+      if (pose.camPos) {
+        if (!poseCam) poseCam = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
+        poseCam.pos.set(pose.camPos.x, pose.camPos.y, pose.camPos.z);
+        const look = pose.camLook || { x: pose.playerPos.x, y: 1.4, z: pose.playerPos.z };
+        poseCam.look.set(look.x, look.y, look.z);
+      } else {
+        poseCam = null;
+      }
+      rig.setFrozen(true);
+      snapCamera();
+      rig.renderOnce();
+      return pose;
+    },
+    /** Drop the pose camera and hand control back to the follow boom. */
+    clearPose() {
+      currentPose = null;
+      poseCam = null;
+      todFrozen = false;
+      rig.setFrozen(false);
+      snapCamera();
+    },
+
+    worldStats() {
+      return {
+        terrain: { chunks: terrain.chunkCount, triangles: terrain.triangleCount },
+        props: props.stats,
+        colliders: props.trees.length + props.buildings.length + props.portals.length * 2,
+      };
+    },
   };
+  // Live view of the controller state — the state object is REPLACED every
+  // step (controller.step is pure), so this must be a getter, not a copy.
+  Object.defineProperty(api, '_state', { get: () => player, enumerable: true });
   if (typeof window !== 'undefined') window.__MW_OVERWORLD = api;
 
   rig.setVisible(true);
@@ -185,19 +468,41 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
 
   return {
     api,
-    setInput({ x = 0, y = 0, jump = false }) {
-      input.x = x; input.y = y;
-      if (jump) input.jump = true;
+    setInput({ x = 0, y = 0, jump = false, run = false }) {
+      input.x = x;
+      input.y = y;
+      input.run = !!run;
+      if (jump) jumpLatch = true;
     },
+    /** Current player transform, for save writing. */
+    getPlayerState() {
+      return {
+        pos: { x: player.pos.x, y: player.pos.y, z: player.pos.z },
+        yaw: player.yaw,
+        portalId: lastPortalId,
+        collected: [...collectedIds],
+      };
+    },
+    /** Scene records which gate the player last stepped through. */
+    notePortalUsed(id) { lastPortalId = id || null; },
+    /** The portal the player is standing in, or null. */
+    getNearPortal() { return nearPortal; },
     pause() { rig.stop(); },
     resume() { rig.start(); },
     setVisible(v) { rig.setVisible(v); },
     dispose() {
       rig.dispose();
-      scene.traverse((o) => {
-        o.geometry?.dispose?.();
-        if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose?.());
-      });
+      scene.remove(terrain.group, sky.group, water.mesh, props.group, hero);
+      terrain.dispose();
+      sky.dispose();
+      water.dispose();
+      props.dispose();
+      for (const g of heroGeos) g.dispose();
+      for (const m of heroMats) m.dispose();
+      heroGeos.length = 0;
+      heroMats.length = 0;
+      hero.clear();
+      pending.length = 0;
       if (typeof window !== 'undefined' && window.__MW_OVERWORLD === api) delete window.__MW_OVERWORLD;
     },
   };
