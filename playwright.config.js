@@ -32,8 +32,12 @@ export default defineConfig({
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
+        // Software WebGL via SwiftShader — the 3D overworld needs a real GL
+        // context in headless runs (probed: gives full WebGL2 + instancing).
+        // Phaser also picks up WebGL under these flags, which is CLOSER to
+        // what real devices run than the old canvas2d fallback.
+        '--use-angle=swiftshader',
+        '--enable-unsafe-swiftshader',
         '--disable-extensions',
       ],
     },

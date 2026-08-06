@@ -49,9 +49,21 @@
       left: 0;
       right: 0;
       bottom: 0;
+      /* Phaser's canvas is transparent (the 3D overworld renders on a canvas
+         beneath it), so the page background must supply the ink-teal that the
+         opaque canvas used to. Identical color to the old canvas clear. */
+      background: var(--bg);
     }
     #game canvas {
       display: block;
+    }
+    /* The Three.js overworld canvas — stacked UNDER the Phaser canvas.
+       Position/size are mirrored from the Phaser canvas rect by the
+       overworld renderer; hidden whenever the overworld is not active. */
+    #mw-overworld {
+      position: absolute;
+      z-index: 0;
+      display: none;
     }
     #loading {
       position: fixed;

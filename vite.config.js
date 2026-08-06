@@ -17,7 +17,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          phaser: ['phaser']
+          phaser: ['phaser'],
+          // Three.js only ever loads via dynamic import() from the overworld
+          // module — its own chunk keeps it out of the eager boot bundle and
+          // lets it cache independently across builds.
+          three: ['three']
         }
       }
     }

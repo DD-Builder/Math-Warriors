@@ -113,6 +113,7 @@ export const SCENES = {
   EVOLUTION: 'EvolutionScene',
   GALLERY: 'GalleryScene',
   TOWER: 'TowerScene',
+  OVERWORLD: 'OverworldScene',
 };
 
 // Safe margin from screen edges (pixels). All UI MUST stay inside this.
