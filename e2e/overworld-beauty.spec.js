@@ -77,11 +77,17 @@ test('overworld beauty: every pose renders to a screenshot', async ({ page }) =>
       // guarantees the compositor has the first one.
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       api.renderOnce();
-      return { name: api.getPose(), tod: api.getTimeOfDay() };
+      return { name: api.getPose(), tod: api.getTimeOfDay(), stats: api.stats() };
     }, name);
 
     expect(placed, `pose "${name}" was applied`).not.toBeNull();
     expect(placed.name).toBe(name);
+
+    // Not an assertion — the budget is enforced by overworld-boot.spec.js.
+    // Printed here because a framing that costs 3x its neighbours is the
+    // first thing an art/perf review wants to know about.
+    console.log(`  ${name.padEnd(18)} tod=${placed.tod.toFixed(2)}  `
+      + `draws=${placed.stats.drawCalls}  tris=${placed.stats.triangles}`);
 
     await page.screenshot({ path: `${OUT_DIR}/${name}.png` });
   }
