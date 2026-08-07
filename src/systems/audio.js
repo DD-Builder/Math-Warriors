@@ -79,7 +79,7 @@ import {
   setSfxVolume as setSfxBusVolume,
   setMuted as setBusMuted,
 } from './music/audioGraph.js';
-import { playSong, stopSong, playStinger, musicHasSong } from './music/director.js';
+import { playSong, stopSong, playStinger, musicHasSong, setSongIntensity } from './music/director.js';
 
 class AudioManager {
   constructor() {
@@ -220,6 +220,24 @@ class AudioManager {
 
     // No audio available — just mark as current to avoid repeated attempts
     this.currentMusic = key;
+  }
+
+  /**
+   * Push the live score up an intensity step (1..3).
+   *
+   * WHY: a boss phase change fired four visual channels at once (art,
+   * arena, cadence, title card) and left the SCORE untouched, so the
+   * fight sounded identical at 100% HP and at 5%. Bosses now carry
+   * layer-2 and layer-3 tracks that only arrive here — a child hears
+   * the drums double and a counter-line appear at the exact moment the
+   * boss transforms. Never call it with a lower level mid-fight;
+   * escalation is one-way.
+   *
+   * @param {number} level 1 = as written, 2 = transformed, 3 = enraged
+   */
+  setMusicIntensity(level) {
+    if (this.muted || this.musicVolume <= 0) return;
+    try { setSongIntensity(level); } catch { /* no context yet */ }
   }
 
   /** Duck the score and play a one-shot musical phrase over it. */

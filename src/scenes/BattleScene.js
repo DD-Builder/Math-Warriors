@@ -5,6 +5,7 @@ import { nextReview, buildReviewQuestion, scheduleReview, tickReview } from '../
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { recordSkillAnswer, getAdaptiveGrade, updateAdaptiveLevel, biasedMixedOperator, recordHintUsed } from '../systems/mastery.js';
+import { goHub, hubSceneKey, isHubScene } from '../ui/hubRouter.js';
 import {
   getZone,
   advanceMomentum,
@@ -180,7 +181,7 @@ export class BattleScene extends Phaser.Scene {
     // Undefined means "came from somewhere that isn't the maze"
     // (direct from World Map or from scene test harness), in which case
     // victory goes back to World Map.
-    this.returnScene = this.registry.get('battleReturnScene') || SCENES.WORLD_MAP;
+    this.returnScene = this.registry.get('battleReturnScene') || hubSceneKey(this.save);
     this.returnData = this.registry.get('battleReturnData') || null;
 
     this.momentum = 0.5;
@@ -3980,10 +3981,10 @@ export class BattleScene extends Phaser.Scene {
       transitionTo(this, SCENES.CUTSCENE, {
         lines,
         floorId: this.floor,
-        nextScene: SCENES.WORLD_MAP,
+        nextScene: hubSceneKey(this.save),
       });
     } else {
-      transitionTo(this, SCENES.WORLD_MAP);
+      goHub(this);
     }
   }
 
@@ -4118,7 +4119,7 @@ export class BattleScene extends Phaser.Scene {
     // still advances on the fast path. But Boss Rush and Spire fights must
     // NEVER flip real floor progression — a Spire boss (unlocked at Floor 3)
     // would otherwise complete unbeaten floors and unlock heroes early.
-    if ((this.isBoss && !this.bossRush && !this.spire) || this.returnScene === SCENES.WORLD_MAP) {
+    if ((this.isBoss && !this.bossRush && !this.spire) || isHubScene(this.returnScene)) {
       markFloorComplete(save, this.floor);
       const newHeroes = unlockHeroesForFloor(save, this.floor);
       if (newHeroes.length > 0) {

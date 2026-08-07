@@ -7,6 +7,7 @@ import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES } from '../data/heroes.js';
 import { spawnEnemy } from '../data/enemies.js';
+import { goHub } from '../ui/hubRouter.js';
 import {
   spireFightPlan, applySpireScaling, createSpireRun, spireHealAmount,
   spirePayout,
@@ -96,12 +97,12 @@ export class TowerScene extends Phaser.Scene {
       });
       PaperButton(this, area.cx + 130, bottomY, 'BACK', {
         w: 220, h: 54, color: PAPER.inkTeal, fontSize: 20, textColor: PAPER_CSS.cream,
-        onClick: () => { audio.play('ui/back'); transitionTo(this, SCENES.WORLD_MAP, undefined, 400); },
+        onClick: () => { audio.play('ui/back'); goHub(this, undefined, 400); },
       });
     } else {
       PaperButton(this, area.cx, bottomY, 'BACK', {
         w: 220, h: 54, color: PAPER.inkTeal, fontSize: 20, textColor: PAPER_CSS.cream,
-        onClick: () => { audio.play('ui/back'); transitionTo(this, SCENES.WORLD_MAP, undefined, 400); },
+        onClick: () => { audio.play('ui/back'); goHub(this, undefined, 400); },
       });
     }
   }
@@ -222,7 +223,7 @@ export class TowerScene extends Phaser.Scene {
     this.save.stats.bestSpireFloor = Math.max(this.save.stats.bestSpireFloor || 0, reached);
     writeSave(this.save, this.slot);
     this.registry.remove('spireState');
-    transitionTo(this, SCENES.WORLD_MAP, undefined, 400);
+    goHub(this, undefined, 400);
   }
 
   // ── Defeat results (after a wipe) ─────────────────────────────────
@@ -262,7 +263,7 @@ export class TowerScene extends Phaser.Scene {
 
     PaperButton(this, area.cx, area.bottom - 80, 'DONE', {
       w: 280, h: 70, color: PAPER.orange, fontSize: 26, textColor: PAPER_CSS.cream,
-      onClick: () => { audio.play('ui/confirm'); transitionTo(this, SCENES.WORLD_MAP, undefined, 400); },
+      onClick: () => { audio.play('ui/confirm'); goHub(this, undefined, 400); },
     });
   }
 }

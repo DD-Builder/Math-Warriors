@@ -47,12 +47,32 @@ export function webglAvailable() {
 export function __resetWebglProbe() { _webglProbe = null; }
 
 /**
+ * The scene key that IS the hub for this session.
+ *
+ * Use this anywhere a hub key is needed as DATA rather than as a jump —
+ * cutscene `nextScene`, the battle return target, resume mapping. Reading
+ * SCENES.WORLD_MAP directly in those places is what silently stranded the
+ * overworld: every route still pointed at the 2D map, so the 3D world was
+ * unreachable by playing even though it booted fine when started directly.
+ */
+export function hubSceneKey(save = null) {
+  return chooseHub({
+    webglOk: webglAvailable(),
+    enabled: save?.settings?.overworldEnabled,
+  });
+}
+
+/** True if `key` is either hub scene — for "did we come from the hub?" checks. */
+export function isHubScene(key) {
+  return key === SCENES.OVERWORLD || key === SCENES.WORLD_MAP;
+}
+
+/**
  * Send the player to the hub (Overworld when possible, World Map otherwise).
  * Drop-in replacement for the old `transitionTo(scene, SCENES.WORLD_MAP, …)`
  * call-sites; extra args mirror transitionTo's.
  */
-export function goHub(scene, data = {}, duration = 250, type = 'fade') {
-  const enabled = data?.save?.settings?.overworldEnabled ?? scene?.save?.settings?.overworldEnabled;
-  const key = chooseHub({ webglOk: webglAvailable(), enabled });
+export function goHub(scene, data = undefined, duration = 250, type = 'fade') {
+  const key = hubSceneKey(data?.save ?? scene?.save);
   transitionTo(scene, key, data, duration, type);
 }

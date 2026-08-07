@@ -123,6 +123,73 @@ function finish(scene, b, ms, done) {
   scene.time.delayedCall(ms, () => { b.restore(); done(); });
 }
 
+// Where a defeat cue should be centred: the boss's last position on
+// stage (its body is already fading when the cue plays, so we cache
+// the coordinates rather than the sprite).
+function bossAnchor(scene, spriteData) {
+  const b = spriteData?.body;
+  return { x: b?.x ?? scene.scale.width * 0.7, y: b?.y ?? scene.scale.height * 0.38 };
+}
+
+/**
+ * DRIFTING PAPER — the papercut way to say "it came apart".
+ *
+ * Sparks are the generic videogame answer and they look like fire in
+ * every colour. A papercut boss should shed PAPER: real rectangles of
+ * PAPER stock that tumble, rise and fade. Every defeat cue below is
+ * built from this plus one bespoke idea, which is what keeps nine
+ * different endings recognisably the same craft.
+ */
+function paperDrift(scene, x, y, opts = {}) {
+  const {
+    count = 14, colors = [PAPER.cream], spread = 220,
+    rise = -160, fall = 220, duration = 1200, size = 18,
+  } = opts;
+  for (let i = 0; i < count; i++) {
+    const c = colors[i % colors.length];
+    const sx = x + (Math.random() - 0.5) * spread;
+    const sy = y + (Math.random() - 0.5) * spread * 0.5;
+    const shard = scene.add.rectangle?.(sx, sy, size + (i % 3) * 6, size * 0.7 + (i % 2) * 5, c, 0.95);
+    if (!shard) return;
+    shard.setDepth?.(BATTLE_DEPTH.VFX);
+    shard.setScrollFactor?.(0);
+    shard.setAngle?.(Math.random() * 360);
+    scene.tweens.add({
+      targets: shard,
+      x: sx + (Math.random() - 0.5) * spread,
+      y: sy + rise + Math.random() * fall,
+      angle: (shard.angle || 0) + (Math.random() - 0.5) * 540,
+      alpha: 0,
+      duration: duration + Math.random() * 400,
+      ease: 'Sine.out',
+      onComplete: () => shard.destroy?.(),
+    });
+  }
+}
+
+/**
+ * THE VICTORY BEAT — every boss now has its own two seconds of ending.
+ *
+ * WHY: eight of the nine bosses shared one death, the shared kill path's
+ * shrink-and-fade, so the moment a child had been working toward for a
+ * whole floor looked exactly like squashing a slime. A defeat cue is
+ * cheap drama with a huge payoff: it states, wordlessly, what beating
+ * this particular creature MEANT — the garden lets go, the deep lets
+ * go, the forge cools, the ink lifts.
+ *
+ * Contract mirrors the other hooks: `paint(at, rm)` fires immediately
+ * with the boss's last position, done() lands from ONE delayedCall so
+ * a synchronous test scene still sees it exactly once, and a throwing
+ * cue can never eat a win.
+ */
+function defeatRig(scene, spriteData, ctx, done, ms, paint) {
+  const rm = !!ctx?.reducedMotion;
+  try { spriteData?.idleTween?.stop?.(); } catch { /* already gone */ }
+  const at = bossAnchor(scene, spriteData);
+  try { paint(at, rm); } catch { /* presentation only — never eat a win */ }
+  scene.time.delayedCall(rm ? 260 : ms, () => done());
+}
+
 // ── shared drawing helper for arena garnish ──────────────────────────
 function arenaLayer(scene) {
   const g = scene.add.graphics();
@@ -285,6 +352,25 @@ export const BOSS_RIGS = {
       });
       finish(scene, b, 1800 + extra, done);
     },
+    // VICTORY: THE GARDEN LETS GO. The crown comes apart into leaves,
+    // and the garden it had been strangling blooms in its place.
+    defeat(scene, spriteData, ctx, done) {
+      defeatRig(scene, spriteData, ctx, done, 1500, (at, rm) => {
+        const w = scene.scale.width, h = scene.scale.height;
+        playImpactRing(scene, at.x, at.y - 30, { color: PAPER.leaf, endRadius: 210, duration: 620 });
+        paperDrift(scene, at.x, at.y - 40, {
+          count: rm ? 6 : 20, colors: [PAPER.leaf, PAPER.sage, PAPER.forestL],
+          rise: -230, duration: 1300,
+        });
+        scene.time.delayedCall(rm ? 0 : 430, () => {
+          paperDrift(scene, w * 0.5, h * 0.64, {
+            count: rm ? 6 : 20, colors: [PAPER.rose, PAPER.peach, PAPER.white],
+            spread: w * 0.72, rise: -280, duration: 1400, size: 14,
+          });
+          flash(scene, ctx, { color: PAPER.peach, alpha: 0.24, duration: 700 });
+        });
+      });
+    },
   },
 
   // 2 — Pressure · TIDAL CRUSH
@@ -357,6 +443,40 @@ export const BOSS_RIGS = {
       scene.time.delayedCall(850, () => shake(scene, ctx, 0.009, 300));
       finish(scene, b, 1500 + extra, done);
     },
+    // VICTORY: THE DEEP LETS GO. Everything it was holding down rushes
+    // up at once — a column of bubbles — and the water line drains off
+    // the bottom of the stage.
+    defeat(scene, spriteData, ctx, done) {
+      defeatRig(scene, spriteData, ctx, done, 1500, (at, rm) => {
+        const w = scene.scale.width, h = scene.scale.height;
+        const n = rm ? 8 : 26;
+        for (let i = 0; i < n; i++) {
+          scene.time.delayedCall(i * 34, () => {
+            const bx = at.x + (Math.random() - 0.5) * 300;
+            const bub = scene.add.circle?.(bx, h * 0.78, 6 + Math.random() * 16, PAPER.tealL, 0.6);
+            if (!bub) return;
+            bub.setDepth?.(BATTLE_DEPTH.VFX);
+            bub.setScrollFactor?.(0);
+            scene.tweens.add({
+              targets: bub, y: h * 0.06, alpha: 0,
+              duration: 900 + Math.random() * 700, ease: 'Sine.out',
+              onComplete: () => bub.destroy?.(),
+            });
+          });
+        }
+        // The flood recedes: a teal sheet slides off the bottom edge.
+        const tide = scene.add.rectangle?.(w / 2, h * 0.8, w, h * 0.5, PAPER.teal, 0.3);
+        tide?.setDepth?.(BATTLE_DEPTH.THEME_DETAIL);
+        tide?.setScrollFactor?.(0);
+        if (tide) {
+          scene.tweens.add({
+            targets: tide, y: h * 1.5, alpha: 0, duration: rm ? 260 : 1300,
+            ease: 'Quad.in', onComplete: () => tide.destroy?.(),
+          });
+        }
+        playImpactRing(scene, at.x, at.y, { color: PAPER.tealL, endRadius: 260, duration: 800 });
+      });
+    },
   },
 
   // 3 — Skywhale · THUNDER DIVE
@@ -427,6 +547,42 @@ export const BOSS_RIGS = {
         });
       });
       finish(scene, b, 1400 + extra, done);
+    },
+    // VICTORY: THE STORM CLEARS. The thunderhead pulls apart and a warm
+    // gold shaft of sun opens through the gap — the sky handed back.
+    defeat(scene, spriteData, ctx, done) {
+      defeatRig(scene, spriteData, ctx, done, 1600, (at, rm) => {
+        const w = scene.scale.width, h = scene.scale.height;
+        // Cloud banks slide apart to the wings.
+        for (const dir of [-1, 1]) {
+          const cloud = scene.add.ellipse?.(w * 0.5, h * 0.22, w * 0.55, h * 0.3, PAPER.sky, 0.5);
+          if (!cloud) break;
+          cloud.setDepth?.(BATTLE_DEPTH.THEME_DETAIL);
+          cloud.setScrollFactor?.(0);
+          scene.tweens.add({
+            targets: cloud, x: w * 0.5 + dir * w * 0.75, alpha: 0,
+            duration: rm ? 260 : 1300, ease: 'Sine.inOut',
+            onComplete: () => cloud.destroy?.(),
+          });
+        }
+        // The sunbeam through the gap: a warm wedge, widening.
+        scene.time.delayedCall(rm ? 0 : 420, () => {
+          const beam = scene.add.triangle?.(w * 0.5, h * 0.1, 0, 0, -60, h * 0.8, 60, h * 0.8, PAPER.gold, 0.3);
+          if (beam) {
+            beam.setDepth?.(BATTLE_DEPTH.THEME_DETAIL);
+            beam.setScrollFactor?.(0);
+            scene.tweens.add({
+              targets: beam, scaleX: 4, alpha: 0, duration: rm ? 240 : 1200,
+              ease: 'Quad.out', onComplete: () => beam.destroy?.(),
+            });
+          }
+          flash(scene, ctx, { color: PAPER.cream, alpha: 0.28, duration: 700 });
+        });
+        paperDrift(scene, at.x, at.y, {
+          count: rm ? 6 : 16, colors: [PAPER.white, PAPER.sky, PAPER.lavender],
+          rise: -120, fall: 320, duration: 1400,
+        });
+      });
     },
   },
 
@@ -507,6 +663,36 @@ export const BOSS_RIGS = {
       });
       scene.time.delayedCall(600, () => shake(scene, ctx, 0.012, 280));
       finish(scene, b, 1700 + extra, done);
+    },
+    // VICTORY: THE FORGE COOLS. Embers rain down and go out, the coral
+    // glow drains to sand, and the last of the heat curls off as steam.
+    defeat(scene, spriteData, ctx, done) {
+      defeatRig(scene, spriteData, ctx, done, 1600, (at, rm) => {
+        const w = scene.scale.width, h = scene.scale.height;
+        // Falling embers — the only cue here that goes DOWN, because
+        // this is a fire being put out rather than something taking off.
+        paperDrift(scene, at.x, at.y - 60, {
+          count: rm ? 8 : 22, colors: [PAPER.coralD, PAPER.orange, PAPER.gold],
+          spread: 320, rise: 80, fall: 300, duration: 1300, size: 12,
+        });
+        // The caldera glow drains away to cold paper.
+        const glow = scene.add.ellipse?.(w * 0.62, h * 0.55, w * 0.8, h * 0.5, PAPER.coralD, 0.22);
+        if (glow) {
+          glow.setDepth?.(BATTLE_DEPTH.THEME_DETAIL);
+          glow.setScrollFactor?.(0);
+          scene.tweens.add({
+            targets: glow, alpha: 0, duration: rm ? 260 : 1500, ease: 'Quad.out',
+            onComplete: () => glow.destroy?.(),
+          });
+        }
+        // …and steam rises off it, pale and slow.
+        scene.time.delayedCall(rm ? 0 : 500, () => {
+          paperDrift(scene, w * 0.55, h * 0.6, {
+            count: rm ? 4 : 14, colors: [PAPER.cream, PAPER.sand, PAPER.white],
+            spread: w * 0.5, rise: -300, fall: 60, duration: 1500, size: 22,
+          });
+        });
+      });
     },
   },
 

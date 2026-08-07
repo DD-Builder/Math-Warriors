@@ -6,6 +6,7 @@ import { makeRng } from '../systems/rng.js';
 import { PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { hardReload } from '../systems/updateCheck.js';
+import { hubSceneKey, isHubScene } from '../ui/hubRouter.js';
 import {
   blobPoints, hillPoints, waveEdgePoints, organicRectPoints,
   drawShadowedPoly, drawShadowedBlob, drawPapercutTree,
@@ -46,8 +47,12 @@ export class TitleScene extends Phaser.Scene {
             this.scene.start(SCENES.MAZE, { floor: resume.floor });
             return;
           }
-          if (resume.scene === SCENES.WORLD_MAP || resume.scene === SCENES.BATTLE) {
-            this.scene.start(SCENES.WORLD_MAP);
+          // Resuming into "the hub" must land on whichever hub this session
+          // actually has — a saved OVERWORLD resume on a no-WebGL device has
+          // to degrade to the 2D map, and a saved WORLD_MAP resume should not
+          // pin the player to the old hub forever.
+          if (isHubScene(resume.scene) || resume.scene === SCENES.BATTLE) {
+            this.scene.start(hubSceneKey());
             return;
           }
         }

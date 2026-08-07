@@ -7,6 +7,7 @@ import { PaperButton, PaperPanel, TEXT, safeArea } from '../ui/paperUI.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
 import { spawnHero } from '../data/heroes.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { goHub } from '../ui/hubRouter.js';
 
 export class SaveSlotScene extends Phaser.Scene {
   constructor() {
@@ -151,7 +152,7 @@ export class SaveSlotScene extends Phaser.Scene {
         onClick: () => {
           audio.play('ui/confirm');
           this.registry.set('activeSlot', slot);
-          transitionTo(this, SCENES.WORLD_MAP, undefined, 300);
+          goHub(this, undefined, 300);
         },
       });
 

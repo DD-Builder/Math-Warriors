@@ -1208,8 +1208,12 @@ export function createBossLairs(heightfield, opts = {}) {
     nearTris += triCount(nearMesh);
     glowTris += triCount(glowMesh);
 
+    // NOTE the field names. `spec.near` is the APPROACH RADIUS, and spreading a
+    // mesh onto a key called `near` would silently overwrite it with a Mesh —
+    // which makes every radius comparison NaN and the approach beat simply never
+    // fires. The meshes therefore carry `Mesh`-suffixed names, permanently.
     lairs.push({
-      ...spec, y, root, far: farMesh, near: nearMesh, glow: glowMesh,
+      ...spec, y, root, farMesh, nearMesh, glowMesh,
       farTriangles: triCount(farMesh),
       nearTriangles: triCount(nearMesh),
       glowTriangles: triCount(glowMesh),
@@ -1238,8 +1242,8 @@ export function createBossLairs(heightfield, opts = {}) {
       const dx = l.x - px;
       const dz = l.z - pz;
       const d2 = dx * dx + dz * dz;
-      if (l.near) l.near.visible = d2 < detailRange * detailRange;
-      if (l.glow) l.glow.visible = d2 < glowRange * glowRange;
+      if (l.nearMesh) l.nearMesh.visible = d2 < detailRange * detailRange;
+      if (l.glowMesh) l.glowMesh.visible = d2 < glowRange * glowRange;
     }
     glowMat.opacity = 0.80 + Math.sin(simTime * 0.9) * 0.18;
   }

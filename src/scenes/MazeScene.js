@@ -42,6 +42,7 @@ import { KNIGHTS, WIZARDS, BUNNIES } from '../data/heroArt.js';
 import { DialogueOverlay } from '../ui/DialogueOverlay.js';
 import { DIALOGUE, getRescueDialogue } from '../data/dialogue.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
+import { goHub, hubSceneKey } from '../ui/hubRouter.js';
 
 /**
  * MazeScene
@@ -785,7 +786,7 @@ export class MazeScene extends Phaser.Scene {
       onClick: () => {
         audio.play('ui/back');
         this.saveMazeState();
-        transitionTo(this, SCENES.WORLD_MAP);
+        goHub(this);
       },
     });
 
@@ -2001,7 +2002,7 @@ export class MazeScene extends Phaser.Scene {
         writeSave(this.save, this.slot);
         this.registry.remove(mazeStateKey(this.floorId));
         const victKey = `floor${this.floorId}_victory`;
-        const afterScene = this.floorId === 9 ? SCENES.ENDING : SCENES.WORLD_MAP;
+        const afterScene = this.floorId === 9 ? SCENES.ENDING : hubSceneKey(this.save);
         if (DIALOGUE[victKey] && DIALOGUE[victKey].length > 0) {
           transitionTo(this, SCENES.CUTSCENE, {
             lines: DIALOGUE[victKey],

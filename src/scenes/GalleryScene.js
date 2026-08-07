@@ -9,6 +9,7 @@ import { drawPapercutBackground } from '../systems/papercut.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { drawShadowBox } from '../systems/papercutArt.js';
 import { audio } from '../systems/audio.js';
+import { goHub } from '../ui/hubRouter.js';
 
 export class GalleryScene extends Phaser.Scene {
   constructor() {
@@ -124,7 +125,7 @@ export class GalleryScene extends Phaser.Scene {
       w: 200, h: backBtnH, color: PAPER.teal, fontSize: 22,
       onClick: () => {
         audio.play('ui/back');
-        transitionTo(this, SCENES.WORLD_MAP, undefined, 200);
+        goHub(this, undefined, 200);
       },
     });
   }

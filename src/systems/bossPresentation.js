@@ -13,7 +13,7 @@
 
 import { BATTLE_DEPTH } from '../ui/depths.js';
 import { phaseCadence } from './bossPhases.js';
-import { PAPER } from '../config.js';
+import { PAPER, PAPER_CSS } from '../config.js';
 
 /**
  * Signature special move per boss id: name + colour for the show.
@@ -37,6 +37,33 @@ export const BOSS_MOVES = {
 
 export function getBossMove(bossId) {
   return BOSS_MOVES[bossId] || { name: 'FURY UNLEASHED', color: PAPER.coralD, glyph: '★' };
+}
+
+/**
+ * The line UNDER the name on the entrance banner.
+ *
+ * WHY: every boss used to be announced as "— BOSS BATTLE —", which
+ * told a child nothing and made nine different creatures share one
+ * introduction. An epithet is the cheapest possible characterisation:
+ * two seconds of reading turns "Pyroclast" into someone who lives in a
+ * mountain. Kept short enough to fit one banner line at 26px, and
+ * warm — these are grand titles, not threats. Awe, never horror.
+ */
+export const BOSS_EPITHETS = {
+  briarking: 'KEEPER OF THE OVERGROWN GARDEN',
+  pressure: 'CROWNED KING OF THE DEEP',
+  skywhale: 'SINGER IN THE THUNDERHEADS',
+  pyroclast: 'HEART OF THE SLEEPING MOUNTAIN',
+  absolutezero: 'THE STILLNESS THAT WAITS',
+  theprism: 'EVERY COLOUR AT ONCE',
+  counterfeiter: 'MASTER OF THE CROOKED FAIR',
+  theparadox: 'THE BOOK THAT READS ITSELF',
+  theorem: 'THE LAST QUESTION',
+};
+
+/** Epithet for a boss id, or a neutral banner line for anything else. */
+export function getBossEpithet(bossId) {
+  return BOSS_EPITHETS[bossId] || 'A CHALLENGER APPEARS';
 }
 
 /**
@@ -67,51 +94,197 @@ export function specialDamagePerHero(baseDamage, phase = 1) {
 }
 
 /**
- * Boss entrance: the body scales in from nothing with a camera thump,
- * then a name card sweeps through. Calls done() when the stage is set.
+ * Build the entrance NAME CARD as real cut paper.
+ *
+ * ART LAW, applied literally: the banner is three stacked layers with
+ * visible paper edges — a teal drop-shadow offset 9px down, a cream
+ * body with swallow-tail notches cut into both ends, and a gold rule
+ * scored inside it. No dark outline anywhere; the text's "ink" is
+ * PAPER.inkTeal, the palette's sanctioned replacement for black (the
+ * shipped card used a hand-mixed brown-black, the last off-palette
+ * colour in the entrance path).
+ *
+ * Returned as one container so the whole banner sweeps as a single
+ * sheet of paper rather than as text that happens to have a box.
+ *
+ * @returns {object|null} a Phaser container, or null if the scene
+ *   cannot build one (kept null-safe: an entrance must never throw).
+ */
+function buildNameBanner(scene, enemy) {
+  const w = scene.scale.width;
+  const cx = w / 2;
+  const bannerW = Math.min(w * 0.82, 980);
+  const bannerH = 176;
+  const half = bannerW / 2;
+  const notch = 46;   // depth of the swallow-tail cut at each end
+
+  const box = scene.add.container?.(cx, scene.scale.height * 0.34);
+  if (!box) return null;
+  box.setDepth?.(BATTLE_DEPTH.END);
+  box.setScrollFactor?.(0);
+
+  // The cut outline: a rectangle with a triangular bite out of each end.
+  const outline = (inset) => [
+    { x: -half + inset, y: -bannerH / 2 + inset },
+    { x: half - inset, y: -bannerH / 2 + inset },
+    { x: half - notch - inset, y: 0 },
+    { x: half - inset, y: bannerH / 2 - inset },
+    { x: -half + inset, y: bannerH / 2 - inset },
+    { x: -half + notch + inset, y: 0 },
+  ];
+
+  // Layer 1 — the soft teal drop-shadow between paper and stage.
+  const shadow = scene.add.graphics();
+  shadow.fillStyle(PAPER.shadow, 0.3);
+  shadow.fillPoints(outline(0).map(p => ({ x: p.x, y: p.y + 9 })), true);
+
+  // Layer 2 — the banner itself, cream paper.
+  const sheet = scene.add.graphics();
+  sheet.fillStyle(PAPER.cream, 1);
+  sheet.fillPoints(outline(0), true);
+  // Layer 3 — a sand under-strip along the bottom edge, so the sheet
+  // reads as having thickness rather than as a flat fill.
+  sheet.fillStyle(PAPER.sand, 0.55);
+  sheet.fillRect(-half + 10, bannerH / 2 - 16, bannerW - 20, 10);
+  // Layer 4 — the scored gold rule, inset like a cut border.
+  const rule = scene.add.graphics();
+  rule.lineStyle(4, PAPER.gold, 0.9);
+  rule.strokeRect(-half + 22, -bannerH / 2 + 20, bannerW - 44, bannerH - 40);
+
+  const name = scene.add.text(0, -22, String(enemy?.name || 'BOSS').toUpperCase(), {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: '64px',
+    color: PAPER_CSS.inkTeal,
+    stroke: PAPER_CSS.cream,
+    strokeThickness: 6,
+  });
+  name.setOrigin?.(0.5);
+  const epithet = scene.add.text(0, 40, getBossEpithet(enemy?.id), {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+    fontSize: '25px',
+    color: PAPER_CSS.tealD,
+  });
+  epithet.setOrigin?.(0.5);
+
+  box.add?.([shadow, sheet, rule, name, epithet]);
+  return box;
+}
+
+/**
+ * BOSS ENTRANCE — a three-beat curtain instead of a pop-in.
+ *
+ * WHY the rewrite: the shipped entrance scaled the boss up in 650ms and
+ * flashed two lines of text. Nine bosses shared one three-second beat
+ * that read the same on floor 1 and floor 9, which is the presentation
+ * half of the "bosses go downhill" problem. The new beat is staged:
+ *
+ *   1. THE STAGE DIMS — a teal-tinted scrim (never black) drops the
+ *      diorama back so one silhouette owns the screen.
+ *   2. THE SLOW REVEAL — the boss rises as a flat inkTeal paper cutout
+ *      and COLOUR FLOODS IN at the top of the swell, which is the
+ *      papercut equivalent of a lights-up. Slower than before (950ms,
+ *      Back.out) so there is something to watch.
+ *   3. THE PUSH-IN — the camera eases to 1.12 across the reveal and
+ *      settles back to 1.0 on the thump, so the room leans toward the
+ *      boss instead of cutting to it.
+ *   4. THE BANNER — a real papercut name card sweeps in from the left
+ *      carrying the boss's name AND its epithet, holds, and peels off
+ *      to the right.
+ *
+ * Anti-soft-lock: every element is scheduled independently and done()
+ * fires from ONE delayedCall, so it lands exactly once even against a
+ * synchronous test scene.
  */
 export function playBossEntrance(scene, spriteData, enemy, done) {
   const body = spriteData?.body;
   if (!body) { done?.(); return; }
-  const targetSX = body.scaleX, targetSY = body.scaleY;
-  body.setScale(0.01);
-  spriteData.idleTween?.pause();
+  const rm = !!scene.reducedMotion;
+  const cam = scene.cameras?.main;
 
+  // Beat timings (ms from t0). Reduced motion collapses to a still card.
+  const REVEAL = rm ? 200 : 950;
+  const CARD_IN = REVEAL + (rm ? 0 : 260);
+  const CARD_HOLD = rm ? 700 : 1400;
+  const CARD_OUT = CARD_IN + CARD_HOLD;
+  const TOTAL = CARD_OUT + (rm ? 100 : 420);
+
+  const targetSX = body.scaleX, targetSY = body.scaleY;
+  body.setScale(0.02);
+  spriteData.idleTween?.pause?.();
+
+  // 1 — the stage dims. PAPER.inkTeal, not black: the diorama goes to
+  // deep teal shadow the way a papercut scene does, and stays warm.
+  const scrim = scene.add.rectangle?.(
+    scene.scale.width / 2, scene.scale.height / 2,
+    scene.scale.width, scene.scale.height, PAPER.inkTeal, 0,
+  );
+  scrim?.setDepth?.(BATTLE_DEPTH.END - 1);
+  scrim?.setScrollFactor?.(0);
+  if (scrim) scene.tweens.add({ targets: scrim, alpha: 0.34, duration: rm ? 120 : 300, ease: 'Quad.out' });
+
+  // 2 — the slow reveal: a flat cutout that colours in at the summit.
+  try { body.setTint?.(PAPER.inkTeal); } catch { /* canvas texture */ }
   scene.tweens.add({
     targets: body,
-    scaleX: targetSX,
-    scaleY: targetSY,
-    duration: 650,
-    ease: 'Back.out',
-    onComplete: () => {
-      scene.cameras.main.shake(180, 0.006);
-      spriteData.idleTween?.resume();
+    scaleX: targetSX, scaleY: targetSY,
+    duration: REVEAL,
+    ease: rm ? 'Quad.out' : 'Back.out',
+  });
 
-      const move = getBossMove(enemy.id);
-      const cx = scene.scale.width / 2;
-      const card = scene.add.text(cx, 300, enemy.name.toUpperCase(), {
-        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '64px',
-        color: '#fff4e0',
-        stroke: '#3a1010',
-        strokeThickness: 10,
-      }).setOrigin(0.5).setDepth(BATTLE_DEPTH.END).setScrollFactor(0).setAlpha(0);
-      const sub = scene.add.text(cx, 356, '— BOSS BATTLE —', {
-        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
-        fontSize: '22px',
-        color: '#f0c040',
-        stroke: '#3a1010',
-        strokeThickness: 4,
-      }).setOrigin(0.5).setDepth(BATTLE_DEPTH.END).setScrollFactor(0).setAlpha(0);
+  // 3 — the push-in, and its release on the thump.
+  if (!rm) {
+    try { cam?.zoomTo?.(1.12, REVEAL, 'Sine.inOut'); } catch { /* no zoom on this camera */ }
+    scene.time.delayedCall(REVEAL, () => {
+      try { cam?.zoomTo?.(1, 520, 'Sine.out'); } catch { /* ignore */ }
+    });
+  }
+  scene.time.delayedCall(REVEAL, () => {
+    try { body.clearTint?.(); } catch { /* ignore */ }
+    if (!rm) cam?.shake?.(220, 0.007);
+    spriteData.idleTween?.resume?.();
+  });
+
+  // 4 — the banner sweeps in, holds, peels away.
+  const banner = (() => {
+    try { return buildNameBanner(scene, enemy); } catch { return null; }
+  })();
+  if (banner) {
+    const restX = banner.x ?? scene.scale.width / 2;
+    const offL = restX - scene.scale.width;
+    const offR = restX + scene.scale.width;
+    banner.setAlpha?.(0);
+    scene.time.delayedCall(CARD_IN, () => {
+      banner.setPosition?.(rm ? restX : offL, banner.y);
+      banner.setAlpha?.(1);
+      if (!rm) {
+        scene.tweens.add({
+          targets: banner, x: restX, duration: 420, ease: 'Back.out',
+        });
+      }
+    });
+    scene.time.delayedCall(CARD_OUT, () => {
+      if (rm) { banner.destroy?.(); return; }
       scene.tweens.add({
-        targets: [card, sub],
-        alpha: 1,
-        duration: 280,
-        yoyo: true,
-        hold: 900,
-        onComplete: () => { card.destroy(); sub.destroy(); done?.(); },
+        targets: banner, x: offR, alpha: 0, duration: 400, ease: 'Quad.in',
+        onComplete: () => banner.destroy?.(),
       });
-    },
+    });
+  }
+  if (scrim) {
+    scene.time.delayedCall(CARD_OUT, () => {
+      scene.tweens.add({
+        targets: scrim, alpha: 0, duration: rm ? 100 : 380,
+        onComplete: () => scrim.destroy?.(),
+      });
+    });
+  }
+
+  // The single done(). Everything above is fire-and-forget.
+  scene.time.delayedCall(TOTAL, () => {
+    try { banner?.destroy?.(); } catch { /* already gone */ }
+    try { scrim?.destroy?.(); } catch { /* already gone */ }
+    try { cam?.setZoom?.(1); } catch { /* ignore */ }
+    done?.();
   });
 }
 
