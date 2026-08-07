@@ -240,10 +240,19 @@ export function playBossEntrance(scene, spriteData, enemy, done) {
   // eating the answer-button row. 1.05 is the largest push-in that
   // cannot clip a single element — small, but over 950ms behind a
   // scrim it reads as the room leaning in, which is the whole point.
+  // EASE NAMES ARE NOT INTERCHANGEABLE HERE. Tweens resolve their ease
+  // through GetEaseFunction, which understands the short 'Sine.inOut'
+  // form. Camera EFFECTS do not: they look the string up in EaseMap
+  // directly and, on a miss, silently leave this.ease undefined — the
+  // effect then throws "this.ease is not a function" from inside the
+  // camera update, which kills the RAF loop and freezes the whole game
+  // mid-entrance. 'Sine.inOut'/'Sine.out' are exactly such misses, so
+  // the camera always gets the canonical easeXxx spelling (matching
+  // every other cameras.main call in the codebase).
   if (!rm) {
-    try { cam?.zoomTo?.(1.05, REVEAL, 'Sine.inOut'); } catch { /* no zoom on this camera */ }
+    try { cam?.zoomTo?.(1.05, REVEAL, 'Sine.easeInOut'); } catch { /* no zoom on this camera */ }
     scene.time.delayedCall(REVEAL, () => {
-      try { cam?.zoomTo?.(1, 520, 'Sine.out'); } catch { /* ignore */ }
+      try { cam?.zoomTo?.(1, 520, 'Sine.easeOut'); } catch { /* ignore */ }
     });
   }
   scene.time.delayedCall(REVEAL, () => {
