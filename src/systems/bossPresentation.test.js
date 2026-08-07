@@ -1,6 +1,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { BOSS_MOVES, getBossMove, isSpecialTurn, isTelegraphTurn, specialDamagePerHero } from './bossPresentation.js';
+import {
+  BOSS_MOVES, getBossMove, isSpecialTurn, isTelegraphTurn, specialDamagePerHero,
+  BOSS_EPITHETS, getBossEpithet,
+} from './bossPresentation.js';
 import { BOSS_IDS } from '../data/enemies.js';
 import { PAPER } from '../config.js';
 
@@ -60,5 +63,29 @@ describe('special damage', () => {
     assert.equal(specialDamagePerHero(100, 1), 70);
     assert.equal(specialDamagePerHero(100, 2), 78);
     assert.equal(specialDamagePerHero(100, 3), 88);
+  });
+});
+
+// The entrance banner announces a boss by NAME and by EPITHET. Every
+// boss needs one, and it has to fit the banner: two lines of paper at
+// 25px, so anything much past 34 characters starts clipping the notch.
+describe('boss epithets', () => {
+  test('every real boss has an epithet', () => {
+    for (const id of BOSS_IDS) {
+      assert.ok(BOSS_EPITHETS[id], `boss ${id} has no epithet`);
+    }
+  });
+  test('epithets fit the banner and read as titles, not threats', () => {
+    for (const id of BOSS_IDS) {
+      const e = BOSS_EPITHETS[id];
+      assert.ok(e.length <= 34, `${id} epithet is ${e.length} chars — it will clip the banner`);
+      assert.equal(e, e.toUpperCase(), `${id} epithet must be set in caps`);
+      // Awe, never horror: the banner is the first thing a five-year-old
+      // reads about this creature.
+      assert.ok(!/kill|death|dead|blood|die/i.test(e), `${id} epithet is too dark for K-5`);
+    }
+  });
+  test('unknown bosses still get a banner line', () => {
+    assert.equal(getBossEpithet('mystery'), 'A CHALLENGER APPEARS');
   });
 });

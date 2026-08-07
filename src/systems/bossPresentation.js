@@ -232,8 +232,16 @@ export function playBossEntrance(scene, spriteData, enemy, done) {
   });
 
   // 3 — the push-in, and its release on the thump.
+  //
+  // BOUNDED ON PURPOSE. A Phaser camera zoom scales scrollFactor-0
+  // objects too, so it crops the HUD: zoom Z hides (1 - 1/Z)/2 of each
+  // edge, which at 1440px wide is 1.05 → 34px and 1.12 → 77px. The UI
+  // margin is 40px (config.MARGIN), so anything past ~1.06 starts
+  // eating the answer-button row. 1.05 is the largest push-in that
+  // cannot clip a single element — small, but over 950ms behind a
+  // scrim it reads as the room leaning in, which is the whole point.
   if (!rm) {
-    try { cam?.zoomTo?.(1.12, REVEAL, 'Sine.inOut'); } catch { /* no zoom on this camera */ }
+    try { cam?.zoomTo?.(1.05, REVEAL, 'Sine.inOut'); } catch { /* no zoom on this camera */ }
     scene.time.delayedCall(REVEAL, () => {
       try { cam?.zoomTo?.(1, 520, 'Sine.out'); } catch { /* ignore */ }
     });

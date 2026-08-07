@@ -229,3 +229,52 @@ describe('final boss finale', () => {
     assert.equal(calls, 1);
   });
 });
+
+// ── THE VICTORY BEAT ────────────────────────────────────────────────
+// Eight bosses used to share the generic shrink-and-fade, so a whole
+// floor's payoff looked like squashing a slime. Every boss now owns an
+// ending: `defeat` for the eight, `finale` for the Theorem (which is
+// completed rather than destroyed). BattleScene hands control to it and
+// waits, so the one non-negotiable is that it always hands control back.
+describe('victory beats', () => {
+  test('every boss has a defeat cue or a finale', () => {
+    for (const id of BOSS_IDS) {
+      const rig = getBossRig(id);
+      assert.ok(typeof rig.defeat === 'function' || typeof rig.finale === 'function',
+        `${id} has no victory beat — its death is the generic fade`);
+    }
+    assert.equal(typeof GENERIC_RIG.defeat, 'function', 'the fallback rig needs one too');
+  });
+
+  test('only the Theorem owns its whole ending', () => {
+    const withFinale = BOSS_IDS.filter(id => typeof getBossRig(id).finale === 'function');
+    assert.deepEqual(withFinale, ['theorem'],
+      'a finale replaces the death beat entirely — it is the final boss privilege');
+  });
+
+  for (const id of [...BOSS_IDS, 'nope']) {
+    const rig = getBossRig(id);
+    const beat = rig.finale || rig.defeat;
+    if (!beat) continue;
+    test(`${id} victory beat: done once`, () => {
+      const scene = makeStubScene();
+      let calls = 0;
+      beat.call(rig, scene, makeSpriteData(), makeCtx(scene), () => { calls++; });
+      assert.equal(calls, 1, `${id} called done ${calls} times`);
+    });
+    test(`${id} victory beat: done once in reduced motion`, () => {
+      const scene = makeStubScene({ reducedMotion: true });
+      let calls = 0;
+      beat.call(rig, scene, makeSpriteData(), makeCtx(scene, { reducedMotion: true }), () => { calls++; });
+      assert.equal(calls, 1);
+    });
+    // The boss body is mid-death-fade when this runs, so the cue must
+    // survive being handed a sprite that is already gone.
+    test(`${id} victory beat: survives a missing sprite`, () => {
+      const scene = makeStubScene();
+      let calls = 0;
+      assert.doesNotThrow(() => beat.call(rig, scene, null, makeCtx(scene), () => { calls++; }));
+      assert.equal(calls, 1);
+    });
+  }
+});

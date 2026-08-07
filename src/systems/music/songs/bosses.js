@@ -20,12 +20,19 @@
  * single-section loops that repeated verbatim forever, boss 8 (the
  * penultimate fight) had one 8-bar idea, and the finale ran 12 bars —
  * shorter than the floor-1 waltz's 16. The last third of a game has to
- * be the biggest thing in it, so form now grows monotonically:
+ * be the biggest thing in it. Where it stands now:
  *
- *     boss   1   2   3   4   5   6   7   8   9
- *     bars  16  16   8  12  16  12  12  24  18(+intro)
- *   sections 2   2   2   3   2   3   3   3   5
- *     tracks 6   6   6   6   7   7   7   8  10
+ *     boss       1    2    3    4    5    6    7    8    9
+ *     sections   2    2    2    3    2    3    3    3    5
+ *     tracks     6    6    6    6    7    7    6    7    9
+ *     notes    343  151  218  483  375  404  485  291  701
+ *     loop/s    20   48   14   20   38   23   23   87   28
+ *
+ * Bars are a bad yardstick across tempi (the Paradox's 24 bars at 66bpm
+ * are the game's longest loop by far), so the contract the tests hold
+ * is COMPOSED MATERIAL: the Theorem must have the most sections, the
+ * most tracks and the most notes of any piece in the game. It does, by
+ * ~45% on notes.
  *
  * ── PER-PHASE INTENSITY ─────────────────────────────────────────────
  * Every score carries `layer: 2` and `layer: 3` tracks. They are SILENT

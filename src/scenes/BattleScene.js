@@ -356,6 +356,10 @@ export class BattleScene extends Phaser.Scene {
     // Bosses get their own score (music/boss-N); the director falls back
     // to the generic battle theme until a floor's boss piece exists.
     audio.playMusic(this.isBoss ? `music/boss-${this.floor}` : 'music/battle');
+    // A fight always opens at rest; _enterBossPhase drives it up from
+    // here. Explicit so a battle re-entered after a phase-3 fight (Boss
+    // Rush, Spire) never inherits the previous score's intensity.
+    audio.setMusicIntensity(1);
 
     // Fire each enemy's onBattleStart hook so any ability state can
     // initialize
@@ -389,7 +393,10 @@ export class BattleScene extends Phaser.Scene {
         this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
       }
       const rig = getBossRig(this.enemies[0].id);
-      const entranceDone = this._onceWithWatchdog(() => this.nextTurn(), 4000);
+      // The staged entrance (dim → reveal → push-in → banner) runs ~3s,
+      // so the safety net sits at 5s: it must catch a genuinely stuck
+      // curtain without ever cutting a healthy one short.
+      const entranceDone = this._onceWithWatchdog(() => this.nextTurn(), 5000);
       (rig.entrance || playBossEntrance)(this, this.enemySprites[0], this.enemies[0], entranceDone);
     } else {
       this.time.delayedCall(400, () => this.nextTurn());
@@ -2573,12 +2580,13 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * THE TRANSFORMATION BEAT — "he's getting serious", said four ways at
+   * THE TRANSFORMATION BEAT — "he's getting serious", said five ways at
    * once so a five-year-old cannot miss it:
    *   1. the boss's ARTWORK changes (phase re-render + a size step)
    *   2. the ARENA shifts state (the basin floods, the caldera cracks)
-   *   3. the ATTACK PATTERN changes (faster specials, heavier waves)
-   *   4. a DRAMATIC BEAT lands (flash in PAPER tones, shake, a title
+   *   3. the MUSIC escalates (layer tracks arrive in the boss theme)
+   *   4. the ATTACK PATTERN changes (faster specials, heavier waves)
+   *   5. a DRAMATIC BEAT lands (flash in PAPER tones, shake, a title
    *      card, and a line from the boss)
    */
   _enterBossPhase(phase, boss) {
@@ -2601,7 +2609,15 @@ export class BattleScene extends Phaser.Scene {
     // 2 — ARENA.
     try { this._arenaHandle?.setPhase?.(this.bossPhase); } catch { /* garnish only */ }
 
-    // 3 — DRAMATIC BEAT. Warm PAPER wash, never a red alarm.
+    // 3 — THE SCORE. Push the boss theme up an intensity step so the
+    // transformation is AUDIBLE, not just visible: every boss piece
+    // carries layer-2 and layer-3 tracks that exist only for this
+    // moment (a second heartbeat, a counterproof, the eclipse drone).
+    // A child who is looking at their own hands still hears the fight
+    // change. Ramped, not cut — see director.setSongIntensity.
+    audio.setMusicIntensity(this.bossPhase);
+
+    // 4/5 — DRAMATIC BEAT. Warm PAPER wash, never a red alarm.
     if (!this.reducedMotion) {
       this.cameras.main.shake(420, 0.016);
       this.cameras.main.flash?.(360, ...this._rgb(beat.flash));
@@ -2609,7 +2625,7 @@ export class BattleScene extends Phaser.Scene {
     audio.play('battle/hit-enemy');
     this._showPhaseCard(beat, this.bossPhase);
 
-    // 4 — THE BOSS SPEAKS. Prefer the authored per-floor line so each
+    // 5 — THE BOSS SPEAKS. Prefer the authored per-floor line so each
     // boss keeps its own voice; fall back to the phase table.
     const key = `floor${this.floor}_boss_${this.bossPhase === 2 ? 'half' : 'quarter'}`;
     const authored = DIALOGUE[key]?.[0]?.text;
@@ -3995,23 +4011,32 @@ export class BattleScene extends Phaser.Scene {
   showVictory() {
     if (this.phase === 'end' || this.phase === 'finale') return;
 
-    // FINAL BOSS BEAT. A rig with a `finale` owns its own ending — the
-    // Theorem is completed rather than destroyed, so its proof has to
-    // resolve on screen before the victory panel covers the stage.
-    // Guarded by a watchdog: a stuck flourish must never eat a win.
+    // THE VICTORY BEAT. Every boss now owns its own ending, in one of
+    // two shapes:
+    //   `finale` — the rig owns the whole ending (Theorem only): the
+    //              boss is COMPLETED rather than destroyed, so its body
+    //              is restored out of the shared death fade first.
+    //   `defeat` — a ~1.5s signature cue over the death fade (the other
+    //              eight): the garden lets go, the forge cools, the ink
+    //              lifts. Eight bosses used to share the generic
+    //              shrink-and-fade, which made a whole floor's payoff
+    //              look identical to squashing a slime.
+    // Both are guarded by a watchdog: a stuck flourish must never eat
+    // a win, and both resume through this same method.
     if (this.isBoss && !this._finalePlayed) {
       const rig = getBossRig(this.enemies?.[0]?.id ?? this.enemyId);
-      if (rig?.finale) {
+      const beat = rig?.finale || rig?.defeat;
+      if (beat) {
         this._finalePlayed = true;
         this.phase = 'finale';
         this.locked = true;
-        this._restoreBossForFinale();
+        if (rig.finale) this._restoreBossForFinale();
         const resume = this._onceWithWatchdog(() => {
           this.phase = 'battle';
           this.showVictory();
         }, 6000);
         try {
-          rig.finale(this, this.enemySprites?.[0], {
+          beat.call(rig, this, this.enemySprites?.[0], {
             party: this.party,
             heroSprites: this.heroSprites,
             reducedMotion: this.reducedMotion,

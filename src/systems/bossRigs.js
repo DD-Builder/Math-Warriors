@@ -1070,6 +1070,38 @@ export const BOSS_RIGS = {
       });
       finish(scene, b, 1600 + extra, done);
     },
+    // VICTORY: THE INK LIFTS. The blots the Paradox spilled over the
+    // library shrink back into it and vanish, and the page underneath is
+    // clean cream again. The eclipse un-eclipses — the light was never
+    // gone, only covered. This is the last fight before the Theorem, so
+    // it deliberately ends on the same note the finale will: restoration.
+    defeat(scene, spriteData, ctx, done) {
+      defeatRig(scene, spriteData, ctx, done, 1700, (at, rm) => {
+        const w = scene.scale.width, h = scene.scale.height;
+        const n = rm ? 4 : 11;
+        for (let i = 0; i < n; i++) {
+          const bx = w * (0.08 + Math.random() * 0.84);
+          const by = h * (0.15 + Math.random() * 0.6);
+          const blot = scene.add.circle?.(bx, by, 26 + Math.random() * 44, PAPER.inkTeal, 0.5);
+          if (!blot) break;
+          blot.setDepth?.(BATTLE_DEPTH.VFX);
+          blot.setScrollFactor?.(0);
+          scene.tweens.add({
+            targets: blot, x: at.x, y: at.y, scaleX: 0.02, scaleY: 0.02, alpha: 0,
+            duration: (rm ? 240 : 1000) + i * 50, ease: 'Cubic.in',
+            onComplete: () => blot.destroy?.(),
+          });
+        }
+        // The page comes back — and a few loose leaves settle flat.
+        scene.time.delayedCall(rm ? 0 : 900, () => {
+          flash(scene, ctx, { color: PAPER.cream, alpha: 0.45, duration: 900 });
+          paperDrift(scene, w * 0.5, h * 0.4, {
+            count: rm ? 4 : 14, colors: [PAPER.cream, PAPER.white, PAPER.sand],
+            spread: w * 0.75, rise: 60, fall: 240, duration: 1400, size: 26,
+          });
+        });
+      });
+    },
   },
 
   // 9 — Theorem · PROOF OF RUIN — the game's final and biggest rig.
@@ -1211,14 +1243,66 @@ export const BOSS_RIGS = {
         });
       });
 
-      // 3. The unfinished circle in the arena closes.
+      // 3. THE PAGES SETTLE INTO ORDER.
+      //
+      // This is the beat the whole game ends on, so it gets its own
+      // stage. Eight loose sheets — the scattered pages of the proof —
+      // fly in from every edge, TUMBLING, and land in a squared-off
+      // stack at centre: rotation eases to zero, offsets shrink to a few
+      // pixels, each sheet carries its own soft teal shadow so the pile
+      // reads as physical paper. No explosion, no shatter, no debris
+      // that never comes back down. The Theorem is not blown apart; it
+      // is TIDIED — which is what solving something actually feels like.
+      const pages = [];
+      const PAGE_W = 150, PAGE_H = 196;
+      const sheets = rm ? 3 : 8;
+      for (let i = 0; i < sheets; i++) {
+        scene.time.delayedCall(rm ? 0 : 900 + i * 85, () => {
+          const edge = i % 4;
+          const fromX = edge === 0 ? -PAGE_W : edge === 1 ? w + PAGE_W : w * (0.15 + Math.random() * 0.7);
+          const fromY = edge === 2 ? -PAGE_H : edge === 3 ? h + PAGE_H : h * (0.1 + Math.random() * 0.8);
+          // Shadow first, then the sheet on top of it — the papercut
+          // stack, not a flat rectangle.
+          const shadow = scene.add.rectangle?.(fromX, fromY + 8, PAGE_W, PAGE_H, PAPER.shadow, 0.28);
+          const sheet = scene.add.rectangle?.(fromX, fromY, PAGE_W, PAGE_H, i % 3 === 2 ? PAPER.white : PAPER.cream, 1);
+          if (!sheet) return;
+          for (const o of [shadow, sheet]) {
+            o?.setDepth?.(BATTLE_DEPTH.VFX);
+            o?.setScrollFactor?.(0);
+            o?.setAngle?.((Math.random() - 0.5) * 300);
+          }
+          pages.push(shadow, sheet);
+          // The stack: a couple of pixels of offset per sheet and a
+          // degree or two of rotation left in, so it looks squared by a
+          // hand rather than by a machine.
+          const restX = midX + (i - sheets / 2) * 3;
+          const restY = midY + (i - sheets / 2) * 2.5;
+          const restAngle = (i % 2 ? 1 : -1) * (1.5 + i * 0.4);
+          scene.tweens.add({
+            targets: shadow ? [shadow, sheet] : [sheet],
+            x: restX, y: restY, angle: restAngle,
+            duration: rm ? 220 : 720, ease: 'Cubic.out',
+          });
+          if (shadow) scene.tweens.add({ targets: shadow, y: restY + 8, duration: rm ? 220 : 720, ease: 'Cubic.out' });
+        });
+      }
+      // The settled stack fades out under the sign-off, never breaks up.
+      scene.time.delayedCall(rm ? 500 : 2300, () => {
+        if (!pages.length) return;
+        scene.tweens.add({
+          targets: pages, alpha: 0, duration: rm ? 200 : 600,
+          onComplete: () => pages.forEach(p => p?.destroy?.()),
+        });
+      });
+
+      // 4. The unfinished circle in the arena closes.
       scene.time.delayedCall(1150, () => {
         playShockwave(scene, midX, midY, { color: PAPER.gold, endRadius: 420, duration: 900 });
         playImpactRing(scene, midX, midY, { color: PAPER.cream, endRadius: 300, duration: 700 });
       });
 
-      // 4. Q.E.D. — the proof signs itself off.
-      scene.time.delayedCall(1400, () => {
+      // 5. Q.E.D. — the proof signs itself off on top of the stack.
+      scene.time.delayedCall(rm ? 400 : 1900, () => {
         const qed = scene.add.text(midX, midY, '∎', {
           fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '120px', color: PAPER_CSS.gold,
         });
@@ -1242,7 +1326,7 @@ export const BOSS_RIGS = {
         }
       });
 
-      scene.time.delayedCall(rm ? 900 : 2700, () => { b.restore(); done(); });
+      scene.time.delayedCall(rm ? 900 : 3300, () => { b.restore(); done(); });
     },
   },
 };
@@ -1267,6 +1351,17 @@ export const GENERIC_RIG = {
     });
     shake(scene, ctx, 0.01, 240);
     finish(scene, b, 900 + extra, done);
+  },
+  // A plain but real victory beat, so even an unlisted boss sheds paper
+  // instead of just blinking out.
+  defeat(scene, spriteData, ctx, done) {
+    defeatRig(scene, spriteData, ctx, done, 1200, (at, rm) => {
+      playImpactRing(scene, at.x, at.y, { color: PAPER.gold, endRadius: 240, duration: 700 });
+      paperDrift(scene, at.x, at.y, {
+        count: rm ? 5 : 16, colors: [PAPER.cream, PAPER.sand, PAPER.gold],
+        rise: -180, duration: 1100,
+      });
+    });
   },
 };
 

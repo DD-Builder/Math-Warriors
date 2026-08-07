@@ -176,3 +176,24 @@ describe('scheduler', () => {
     sched.stop();
   });
 });
+
+// The intensity level is pure state until a song graph exists, which is
+// exactly the case a boss fight hits when the AudioContext is still
+// suspended (iOS, pre-gesture). It must remember the level rather than
+// drop it, or a phase-3 boss would go back to sounding like phase 1 the
+// moment audio unlocks.
+describe('music intensity', () => {
+  test('clamps to 1..3 and survives having no song', async () => {
+    const { setSongIntensity, getSongIntensity, MAX_INTENSITY } =
+      await import('./director.js');
+    assert.equal(MAX_INTENSITY, 3);
+    setSongIntensity(2);
+    assert.equal(getSongIntensity(), 2);
+    setSongIntensity(9);
+    assert.equal(getSongIntensity(), 3);
+    setSongIntensity(0);
+    assert.equal(getSongIntensity(), 1);
+    setSongIntensity(2.7);       // phases arrive as ints; be defensive
+    assert.equal(getSongIntensity(), 2);
+  });
+});
