@@ -304,9 +304,13 @@ function ply(s, pts, o) {
 function laminate(s, pts, o) {
   const n = o.sheets ?? 5;
   const D = o.depth;
-  // Sheets overlap slightly (fill > 1) so the stack reads as one solid form
-  // rather than a louvre with daylight between the slats.
-  const sheetD = (D / n) * (o.fill ?? 1.06);
+  // Sheets overlap (fill > 1) so the stack reads as one solid form rather than
+  // a louvre with daylight between the slats. 1.16, not 1.06: at the old value
+  // the stack still read as discrete STEPS from a three-quarter view — which is
+  // the angle the follow camera actually holds — and stepped forms are exactly
+  // what "a stack of misaligned teal boxes" describes. The extra overlap costs
+  // nothing (the sheets are already drawn) and closes the envelope.
+  const sheetD = (D / n) * (o.fill ?? 1.16);
   const pF = o.pF ?? 6;
   const pB = o.pB ?? 3;
   const q = o.q ?? 0.30;
@@ -367,9 +371,15 @@ function buildTorso(C, cls) {
   // The body: one laminated block, broad and flat across the chest (pF 6) and
   // rounding away toward the back (pB 2.6), which is the difference between a
   // torso and a brick.
+  // The body sits a step DOWN from the head. Head, torso and arms were all cut
+  // from one colour at one value, so from any angle that hides the face the
+  // hero was a single teal column — no neck, no shoulder line, no head. Three
+  // values (head 1.08 / torso 0.94 / arms 0.88) is the cheapest way to give a
+  // 40-pixel character three readable masses, and because every one of them is
+  // a multiply on the same PAPER colour the dress kit cannot drift.
   n += laminate(s, roundRect(0.60, h, 0.17), {
-    color: C.base, y: midY, depth: TORSO_D,
-    sheets: 5, pF: 6, pB: 2.6, q: 0.30, flatY: 0.45,
+    color: C.base, shade: 0.94, y: midY, depth: TORSO_D,
+    sheets: 5, pF: 4.2, pB: 2.6, q: 0.30, flatY: 0.45,
   });
   // Front face of the stack — everything below is laid ON it, not floating.
   const fz = faceZ(TORSO_D);
@@ -413,18 +423,35 @@ function buildHead(C, cls) {
   // a head read as a head from the side and still gives the features a broad
   // flat card to sit on from the front.
   const core = cls === 'wizard' ? C.skin : C.base;
+  // pF 4.6, not 8. A superellipse exponent that high keeps the front sheets at
+  // nearly full size, so the stack came out a DRUM — straight sides, a hard top
+  // rim and a flat face, which is most of why the rig read as boxes. 4.6 still
+  // leaves the front sheet broad enough to carry the features (they are laid on
+  // it below, and faceK() measures exactly that) while the envelope actually
+  // turns into a skull.
   n += laminate(s, ellipse(R, R, 16), {
-    color: core, y: R, depth: HEAD_D,
-    sheets: 5, pF: 8, pB: 2.2, q: 0.32, flatY: 1, back: 0.88,
+    color: core, shade: 1.08, y: R, depth: HEAD_D,
+    sheets: 5, pF: 4.6, pB: 2.4, q: 0.32, flatY: 1, back: 0.88,
+  });
+  // Neck: a dark collar ring under the skull. Without it the head's bottom
+  // edge lands straight on the torso's top edge and the two masses fuse — the
+  // single most damaging thing that can happen to a character silhouette.
+  n += laminate(s, ellipse(R * 0.62, R * 0.24, 10), {
+    color: core, shade: 0.72, y: 0.02, depth: HEAD_D * 0.74,
+    sheets: 2, pF: 3, pB: 2.4, q: 0.30, flatY: 0.4, back: 0.94,
   });
   const fz = faceZ(HEAD_D);
   if (cls === 'knight') {
     // Face opening in the helm, then the brow BAND (laminated — a helm wraps a
     // skull) and a nose guard dropping out of it.
     n += ply(s, ellipse(0.205, 0.215, 14), { color: C.skin, y: R - 0.015, z: fz + 0.005 });
-    n += laminate(s, taper(0.56, 0.60, 0.21, 0.08), {
-      color: C.base, shade: 1.05, y: R + 0.165, depth: HEAD_D * 0.96,
-      sheets: 3, pF: 7, pB: 2.4, q: 0.28, flatY: 0.3, back: 0.904,
+    // The brow band of the helm. pF 7 at nearly the head's own depth made this
+    // a BOX sitting on a ball, and because it is the widest thing at head
+    // height it was the silhouette the whole character was being judged on.
+    // A low exponent wraps it round the skull instead.
+    n += laminate(s, taper(0.54, 0.58, 0.20, 0.08), {
+      color: C.base, shade: 1.14, y: R + 0.160, depth: HEAD_D * 0.90,
+      sheets: 3, pF: 3.0, pB: 2.4, q: 0.30, flatY: 0.3, back: 0.904,
     });
     n += ply(s, roundRect(0.085, 0.28, 0.04), { color: C.base, shade: 1.12, y: R + 0.015, z: fz + 0.022 });
   } else if (cls === 'wizard') {
@@ -491,12 +518,15 @@ function buildCrown(C, cls) {
     ];
     // Two plies: a darker ply set back, a bright one proud of it. This is the
     // one place the lamination is SUPPOSED to read as separate sheets.
-    n += laminate(s, comb, {
-      color: C.accent, y: 0.05, z: -0.02, axis: 'x', depth: 0.115,
+    // Two plies with a REAL value step between them (0.82 / 1.16). At 1.00 and
+    // 1.08 the plume read as one coral blob sitting on the helm; a plume is a
+    // bundle of feathers and needs a lit edge over a shaded body to say so.
+    n += laminate(s, comb.map(([u, v]) => [u * 0.88, v * 0.90]), {
+      color: C.accent, shade: 0.82, y: 0.05, z: -0.02, axis: 'x', depth: 0.10,
       sheets: 3, pF: 2.6, pB: 2.6, q: 0.40, flatY: 0.55, back: 0.94,
     });
-    n += laminate(s, comb.map(([u, v]) => [u * 0.78, v * 0.82]), {
-      color: C.accent, shade: 1.08, y: 0.085, z: 0.015, axis: 'x', depth: 0.125,
+    n += laminate(s, comb.map(([u, v]) => [u * 0.66, v * 0.74]), {
+      color: C.accent, shade: 1.16, y: 0.085, z: 0.015, axis: 'x', depth: 0.108,
       sheets: 2, pF: 2.6, pB: 2.6, q: 0.40, flatY: 0.55, back: 0.95,
     });
     // Helm ridge the comb is socketed into.
@@ -582,8 +612,15 @@ function buildLeg(C, cls) {
   let n = 0;
   const col = cls === 'wizard' ? C.accent : C.base;
   n += laminate(s, limb(0.21, LEG_LEN), {
-    color: col, y: 0, depth: LEG_D,
+    color: col, shade: 0.92, y: 0, depth: LEG_D,
     sheets: 3, pF: 3.2, pB: 3.2, q: 0.36, flatY: 0.12, back: 0.916,
+  });
+  // Boot cuff. A leg that runs from hip to floor in one colour is a peg; the
+  // cuff is where the eye reads the knee-to-ankle length, and it is the only
+  // thing giving the lower leg a joint from behind.
+  n += laminate(s, roundRect(0.235, 0.10, 0.04), {
+    color: C.shoe, shade: 0.92, y: -LEG_LEN + 0.16, depth: LEG_D * 1.06,
+    sheets: 2, pF: 3.4, pB: 3.4, q: 0.28, flatY: 0.2, back: 0.94,
   });
   // Foot. Cut SIDE-ON (axis 'x') and laminated across: a foot's silhouette is
   // its profile, and the old front-cut card left a 12 cm stub that read as a

@@ -54,3 +54,5 @@ android/
 
 # Agent scratch space (temporary analysis scripts, not part of the build)
 .scratch/
+.art-preview.mjs
+.art-splice.mjs
