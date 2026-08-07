@@ -39,6 +39,13 @@ function seededSave() {
   };
 }
 
+// Each pose is a full render of a dense world under SwiftShader software GL,
+// which runs single-digit fps by nature. As the world gained vegetation
+// density, weather and a macro-detail pass, 12 poses stopped fitting in the
+// suite's default 120s. The harness is a screenshot rig, not a perf test —
+// give it room rather than thinning the world to suit the test.
+test.setTimeout(15 * 60 * 1000);
+
 test('overworld beauty: every pose renders to a screenshot', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
