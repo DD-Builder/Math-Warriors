@@ -12,37 +12,58 @@
  */
 
 import { BATTLE_DEPTH } from '../ui/depths.js';
+import { phaseCadence } from './bossPhases.js';
+import { PAPER } from '../config.js';
 
-/** Signature special move per boss id: name + colors for the show. */
+/**
+ * Signature special move per boss id: name + colour for the show.
+ *
+ * ART LAW: these were the last off-palette colours in the boss stack —
+ * hand-mixed greens and oranges that the VFX layer then splashed across
+ * a papercut stage. Every one is now a PAPER token, so a special reads
+ * as the same cut paper as the diorama it lands on.
+ */
 export const BOSS_MOVES = {
-  briarking: { name: 'THORN STORM', color: 0x4a8830, glyph: '🌿' },
-  pressure: { name: 'TIDAL CRUSH', color: 0x40a8d0, glyph: '🌊' },
-  skywhale: { name: 'THUNDER DIVE', color: 0x8090c0, glyph: '⚡' },
-  pyroclast: { name: 'MAGMA BURST', color: 0xe04808, glyph: '🔥' },
-  absolutezero: { name: 'WHITEOUT', color: 0x9cd0e8, glyph: '❄' },
-  theprism: { name: 'SHATTER RAY', color: 0xb090e8, glyph: '💎' },
-  counterfeiter: { name: 'COIN AVALANCHE', color: 0xecb964, glyph: '🪙' },
-  theparadox: { name: 'INK ECLIPSE', color: 0x1f3d3f, glyph: '📖' },
-  theorem: { name: 'PROOF OF RUIN', color: 0x9070d8, glyph: '☄' },
+  briarking: { name: 'THORN STORM', color: PAPER.leaf, glyph: '🌿' },
+  pressure: { name: 'TIDAL CRUSH', color: PAPER.teal, glyph: '🌊' },
+  skywhale: { name: 'THUNDER DIVE', color: PAPER.lavender, glyph: '⚡' },
+  pyroclast: { name: 'MAGMA BURST', color: PAPER.coralD, glyph: '🔥' },
+  absolutezero: { name: 'WHITEOUT', color: PAPER.sky, glyph: '❄' },
+  theprism: { name: 'SHATTER RAY', color: PAPER.lavender, glyph: '💎' },
+  counterfeiter: { name: 'COIN AVALANCHE', color: PAPER.gold, glyph: '🪙' },
+  theparadox: { name: 'INK ECLIPSE', color: PAPER.inkTeal, glyph: '📖' },
+  theorem: { name: 'PROOF OF RUIN', color: PAPER.lavenderD, glyph: '☄' },
 };
 
 export function getBossMove(bossId) {
-  return BOSS_MOVES[bossId] || { name: 'FURY UNLEASHED', color: 0xc04030, glyph: '★' };
+  return BOSS_MOVES[bossId] || { name: 'FURY UNLEASHED', color: PAPER.coralD, glyph: '★' };
 }
 
-/** Every 3rd boss turn is the special (turns 3, 6, 9…). */
-export function isSpecialTurn(bossTurnCount) {
-  return bossTurnCount > 0 && bossTurnCount % 3 === 0;
+/**
+ * Special cadence, phase-aware. Phase 1 keeps the shipped every-3rd
+ * rhythm; a transformed boss fires every 2nd turn, which is the single
+ * clearest way a child feels "he's getting serious" without any number
+ * on screen changing.
+ */
+export function isSpecialTurn(bossTurnCount, phase = 1) {
+  const every = phaseCadence(phase).specialEvery;
+  return bossTurnCount > 0 && bossTurnCount % every === 0;
 }
 
-/** The player turn right before a special should show the warning. */
-export function isTelegraphTurn(bossTurnCount) {
-  return (bossTurnCount + 1) % 3 === 0;
+/**
+ * The player turn right before a special — the COUNTER WINDOW. Correct
+ * answers landed here charge a guard that blunts the incoming special
+ * (see counterMitigation), so answering right reads as a parry rather
+ * than as bookkeeping.
+ */
+export function isTelegraphTurn(bossTurnCount, phase = 1) {
+  const every = phaseCadence(phase).specialEvery;
+  return (bossTurnCount + 1) % every === 0;
 }
 
 /** Party-wide special damage: reduced per head so it awes, not slays. */
-export function specialDamagePerHero(baseDamage) {
-  return Math.max(1, Math.round(baseDamage * 0.7));
+export function specialDamagePerHero(baseDamage, phase = 1) {
+  return Math.max(1, Math.round(baseDamage * phaseCadence(phase).damageMul));
 }
 
 /**
@@ -96,7 +117,9 @@ export function playBossEntrance(scene, spriteData, enemy, done) {
 
 /**
  * Intent badge above the boss during the player's turn before a
- * special: a pulsing warning with the move's glyph.
+ * special: a pulsing warning with the move's glyph, plus three counter
+ * pips. Each correct answer inside the window lights one pip, so the
+ * child can SEE their guard building instead of being told about it.
  */
 export function showIntentBadge(scene, spriteData, enemy) {
   const body = spriteData?.body;
@@ -112,25 +135,66 @@ export function showIntentBadge(scene, spriteData, enemy) {
     scaleX: 1.2, scaleY: 1.2,
     duration: 380, yoyo: true, repeat: -1, ease: 'Sine.inOut',
   });
-  return { destroy: () => { pulse.stop(); badge.destroy(); } };
+
+  // Counter pips — hollow paper discs that fill teal as guards land.
+  const pips = [];
+  for (let i = 0; i < 3; i++) {
+    const p = scene.add.circle(x - 26 + i * 26, y + 34, 8, PAPER.cream, 0.35)
+      .setDepth(BATTLE_DEPTH.INTENT);
+    p.setStrokeStyle?.(2, PAPER.tealD, 0.8);
+    p.setScrollFactor?.(0);
+    pips.push(p);
+  }
+  let lit = 0;
+  return {
+    /** Light the next pip; returns how many are lit. */
+    addSpark() {
+      const p = pips[lit];
+      lit = Math.min(pips.length, lit + 1);
+      if (p) {
+        p.setFillStyle?.(PAPER.tealL, 1);
+        scene.tweens.add({ targets: p, scaleX: 1.6, scaleY: 1.6, duration: 160, yoyo: true, ease: 'Quad.out' });
+      }
+      return lit;
+    },
+    destroy: () => { pulse.stop(); badge.destroy(); pips.forEach(p => p.destroy()); },
+  };
 }
 
 /**
- * Special wind-up: the boss inflates and glows in its move color for
- * ~500ms, then done() fires the actual multi-hit.
+ * Generic special wind-up for bosses without a bespoke `windup` rig
+ * hook: the boss inflates and glows in its move colour while a paper
+ * charge ring closes around it. Runs `durationMs` (default 2.2s) so
+ * there is a real, readable window between "it is coming" and "it
+ * landed" — the beat that makes a correct answer feel like a counter.
  */
-export function playBossTelegraph(scene, spriteData, enemy, done) {
+export function playBossTelegraph(scene, spriteData, enemy, done, opts = {}) {
   const body = spriteData?.body;
   if (!body) { done?.(); return; }
   const move = getBossMove(enemy.id);
+  const total = Math.max(240, opts.durationMs ?? 2200);
+  const half = Math.round(total / 2);
   spriteData.idleTween?.pause();
   const osx = body.scaleX, osy = body.scaleY;
   try { body.setTint(move.color); } catch { /* canvas texture */ }
+
+  // Closing charge ring — the tell. Paper-thin, in the move colour.
+  const ring = scene.add.circle(body.x, body.y, 20, 0, 0)
+    .setDepth(BATTLE_DEPTH.INTENT);
+  ring.setStrokeStyle?.(6, move.color, 0.85);
+  ring.setScrollFactor?.(0);
+  ring.setScale?.(9);
+  scene.tweens.add({
+    targets: ring, scaleX: 1.2, scaleY: 1.2, alpha: 0.2,
+    duration: total, ease: 'Quad.in',
+    onComplete: () => ring.destroy(),
+  });
+
   scene.tweens.add({
     targets: body,
     scaleX: osx * 1.18,
     scaleY: osy * 1.18,
-    duration: 480,
+    duration: half,
     ease: 'Quad.in',
     yoyo: true,
     onComplete: () => {

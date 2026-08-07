@@ -32,24 +32,34 @@ const ART_LOOKUP = {};
 const CANVAS_CACHE = {};
 const MONSTER_SIZE = 640;
 
-function getMonsterCanvas(id) {
-  if (CANVAS_CACHE[id]) return CANVAS_CACHE[id];
+function getMonsterCanvas(id, phase = 1, artPhase = 0) {
+  const key = variantSuffix(id, phase, artPhase);
+  if (CANVAS_CACHE[key]) return CANVAS_CACHE[key];
   const drawFn = ART_LOOKUP[id];
   if (!drawFn) return null;
-  const cv = createMonsterCanvas(MONSTER_SIZE, null, drawFn, 0);
-  CANVAS_CACHE[id] = cv;
+  const cv = createMonsterCanvas(MONSTER_SIZE, null, drawFn, 0, { phase, artPhase });
+  CANVAS_CACHE[key] = cv;
   return cv;
+}
+
+/** Cache/texture suffix for one art variant. Plain id when default. */
+function variantSuffix(id, phase, artPhase) {
+  let key = id;
+  if (phase > 1) key += `#p${phase}`;
+  if (artPhase > 0) key += `#a${artPhase}`;
+  return key;
 }
 
 export function drawMonsterSprite(scene, x, y, enemy, opts = {}) {
   const scale = opts.scale ?? 1;
   const floorId = opts.floorId || 1;
   const id = enemy.id;
-  const textureKey = `monster-${id}-f${floorId}`;
+  const phase = Math.max(1, opts.phase || 1);
+  const textureKey = phaseTextureKey(id, floorId, phase);
 
   // Try reference art first
   if (!scene.textures.exists(textureKey)) {
-    const cv = getMonsterCanvas(id);
+    const cv = getMonsterCanvas(id, phase);
     if (cv) {
       // Filter a CLONE — the cached canvas is shared across floors and
       // applySpriteFilter mutates pixels in place. Filtering the cache
@@ -71,6 +81,55 @@ export function drawMonsterSprite(scene, x, y, enemy, opts = {}) {
   img.setScale(scale);
   img.setOrigin(0.5, 0.5);
   return img;
+}
+
+/** Texture key for one (monster, floor, phase, art variant) combination. */
+function phaseTextureKey(id, floorId, phase, artPhase = 0) {
+  let key = `monster-${id}-f${floorId}`;
+  if (phase > 1) key += `-p${phase}`;
+  if (artPhase > 0) key += `-a${artPhase}`;
+  return key;
+}
+
+/**
+ * Swap a live boss body onto its phase-N artwork.
+ *
+ * WHY a texture swap instead of a tint: the papercut identity forbids
+ * recolouring finished art — a boss that "gets serious" has to be a
+ * different CUT of paper, not the same cut washed in red. Re-rendering
+ * the draw function with { phase } lets boss art grow crowns, crack
+ * open or unfold extra layers while every colour still comes from the
+ * art file's own PAPER swatches.
+ *
+ * `opts.artPhase` selects an art-file variant that is NOT the battle
+ * phase — the Theorem's completed, mended self, used for the victory
+ * beat. See createMonsterCanvas for why the two never share a channel.
+ *
+ * Safe to call for art that ignores `phase` (it just re-uses an
+ * identical texture) and for the Graphics fallback path (no-op).
+ * Returns true when a new texture was actually applied.
+ */
+export function applyBossPhaseArt(scene, body, enemy, phase, floorId = 1, opts = {}) {
+  if (!body || !enemy || !scene?.textures || typeof body.setTexture !== 'function') return false;
+  if (!ART_LOOKUP[enemy.id]) return false;
+  const artPhase = opts.artPhase || 0;
+  const key = phaseTextureKey(enemy.id, floorId, Math.max(1, phase || 1), artPhase);
+  if (!scene.textures.exists(key)) {
+    const cv = getMonsterCanvas(enemy.id, phase, artPhase);
+    if (!cv) return false;
+    let src = cv;
+    try {
+      const clone = document.createElement('canvas');
+      clone.width = cv.width;
+      clone.height = cv.height;
+      clone.getContext('2d').drawImage(cv, 0, 0);
+      applySpriteFilter(clone, floorId);
+      src = clone;
+    } catch { /* no DOM (tests) — fall back to the raw canvas */ }
+    scene.textures.addCanvas(key, src);
+  }
+  body.setTexture(key);
+  return true;
 }
 
 // ─── FALLBACK: Old Phaser Graphics draws ────────────────────────

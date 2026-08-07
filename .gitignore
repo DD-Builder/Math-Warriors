@@ -56,3 +56,4 @@ android/
 .scratch/
 .art-preview.mjs
 .art-splice.mjs
+dist-preview/

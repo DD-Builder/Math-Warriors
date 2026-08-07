@@ -319,8 +319,16 @@ describe('enemy HP scaling', () => {
       const boss = getEnemyById(bossId);
       const hp = computeEnemyHp(boss, 3, true);
       const problems = hp / avgHitFor(boss, 3);
+      // DELIBERATE band change (boss escalation pass): the old flat cap
+      // of 20 for every floor made it impossible for the final boss to
+      // be the longest fight in the game — the ×1.44 floor ramp alone
+      // already crossed it. The last floor's boss carries a crown bonus
+      // on top (see bossFloorWeight) and is allowed to run longer. This
+      // is a zero-momentum model; combatSim.test.js asserts the real
+      // played length, which stays inside the 12-22 answer band.
+      const cap = f === TOTAL_FLOORS ? 23 : 20;
       assert.ok(problems >= 8, `${bossId}: boss too easy (${problems.toFixed(1)} problems)`);
-      assert.ok(problems <= 20, `${bossId}: boss too hard (${problems.toFixed(1)} problems)`);
+      assert.ok(problems <= cap, `${bossId}: boss too hard (${problems.toFixed(1)} problems)`);
     });
   }
 
