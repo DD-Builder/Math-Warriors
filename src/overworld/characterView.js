@@ -47,7 +47,7 @@
  */
 import * as THREE from 'three';
 import { PAPER } from '../config.js';
-import { papercutMaterial, paperColor } from './materials/toon.js';
+import { papercutMaterial, paperColor, applyRimLight } from './materials/toon.js';
 import { deckleDisc } from './materials/textures.js';
 import { sink, stamp, bake, lin, trs } from './geobuild.js';
 import { DEFAULT_TUNING } from './controller.js';
@@ -57,14 +57,46 @@ import { DEFAULT_TUNING } from './controller.js';
 // you ask them to draw a hero, and it stays readable at the 11 m camera boom.
 const HIP_Y = 0.60;      // leg pivot / torso base
 const SHOULDER_Y = 1.12;
-const SHOULDER_X = 0.30;
+// Shoulders sit OUTBOARD of the 0.60-wide torso, not flush with it. Flush
+// shoulders hide the arms inside the body silhouette from the front and the
+// back — two of the three angles the follow camera actually shows — and a
+// character with no visible arms cannot read as a character.
+// 0.375, not 0.345: at the old offset the arm's inner edge (0.25) sat 5 cm
+// INSIDE the torso's half-width (0.30), so two laminated stacks interpenetrated
+// down their whole length — which is what produced the visible seams and the
+// z-fighting flicker along the hero's sides. The arm now clears the torso ply
+// stack by ~4 cm and reads as a separate limb from every angle.
+const SHOULDER_X = 0.375;
 const HEAD_Y = 1.24;     // neck pivot
-const CROWN_Y = 0.30;    // crown pivot, in head-local space
 const LEG_LEN = 0.60;
 const ARM_LEN = 0.52;
 
-/** Ply thickness. ~7 cm reads as card stock at this scale, not as a slab. */
+/**
+ * Crown pivot, in head-local space, per crown kind.
+ *
+ * The head ball spans head-local y 0 .. 0.60, so a pivot at 0.30 is the CENTRE
+ * of the skull — which buried the bottom 30 cm of every hat, plume and ear
+ * inside the head and left only a nub showing. These sit just under the crown
+ * of the skull, which is both where headgear actually rests and where an ear
+ * actually hinges.
+ */
+const CROWN_Y = { crest: 0.44, hat: 0.52, ears: 0.47 };
+
+/** Trim thickness. ~7 cm reads as card stock at this scale, not as a slab. */
 const DEPTH = 0.07;
+
+// Form depths — the numbers that give the hero a side view.
+//
+// The body forms are LAMINATED to these depths (see `laminate`); only trim
+// stays a single 7 cm card. A head is very nearly as deep as it is wide because
+// a head is a ball; a torso is about half its width; limbs are round-ish. The
+// feet are the one form cut side-on, so FOOT_D is their WIDTH and their length
+// lives in the outline.
+const TORSO_D = 0.34;
+const HEAD_D = 0.42;
+const ARM_D = 0.20;
+const LEG_D = 0.22;
+const FOOT_D = 0.19;
 
 // ── Class dress ────────────────────────────────────────────────────────────
 // Every entry is a PAPER key. Darker plies are NOT new colours — they are the
@@ -209,9 +241,17 @@ function roundFace(geo, cx, cy, amount) {
 
 /**
  * Stamp one ply into a node sink.
+ *
+ * `axis` picks which way the sheet faces. 'z' (default) lays the outline in the
+ * X-Y plane and extrudes toward the hero's front — the normal case, where the
+ * silhouette that matters is the front view. 'x' lays it in the Z-Y plane and
+ * extrudes sideways, for the handful of forms whose CHARACTER is their side
+ * view and not their front one: a foot is a foot because of its profile, and
+ * cutting it from the front leaves a 12 cm stub.
+ *
  * @param {object} s      geobuild sink
  * @param {number[][]} pts outline, authored around its own origin
- * @param {object} o      { color, shade, x, y, z, rot, depth, round }
+ * @param {object} o      { color, shade, x, y, z, rot, depth, round, axis, sx, sy }
  */
 function ply(s, pts, o) {
   const depth = o.depth ?? DEPTH;
@@ -220,8 +260,98 @@ function ply(s, pts, o) {
   });
   geo.translate(0, 0, -depth * 0.5);
   roundFace(geo, 0, 0, o.round ?? 0.42);
-  stamp(s, geo, trs(o.x || 0, o.y || 0, o.z || 0, 0, 0, o.rot || 0), lin(o.color, o.shade ?? 1));
+  // Ry(-90 deg) sends the outline's +x to world +z (the hero's facing) and the
+  // extrusion to world -x, so an 'x' sheet stacks sideways with its profile
+  // pointing forward. Rz still runs first, so `rot` keeps meaning "turn the
+  // outline in its own plane" for both axes.
+  const ry = o.axis === 'x' ? -Math.PI / 2 : 0;
+  stamp(
+    s, geo,
+    trs(o.x || 0, o.y || 0, o.z || 0, 0, ry, o.rot || 0, o.sx ?? 1, o.sy ?? 1, 1),
+    lin(o.color, o.shade ?? 1),
+  );
   return 1;
+}
+
+/**
+ * Laminate a FORM out of `sheets` plies stacked along the depth axis, each cut
+ * from the same outline and scaled by a depth profile.
+ *
+ * THIS IS THE WHOLE REASON THE HERO HAS A BODY.
+ *
+ * A single extruded card is a perfect front silhouette and nothing at all from
+ * the side — at 90 deg the old rig lost 71% of its area and collapsed to a
+ * 26 cm sliver, which the follow camera exposes on every turn (it lerps at
+ * 0.12 while the controller yaws at 10 rad/s, so a hard turn holds tens of
+ * degrees of offset for most of a second). Billboarding the rig would fix the
+ * picture and break the art: the hero would swim against a world that is
+ * honestly modelled.
+ *
+ * So he is built the way layered-papercut sculpture is actually built — a stack
+ * of sheets, each cut a little smaller than the one behind it, where the
+ * STACK's envelope is the form. The side view is now a real profile, every
+ * sheet rim catches the sun as a lit step, and the laminations give the
+ * silhouette an implicit edge without a single dark outline. One node is still
+ * one draw call: every sheet lands in the same sink.
+ *
+ * The profile is a two-sided superellipse — `pF` shapes the front half and `pB`
+ * the back — because a body is not symmetric front-to-back. A chest is broad
+ * and flat and the back of a skull is round, and one exponent each says so.
+ *
+ * @param {object} o { color, shade, x, y, z, rot, depth, sheets, round, axis,
+ *                     pF, pB, q, flatY, back }
+ */
+function laminate(s, pts, o) {
+  const n = o.sheets ?? 5;
+  const D = o.depth;
+  // Sheets overlap slightly (fill > 1) so the stack reads as one solid form
+  // rather than a louvre with daylight between the slats.
+  const sheetD = (D / n) * (o.fill ?? 1.06);
+  const pF = o.pF ?? 6;
+  const pB = o.pB ?? 3;
+  const q = o.q ?? 0.30;
+  // How much less the HEIGHT tapers than the width. A torso keeps its length
+  // as it rounds off; a head is a ball and tapers equally.
+  const flatY = o.flatY ?? 0.5;
+  // Shade at the BACK-most sheet, ramping to 1.0 at the front. Keep this
+  // SHALLOW. The front sheet is the smallest one, so every darker sheet behind
+  // it shows as a rim — and a steep ramp turns that rim into a dark vignette
+  // around every form, which read as mud on the coral bunny and cost the
+  // palette its warmth. The lamination only has to be legible as an edge, and
+  // a tenth of a stop is plenty for that.
+  const back = o.back ?? 0.90;
+  const shade = o.shade ?? 1;
+  for (let i = 0; i < n; i++) {
+    const u = (i + 0.5) / n;              // 0 = back sheet, 1 = front sheet
+    const t = 2 * u - 1;
+    const k = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(t), t >= 0 ? pF : pB)), q);
+    const off = t * 0.5 * D;
+    ply(s, pts, {
+      color: o.color,
+      shade: shade * (back + (1 - back) * u),
+      x: (o.x || 0) + (o.axis === 'x' ? off : 0),
+      y: o.y || 0,
+      z: (o.z || 0) + (o.axis === 'x' ? 0 : off),
+      rot: o.rot || 0,
+      depth: sheetD,
+      round: o.round,
+      axis: o.axis,
+      sx: k,
+      sy: 1 - (1 - k) * flatY,
+    });
+  }
+  return n;
+}
+
+/** Where a laminated form's front face sits, so trim can be laid on top of it. */
+function faceZ(depth, sheets = 5, fill = 1.06) {
+  return depth * 0.5 * ((sheets - 1) / sheets) + (depth / sheets) * fill * 0.5;
+}
+
+/** Lateral scale of a laminated form's front sheet — trim must fit inside it. */
+function faceK(sheets = 5, pF = 6, q = 0.30) {
+  const t = 1 - 1 / sheets;
+  return Math.pow(Math.max(0, 1 - Math.pow(t, pF)), q);
 }
 
 // ── Node builders ──────────────────────────────────────────────────────────
@@ -234,27 +364,44 @@ function buildTorso(C, cls) {
   let n = 0;
   const h = 0.66;
   const midY = h / 2;
-  // Back ply first, a shade darker and a hair wider: the cut-paper trick that
-  // gives a body an edge without an outline.
-  n += ply(s, roundRect(0.62, h + 0.02, 0.17), { color: C.base, shade: 0.72, y: midY, z: -0.028 });
-  n += ply(s, roundRect(0.56, h, 0.15), { color: C.base, y: midY, z: 0.018 });
+  // The body: one laminated block, broad and flat across the chest (pF 6) and
+  // rounding away toward the back (pB 2.6), which is the difference between a
+  // torso and a brick.
+  n += laminate(s, roundRect(0.60, h, 0.17), {
+    color: C.base, y: midY, depth: TORSO_D,
+    sheets: 5, pF: 6, pB: 2.6, q: 0.30, flatY: 0.45,
+  });
+  // Front face of the stack — everything below is laid ON it, not floating.
+  const fz = faceZ(TORSO_D);
+  // A band (belt, sash, collar) goes AROUND a body, so it is laminated too.
+  // Trim that only exists on the front is exactly how the old rig ended up
+  // with a blank side view.
+  const band = (pts, y, color, shade, rot) => laminate(s, pts, {
+    color, shade, y, rot, depth: TORSO_D * 1.03,
+    sheets: 3, pF: 5, pB: 3, q: 0.22, flatY: 0.15, back: 0.91,
+  });
   if (cls === 'knight') {
-    n += ply(s, taper(0.42, 0.34, 0.40, 0.08), { color: C.light, y: midY + 0.08, z: 0.052 });
-    n += ply(s, star(0.10, 0.045), { color: C.trim, y: midY + 0.12, z: 0.072, round: 0.2 });
-    n += ply(s, roundRect(0.60, 0.11, 0.04), { color: C.trim, y: 0.10, z: 0.058 });
-    n += ply(s, taper(0.66, 0.40, 0.13, 0.05), { color: C.light, shade: 1.06, y: h - 0.05, z: 0.046 });
+    n += ply(s, taper(0.40, 0.32, 0.40, 0.08), { color: C.light, y: midY + 0.08, z: fz + 0.006 });
+    n += ply(s, star(0.10, 0.045), { color: C.trim, y: midY + 0.12, z: fz + 0.028, round: 0.2 });
+    n += band(roundRect(0.62, 0.11, 0.04), 0.10, C.trim, 1, 0);
+    n += band(taper(0.66, 0.42, 0.13, 0.05), h - 0.05, C.light, 1.06, 0);
   } else if (cls === 'wizard') {
-    // Robe front: a long pale panel, then the sash across it.
-    n += ply(s, taper(0.26, 0.46, h - 0.06, 0.07), { color: C.light, y: midY - 0.02, z: 0.052 });
-    n += ply(s, star(0.085, 0.038), { color: C.trim, y: midY + 0.13, z: 0.072, round: 0.2 });
-    n += ply(s, roundRect(0.58, 0.10, 0.04), { color: C.trim, y: 0.13, z: 0.058, rot: -0.10 });
-    n += ply(s, taper(0.60, 0.34, 0.15, 0.06), { color: C.accent, y: h - 0.04, z: 0.040 });
+    n += ply(s, taper(0.24, 0.44, h - 0.06, 0.07), { color: C.light, y: midY - 0.02, z: fz + 0.006 });
+    n += ply(s, star(0.085, 0.038), { color: C.trim, y: midY + 0.13, z: fz + 0.028, round: 0.2 });
+    n += band(roundRect(0.60, 0.10, 0.04), 0.13, C.trim, 1, -0.10);
+    n += band(taper(0.62, 0.36, 0.15, 0.06), h - 0.04, C.accent, 1, 0);
   } else {
-    n += ply(s, ellipse(0.19, 0.23, 12), { color: C.trim, y: midY - 0.05, z: 0.052 });
-    n += ply(s, ellipse(0.055, 0.055, 8), { color: C.accent, y: midY + 0.17, z: 0.070, round: 0.2 });
-    n += ply(s, roundRect(0.56, 0.09, 0.04), { color: C.accent, y: 0.11, z: 0.058 });
-    n += ply(s, taper(0.52, 0.30, 0.12, 0.05), { color: C.light, y: h - 0.04, z: 0.040 });
+    n += ply(s, ellipse(0.19, 0.23, 12), { color: C.trim, y: midY - 0.05, z: fz + 0.006 });
+    n += ply(s, ellipse(0.055, 0.055, 8), { color: C.accent, y: midY + 0.17, z: fz + 0.026, round: 0.2 });
+    n += band(roundRect(0.58, 0.09, 0.04), 0.11, C.accent, 1, 0);
+    n += band(taper(0.54, 0.32, 0.12, 0.05), h - 0.04, C.light, 1, 0);
   }
+  // A tail of paper at the small of the back — the one ply whose whole job is
+  // to be seen from behind and from the side, where a front card shows nothing.
+  n += laminate(s, taper(0.34, 0.20, 0.26, 0.06), {
+    color: C.base, shade: 0.80, y: 0.16, z: -TORSO_D * 0.42, rot: 0,
+    sheets: 2, depth: 0.09, pF: 4, pB: 4, q: 0.25, flatY: 0.2, back: 0.934,
+  });
   return { geo: bake(s), plies: n };
 }
 
@@ -262,28 +409,69 @@ function buildHead(C, cls) {
   const s = sink();
   let n = 0;
   const R = 0.30;
-  const D = DEPTH * 1.6; // the head is the one form allowed real thickness
-  // Back ply, then the face card, then features front-to-back in 1 cm steps.
-  n += ply(s, ellipse(R + 0.02, R + 0.02, 16), { color: C.base, shade: 0.70, y: R, z: -0.03, depth: D });
-  n += ply(s, ellipse(R, R, 16), { color: cls === 'bunny' ? C.base : C.skin, y: R, z: 0.02, depth: D });
+  // A very flat face (pF 8) on a round cranium (pB 2.2): the profile that makes
+  // a head read as a head from the side and still gives the features a broad
+  // flat card to sit on from the front.
+  const core = cls === 'wizard' ? C.skin : C.base;
+  n += laminate(s, ellipse(R, R, 16), {
+    color: core, y: R, depth: HEAD_D,
+    sheets: 5, pF: 8, pB: 2.2, q: 0.32, flatY: 1, back: 0.88,
+  });
+  const fz = faceZ(HEAD_D);
   if (cls === 'knight') {
-    // Helm brow: a band across the top third with a nose guard dropping out of
-    // it. Reads as armour at 11 m and as a face at 2 m.
-    n += ply(s, taper(0.56, 0.60, 0.22, 0.08), { color: C.base, y: R + 0.16, z: 0.075, depth: D * 0.6 });
-    n += ply(s, roundRect(0.09, 0.30, 0.04), { color: C.base, shade: 1.12, y: R + 0.02, z: 0.085, depth: D * 0.6 });
+    // Face opening in the helm, then the brow BAND (laminated — a helm wraps a
+    // skull) and a nose guard dropping out of it.
+    n += ply(s, ellipse(0.205, 0.215, 14), { color: C.skin, y: R - 0.015, z: fz + 0.005 });
+    n += laminate(s, taper(0.56, 0.60, 0.21, 0.08), {
+      color: C.base, shade: 1.05, y: R + 0.165, depth: HEAD_D * 0.96,
+      sheets: 3, pF: 7, pB: 2.4, q: 0.28, flatY: 0.3, back: 0.904,
+    });
+    n += ply(s, roundRect(0.085, 0.28, 0.04), { color: C.base, shade: 1.12, y: R + 0.015, z: fz + 0.022 });
   } else if (cls === 'wizard') {
-    n += ply(s, taper(0.50, 0.30, 0.16, 0.06), { color: C.trim, shade: 0.92, y: R + 0.19, z: 0.070, depth: D * 0.6 });
+    // Hair: a fringe card in front and a laminated mass at the back, so the
+    // side view has a head of hair rather than a bald profile.
+    n += ply(s, taper(0.48, 0.30, 0.15, 0.06), { color: C.trim, shade: 0.92, y: R + 0.185, z: fz + 0.004 });
+    // Under-ply first: a darker mass set back and slightly larger than the
+    // lobes in front of it, so the hair has a shaded root rather than a flat
+    // silhouette. Without it a laminated ellipse is one orange blob whichever
+    // way it is lit.
+    n += laminate(s, ellipse(R * 0.98, R * 0.90, 12), {
+      color: C.trim, shade: 0.70, y: R + 0.02, z: -HEAD_D * 0.24, depth: HEAD_D * 0.52,
+      sheets: 2, pF: 3, pB: 2.2, q: 0.30, flatY: 0.9, back: 0.93,
+    });
+    // Three offset lobes. Hair is a bundle of masses catching light at
+    // different angles; ONE ellipse is a helmet, and the eye reads a helmet as
+    // "the modeller stopped here".
+    for (const [ox, oy, sc, sh] of [
+      [-0.135, 0.005, 0.80, 0.80],
+      [0.140, -0.010, 0.76, 0.88],
+      [0.005, 0.075, 0.94, 0.98],
+    ]) {
+      n += laminate(s, ellipse(R * 0.80 * sc, R * 0.74 * sc, 12), {
+        color: C.trim, shade: 0.86 * sh + 0.14, x: ox, y: R + 0.04 + oy,
+        z: -HEAD_D * 0.14, depth: HEAD_D * 0.62,
+        sheets: 2, pF: 3, pB: 2.2, q: 0.30, flatY: 0.9, back: 0.91,
+      });
+    }
   } else {
-    n += ply(s, ellipse(0.17, 0.13, 12), { color: C.trim, y: R - 0.11, z: 0.078, depth: D * 0.5 });
-    n += ply(s, ellipse(0.035, 0.028, 8), { color: C.accent, y: R - 0.055, z: 0.10, depth: D * 0.4, round: 0.2 });
+    n += ply(s, ellipse(0.175, 0.135, 12), { color: C.trim, y: R - 0.105, z: fz + 0.006 });
+    n += ply(s, ellipse(0.035, 0.028, 8), { color: C.accent, y: R - 0.05, z: fz + 0.026, round: 0.2 });
+    // Cheek tufts, one per side, angled out — reads from three-quarter and side.
+    for (const side of [-1, 1]) {
+      n += ply(s, taper(0.05, 0.14, 0.15, 0.03), {
+        color: C.light, x: side * 0.245, y: R - 0.055, z: fz - 0.05,
+        rot: side * -0.5, depth: 0.10,
+      });
+    }
   }
   // Eyes last, sitting proud of everything. Two plies, and they are the whole
   // reason the rig reads as a character rather than a mannequin.
   const eyeY = cls === 'knight' ? R + 0.03 : R + 0.045;
   const eyeX = 0.115;
   const eyeR = 0.042;
-  n += ply(s, ellipse(eyeR, eyeR * 1.15, 8), { color: INK, x: -eyeX, y: eyeY, z: 0.095, depth: 0.02, round: 0.15 });
-  n += ply(s, ellipse(eyeR, eyeR * 1.15, 8), { color: INK, x: eyeX, y: eyeY, z: 0.095, depth: 0.02, round: 0.15 });
+  const ez = fz + 0.032;
+  n += ply(s, ellipse(eyeR, eyeR * 1.15, 8), { color: INK, x: -eyeX, y: eyeY, z: ez, depth: 0.02, round: 0.15 });
+  n += ply(s, ellipse(eyeR, eyeR * 1.15, 8), { color: INK, x: eyeX, y: eyeY, z: ez, depth: 0.02, round: 0.15 });
   return { geo: bake(s), plies: n };
 }
 
@@ -292,48 +480,99 @@ function buildCrown(C, cls) {
   const s = sink();
   let n = 0;
   if (cls === 'crest') {
-    // A plume: two overlapping teardrops leaning back off the helm.
-    const plume = [[0, 0.34], [0.09, 0.16], [0.10, -0.02], [0.02, -0.10], [-0.07, -0.04], [-0.09, 0.14]];
-    n += ply(s, plume, { color: C.accent, shade: 0.82, x: -0.03, y: 0.04, z: -0.02, rot: -0.22, depth: 0.05 });
-    n += ply(s, plume, { color: C.accent, y: 0.06, z: 0.03, rot: -0.06, depth: 0.05 });
-    n += ply(s, roundRect(0.30, 0.07, 0.03), { color: C.trim, y: -0.03, z: 0.05, depth: 0.05 });
+    // A plume: a laminated fin running FRONT-TO-BACK over the helm, so it is
+    // widest exactly where a card would have been invisible.
+    // A comb that RISES and sweeps back. Cut side-on, so its shape lives in the
+    // profile where a helm crest is actually read, and laminated only 14 cm
+    // across so it stays a plume and not a fin.
+    const comb = [
+      [0.07, -0.02], [0.11, 0.11], [0.05, 0.23], [-0.07, 0.29],
+      [-0.18, 0.25], [-0.21, 0.13], [-0.15, 0.03], [-0.07, -0.02],
+    ];
+    // Two plies: a darker ply set back, a bright one proud of it. This is the
+    // one place the lamination is SUPPOSED to read as separate sheets.
+    n += laminate(s, comb, {
+      color: C.accent, y: 0.05, z: -0.02, axis: 'x', depth: 0.115,
+      sheets: 3, pF: 2.6, pB: 2.6, q: 0.40, flatY: 0.55, back: 0.94,
+    });
+    n += laminate(s, comb.map(([u, v]) => [u * 0.78, v * 0.82]), {
+      color: C.accent, shade: 1.08, y: 0.085, z: 0.015, axis: 'x', depth: 0.125,
+      sheets: 2, pF: 2.6, pB: 2.6, q: 0.40, flatY: 0.55, back: 0.95,
+    });
+    // Helm ridge the comb is socketed into.
+    n += laminate(s, roundRect(0.26, 0.075, 0.03), {
+      color: C.trim, y: 0.005, depth: 0.28,
+      sheets: 3, pF: 4, pB: 4, q: 0.26, flatY: 0.2, back: 0.94,
+    });
   } else if (cls === 'hat') {
-    // Wizard cone with a flopped tip — one ply, authored as a bent silhouette.
+    // Wizard cone with a flopped tip. Laminated to a near-circular profile so
+    // it is a cone from every side instead of a card from one.
     const cone = [
       [-0.30, 0.0], [0.30, 0.0], [0.20, 0.26], [0.11, 0.46],
       [0.12, 0.60], [0.02, 0.62], [-0.02, 0.46], [-0.10, 0.24],
     ];
-    n += ply(s, cone, { color: C.accent, shade: 0.80, y: 0.02, z: -0.03, depth: 0.09 });
-    n += ply(s, cone, { color: C.base, y: 0.04, z: 0.03, depth: 0.09 });
-    n += ply(s, roundRect(0.62, 0.09, 0.035), { color: C.trim, y: 0.03, z: 0.075, depth: 0.06 });
-    n += ply(s, star(0.065, 0.028), { color: C.trim, shade: 1.15, x: 0.02, y: 0.30, z: 0.085, depth: 0.03, round: 0.2 });
+    n += laminate(s, cone, {
+      color: C.base, y: 0.03, depth: 0.40,
+      sheets: 5, pF: 2.4, pB: 2.4, q: 0.44, flatY: 0.85, back: 0.898,
+    });
+    n += laminate(s, roundRect(0.64, 0.09, 0.035), {
+      color: C.trim, y: 0.03, depth: 0.52,
+      sheets: 3, pF: 3.4, pB: 3.4, q: 0.30, flatY: 0.2, back: 0.916,
+    });
+    n += ply(s, star(0.065, 0.028), { color: C.trim, shade: 1.15, x: 0.02, y: 0.30, z: 0.10, depth: 0.03, round: 0.2 });
   } else {
-    // Bunny ears: outer + inner ply each, splayed apart so the pair has a V.
+    // Bunny ears. An ear IS a flat thing, so this is the one form the old
+    // construction had right — but it still gets laminated, because an ear seen
+    // edge-on should be a lens, not a razor.
     const ear = [
       [-0.075, 0], [0.075, 0], [0.085, 0.22], [0.055, 0.42],
       [0, 0.50], [-0.055, 0.42], [-0.085, 0.22],
     ];
     const inner = ear.map(([x, y]) => [x * 0.52, y * 0.86 - 0.01]);
     for (const side of [-1, 1]) {
-      n += ply(s, ear, { color: C.base, x: side * 0.12, y: 0.0, z: 0, rot: side * 0.22, depth: 0.055 });
-      n += ply(s, inner, { color: C.accent, x: side * 0.135, y: 0.03, z: 0.032, rot: side * 0.22, depth: 0.03 });
+      n += laminate(s, ear, {
+        color: C.base, x: side * 0.12, y: 0, rot: side * 0.22, depth: 0.11,
+        sheets: 3, pF: 2.4, pB: 2.4, q: 0.40, flatY: 0.25, back: 0.91,
+      });
+      n += ply(s, inner, {
+        color: C.accent, x: side * 0.135, y: 0.03, z: 0.05, rot: side * 0.22, depth: 0.03,
+      });
     }
   }
   return { geo: bake(s), plies: n };
 }
 
+/**
+ * How much darker an arm is than the torso it hangs beside.
+ *
+ * The hero read as one teal mass at 40 px because the arms were cut from the
+ * same value as the body: two forms in the same colour, at the same value,
+ * touching, are one form. A tenth of a stop of separation is all it takes, and
+ * because it is a MULTIPLY on the same palette colour it cannot introduce a
+ * hue the dress kit did not already have.
+ */
+const ARM_SHADE = 0.88;
+
 function buildArm(C, cls, side) {
   const s = sink();
   let n = 0;
-  n += ply(s, limb(0.19, ARM_LEN), { color: C.base, shade: 0.94, z: 0 });
-  n += ply(s, limb(0.165, ARM_LEN - 0.04), { color: C.base, shade: 1.06, z: 0.028 });
-  // Hand / paw / cuff at the far end.
-  n += ply(s, ellipse(0.105, 0.095, 10), {
-    color: cls === 'bunny' ? C.trim : C.light, y: -ARM_LEN + 0.03, z: 0.038, depth: DEPTH * 1.1,
+  n += laminate(s, limb(0.19, ARM_LEN), {
+    color: C.base, shade: ARM_SHADE, y: 0, depth: ARM_D,
+    sheets: 3, pF: 3.2, pB: 3.2, q: 0.36, flatY: 0.15, back: 0.916,
+  });
+  // Hand / paw / cuff at the far end — a ball, laminated round.
+  n += laminate(s, ellipse(0.105, 0.098, 10), {
+    color: cls === 'bunny' ? C.trim : C.light, shade: ARM_SHADE,
+    y: -ARM_LEN + 0.03, depth: ARM_D * 1.05,
+    sheets: 3, pF: 2.2, pB: 2.2, q: 0.42, flatY: 0.9, back: 0.922,
   });
   if (cls === 'knight') {
-    // Pauldron: the one ply that gives the knight a shoulder line.
-    n += ply(s, taper(0.30, 0.20, 0.17, 0.07), { color: C.light, x: side * 0.02, y: -0.05, z: 0.05 });
+    // Pauldron: the form that gives the knight a shoulder line, capped over the
+    // whole joint rather than pinned to its front.
+    n += laminate(s, taper(0.30, 0.21, 0.17, 0.07), {
+      color: C.light, shade: ARM_SHADE, x: side * 0.02, y: -0.05, depth: ARM_D * 1.3,
+      sheets: 3, pF: 2.8, pB: 2.8, q: 0.38, flatY: 0.35, back: 0.91,
+    });
   }
   return { geo: bake(s), plies: n };
 }
@@ -342,12 +581,33 @@ function buildLeg(C, cls) {
   const s = sink();
   let n = 0;
   const col = cls === 'wizard' ? C.accent : C.base;
-  n += ply(s, limb(0.21, LEG_LEN), { color: col, shade: 0.78, z: -0.01 });
-  n += ply(s, limb(0.185, LEG_LEN - 0.05), { color: col, shade: 0.90, z: 0.022 });
-  // Foot: a wedge poking forward (+Z is the hero's facing), so a leg swing
-  // actually shows a footfall instead of a floating stick.
-  n += ply(s, roundRect(0.20, 0.13, 0.05), {
-    color: C.shoe, y: -LEG_LEN + 0.045, z: 0.055, depth: DEPTH * 1.7,
+  n += laminate(s, limb(0.21, LEG_LEN), {
+    color: col, y: 0, depth: LEG_D,
+    sheets: 3, pF: 3.2, pB: 3.2, q: 0.36, flatY: 0.12, back: 0.916,
+  });
+  // Foot. Cut SIDE-ON (axis 'x') and laminated across: a foot's silhouette is
+  // its profile, and the old front-cut card left a 12 cm stub that read as a
+  // block. Toe forward at +z, heel behind — so a leg swing shows a footfall.
+  const footSide = [
+    [-0.085, 0.105], [0.075, 0.105], [0.145, 0.062], [0.155, 0.012],
+    [0.115, -0.022], [-0.095, -0.022], [-0.115, 0.02], [-0.11, 0.075],
+  ];
+  n += laminate(s, footSide, {
+    color: C.shoe, y: -LEG_LEN + 0.045, z: 0.012, axis: 'x', depth: FOOT_D,
+    sheets: 3, pF: 3.6, pB: 3.6, q: 0.30, flatY: 0.25, back: 0.916,
+  });
+  // SOLE. Every vertex of this outline is strictly INSIDE the boot's — the old
+  // rig had a pale ply reaching past the boot silhouette, which at hero-closeup
+  // distance read as a white wedge and was reported as a rendering bug rather
+  // than as a shoe. It is also darker, which gives the foot a ground line: a
+  // pale boot with no sole meets the grass at no value at all.
+  const sole = [
+    [-0.098, 0.020], [0.120, 0.020], [0.140, 0.004],
+    [0.106, -0.016], [-0.086, -0.016], [-0.106, 0.002],
+  ];
+  n += laminate(s, sole, {
+    color: C.shoe, shade: 0.74, y: -LEG_LEN + 0.045, z: 0.012, axis: 'x', depth: FOOT_D * 0.94,
+    sheets: 2, pF: 3.6, pB: 3.6, q: 0.28, flatY: 0.2, back: 0.94,
   });
   return { geo: bake(s), plies: n };
 }
@@ -375,6 +635,69 @@ const ANIM = {
   speedDamp: 11,
   yawDamp: 7,
 };
+
+// ── Contact shadow ─────────────────────────────────────────────────────────
+
+/**
+ * Alpha at the shadow's core, before the altitude falloff.
+ *
+ * The old blob was a UNIFORM ellipse at 0.26 — the same value under the boots
+ * as at its outer edge — which is why the hero read as floating on a soft grey
+ * smudge instead of standing on the ground. A real contact shadow is nearly
+ * opaque where the form touches and gone a body-width away, and that GRADIENT
+ * is the whole cue: it is what tells a five-year-old which pixel is the point
+ * of contact.
+ */
+const BLOB_ALPHA = 0.46;
+
+/**
+ * Radial alpha profile of the contact shadow, as [normalised radius, alpha].
+ *
+ * Read against the ~1.2 m outer radius the rig scales this to: full strength
+ * inside 0.3 m of the feet, roughly a third of it by 1.2 m. The falloff is
+ * carried in VERTEX ALPHA rather than in the material, so `material.opacity`
+ * stays free to be the single dial altitude and wading fade the whole thing
+ * with — one number per frame, no texture, no second draw call.
+ */
+const BLOB_STOPS = [[0, 1.0], [0.26, 0.96], [0.55, 0.58], [1.0, 0.30]];
+const BLOB_SEGMENTS = 20;
+
+/** Ring-fanned disc carrying the profile above, plus UVs for the deckle tear. */
+function buildContactBlobGeo() {
+  const pos = [], nrm = [], col = [], uv = [];
+  const push = (r, a, ang) => {
+    const x = Math.cos(ang) * r, z = Math.sin(ang) * r;
+    pos.push(x, 0, z);
+    nrm.push(0, 1, 0);
+    col.push(1, 1, 1, a);
+    // The deckle mask's mean tear sits at 0.84 of its own radius, so mapping
+    // the geometric rim to mask radius 1.0 lets the tear bite inside the
+    // triangles instead of at an edge nobody can see.
+    uv.push(x * 0.5 + 0.5, z * 0.5 + 0.5);
+  };
+  for (let k = 0; k < BLOB_STOPS.length - 1; k++) {
+    const [r0, a0] = BLOB_STOPS[k];
+    const [r1, a1] = BLOB_STOPS[k + 1];
+    for (let i = 0; i < BLOB_SEGMENTS; i++) {
+      const t0 = (i / BLOB_SEGMENTS) * Math.PI * 2;
+      const t1 = ((i + 1) / BLOB_SEGMENTS) * Math.PI * 2;
+      if (r0 === 0) {
+        push(0, a0, t0); push(r1, a1, t0); push(r1, a1, t1);
+      } else {
+        push(r0, a0, t0); push(r1, a1, t0); push(r1, a1, t1);
+        push(r0, a0, t0); push(r1, a1, t1); push(r0, a0, t1);
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nrm), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 4));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv), 2));
+  geo.computeBoundingSphere();
+  geo.computeBoundingBox();
+  return geo;
+}
 
 // ── Particle pools ─────────────────────────────────────────────────────────
 const DUST_MAX = 20;
@@ -411,7 +734,23 @@ export function createCharacterView(opts = {}) {
   const skin = papercutMaterial(0xffffff, {
     vertexColors: true,
     grain: 0.075, normal: 0.10, roughnessLike: 0.17, scale: 0.42, space: 'local',
+    // Sun-bleach: shoulders, the crown of the head and the tops of the boots
+    // fade warm while every tucked-under ply holds the teal cavity. On a rig
+    // built entirely from flat cards that is a free form cue, and it does not
+    // fade out when the hero walks into a tree's shadow.
+    bleach: 0.28,
   });
+  // THE HERO IS THE ONE SURFACE IN THE WORLD THAT GETS A RIM.
+  //
+  // Odyssey keeps Mario value-separated from his backdrop as a hard rule, and
+  // ours broke it outright: a mid-teal knight on mid-green grass at effectively
+  // equal luma, which is a character who dissolves into the exact frame that
+  // exists to show him off. The palette law forbids the obvious fix (a dark
+  // outline), and we cannot control what he happens to be standing in front
+  // of. A rim solves it from the character's side: cream light catching the
+  // paper edge, additive after the toon ramp so it survives into shade, which
+  // is precisely when he most needs an edge.
+  applyRimLight(skin, { strength: 0.36, power: 3.0 });
   materials.push(skin);
 
   const group = new THREE.Group();
@@ -445,7 +784,8 @@ export function createCharacterView(opts = {}) {
 
   const torso = addNode('torso', buildTorso(C, cls), rig, 0, HIP_Y, 0);
   const head = addNode('head', buildHead(C, cls), rig, 0, HEAD_Y, 0);
-  addNode('crown', buildCrown(C, cls === 'knight' ? 'crest' : cls === 'wizard' ? 'hat' : 'ears'), head, 0, CROWN_Y, 0);
+  const crownKind = cls === 'knight' ? 'crest' : cls === 'wizard' ? 'hat' : 'ears';
+  addNode('crown', buildCrown(C, crownKind), head, 0, CROWN_Y[crownKind], 0);
   addNode('armL', buildArm(C, cls, -1), rig, -SHOULDER_X, SHOULDER_Y, 0);
   addNode('armR', buildArm(C, cls, 1), rig, SHOULDER_X, SHOULDER_Y, 0);
   addNode('legL', buildLeg(C, cls), rig, -0.155, HIP_Y, 0);
@@ -457,10 +797,10 @@ export function createCharacterView(opts = {}) {
   const legR = nodes.legR;
 
   // ── Contact shadow ───────────────────────────────────────────────────────
-  const blobGeo = new THREE.CircleGeometry(0.62, 20);
+  const blobGeo = buildContactBlobGeo();
   const blobMat = new THREE.MeshBasicMaterial({
-    color: paperColor(PAPER.shadow), transparent: true, opacity: 0.26,
-    depthWrite: false, fog: true, alphaMap: deckleDisc(),
+    color: paperColor(PAPER.shadow), vertexColors: true, transparent: true,
+    opacity: BLOB_ALPHA, depthWrite: false, fog: true, alphaMap: deckleDisc(),
   });
   geometries.push(blobGeo);
   materials.push(blobMat);
@@ -810,10 +1150,12 @@ export function createCharacterView(opts = {}) {
     const gy = groundY == null ? state.pos.y : groundY;
     const alt = Math.max(0, state.pos.y - gy);
     const spread = Math.min(alt, 5) * 0.20;
-    const bs = 0.90 + spread + sq * 0.42;
+    // 1.22 m at rest: the geometry is authored on a unit disc whose profile
+    // (BLOB_STOPS) is written against exactly that outer radius.
+    const bs = 1.22 + spread + sq * 0.42;
     blob.position.y = (gy - state.pos.y) + 0.035;
     blob.scale.set(bs, bs, 1);
-    blobMat.opacity = 0.30 / (1 + alt * 0.55) * (1 - st.wade * 0.5);
+    blobMat.opacity = BLOB_ALPHA / (1 + alt * 0.55) * (1 - st.wade * 0.5);
 
     // ── FX ──
     if (dt > 0) {

@@ -171,6 +171,9 @@ const DOME_FRAG = /* glsl */`
   uniform float uStarScale;
   uniform vec3 uStarCool;
   uniform vec3 uStarWarm;
+  uniform vec3 uSunDir;
+  uniform vec3 uGlowColor;
+  uniform float uGlowAmt;
   varying vec3 vDir;
 
   // Cheap 3D value hash. No texture fetch, no derivatives — identical under
@@ -183,17 +186,50 @@ const DOME_FRAG = /* glsl */`
   }
 
   void main() {
+    // ── Where the three bands actually land ──────────────────────────────
+    // These breakpoints were authored against the whole hemisphere and the
+    // game never looks at the whole hemisphere. A 50-degree lens held level
+    // sees roughly vDir.y in [-0.42, 0.42], so a top band that only arrived
+    // at h = 0.86 was a colour NO PLAYER EVER SAW: every frame got the two
+    // palest stops and the sky read as one flat wash with a stripe in it.
+    // Compressed into the band the camera can actually see, the same three
+    // stops become a real top-to-bottom value ramp in frame.
     float h = clamp(vDir.y, -1.0, 1.0);
-    float hb = smoothstep(0.00, 0.26, h);
-    float ht = smoothstep(0.24, 0.86, h);
+    float hb = smoothstep(0.02, 0.20, h);
+    float ht = smoothstep(0.14, 0.62, h);
     if (uBandStrength > 0.0) {
       float q = 1.0 / uBandCount;
       hb = mix(hb, floor(hb / q + 0.5) * q, uBandStrength);
       ht = mix(ht, floor(ht / q + 0.5) * q, uBandStrength);
     }
-    vec3 col = mix(uHorizon, uBottom, smoothstep(-0.22, 0.0, h));
+    // The dome must equal the fog colour EXACTLY at h = 0, because that is the
+    // line fogged terrain and fogged ocean resolve to. It used to have already
+    // walked most of the way to uBottom by then, which is what put a hard
+    // horizontal seam across every seaward frame — a warm sky sitting on a
+    // cool sea with a drawn edge between them. Now the warm band starts just
+    // above the waterline and the join itself is one colour.
+    vec3 col = mix(uHorizon, uBottom, smoothstep(-0.01, 0.10, h));
     col = mix(col, uMid, hb);
     col = mix(col, uTop, ht);
+
+    // ── Sun-anchored horizon glow ────────────────────────────────────────
+    // Without this the dome is three horizontal bands and NOTHING ELSE: a
+    // perfectly symmetric backdrop that tells you nothing about where the
+    // light is coming from, which is why the horizon kept reading as a dead
+    // flat cream strip. Real sky is brightest around the sun and coolest
+    // opposite it, and that asymmetry is what lets a viewer orient inside a
+    // frame before they have parsed a single object in it.
+    //
+    // Two lobes, both anchored to the SAME uSunDir the shadows use, so the
+    // sky can never disagree with the ground about where the sun is:
+    //   - a tight one that puts a hot core right around the disc;
+    //   - a very wide one flattened onto the horizon band, which is the
+    //     scattering that actually paints a sunrise across a third of the sky.
+    float sd = dot(normalize(vDir), normalize(uSunDir));
+    float core = pow(max(sd, 0.0), 22.0);
+    float wide = pow(max(sd, 0.0), 2.2)
+      * (1.0 - smoothstep(0.02, 0.52, h));   // hugs the horizon, not the zenith
+    col = mix(col, uGlowColor, clamp((core * 0.55 + wide * 0.45) * uGlowAmt, 0.0, 1.0));
 
     // ── Stars ────────────────────────────────────────────────────────────
     // One hashed point per occupied cell of a grid laid over the view
@@ -409,6 +445,9 @@ export function createSky(opts = {}) {
       uStarScale: { value: 58 },
       uStarCool: { value: new THREE.Color(PAPER.white) },
       uStarWarm: { value: new THREE.Color(PAPER.gold) },
+      uSunDir: { value: new THREE.Vector3(0.55, 0.62, 0.36).normalize() },
+      uGlowColor: { value: new THREE.Color(PAPER.gold) },
+      uGlowAmt: { value: 0.38 },
     },
     vertexShader: DOME_VERT,
     fragmentShader: DOME_FRAG,
@@ -566,6 +605,19 @@ export function createSky(opts = {}) {
 
       const d = frame.sunDir;
       _sunDir.set(d[0], d[1], d[2]).normalize();
+
+      // The dome's glow rides the same direction as the shadows. Its colour is
+      // the sun's own paper lifted toward the horizon band so the glow reads as
+      // the sky being lit rather than as a second disc painted on it, and its
+      // strength falls with the sun's altitude — a low sun scatters through
+      // far more air, which is the whole reason a sunset is a sunset.
+      domeMat.uniforms.uSunDir.value.copy(_sunDir);
+      _c2.setHex(frame.sunColor).lerp(_c1.setHex(frame.skyBottom), 0.34);
+      domeMat.uniforms.uGlowColor.value.copy(_c2);
+      // Overcast has no sun to glow around; the cloudTint drive already says so.
+      domeMat.uniforms.uGlowAmt.value = lerp(0.52, 0.24, Math.min(1, Math.max(0, _sunDir.y / 0.7)))
+        * (1 - night * 0.72) * (1 - Math.min(0.85, (frame.cloudTintAmt ?? 0) * 1.1));
+
       sun.position.copy(_sunDir).multiplyScalar(SUN_DIST);
       sun.lookAt(group.position.x, group.position.y, group.position.z);
 

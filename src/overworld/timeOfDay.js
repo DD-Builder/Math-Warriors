@@ -36,6 +36,31 @@
  * the `night` field, which is why the twilight key already lifts the direction
  * off the horizon: the sun sinks, and the moon rises in its place.
  *
+ * ── The KEY:FILL contract (read this before touching an intensity) ────────
+ * The single thing that separates a Nintendo frame from an asset dump is that
+ * a shaded surface is a DIFFERENT COLOUR FAMILY from a lit one, not a slightly
+ * cooler version of it. That is a ratio, and it is set here.
+ *
+ * The rig has three sources (index.js): `sun` is ramped through the toon
+ * gradient, `bounce` is ramped, `hemi` is flat indirect that NOTHING ramps. So
+ * hemi is the number that decides how deep a shadow may go, and every daylight
+ * key below deliberately runs it at roughly a fifth of the key rather than the
+ * half it used to be. Combined with the darker shade texel in materials/toon.js
+ * a fully shadowed daylight surface now sits near 30% of a lit one instead of
+ * ~55%: form, not tint.
+ *
+ * NIGHT IS THE EXCEPTION AND MUST STAY ONE. After dusk the moon is a weak key
+ * and the fill IS the light — drop it and a five-year-old cannot see the path.
+ * The night keys therefore keep hemiIntensity at ~0.5, and timeOfDay.test.js
+ * pins that floor at 0.4 so nobody "consistency-fixes" it later.
+ *
+ * ── Sun elevation is art direction, not astronomy ─────────────────────────
+ * The noon key used to sit at 72° — nearly zenith — which is exactly why the
+ * old vistas had no directional read: a tree's shadow was a puddle under the
+ * tree. Every key now sits between 13° and 44°, so everything in the world
+ * throws its shadow ACROSS the ground plane. A cast shadow travelling over a
+ * surface is the cheapest depth cue that exists and this world had none.
+ *
  * Scalar fields (all interpolated, all bounded by their adjacent keyframes):
  *   sunIntensity      key light strength
  *   hemiIntensity     sky/ground fill strength
@@ -69,14 +94,14 @@ export const DAY_KEYS = [
     t: 0.0,
     sunDir: normalize([0.72, 0.20, 0.30]),
     sunColor: mix(PAPER.gold, PAPER.rose, 0.40),
-    sunIntensity: 0.72,
+    sunIntensity: 1.00,
     hemiSky: mix(PAPER.sky, PAPER.lavender, 0.45),
     hemiGround: mix(PAPER.sageD, PAPER.tealD, 0.45),
-    hemiIntensity: 0.52,
-    bounceIntensity: 0.20,
+    hemiIntensity: 0.30,
+    bounceIntensity: 0.12,
     fogColor: mix(PAPER.peach, PAPER.sky, 0.45),
-    fogDensity: 0.0106,
-    fogHeightK: 0.034,
+    fogDensity: 0.0150,
+    fogHeightK: 0.050,
     shaft: 0.26,
     night: 0.22,
     skyTop: mix(PAPER.sky, PAPER.lavender, 0.35),
@@ -85,52 +110,58 @@ export const DAY_KEYS = [
   },
   { // morning — cool paper light from the east
     t: 0.14,
-    sunDir: normalize([0.6, 0.45, 0.25]),
+    // ~25° elevation: long raking shadows from the east across the meadow.
+    sunDir: normalize([0.68, 0.34, 0.22]),
     sunColor: mix(PAPER.gold, PAPER.white, 0.35),
-    sunIntensity: 0.9,
+    sunIntensity: 1.20,
     hemiSky: PAPER.sky,
     hemiGround: PAPER.sage,
-    hemiIntensity: 0.55,
-    bounceIntensity: 0.24,
+    hemiIntensity: 0.30,
+    bounceIntensity: 0.13,
     fogColor: mix(PAPER.cream, PAPER.sky, 0.45),
-    fogDensity: 0.0083,
-    fogHeightK: 0.029,
+    fogDensity: 0.0128,
+    fogHeightK: 0.045,
     shaft: 0.20,
     night: 0.0,
-    skyTop: PAPER.sky,
+    // The dome needs a real VALUE RAMP top to bottom or the upper frame is one
+    // flat wash. Zenith pulls toward tealD, the horizon band warms toward gold:
+    // three stops that are three different colours, not three tints of cream.
+    skyTop: mix(PAPER.sky, PAPER.tealD, 0.26),
     skyMid: mix(PAPER.sky, PAPER.cream, 0.55),
-    skyBottom: PAPER.cream,
+    skyBottom: mix(PAPER.cream, PAPER.gold, 0.20),
   },
-  { // noon — brightest, sun almost overhead
+  { // noon — brightest. NOT overhead: see the elevation note in the header.
     t: 0.32,
-    sunDir: normalize([0.12, 0.95, 0.08]),
+    // ~43°. A tree now lays its shadow a little longer than it is tall, which
+    // is what ties every object in the frame to the ground it stands on.
+    sunDir: normalize([0.55, 0.62, 0.36]),
     sunColor: PAPER.white,
-    sunIntensity: 1.15,
+    sunIntensity: 1.48,
     hemiSky: mix(PAPER.sky, PAPER.tealL, 0.25),
     hemiGround: PAPER.sage,
-    hemiIntensity: 0.65,
-    bounceIntensity: 0.30,
+    hemiIntensity: 0.33,
+    bounceIntensity: 0.15,
     fogColor: mix(PAPER.cream, PAPER.sky, 0.3),
-    fogDensity: 0.0069,
-    fogHeightK: 0.0255,
+    fogDensity: 0.0115,
+    fogHeightK: 0.042,
     shaft: 0.12,
     night: 0.0,
-    skyTop: mix(PAPER.sky, PAPER.tealL, 0.2),
-    skyMid: mix(PAPER.sky, PAPER.cream, 0.4),
-    skyBottom: PAPER.cream,
+    skyTop: mix(PAPER.sky, PAPER.tealD, 0.34),
+    skyMid: mix(PAPER.sky, PAPER.cream, 0.42),
+    skyBottom: mix(PAPER.cream, PAPER.peach, 0.30),
   },
   { // golden hour — warm low sun from the west; the god-ray hour
     t: 0.62,
     sunDir: normalize([-0.55, 0.28, 0.22]),
     sunColor: PAPER.orange,
-    sunIntensity: 1.0,
+    sunIntensity: 1.34,
     hemiSky: mix(PAPER.sky, PAPER.peach, 0.4),
     hemiGround: PAPER.sageD,
-    hemiIntensity: 0.6,
-    bounceIntensity: 0.26,
+    hemiIntensity: 0.32,
+    bounceIntensity: 0.14,
     fogColor: mix(PAPER.peach, PAPER.cream, 0.4),
-    fogDensity: 0.0092,
-    fogHeightK: 0.027,
+    fogDensity: 0.0135,
+    fogHeightK: 0.044,
     shaft: 0.30,
     night: 0.0,
     skyTop: mix(PAPER.sky, PAPER.lavender, 0.3),
@@ -141,14 +172,14 @@ export const DAY_KEYS = [
     t: 0.76,
     sunDir: normalize([-0.6, 0.16, 0.3]),
     sunColor: mix(PAPER.orange, PAPER.lavender, 0.35),
-    sunIntensity: 0.8,
+    sunIntensity: 1.10,
     hemiSky: PAPER.lavender,
     hemiGround: PAPER.tealD,
-    hemiIntensity: 0.5,
-    bounceIntensity: 0.20,
+    hemiIntensity: 0.33,
+    bounceIntensity: 0.13,
     fogColor: mix(PAPER.lavender, PAPER.peach, 0.45),
-    fogDensity: 0.0106,
-    fogHeightK: 0.031,
+    fogDensity: 0.0152,
+    fogHeightK: 0.047,
     shaft: 0.22,
     night: 0.10,
     skyTop: PAPER.lavender,
@@ -159,14 +190,16 @@ export const DAY_KEYS = [
     t: 0.84,
     sunDir: normalize([-0.55, 0.14, 0.30]),
     sunColor: mix(PAPER.orange, PAPER.lavender, 0.62),
-    sunIntensity: 0.55,
+    sunIntensity: 0.72,
     hemiSky: mix(PAPER.lavender, PAPER.lavenderD, 0.6),
     hemiGround: mix(PAPER.tealD, PAPER.inkTeal, 0.5),
-    hemiIntensity: 0.46,
-    bounceIntensity: 0.13,
+    // From here on the fill stops falling and starts HOLDING: the key is
+    // handing over to a moon that cannot light a playfield on its own.
+    hemiIntensity: 0.44,
+    bounceIntensity: 0.12,
     fogColor: mix(PAPER.lavenderD, PAPER.peach, 0.30),
-    fogDensity: 0.0121,
-    fogHeightK: 0.032,
+    fogDensity: 0.0168,
+    fogHeightK: 0.048,
     shaft: 0.10,
     night: 0.62,
     skyTop: mix(PAPER.lavenderD, PAPER.inkTeal, 0.34),
@@ -178,14 +211,14 @@ export const DAY_KEYS = [
     t: 0.90,
     sunDir: normalize([-0.30, 0.80, 0.28]),
     sunColor: mix(PAPER.cream, PAPER.lavender, 0.62),
-    sunIntensity: 0.34,
+    sunIntensity: 0.46,
     hemiSky: mix(PAPER.inkTeal, PAPER.lavenderD, 0.62),
     hemiGround: mix(PAPER.inkTeal, PAPER.tealD, 0.5),
-    hemiIntensity: 0.50,
+    hemiIntensity: 0.52,
     bounceIntensity: 0.09,
     fogColor: mix(PAPER.inkTeal, PAPER.lavenderD, 0.44),
-    fogDensity: 0.0132,
-    fogHeightK: 0.029,
+    fogDensity: 0.0180,
+    fogHeightK: 0.044,
     shaft: 0.0,
     night: 1.0,
     skyTop: mix(PAPER.inkTeal, PAPER.lavenderD, 0.34),
@@ -197,14 +230,14 @@ export const DAY_KEYS = [
     t: 0.96,
     sunDir: normalize([0.05, 0.86, 0.30]),
     sunColor: mix(PAPER.cream, PAPER.lavender, 0.58),
-    sunIntensity: 0.30,
+    sunIntensity: 0.42,
     hemiSky: mix(PAPER.inkTeal, PAPER.lavenderD, 0.56),
     hemiGround: mix(PAPER.inkTeal, PAPER.tealD, 0.42),
-    hemiIntensity: 0.48,
+    hemiIntensity: 0.50,
     bounceIntensity: 0.08,
     fogColor: mix(PAPER.inkTeal, PAPER.lavenderD, 0.40),
-    fogDensity: 0.0138,
-    fogHeightK: 0.028,
+    fogDensity: 0.0186,
+    fogHeightK: 0.043,
     shaft: 0.0,
     night: 1.0,
     skyTop: mix(PAPER.inkTeal, PAPER.lavenderD, 0.28),

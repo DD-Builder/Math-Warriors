@@ -182,6 +182,50 @@ describe('water: ocean geometry', () => {
     assert.ok(at(0, 238, 2) > at(0, 238, 0), 'deep bed should read as teal');
   });
 
+  test('every water surface winds its faces UP (FrontSide would cull them)', () => {
+    // The regression this exists for: the disc and both pools were wound
+    // clockwise-seen-from-above, so (v1-v0) x (v2-v0) pointed at -Y. With
+    // `side: FrontSide` that back-faces the entire sheet from any eye above
+    // the waterline — the ocean, the foam, the glitter and both ponds drew
+    // nothing at all, and the submerged terrain's own teal underneath made the
+    // frame look merely hazy rather than broken. Nothing threw, nothing warned.
+    const up = new THREE.Vector3(0, 1, 0);
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    const surfaces = [['ocean', water.ocean], ...water.ponds.map((p) => [p.id, p.mesh])];
+    for (const [name, mesh] of surfaces) {
+      assert.equal(mesh.material.side, THREE.FrontSide, `${name} should be FrontSide`);
+      const pos = mesh.geometry.getAttribute('position');
+      const idx = mesh.geometry.getIndex();
+      let down = 0;
+      for (let t = 0; t < idx.count; t += 3) {
+        a.fromBufferAttribute(pos, idx.getX(t));
+        b.fromBufferAttribute(pos, idx.getX(t + 1)).sub(a);
+        c.fromBufferAttribute(pos, idx.getX(t + 2)).sub(a);
+        if (b.cross(c).dot(up) < 0) down++;
+      }
+      assert.equal(down, 0, `${name}: ${down} of ${idx.count / 3} faces point downward`);
+    }
+  });
+
+  test('pool banks face outward, so the lip is lit by the sky not the pool', () => {
+    // computeVertexNormals() reads the winding; inverted, the skirt is lit
+    // from inside the water and its damp lip goes dark in full sun.
+    const out = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    for (const p of water.ponds) {
+      const pos = p.bank.geometry.getAttribute('position');
+      const nrm = p.bank.geometry.getAttribute('normal');
+      let inward = 0;
+      for (let i = 0; i < pos.count; i++) {
+        out.set(pos.getX(i), 0, pos.getZ(i));
+        if (out.lengthSq() < 1e-6) continue;
+        n.set(nrm.getX(i), 0, nrm.getZ(i));
+        if (n.lengthSq() > 1e-6 && n.dot(out) < 0) inward++;
+      }
+      assert.equal(inward, 0, `bank ${p.id}: ${inward} vertices face into the pool`);
+    }
+  });
+
   test('stays inside the draw-call and triangle budget', () => {
     assert.ok(water.stats.drawCalls <= 6, `water draw calls ${water.stats.drawCalls}`);
     assert.ok(water.stats.triangleCount < 40000, `water tris ${water.stats.triangleCount}`);
@@ -239,6 +283,27 @@ describe('water: frame update', () => {
     const d = u.uDeep.value;
     assert.ok(d.b > d.r && d.g > d.r, `deep water is not teal: ${d.getHexString()}`);
     for (const p of water.ponds) assert.equal(p.mesh.material.uniforms.uTime.value, 12.5);
+  });
+
+  test('night actually darkens the water, and never toward grey', () => {
+    // The shader is unlit — it builds its colour from papers and never sees
+    // the light rig — so without an explicit night term the sea and the pools
+    // stay at noon brightness on a dark island. The first night frame after
+    // the water became visible showed exactly that: a lit swimming pool on a
+    // moonlit meadow.
+    const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    water.update(frame, 1);
+    const dayLum = [...water.ponds, { mesh: water.ocean }].map(
+      (p) => lum(p.mesh.material.uniforms.uShallow.value));
+    water.update({ ...frame, night: 1, sunIntensity: 0.34 }, 1);
+    for (const [i, p] of [...water.ponds, { mesh: water.ocean }].entries()) {
+      const c = p.mesh.material.uniforms.uShallow.value;
+      assert.ok(lum(c) < dayLum[i] * 0.6,
+        `night water is not dark enough: ${lum(c)} vs day ${dayLum[i]}`);
+      // Still teal, still not grey: blue and green must stay ahead of red.
+      assert.ok(c.g > c.r && c.b > c.r, `night water went grey: ${c.getHexString()}`);
+    }
+    water.update(frame, 1);
   });
 
   test('night dims the glitter without touching the palette', () => {

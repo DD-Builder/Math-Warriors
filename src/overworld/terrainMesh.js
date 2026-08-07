@@ -127,39 +127,150 @@ const WET_TEAL = 0.55;     // how far damp sand leans into the teal shadow
 const WET_LOW = -1.6;      // below this the seabed tint already owns the colour
 
 // Cliff strata — what actually sells "cut paper geology". Steep faces are
-// banded by altitude, each band hashed to one of three sheets: the accent as
-// laid, a pale sheet, or a pull back toward the biome ground paper. Two like
-// bands in a row read as one thick layer, which is how real strata look.
+// banded by altitude, each band cut from one of three sheets (see
+// strataSheet): the accent as laid, a pale sheet, or a pull back toward the
+// biome ground paper. Two like bands in a row read as one thick layer, which is
+// how real strata look.
 //
 // TWO decisions here are load-bearing.
 //
-// (1) The band is applied PER TRIANGLE, in the expansion pass, not per vertex.
-//     Interpolating a band across a facet turns the edge into a gradient and
-//     the whole face into mush; a flat tint per facet gives the hard papercut
-//     step, and the geometry is non-indexed anyway so it costs nothing.
+// (1) The band is applied PER VERTEX, not per triangle.
 //
-// (2) STRATA_BAND is four terrace bands, not one. A 74 deg cliff sampled every
+//     It used to be per triangle, on the reasoning that a flat tint per facet
+//     gives a hard papercut step while interpolating turns the edge to mush.
+//     That reasoning is right about a FACE and wrong about a BOUNDARY. A band
+//     edge is a horizontal plane; a facet on a 74 deg cliff is 0.94 m wide and
+//     3.3 m tall in altitude; so the two triangles of one quad straddle that
+//     plane at different centroid heights and land in different bands. The
+//     boundary therefore zigzags by half a facet, all the way along itself, and
+//     that zigzag was the single most-cited artifact in the critique: "sawtooth
+//     vertical striping that reads as a shading artifact rather than
+//     stratigraphy". It is not fixable by tuning the tear, because it is not
+//     caused by the tear — it is per-facet quantisation of a sub-facet feature.
+//
+//     Per vertex, the boundary interpolates across ONE facet instead of
+//     zigzagging along its whole length. On the hero landforms that is a 3.3 m
+//     transition inside a 13 m band: 25% soft edge, 75% flat sheet, which is
+//     what a torn paper edge looks like anyway. The papercut hardness the old
+//     comment was protecting still comes from where it always came from — the
+//     baked flat face normals — plus a small per-facet tone below.
+//
+// (2) STRATA_BAND is five terrace bands, not one. A 74 deg cliff sampled every
 //     0.94 m only carries a vertex every ~3.3 m of ALTITUDE, so a 2.6 m band is
 //     below the mesh's Nyquist limit and aliases into blotches (this was
-//     measured, not guessed). At 10.4 m each cliff tier reads as one or two
-//     clean sheets — which is exactly the layered-paper read we want anyway.
-const STRATA_BAND = TERRACE_BAND * 4;
-const STRATA_CREAM = 0.42;   // pull toward cream on a light band
-const STRATA_GROUND = 0.5;   // pull back toward ground paper on a dark band
+//     measured, not guessed). At 13 m each cliff tier reads as one or two clean
+//     sheets — which is exactly the layered-paper read we want anyway.
+const STRATA_BAND = TERRACE_BAND * 5;
+const STRATA_CREAM = 0.50;   // pull toward cream on a light band
+const STRATA_GROUND = 0.80;   // pull back toward ground paper on a dark band
+// (0.80 is high on purpose: with the accent mix at 0.85 a cliff is otherwise
+// ALL accent, and the palace mesa reads as one uniform tan mass. The dark
+// stratum has to pull most of the way back to the ground paper to put the
+// biome's second colour back on the rock.)
 const STRATA_PHASE = 0.35;   // offsets the tint edge off the terrace riser
-const STRATA_TEAR = 0.85;    // band-boundary wander, in bands — the deckle edge
-const STRATA_TEAR_FREQ = 1 / 9;
 const STRATA_NY_IN = 0.38;   // in units of `steep`: ~31 deg, strata fade in
 const STRATA_NY_FULL = 0.8;  // ~41 deg, full strata — rock, not hillside
+
+// The deckle edge on a band boundary, in bands.
+//
+// This number used to be 0.85, and it was the single most visible artifact in
+// the whole build: a 0.94 m facet on a 74-degree face spans ~3.3 m of ALTITUDE,
+// so ±4.4 m of boundary wander re-rolls the band from one triangle to the next
+// and the cliff grows a field of triangular teeth. The teeth were the mesh
+// resolution made visible, not geology. 0.26 (≈2.7 m) wanders the edge at ROCK
+// scale — a couple of facets — and reads as a torn sheet rather than a saw.
+//
+// It is driven by two octaves: a 6 m one for the tear itself and an 18 m one to
+// stop the tear repeating at a single frequency, both sampled in WORLD space at
+// the vertex, so the wander is continuous across chunk seams.
+const STRATA_TEAR = 0.26;
+const STRATA_TEAR_FREQ = 1 / 6;
+
+// Alternate strata differ in VALUE, not only in hue. Without this every band on
+// a cliff carried the same luminance, three hues of it, and the face read flat
+// however many bands it had. Applied as a mix toward the teal shadow paper (odd
+// bands) or the cream paper (even) rather than as a multiply, so a darker
+// stratum is a different colour FAMILY — which is the papercut law and also
+// exactly what real bedding looks like.
+const STRATA_VALUE = 0.24;
+
+// How much of each band feathers into the next.
+//
+// Even per vertex, a HARD band index still switches inside one lattice row, and
+// on a 70-degree face one lattice row is 2.5 m of altitude — so the boundary is
+// a jagged polyline through the lattice and reads, again, as interlocking
+// triangles. Feathering the top of every band spreads the transition over two
+// or three rows, which is what turns a quantisation edge into a torn one.
+const STRATA_SOFT = 0.28;
+
+// Per-facet value jitter. Deliberately tiny: it keeps every triangle its own
+// sheet of paper (which is the whole look) while staying well under the
+// threshold at which per-facet variation organises itself into visible teeth.
+const FACET_TONE = 0.020;
+
+// ── Ground splat: three sheets over the biome paper ─────────────────────
+// A single albedo per biome is why the cliffs read as one grey, the palace as
+// two flat bands and the market as uniform saffron. These are the cheapest
+// three masks that carry real information about the surface:
+//
+//   DRY    a low-frequency mask — patches of parched grass on the flats.
+//   HUE    a second low-frequency mask drifting the flat ground toward its own
+//          biome accent, so a meadow is two greens and not one.
+//   DIRT   concave curvature — gullies and the inside corners of benches,
+//          where water and debris collect.
+//   SCREE  convex curvature on steep ground — the slope breaks and lips where
+//          rock is stripped bare. This is what backfills the cliff faces that
+//          used to be one flat value with plants dusted over them.
+const SPLAT_DRY_FREQ = 1 / 34;
+const SPLAT_DRY_MIX = 0.17;
+const SPLAT_HUE_FREQ = 1 / 23;
+const SPLAT_HUE_MIX = 0.16;
+const DIRT_MIX = 0.34;
+const SCREE_MIX = 0.42;
+// Curvature stencil, and the thresholds keyed to what it actually measures on
+// this island: at a 3 m stencil the land is symmetric about zero with p75 at
+// 0.06 and p90 at 0.24, so a threshold of ~0.3 means "the top tenth of hollows
+// and lips", which is where dirt collects and rock is stripped. Thresholds an
+// order of magnitude lower (the first attempt) saturate on every hillside and
+// turn the ground into confetti.
+// PROBE_N covers a 60 m chunk at PROBE_STEP plus the two-node margin the
+// central differences and the bilinear lookup each need on both sides.
+const CURV_EPS = 3.0;
+const PROBE_N = Math.ceil(CHUNK_SIZE / CURV_EPS) + 4;
+const DIRT_K = 0.36;         // curvature (1/m) at which a gully is full dirt
+const SCREE_K = 0.30;
+
+// ── Baked curvature shading ────────────────────────────────────────────
+// Discrete Laplacian of the (unjittered) height grid, i.e. concavity. Concave
+// ground picks up the teal shadow paper, convex ground picks up cream. That is
+// contact darkening in the inside corner of every bench and a lift on every
+// lip — form, at zero runtime cost, on ground the sun barely differentiates.
+// It is a MIX toward PAPER.shadow, never a multiply: darkening a sage by
+// scaling it heads toward black, and there is no black in this world.
+const AO_K = 0.30;
+const AO_DARK = 0.19;
+const AO_LIFT = 0.07;
+
+// Roads, plazas and building footings. heightfield.wearAt() measures exactly
+// the same falloffs that CUT the ground, so paint and cut cannot drift: a pad
+// that levels the geometry but leaves the colour alone still reads as a
+// building standing on a lawn.
+const WEAR_MIX = 0.72;
 
 // Submerged shelf fades to deep teal so the coastline reads through water.
 const SEABED_DEPTH = 9;
 const SEABED_MIX = 0.65;
 
 // Paper is never perfectly even; keep the total swing inside +-4%.
-const TONE_PATCH = 0.028;  // low-frequency mottling
+// Paper is never perfectly even, and NEITHER IS GROUND. Two octaves, because
+// one 26 m patch field is invisible inside a 15 m close-up frame and invisible
+// again at 200 m: the coarse octave gives the establishing shot its tonal
+// structure, the 7 m octave gives the close-up something per square metre.
+const TONE_PATCH = 0.052;  // low-frequency mottling
+const TONE_FINE = 0.030;   // metre-scale mottling
 const TONE_GRAIN = 0.012;  // per-vertex fibre
 const TONE_PATCH_FREQ = 1 / 26;
+const TONE_FINE_FREQ = 1 / 7;
 const ALTITUDE_LIFT = 0.05;   // summits read lighter (aerial separation)
 const ALTITUDE_SPAN = 70;
 
@@ -179,6 +290,11 @@ const ALTITUDE_SPAN = 70;
 // than by the vertex's own spacing — a coarse-amplitude vertex sitting inside
 // a fine chunk was exactly the case that flipped.)
 const JITTER = 0.22;
+// ...scaled down to this fraction on a cliff face. See the long note at the
+// jitter site: on steep ground the same lateral offset becomes a large vertical
+// one, and the facet-normal scatter it produces is what a toon ramp turns into
+// sawtooth striping.
+const JITTER_CLIFF = 0.18;
 
 function smoothstep(a, b, t) {
   const u = Math.min(1, Math.max(0, (t - a) / (b - a)));
@@ -207,6 +323,26 @@ function toneNoise(x, z, seed) {
   return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
 }
 
+/**
+ * Which of the three sheets a stratum band is cut from: 0 = the accent as
+ * laid, 1 = the pale sheet, 2 = pulled back toward the biome ground paper.
+ *
+ * CYCLED, not hashed. A pure hash draws each band independently, and a hero
+ * landform only carries four or five bands in total — so the palace mesa drew
+ * "accent" for every visible band on the shipped seed and rendered as one
+ * uniform tan mass, which is exactly the "two flat bands / one albedo" note in
+ * the critique. Cycling guarantees all three sheets appear on any face tall
+ * enough to have three bands; the hashed skip keeps it from reading as a
+ * repeating pattern and produces the occasional doubled band, which is what
+ * makes two adjacent layers read as one thick bed.
+ */
+function strataSheet(band, seed) {
+  let idx = band % 3;
+  if (idx < 0) idx += 3;
+  if (hash2(band, 7, seed) > 0.72) idx = (idx + 1) % 3;
+  return idx;
+}
+
 /** PAPER int -> linear-space rgb triple (vertex colours are linear in r170). */
 function linearRGB(hex) {
   const c = new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
@@ -223,6 +359,9 @@ function linearRGB(hex) {
  */
 export function createTerrain(heightfield, opts = {}) {
   const { sampleHeight, shoreDistance } = heightfield;
+  // Tolerated missing on hand-rolled test doubles; a world with no civil layer
+  // simply has nothing worn in it.
+  const wearAt = heightfield.wearAt || (() => 0);
   const seed = (heightfield.seed ?? WORLD.SEED) | 0;
   const castShadow = opts.castShadow !== false;
 
@@ -242,8 +381,20 @@ export function createTerrain(heightfield, opts = {}) {
   const SAND = linearRGB(PAPER.sand);
   const SEABED = linearRGB(PAPER.tealD);
   const CREAM = linearRGB(PAPER.cream);   // the pale stratum
+  const SHADOW = linearRGB(PAPER.shadow); // the only darkening paper we own
   // Damp sand: the beach paper leaning into the teal shadow family.
   const WETSAND = SAND.map((v, i) => v + (SEABED[i] - v) * WET_TEAL);
+  // Splat sheets, all mixed from PAPER — damp earth is sand walked toward the
+  // teal shadow family, scree is cream walked toward sand, pavers are sand
+  // walked toward shaded cream.
+  const DIRT = SAND.map((v, i) => v + (SEABED[i] - v) * 0.30);
+  const SCREE = CREAM.map((v, i) => v + (SAND[i] - v) * 0.55);
+  const CREAMD = linearRGB(PAPER.creamD);
+  // Pavers lean CREAM, not sand: against Market Town's gold ground a sand-based
+  // stone was a 4% value shift and the plaza simply did not read. Cream-based
+  // flagstone separates from gold ochre AND from meadow sage, which is what a
+  // road has to do to be a road in both places.
+  const PAVER = CREAM.map((v, i) => v + (SAND[i] - v) * 0.30);
 
   // ── Triangle corner order, one table per resolution ──
   // Diagonals alternate in a checkerboard so the facets do not form a
@@ -332,10 +483,21 @@ export function createTerrain(heightfield, opts = {}) {
   // Scratch reused across chunks — no allocation inside the vertex loops.
   // Sized for the FINE grid so one buffer serves both resolutions.
   const grid = new Float64Array(MAX_PAD * MAX_PAD);   // padded lattice heights
+  // Landform probe: height, concavity and slope on a GLOBAL 3 m lattice.
+  //
+  // Sampling those four extra heights per terrain vertex costs ~400 k
+  // sampleHeight calls and a third of the build; sampling them once per 3 m and
+  // interpolating costs 34 k. And because the lattice is global — indexed off
+  // -WORLD.HALF, not off the chunk origin — every chunk that touches a probe
+  // node computes the identical value from it and the identical bilinear
+  // weights, so the result is still bit-identical across a chunk seam. That is
+  // the property the jitter damping depends on: disagree by one ULP there and
+  // the seam opens a crack.
+  const probeH = new Float64Array(PROBE_N * PROBE_N);
+  const probeCurv = new Float64Array(PROBE_N * PROBE_N);
+  const probeNy = new Float64Array(PROBE_N * PROBE_N);
   const latPos = new Float64Array(MAX_VERTS * MAX_VERTS * 3);  // chunk-local
   const latCol = new Float64Array(MAX_VERTS * MAX_VERTS * 3);
-  const latGnd = new Float64Array(MAX_VERTS * MAX_VERTS * 3);  // pre-accent sheet
-  const latSteep = new Float64Array(MAX_VERTS * MAX_VERTS);
   const wIdx = new Int32Array(BLEND_K);
   const wVal = new Float64Array(BLEND_K);
   const geometries = [];
@@ -357,6 +519,26 @@ export function createTerrain(heightfield, opts = {}) {
       const ox = x0 + CHUNK_SIZE / 2;   // chunk centre -> mesh position
       const oz = z0 + CHUNK_SIZE / 2;
 
+      // Probe lattice for this chunk, snapped to the global 3 m grid.
+      const pi0 = Math.floor((x0 + WORLD.HALF) / CURV_EPS) - 1;
+      const pj0 = Math.floor((z0 + WORLD.HALF) / CURV_EPS) - 1;
+      for (let j = 0; j < PROBE_N; j++) {
+        const pz = -WORLD.HALF + (pj0 + j) * CURV_EPS;
+        for (let i = 0; i < PROBE_N; i++) {
+          probeH[j * PROBE_N + i] = sampleHeight(-WORLD.HALF + (pi0 + i) * CURV_EPS, pz);
+        }
+      }
+      for (let j = 1; j < PROBE_N - 1; j++) {
+        for (let i = 1; i < PROBE_N - 1; i++) {
+          const q = j * PROBE_N + i;
+          const hpx = probeH[q + 1], hmx = probeH[q - 1];
+          const hpz = probeH[q + PROBE_N], hmz = probeH[q - PROBE_N];
+          probeCurv[q] = (hpx + hmx + hpz + hmz - 4 * probeH[q]) / (CURV_EPS * CURV_EPS);
+          const pgx = (hpx - hmx) / (2 * CURV_EPS), pgz = (hpz - hmz) / (2 * CURV_EPS);
+          probeNy[q] = 1 / Math.sqrt(pgx * pgx + 1 + pgz * pgz);
+        }
+      }
+
       // Regular height grid with a one-node ring of padding, so the slope at
       // every lattice point below has neighbours on both sides.
       for (let j = -1; j <= VERTS; j++) {
@@ -373,6 +555,36 @@ export function createTerrain(heightfield, opts = {}) {
           const gi = cx * FINE_QUADS + i * sub;  // global FINE lattice column
           const v = j * VERTS + i;
 
+          // --- landform probe at a FIXED 3 m scale, on the UNJITTERED point ---
+          //
+          // Bilinear lookup into the probe lattice built above. It buys two
+          // things nothing else here can provide, and both are read at the
+          // LATTICE position rather than the jittered one so both are pure
+          // functions of (gi, gj):
+          //
+          //   curv     concavity for the baked AO and the dirt/scree splat. The
+          //            free Laplacian of the padded grid measures curvature at
+          //            whatever the chunk's own spacing happens to be — 0.94 m
+          //            on the fine chunks, small enough that the answer is
+          //            dominated by the terrain's finest noise octave. Measured:
+          //            adjacent facets on a FLAT bench came out 65% apart in
+          //            colour, i.e. those terms were reading noise and painting
+          //            it as form. A 3 m stencil leaves landform curvature.
+          //   wideNy   slope at a resolution-independent scale, which is what
+          //            makes the jitter damping below safe on a chunk seam.
+          const ux0 = x0 + i * step, uz0 = z0 + j * step;
+          const p = (j + 1) * PAD + (i + 1);
+          const pfx = (ux0 + WORLD.HALF) / CURV_EPS - pi0;
+          const pfz = (uz0 + WORLD.HALF) / CURV_EPS - pj0;
+          const pix = Math.floor(pfx), piz = Math.floor(pfz);
+          const tpx = pfx - pix, tpz = pfz - piz;
+          const q00 = piz * PROBE_N + pix, q10 = q00 + 1;
+          const q01 = q00 + PROBE_N, q11 = q01 + 1;
+          const curv = (probeCurv[q00] * (1 - tpx) + probeCurv[q10] * tpx) * (1 - tpz)
+            + (probeCurv[q01] * (1 - tpx) + probeCurv[q11] * tpx) * tpz;
+          const wideNy = (probeNy[q00] * (1 - tpx) + probeNy[q10] * tpx) * (1 - tpz)
+            + (probeNy[q01] * (1 - tpx) + probeNy[q11] * tpx) * tpz;
+
           // --- position (jittered, seam-safe) ---
           // Amplitude is a function of the GLOBAL lattice parity, not of this
           // chunk's resolution, so a vertex shared by a coarse and a fine
@@ -380,15 +592,29 @@ export function createTerrain(heightfield, opts = {}) {
           // (even/even) keep the full 26% of the coarse step; the in-between
           // fine points get 26% of the fine step, which is small enough that
           // no neighbouring pair can ever cross and flip a triangle.
+          //
+          // ...and it is damped on steep ground, which is the OTHER half of the
+          // sawtooth fix. Jitter exists to break the corduroy read of a regular
+          // grid on open ground, where sliding a vertex 20 cm sideways barely
+          // moves it vertically. On a 70-degree face the same 20 cm moves it
+          // 55 cm up or down, neighbouring facets end up several degrees apart
+          // in normal, and a toon ramp turns a few degrees of disagreement into
+          // a hard step that zigzags along the triangle edges. That is the
+          // interlocking-triangle striping the critique read as "a shading
+          // artifact rather than stratigraphy". The damping is keyed to wideNy
+          // above precisely BECAUSE it is resolution-independent: a shared
+          // lattice point must get an identical offset from both chunks or the
+          // seam opens.
           const onEdge = gi === 0 || gj === 0 || gi === GLOBAL_FINE || gj === GLOBAL_FINE;
           let jx = 0, jz = 0;
           if (!onEdge) {
-            const amp = jitterAmp(gi, gj);
+            const amp = jitterAmp(gi, gj)
+              * (JITTER_CLIFF + (1 - JITTER_CLIFF) * smoothstep(0.52, 0.90, wideNy));
             jx = (hash2(gi, gj, seed ^ 0x51ed) - 0.5) * 2 * amp;
             jz = (hash2(gi, gj, seed ^ 0x2f13) - 0.5) * 2 * amp;
           }
-          const wx = x0 + i * step + jx;
-          const wz = z0 + j * step + jz;
+          const wx = ux0 + jx;
+          const wz = uz0 + jz;
           const h = sampleHeight(wx, wz);
           latPos[v * 3] = wx - ox;
           latPos[v * 3 + 1] = h;
@@ -397,8 +623,7 @@ export function createTerrain(heightfield, opts = {}) {
           // --- slope, for the cliff test ---
           // Central differences at MESH resolution describe the facet the
           // player actually sees, and reuse the grid above instead of
-          // spending the 4 extra samples sampleNormal would cost.
-          const p = (j + 1) * PAD + (i + 1);
+          // spending 4 more samples.
           const gx = (grid[p + 1] - grid[p - 1]) / (2 * step);
           const gz = (grid[p + PAD] - grid[p - PAD]) / (2 * step);
           const ny = 1 / Math.sqrt(gx * gx + 1 + gz * gz);   // normal.y
@@ -434,14 +659,91 @@ export function createTerrain(heightfield, opts = {}) {
           ar *= iw; ag *= iw; ab *= iw;
 
           // --- cliffs become the accent sheet ---
-          // The ground sheet is stashed FIRST: pass 2's dark stratum pulls
-          // back toward it, and re-deriving a 3-biome Shepard blend one pass
-          // later would cost more than 3 floats per lattice point.
+          // The ground sheet is stashed FIRST, because the strata block below
+          // pulls its dark stratum back toward it and the accent mix would
+          // otherwise have already destroyed it.
           const gnd0 = r, gnd1 = g, gnd2 = bl;
           const steep = 1 - smoothstep(CLIFF_NY_STEEP, CLIFF_NY_FLAT, ny);
           if (steep > 0) {
             const t = steep * CLIFF_MIX;
             r += (ar - r) * t; g += (ag - g) * t; bl += (ab - bl) * t;
+          }
+
+          // --- cliff strata ---
+          // Banded by altitude, each band hashed to one of three sheets, and
+          // independently stepped in value by band parity. Steepness is
+          // re-ramped rather than reused: the accent mix opens at 17 deg so
+          // ordinary hillsides pick up tonal structure, but strata on a 30 deg
+          // grass slope are just pale blotches. Strata belong to rock.
+          const steepT = smoothstep(STRATA_NY_IN, STRATA_NY_FULL, steep);
+          if (steepT > 0.02) {
+            const tear = (toneNoise(wx * STRATA_TEAR_FREQ, wz * STRATA_TEAR_FREQ, seed ^ 0x3c8b) - 0.5) * 0.7
+              + (toneNoise(wx * STRATA_TEAR_FREQ * 0.34 + 19.1, wz * STRATA_TEAR_FREQ * 0.34 - 5.3,
+                seed ^ 0x91a7) - 0.5) * 1.3;
+            const bf = (h + tear * STRATA_BAND * STRATA_TEAR) / STRATA_BAND + STRATA_PHASE;
+            const b0 = Math.floor(bf);
+            const feather = smoothstep(1 - STRATA_SOFT, 1, bf - b0);
+            // Sheet weights for this band and the next, lerped by the feather.
+            let cA = 0, gA = 0, dA = 0, lA = 0;
+            const shA = strataSheet(b0, seed ^ 0x5747);
+            if (shA === 1) cA = STRATA_CREAM; else if (shA === 2) gA = STRATA_GROUND;
+            if (b0 & 1) dA = STRATA_VALUE; else lA = STRATA_VALUE * 0.5;
+            let cM = cA, gM = gA, dM = dA, lM = lA;
+            if (feather > 0) {
+              const b1 = b0 + 1;
+              let cB = 0, gB = 0, dB = 0, lB = 0;
+              const shB = strataSheet(b1, seed ^ 0x5747);
+              if (shB === 1) cB = STRATA_CREAM; else if (shB === 2) gB = STRATA_GROUND;
+              if (b1 & 1) dB = STRATA_VALUE; else lB = STRATA_VALUE * 0.5;
+              cM += (cB - cA) * feather; gM += (gB - gA) * feather;
+              dM += (dB - dA) * feather; lM += (lB - lA) * feather;
+            }
+            if (cM > 0) {
+              const t = steepT * cM;
+              r += (CREAM[0] - r) * t; g += (CREAM[1] - g) * t; bl += (CREAM[2] - bl) * t;
+            }
+            if (gM > 0) {
+              const t = steepT * gM;
+              r += (gnd0 - r) * t; g += (gnd1 - g) * t; bl += (gnd2 - bl) * t;
+            }
+            if (dM > 0) {
+              const t = steepT * dM;
+              r += (SHADOW[0] - r) * t; g += (SHADOW[1] - g) * t; bl += (SHADOW[2] - bl) * t;
+            }
+            if (lM > 0) {
+              const t = steepT * lM;
+              r += (CREAM[0] - r) * t; g += (CREAM[1] - g) * t; bl += (CREAM[2] - bl) * t;
+            }
+          }
+
+          // --- splat: dry grass, hue drift, gully dirt, slope-break scree ---
+          // Ordered BEFORE the beach so sand still wins at the waterline, and
+          // before the tone pass so the mottling rides on top of it.
+          const flatT = 1 - steep;
+          if (flatT > 0.02) {
+            const dryN = toneNoise(wx * SPLAT_DRY_FREQ, wz * SPLAT_DRY_FREQ, seed ^ 0x2d4f) * 0.68
+              + toneNoise(wx * SPLAT_DRY_FREQ * 3.7 + 4.2, wz * SPLAT_DRY_FREQ * 3.7 + 9.6, seed ^ 0x8c05) * 0.32;
+            const dry = smoothstep(0.44, 0.88, dryN) * flatT * SPLAT_DRY_MIX;
+            if (dry > 0) {
+              r += (SAND[0] - r) * dry; g += (SAND[1] - g) * dry; bl += (SAND[2] - bl) * dry;
+            }
+            // Second sheet of the biome's OWN accent over its flats. A meadow
+            // made of one green is a billiard table; two greens in soft
+            // low-frequency patches is a meadow.
+            const hueN = toneNoise(wx * SPLAT_HUE_FREQ + 11.3, wz * SPLAT_HUE_FREQ - 7.7, seed ^ 0x6b21) * 0.66
+              + toneNoise(wx * SPLAT_HUE_FREQ * 3.1 - 2.4, wz * SPLAT_HUE_FREQ * 3.1 + 6.8, seed ^ 0x3f19) * 0.34;
+            const hue = smoothstep(0.32, 0.90, hueN) * flatT * SPLAT_HUE_MIX;
+            if (hue > 0) {
+              r += (ar - r) * hue; g += (ag - g) * hue; bl += (ab - bl) * hue;
+            }
+          }
+          const dirt = smoothstep(0, DIRT_K, curv) * DIRT_MIX * (0.35 + 0.65 * steep);
+          if (dirt > 0) {
+            r += (DIRT[0] - r) * dirt; g += (DIRT[1] - g) * dirt; bl += (DIRT[2] - bl) * dirt;
+          }
+          const scree = smoothstep(0, SCREE_K, -curv) * steep * SCREE_MIX;
+          if (scree > 0) {
+            r += (SCREE[0] - r) * scree; g += (SCREE[1] - g) * scree; bl += (SCREE[2] - bl) * scree;
           }
 
           // --- beaches (flat coast only; sea cliffs keep their rock) ---
@@ -474,18 +776,36 @@ export function createTerrain(heightfield, opts = {}) {
             r += (SEABED[0] - r) * t; g += (SEABED[1] - g) * t; bl += (SEABED[2] - bl) * t;
           }
 
+          // --- worn ground: roads, plaza, building footings ---
+          if (h > WORLD.WATER_Y - 0.5) {
+            const wear = wearAt(wx, wz);
+            if (wear > 0) {
+              const t = wear * WEAR_MIX;
+              r += (PAVER[0] - r) * t; g += (PAVER[1] - g) * t; bl += (PAVER[2] - bl) * t;
+            }
+          }
+
+          // --- baked curvature: teal in the hollows, cream on the lips ---
+          const aoC = smoothstep(0, AO_K, curv) * AO_DARK;
+          if (aoC > 0) {
+            r += (SHADOW[0] - r) * aoC; g += (SHADOW[1] - g) * aoC; bl += (SHADOW[2] - bl) * aoC;
+          } else {
+            const aoV = smoothstep(0, AO_K, -curv) * AO_LIFT;
+            if (aoV > 0) {
+              r += (CREAM[0] - r) * aoV; g += (CREAM[1] - g) * aoV; bl += (CREAM[2] - bl) * aoV;
+            }
+          }
+
           // --- paper tone: patchy mottling + fibre grain + altitude lift ---
           const patch = toneNoise(wx * TONE_PATCH_FREQ, wz * TONE_PATCH_FREQ, seed ^ 0x7a11) - 0.5;
+          const fine = toneNoise(wx * TONE_FINE_FREQ + 5.7, wz * TONE_FINE_FREQ - 3.1, seed ^ 0x4e63) - 0.5;
           const grain = hash2(gi, gj, seed ^ 0x1b9d) - 0.5;
           const alt = Math.min(1, Math.max(0, h / ALTITUDE_SPAN));
-          const tone = 1 + patch * 2 * TONE_PATCH + grain * 2 * TONE_GRAIN + alt * ALTITUDE_LIFT;
+          const tone = 1 + patch * 2 * TONE_PATCH + fine * 2 * TONE_FINE
+            + grain * 2 * TONE_GRAIN + alt * ALTITUDE_LIFT;
           latCol[v * 3] = Math.min(1, r * tone);
           latCol[v * 3 + 1] = Math.min(1, g * tone);
           latCol[v * 3 + 2] = Math.min(1, bl * tone);
-          latGnd[v * 3] = Math.min(1, gnd0 * tone);
-          latGnd[v * 3 + 1] = Math.min(1, gnd1 * tone);
-          latGnd[v * 3 + 2] = Math.min(1, gnd2 * tone);
-          latSteep[v] = steep;
         }
       }
 
@@ -501,9 +821,7 @@ export function createTerrain(heightfield, opts = {}) {
           for (let k = 0; k < 3; k++) {
             latPos[b * 3 + k] = (latPos[a * 3 + k] + latPos[c * 3 + k]) * 0.5;
             latCol[b * 3 + k] = (latCol[a * 3 + k] + latCol[c * 3 + k]) * 0.5;
-            latGnd[b * 3 + k] = (latGnd[a * 3 + k] + latGnd[c * 3 + k]) * 0.5;
           }
-          latSteep[b] = (latSteep[a] + latSteep[c]) * 0.5;
         };
         const coarseNb = (dx, dz) => {
           const nx = cx + dx, nz = cz + dz;
@@ -541,45 +859,20 @@ export function createTerrain(heightfield, opts = {}) {
         const fl = Math.sqrt(fx * fx + fy * fy + fz * fz) || 1;
         fx /= fl; fy /= fl; fz /= fl;
 
-        // Strata: one flat tint for the whole facet, chosen by the altitude
-        // band its centroid falls in. Flat is the point — a band interpolated
-        // across a facet is a gradient, and gradients are not cut paper.
-        // Facet steepness comes from the three corners rather than from fy, so
-        // a facet keeps the same treatment as the shading around it.
-        const c0 = corner[t * 3], c1 = corner[t * 3 + 1], c2 = corner[t * 3 + 2];
-        // Re-ramped, not reused: the accent mix deliberately opens at 17 deg so
-        // ordinary hillsides pick up tonal structure, but strata on a 30 deg
-        // grass slope are just pale blotches the size of a facet. Strata belong
-        // to rock, so they fade in from ~30 deg and only saturate on a real
-        // cliff face.
-        const steepT = smoothstep(STRATA_NY_IN, STRATA_NY_FULL,
-          (latSteep[c0] + latSteep[c1] + latSteep[c2]) / 3);
-        let mixCream = 0, mixGnd = 0;
-        if (steepT > 0.02) {
-          // Wander the band boundary before quantising. Without this the
-          // boundary is a perfectly horizontal plane cutting a regular
-          // triangle grid, which produces an even sawtooth of identical
-          // teeth — machined, not torn. A half-band of noise turns it into a
-          // deckle edge with teeth of varying size.
-          const cy = (ay + latPos[i1 + 1] + latPos[i2 + 1]) / 3
-            + (toneNoise((ax + ox) * STRATA_TEAR_FREQ, (az + oz) * STRATA_TEAR_FREQ, seed ^ 0x3c8b) - 0.5)
-            * STRATA_BAND * STRATA_TEAR;
-          const pick = hash2(Math.floor(cy / STRATA_BAND + STRATA_PHASE), 0, seed ^ 0x5747);
-          if (pick > 0.66) mixCream = steepT * STRATA_CREAM;
-          else if (pick > 0.33) mixGnd = steepT * STRATA_GROUND;
-        }
+        // Every facet is its own sheet of paper: a tiny flat value jitter,
+        // hashed off the facet index. All the BANDED work now happens per
+        // vertex in pass 1 — see the strata note at the top of the file for why
+        // a per-facet band boundary is unfixable at this mesh resolution.
+        const ft = 1 + (hash2(t, cz * CHUNKS + cx, seed ^ 0x2b7d) - 0.5) * 2 * FACET_TONE;
 
         const o = t * 9;
         for (let k = 0; k < 3; k++) {
           const src = corner[t * 3 + k] * 3, dst = o + k * 3;
           pos[dst] = latPos[src]; pos[dst + 1] = latPos[src + 1]; pos[dst + 2] = latPos[src + 2];
           nrm[dst] = fx; nrm[dst + 1] = fy; nrm[dst + 2] = fz;
-          for (let ch = 0; ch < 3; ch++) {
-            let v = latCol[src + ch];
-            if (mixCream > 0) v += (CREAM[ch] - v) * mixCream;
-            else if (mixGnd > 0) v += (latGnd[src + ch] - v) * mixGnd;
-            col[dst + ch] = v;
-          }
+          col[dst] = latCol[src] * ft;
+          col[dst + 1] = latCol[src + 1] * ft;
+          col[dst + 2] = latCol[src + 2] * ft;
         }
       }
 

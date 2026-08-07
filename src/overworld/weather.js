@@ -55,6 +55,12 @@ const mix = lerpColor;
  * @property {number} rain           0..1 streak density AND ripple density
  * @property {number} wind           animation-clock scale for foliage
  * @property {number} cloudTintAmt   how far the cloud plies lean to the tint
+ * @property {number} cloudShadow    strength of the scrolling cloud shadows the
+ *                                   aerial-fog chunk lays over the ground. This
+ *                                   is a WEATHER property, not an hour one: a
+ *                                   clear sky has hard travelling banks, an
+ *                                   overcast one has none at all because the
+ *                                   whole sky has become the source.
  */
 
 /** @type {WeatherState[]} */
@@ -65,8 +71,8 @@ export const WEATHER = [
     fogDensityMul: 1.0,
     fogHeightKMul: 1.0,
     fogBaseY: 0,
-    fogStart: 9,
-    fogDesat: 0.68,
+    fogStart: 4,
+    fogDesat: 0.78,
     fogSunAmtMul: 1.0,
     fogMax: 1.0,
     tint: PAPER.sky,
@@ -79,6 +85,7 @@ export const WEATHER = [
     rain: 0.0,
     wind: 1.0,
     cloudTintAmt: 0.0,
+    cloudShadow: 0.55,
   },
   {
     // Bright and moving. Slightly cleaner air than clear (wind scours the
@@ -87,8 +94,8 @@ export const WEATHER = [
     fogDensityMul: 0.86,
     fogHeightKMul: 1.10,
     fogBaseY: 0,
-    fogStart: 11,
-    fogDesat: 0.62,
+    fogStart: 5,
+    fogDesat: 0.72,
     fogSunAmtMul: 1.25,
     fogMax: 1.0,
     tint: PAPER.sky,
@@ -101,6 +108,9 @@ export const WEATHER = [
     rain: 0.0,
     wind: 2.1,
     cloudTintAmt: 0.10,
+    // The signature of a breezy day is not the grass, it is the banks of
+    // shade running across the field faster than you can walk.
+    cloudShadow: 0.70,
   },
   {
     // Overcast downpour: key light collapses, fill RISES, the palette walks
@@ -109,8 +119,8 @@ export const WEATHER = [
     fogDensityMul: 2.9,
     fogHeightKMul: 0.72,
     fogBaseY: 0,
-    fogStart: 5,
-    fogDesat: 0.78,
+    fogStart: 3,
+    fogDesat: 0.86,
     fogSunAmtMul: 0.12,
     fogMax: 1.0,
     // NOT PAPER.tealD on its own: a pure teal reads tropical, not overcast.
@@ -127,6 +137,8 @@ export const WEATHER = [
     rain: 1.0,
     wind: 2.8,
     cloudTintAmt: 0.64,
+    // Overcast has no discrete shadows at all — the whole sky is the source.
+    cloudShadow: 0.0,
   },
   {
     // Thick low banks. The high fogHeightK is the whole effect: density is
@@ -136,8 +148,8 @@ export const WEATHER = [
     fogDensityMul: 4.2,
     fogHeightKMul: 2.9,
     fogBaseY: 1.5,
-    fogStart: 3,
-    fogDesat: 0.82,
+    fogStart: 2,
+    fogDesat: 0.90,
     fogSunAmtMul: 2.2,
     fogMax: 1.0,
     tint: PAPER.cream,
@@ -150,6 +162,7 @@ export const WEATHER = [
     rain: 0.0,
     wind: 0.55,
     cloudTintAmt: 0.18,
+    cloudShadow: 0.14,
   },
 ];
 
@@ -216,6 +229,7 @@ export function createRenderFrame() {
     fogDesat: 0.5, fogSunAmt: 0.35, fogMax: 1,
     // drives
     night: 0, shaft: 0, rain: 0, wind: 1, cloudTint: PAPER.sky, cloudTintAmt: 0,
+    cloudShadow: 0,
     weather: 'clear',
   };
 }
@@ -275,6 +289,11 @@ export function applyWeather(frame, w, out) {
   out.wind = w.wind;
   out.cloudTint = w.tint;
   out.cloudTintAmt = w.cloudTintAmt;
+  // Cloud shadows are daylight-only: the moon does not cast a cloud bank a
+  // child can see, so they fade out on the night drive rather than being
+  // switched. The teal-leaning multiplier they use lives in aerialFog.js,
+  // because it is an output-space constant rather than a palette colour.
+  out.cloudShadow = w.cloudShadow * (1 - frame.night);
   return out;
 }
 

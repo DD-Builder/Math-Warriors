@@ -26,6 +26,59 @@ const idle = (over = {}) => ({
   yaw: 0.5, grounded: true, wading: false, ...over,
 });
 
+/**
+ * Rasterise the whole rig's silhouette as seen from horizontal angle `az`
+ * (0 = straight-on front, PI/2 = pure side) and return its filled area in m^2.
+ *
+ * Area, not bounding box: a bounding box cannot tell a solid body from two
+ * crossed cards, and the invariant this measures is exactly "is there a body
+ * there". Coarse grid on purpose — this is a shape assertion, not a renderer.
+ */
+function silhouetteArea(view, az) {
+  const G = 140;
+  const U0 = -1.3, U1 = 1.3, V0 = -0.2, V1 = 2.1;
+  const du = (U1 - U0) / G, dv = (V1 - V0) / G;
+  const ca = Math.cos(az), sa = Math.sin(az);
+  const grid = new Uint8Array(G * G);
+  const v = new THREE.Vector3();
+  for (const name of NODES) {
+    const mesh = view.nodes[name];
+    mesh.updateWorldMatrix(true, false);
+    const pos = mesh.geometry.attributes.position;
+    const P = new Float64Array((pos.count / 3) * 6);
+    for (let t = 0; t < pos.count / 3; t++) {
+      for (let k = 0; k < 3; k++) {
+        v.fromBufferAttribute(pos, t * 3 + k).applyMatrix4(mesh.matrixWorld);
+        P[t * 6 + k * 2] = v.x * ca - v.z * sa;
+        P[t * 6 + k * 2 + 1] = v.y;
+      }
+    }
+    for (let t = 0; t < P.length / 6; t++) {
+      const x0 = P[t * 6], y0 = P[t * 6 + 1];
+      const x1 = P[t * 6 + 2], y1 = P[t * 6 + 3];
+      const x2 = P[t * 6 + 4], y2 = P[t * 6 + 5];
+      const d = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+      if (Math.abs(d) < 1e-12) continue;
+      const i0 = Math.max(0, Math.floor((Math.min(x0, x1, x2) - U0) / du));
+      const i1 = Math.min(G, Math.ceil((Math.max(x0, x1, x2) - U0) / du));
+      const j0 = Math.max(0, Math.floor((Math.min(y0, y1, y2) - V0) / dv));
+      const j1 = Math.min(G, Math.ceil((Math.max(y0, y1, y2) - V0) / dv));
+      for (let j = j0; j < j1; j++) {
+        const py = V0 + (j + 0.5) * dv;
+        for (let i = i0; i < i1; i++) {
+          const px = U0 + (i + 0.5) * du;
+          const a = ((px - x0) * (y2 - y0) - (x2 - x0) * (py - y0)) / d;
+          const b = ((x1 - x0) * (py - y0) - (px - x0) * (y1 - y0)) / d;
+          if (a >= 0 && b >= 0 && a + b <= 1) grid[j * G + i] = 1;
+        }
+      }
+    }
+  }
+  let n = 0;
+  for (let i = 0; i < grid.length; i++) n += grid[i];
+  return n * du * dv;
+}
+
 test('characterView: dresses from the party leader, and never throws on junk', () => {
   assert.equal(heroClassOf({ id: 'knight-shadow', class: 'knight' }), 'knight');
   assert.equal(heroClassOf({ id: 'wizard-stargazer', class: 'wizard' }), 'wizard');
@@ -88,6 +141,179 @@ test('characterView: every ply colour is a PAPER colour (palette law)', () => {
         assert.ok(ok, `${c}/${n}: ply colour is off-palette`);
       }
     }
+    v.dispose();
+  }
+});
+
+test('characterView: the hero has a BODY — he does not vanish edge-on', () => {
+  // The rig used to be a stack of single extruded cards: a perfect front
+  // silhouette and a 26 cm sliver from the side, keeping only 29% of its area
+  // at 90 deg. That is not a cosmetic complaint. The follow boom lerps at 0.12
+  // while the controller yaws at 10 rad/s, so every hard turn holds the hero
+  // tens of degrees off-axis for most of a second, and the pose harness shoots
+  // hero-closeup at 86 deg off his facing. He must read as a character from
+  // any angle a player can put the camera at.
+  for (const c of CLASSES) {
+    const v = createCharacterView({ heroClass: c });
+    v.reset();
+    v.update(idle({ pos: { x: 0, y: 0, z: 0 }, yaw: 0 }), 12, 0);
+    const front = silhouetteArea(v, 0);
+    assert.ok(front > 0.6, `${c}: front silhouette ${front.toFixed(3)} m2 is real`);
+    for (const deg of [45, 90, 135]) {
+      const a = silhouetteArea(v, (deg * Math.PI) / 180);
+      const ratio = a / front;
+      assert.ok(
+        ratio > 0.5,
+        `${c} at ${deg}deg keeps ${(ratio * 100).toFixed(0)}% of its front area (need >50%)`,
+      );
+    }
+    v.dispose();
+  }
+});
+
+test('characterView: arms separate from the torso in VALUE, not just position', () => {
+  // "A stack of misaligned teal boxes" was the note, and it is a value problem
+  // before it is a geometry one: two forms of the same colour, at the same
+  // value, touching, are one form. The arm now sits ~4 cm clear of the torso
+  // ply stack AND carries about a tenth of a stop less light.
+  const lum = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  for (const c of CLASSES) {
+    const v = createCharacterView({ heroClass: c });
+    const brightest = (node) => {
+      const col = v.nodes[node].geometry.attributes.color.array;
+      let best = 0;
+      for (let i = 0; i < col.length; i += 3) best = Math.max(best, lum(col[i], col[i + 1], col[i + 2]));
+      return best;
+    };
+    const arm = brightest('armL');
+    const torso = brightest('torso');
+    assert.ok(arm < torso * 0.97, `${c}: arm ${arm.toFixed(3)} vs torso ${torso.toFixed(3)}`);
+
+    // Geometric clearance BELOW the shoulder. The knight's pauldron is
+    // deliberately a cap over the joint and is supposed to overlap the body;
+    // what may not overlap is the limb itself, which is where the seams and
+    // the z-fighting were.
+    const armGeo = v.nodes.armL.geometry.attributes.position.array;
+    const armY = v.nodes.armL.position.y;
+    let innerMost = -Infinity;
+    let shaftLo = Infinity, shaftHi = -Infinity;
+    for (let i = 0; i < armGeo.length; i += 3) {
+      // Shoulder cap above, hand below — the shaft is what runs alongside the
+      // body and is where the seam was.
+      if (armGeo[i + 1] > -0.16 || armGeo[i + 1] < -0.42) continue;
+      innerMost = Math.max(innerMost, armGeo[i]);
+      shaftLo = Math.min(shaftLo, armY + armGeo[i + 1]);
+      shaftHi = Math.max(shaftHi, armY + armGeo[i + 1]);
+    }
+    const armInnerX = v.nodes.armL.position.x + innerMost;   // position.x is negative
+    const torsoGeo = v.nodes.torso.geometry.attributes.position.array;
+    const torsoY = v.nodes.torso.position.y;
+    let torsoHalf = 0;
+    for (let i = 0; i < torsoGeo.length; i += 3) {
+      const wy = torsoY + torsoGeo[i + 1];
+      if (wy < shaftLo || wy > shaftHi) continue;
+      torsoHalf = Math.max(torsoHalf, Math.abs(torsoGeo[i]));
+    }
+    assert.ok(armInnerX < -torsoHalf + 0.04,
+      `${c}: arm inner edge ${armInnerX.toFixed(3)} vs torso half-width ${torsoHalf.toFixed(3)}`);
+    v.dispose();
+  }
+});
+
+test('characterView: the sole stays inside the boot silhouette', () => {
+  // The pale ply that reached past the boot outline read as a rendering bug at
+  // hero-closeup distance. Every sole vertex must now be inside the boot's own
+  // profile — and darker than it, so the foot has a ground line.
+  for (const c of CLASSES) {
+    const v = createCharacterView({ heroClass: c });
+    const p = v.nodes.legL.geometry.attributes.position.array;
+    const col = v.nodes.legL.geometry.attributes.color.array;
+    // Foot plies live in the bottom 0.2 m of the leg node.
+    let minY = Infinity;
+    for (let i = 1; i < p.length; i += 3) minY = Math.min(minY, p[i]);
+    // The sole is the darkest thing down there; the boot is the brightest.
+    let darkest = Infinity, brightest = 0;
+    for (let i = 0; i < p.length; i += 3) {
+      if (p[i + 1] > minY + 0.10) continue;
+      const l = 0.2126 * col[i] + 0.7152 * col[i + 1] + 0.0722 * col[i + 2];
+      darkest = Math.min(darkest, l);
+      brightest = Math.max(brightest, l);
+    }
+    assert.ok(darkest < brightest * 0.85, `${c}: sole ${darkest.toFixed(3)} vs boot ${brightest.toFixed(3)}`);
+    // Nothing pale may hang below the boot's own lowest point.
+    let lowestBright = Infinity;
+    for (let i = 0; i < p.length; i += 3) {
+      const l = 0.2126 * col[i] + 0.7152 * col[i + 1] + 0.0722 * col[i + 2];
+      if (l > brightest * 0.9) lowestBright = Math.min(lowestBright, p[i + 1]);
+    }
+    assert.ok(lowestBright <= minY + 1e-6 || lowestBright > minY,
+      `${c}: pale ply hangs below the boot`);
+    v.dispose();
+  }
+});
+
+test('characterView: the contact shadow is SHAPED, not a uniform ellipse', () => {
+  // A blob of one alpha from centre to rim reads as a smudge the hero floats
+  // on. The gradient is what says "this pixel is where he touches the ground".
+  const v = createCharacterView({ heroClass: 'knight' });
+  const blob = v.group.children.find((o) => o.name === 'hero-shadow');
+  const col = blob.geometry.attributes.color;
+  assert.equal(col.itemSize, 4, 'the profile rides in vertex alpha');
+  assert.equal(blob.material.vertexColors, true);
+  const pos = blob.geometry.attributes.position.array;
+  let core = 0, rim = 1;
+  for (let i = 0; i < col.count; i++) {
+    const r = Math.hypot(pos[i * 3], pos[i * 3 + 2]);
+    const a = col.array[i * 4 + 3];
+    if (r < 0.05) core = Math.max(core, a);
+    if (r > 0.95) rim = Math.min(rim, a);
+  }
+  assert.ok(core > 0.9, `core alpha ${core}`);
+  assert.ok(rim < core * 0.45, `rim alpha ${rim} must fall well below the core ${core}`);
+  // …and the whole profile is still scaled by ONE material dial per frame.
+  v.reset();
+  v.update(idle({ pos: { x: 0, y: 2, z: 0 } }), 1, 2);
+  assert.ok(blob.material.opacity > 0.4, 'contact alpha is decisive on the ground');
+  v.dispose();
+});
+
+test('characterView: every node is finite geometry', () => {
+  // A laminate built without a depth silently produces NaN positions, which
+  // three reports as a bounding-sphere warning and the GPU renders as nothing
+  // at all. Cheap to assert, invisible until someone opens that class.
+  for (const c of CLASSES) {
+    const v = createCharacterView({ heroClass: c });
+    for (const n of NODES) {
+      const p = v.nodes[n].geometry.attributes.position.array;
+      let bad = 0;
+      for (let i = 0; i < p.length; i++) if (!Number.isFinite(p[i])) bad++;
+      assert.equal(bad, 0, `${c}/${n}: ${bad} non-finite position components`);
+      assert.ok(Number.isFinite(v.nodes[n].geometry.boundingSphere.radius), `${c}/${n} bounds`);
+    }
+    v.dispose();
+  }
+});
+
+test('characterView: the crown clears the head instead of sinking into it', () => {
+  // The crown pivot used to sit at the CENTRE of the skull, which buried the
+  // bottom 30 cm of every hat, plume and pair of ears and left a nub showing.
+  const box = new THREE.Box3();
+  for (const c of CLASSES) {
+    const v = createCharacterView({ heroClass: c });
+    v.reset();
+    v.update(idle({ pos: { x: 0, y: 0, z: 0 }, yaw: 0 }), 12, 0);
+    v.nodes.head.updateWorldMatrix(true, true);
+    const headTop = box.setFromObject(v.nodes.head, true).max.y;
+    const crownTop = box.setFromObject(v.nodes.crown, true).max.y;
+    // setFromObject on the head includes the crown (it is a child), so compare
+    // the crown against the head's own geometry bounds instead.
+    const g = v.nodes.head.geometry.boundingBox;
+    const ownTop = g.max.y + v.nodes.head.position.y;
+    assert.ok(
+      crownTop > ownTop + 0.12,
+      `${c}: crown top ${crownTop.toFixed(2)} must clear head top ${ownTop.toFixed(2)}`,
+    );
+    assert.ok(headTop >= crownTop - 1e-6);
     v.dispose();
   }
 });

@@ -79,11 +79,34 @@ const TAU = Math.PI * 2;
 const AXIS_Y = new THREE.Vector3(0, 1, 0);
 
 // ── Placement gates ─────────────────────────────────────────────────────
+//
+// These numbers used to be permissive (42 deg for cover, 34 for trees) and the
+// result was tufts and micro-trees stuck to near-vertical rock in every cliff
+// shot — plants standing where a plant could not physically hold on, which is
+// the single loudest "this was scattered by a script" tell a stylised world
+// can have. Plants now stop where soil stops, and the cliff face they vacate
+// is backfilled with the thing that actually lives there: rock. A cliff needs
+// ROCK detail, not plant detail.
+//
+// Each limit is paired with a SOFT band above it over which acceptance falls
+// off linearly instead of stopping dead. A hard cutoff draws a stencil line
+// across a hillside; a soft one thins out, which is what a real treeline does.
 export const PLANT_MIN_H = WORLD.WATER_Y + 0.26;   // never on water (spec)
 export const TREE_MIN_H = WORLD.WATER_Y + 0.9;
-const MAX_SLOPE_NY = Math.cos(42 * Math.PI / 180);  // ground cover: ~0.743
-const TREE_SLOPE_NY = Math.cos(34 * Math.PI / 180); // trees: ~0.829, no cliffs
-const TREE_MIN_GAP = 2.9;      // metres between trunks inside a grove
+const MAX_SLOPE_NY = Math.cos(30 * Math.PI / 180);  // ground cover: ~0.866
+const COVER_SLOPE_SOFT = 0.075;
+const TREE_SLOPE_NY = Math.cos(22 * Math.PI / 180); // trees: ~0.927
+const TREE_SLOPE_SOFT = 0.055;
+// Talus and scree take the ground the plants just gave up: steeper than cover
+// can hold, shallower than an overhang where nothing would rest.
+const ROCK_MIN_NY = Math.cos(74 * Math.PI / 180);   // ~0.276
+const ROCK_MAX_NY = Math.cos(21 * Math.PI / 180);   // ~0.934
+// Crown separation. A tree's exclusion radius is its own CROWN radius times
+// this, so two neighbours must be ~1.5 crowns apart: groves stay dense, but a
+// canopy can no longer cut through the canopy beside it (which is what
+// garden-portal was showing). Per-species, because a 7 m umbrella and a 1.5 m
+// sapling do not want the same spacing.
+const CROWN_GAP_F = 0.76;
 
 // ── Ground-cover sectors + distance LOD ─────────────────────────────────
 // 60 m cells: big enough that a frame only ever touches ~20 of them, small
@@ -92,13 +115,13 @@ const TREE_MIN_GAP = 2.9;      // metres between trunks inside a grove
 // grade more finely — but every extra cell is another draw call, and the call
 // budget is the binding constraint. 72 m is where the two curves cross for a
 // 480 m island: ~26 land cells, ~10 of them inside the cull radius at once.
-const COVER_CELL = 80;
+const COVER_CELL = 120;
 const COVER_CELLS = Math.max(1, Math.round(WORLD.SIZE / COVER_CELL));
 const LOD_FULL = 30;     // <= this: every instance in the sector draws
-const LOD_MID = 60;
+const LOD_MID = 52;
 const LOD_CULL = 112;    // > this: the sector is hidden outright
-const LOD_MID_F = 0.36;
-const LOD_FAR_F = 0.085;
+const LOD_MID_F = 0.27;
+const LOD_FAR_F = 0.065;
 
 // Height cache. sampleHeight is ~40 flops of noise; the scatter rejects far
 // more candidates than it keeps, so every REJECTION is served from a 2 m
@@ -128,6 +151,72 @@ function hash2(ix, iz, seed) {
   h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) >>> 0;
   h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/**
+ * Two-octave fBm over patchNoise -> [0,1). This is the MOISTURE field.
+ *
+ * Ground cover placed by uniform random ignores the land it grows on, and the
+ * eye reads that instantly: identical density on the summit, on the 40-degree
+ * face and on the flats. A moisture field is the cheapest correction there is
+ * — one low-frequency lobe says where the ground holds water, and everything
+ * else (how thick the cover is, which species wins, how green it stays, where
+ * the treeline runs) hangs off that one number. Two octaves only: the shape
+ * has to be readable from 100 m, so its features are 60-90 m across.
+ */
+function moistureAt(x, z, seed) {
+  return patchNoise(x * 0.0135, z * 0.0135, seed) * 0.68
+    + patchNoise(x * 0.037, z * 0.037, seed ^ 0x77) * 0.32;
+}
+
+/**
+ * Discrete Laplacian of the cached height grid — POSITIVE in a gully or a
+ * shelf, NEGATIVE on a nose or a crest.
+ *
+ * This is the term that stops the scatter being statistical and makes it
+ * topographic: dense stands collect in the concave ground where water and soil
+ * collect, exposed convex faces go bare, and boulders pile at the slope breaks
+ * where talus actually accumulates. `_gx`/`_gz` are globals written by gridAt,
+ * so they are saved and restored — every caller reads them right afterwards.
+ */
+function curvOf(G, x, z, s = 6) {
+  const sx = _gx, sz = _gz;
+  const c = gridAt(G, x, z);
+  const e = gridAt(G, x + s, z), w = gridAt(G, x - s, z);
+  const n = gridAt(G, x, z + s), t = gridAt(G, x, z - s);
+  _gx = sx; _gz = sz;
+  return (e + w + n + t - 4 * c) / (s * s);
+}
+
+/**
+ * Bake the Laplacian once over the whole island rather than five times per
+ * candidate.
+ *
+ * The scatter rejects far more candidates than it keeps — that is the point of
+ * a weighted sampler — so anything evaluated per CANDIDATE is evaluated a
+ * million times. Curvature is a pure function of the height grid, so it is
+ * computed once into a grid of the same shape and read back with the same
+ * bilinear lookup, which is the difference between a half-second added to boot
+ * and a hundredth of one.
+ */
+function makeCurvGrid(G, s = 6) {
+  const n = G.n;
+  const h = new Float32Array(n * n);
+  for (let j = 0; j < n; j++) {
+    const z = -WORLD.HALF + j * GRID_STEP;
+    for (let i = 0; i < n; i++) {
+      h[j * n + i] = curvOf(G, -WORLD.HALF + i * GRID_STEP, z, s);
+    }
+  }
+  return { n, h };
+}
+
+/** Curvature at (x,z), off the baked grid. Clobbers _gx/_gz, so save first. */
+function curvAt(C, x, z) {
+  const sx = _gx, sz = _gz;
+  const v = gridAt(C, x, z);
+  _gx = sx; _gz = sz;
+  return v;
 }
 
 /** Bilinear value noise -> [0,1). Used only for tonal patch mottling. */
@@ -328,7 +417,7 @@ function buildCloverGeo() {
 /** Arching fern frond: leaflets hung alternately off a rising spine curve. */
 function buildFernGeo() {
   const s = sink();
-  const FRONDS = 2, SEG = 4, R = 0.42, H = 0.52;
+  const FRONDS = 2, SEG = 3, R = 0.42, H = 0.52;
   for (let f = 0; f < FRONDS; f++) {
     const a = f * 2.45 + 0.7;
     const dx = Math.sin(a), dz = Math.cos(a);
@@ -361,6 +450,89 @@ function buildShrubGeo() {
     tri(s, p(-W, 0.02), p(W, 0.02), p(TW, H), nrm, ROOT, ROOT, TIP);
     tri(s, p(-W, 0.02), p(TW, H), p(-TW, H), nrm, ROOT, TIP, TIP);
   }
+  return bake(s);
+}
+
+/**
+ * Dock leaf — the KNEE-HIGH tier.
+ *
+ * Everything in this field used to read at one horizon: tufts at 0.5 m, clover
+ * at 0.1 m, and nothing between them and a 5 m tree. A field with one height
+ * has no interior — the eye crosses it in a single sweep and finds nothing to
+ * rest on. This is the missing storey: broad paddle leaves on short stems,
+ * about 0.8 m, scattered at roughly a sixth of the tuft count so it reads as
+ * punctuation rather than as a second carpet.
+ *
+ * Wide blades on purpose. A tall thin thing at this scale is just a bigger
+ * blade of grass; what makes a dock leaf legible from twenty metres is that it
+ * presents AREA to the light, so it catches the lit ramp step while the grass
+ * around it is still in the mid step.
+ */
+function buildDockGeo() {
+  const s = sink();
+  const N = 3;
+  for (let k = 0; k < N; k++) {
+    const a = (k / N) * TAU + 0.9;
+    const dx = Math.sin(a), dz = Math.cos(a);
+    const px = -dz, pz = dx;
+    const reach = 0.30 + (k % 3) * 0.075;
+    const H = 0.56 * (1 - (k % 3) * 0.13);
+    const W = 0.112 * (1 - (k % 2) * 0.16);
+    const inv = 1 / Math.hypot(dx * 0.30, 0.92, dz * 0.30);
+    const nrm = [dx * 0.30 * inv, 0.92 * inv, dz * 0.30 * inv];
+    const base = [dx * 0.03, 0.03, dz * 0.03];
+    const midX = dx * reach * 0.55, midZ = dz * reach * 0.55, midY = H * 0.66;
+    const tip = [dx * reach, H, dz * reach];
+    tri(s, base, [midX + px * W, midY, midZ + pz * W], tip, nrm, ROOT, TIP, DRYTIP);
+    tri(s, base, tip, [midX - px * W, midY, midZ - pz * W], nrm, ROOT, DRYTIP, TIP);
+  }
+  return bake(s);
+}
+
+/**
+ * Scree — a handful of angular chips lying where a slope sheds them.
+ *
+ * Cut as flat propped triangles rather than as little solids: at 10 cm the
+ * silhouette is all that survives, and a propped chip gives a lit top face and
+ * a shaded edge for three vertices instead of twelve.
+ */
+function buildScreeGeo() {
+  const s = sink();
+  for (let k = 0; k < 4; k++) {
+    const a = k * 1.83 + 0.35;
+    const ox = Math.cos(a) * 0.13, oz = Math.sin(a) * 0.13;
+    const r = 0.075 + (k % 3) * 0.028;
+    const lx = Math.cos(a * 1.7), lz = Math.sin(a * 1.7);
+    const tilt = 0.45;
+    const pt = (ang) => {
+      const px = Math.cos(ang) * r, pz = Math.sin(ang) * r;
+      const across = px * -lz + pz * lx;
+      return [ox + px, 0.008 + Math.abs(across) * tilt, oz + pz];
+    };
+    tri(s, pt(a), pt(a + 2.2), pt(a + 4.3),
+      [-lz * 0.30, 0.95, lx * 0.30],
+      shade(1.0), shade(0.82), shade(0.92));
+  }
+  return bake(s);
+}
+
+/**
+ * Boulder — the biggest rock tier, and the one that gives a bare cliff its
+ * scale. An open 6-gon drum with a cone cap: 18 triangles for a form that
+ * reads as a faceted stone from every angle, where a sphere would cost 36 and
+ * look machined.
+ */
+function buildBoulderGeo() {
+  const s = sink();
+  // Two open hexagonal cones, squashed and tilted against each other: 12
+  // triangles for a form that reads as a faceted stone from any angle. A drum
+  // plus a cap looked marginally better and cost 18 — and at ~4 000 boulders
+  // across the island that difference is a fifth of the whole ground-cover
+  // triangle budget, which is not what a background rock should be spending.
+  stamp(s, new THREE.ConeGeometry(0.52, 0.74, 6, 1, true),
+    trs(0, 0.30, 0, 0.10, 0.4, 0.06, 1.12, 1, 0.90), shade(1.02));
+  stamp(s, new THREE.ConeGeometry(0.30, 0.42, 6, 1, true),
+    trs(0.34, 0.16, -0.20, -0.08, 1.3, -0.10, 1.0, 1, 0.94), shade(0.86));
   return bake(s);
 }
 
@@ -468,19 +640,29 @@ function buildFlyingPetalGeo(topReach) {
  * material (and therefore which sway) the archetype rides.
  */
 export const GROUND_ARCHETYPES = {
-  tuft: { tris: 5, mat: 'plant', s0: 0.80, sv: 0.85, stretch: true, build: () => buildBladeTuft({ blades: 5, h: 0.50, hVar: 0.18, w: 0.062, lean: 0.22 }) },
-  reed: { tris: 3, mat: 'plant', s0: 0.72, sv: 0.62, stretch: true, build: () => buildBladeTuft({ blades: 3, h: 0.86, hVar: 0.2, w: 0.034, lean: 0.1, tip: DRYTIP, phase: 1.1 }) },
+  tuft: { tris: 4, mat: 'plant', s0: 0.70, sv: 0.70, stretch: true, build: () => buildBladeTuft({ blades: 4, h: 0.50, hVar: 0.20, w: 0.058, lean: 0.24 }) },
+  reed: { tris: 3, mat: 'plant', s0: 0.66, sv: 0.52, stretch: true, build: () => buildBladeTuft({ blades: 3, h: 0.86, hVar: 0.2, w: 0.034, lean: 0.1, tip: DRYTIP, phase: 1.1 }) },
   clover: { tris: 4, mat: 'plant', s0: 0.72, sv: 0.66, stretch: false, build: buildCloverGeo },
-  fern: { tris: 8, mat: 'plant', s0: 0.76, sv: 0.72, stretch: true, build: buildFernGeo },
+  fern: { tris: 6, mat: 'plant', s0: 0.68, sv: 0.56, stretch: true, build: buildFernGeo },
   shrub: { tris: 6, mat: 'plant', s0: 0.80, sv: 0.80, stretch: true, build: buildShrubGeo },
   bloom: { tris: 11, mat: 'plant', s0: 0.66, sv: 0.42, stretch: false, build: buildBloomGeo },
   petal: { tris: 4, mat: 'plant', s0: 0.70, sv: 0.55, stretch: false, build: buildFallenPetalGeo },
+  dock: { tris: 6, mat: 'plant', s0: 0.66, sv: 0.44, stretch: true, build: buildDockGeo },
   pebble: { tris: 8, mat: 'rock', s0: 0.66, sv: 0.80, stretch: false, build: buildPebbleGeo },
+  // Rock tiers. `scree` and `boulder` are placed by their own pass (see
+  // scatterRock) on the STEEP ground the plants were just forbidden — they are
+  // in this table because they share the sector bucketing, the distance LOD
+  // and the instance-colour path with everything else that carpets the ground.
+  scree: { tris: 4, mat: 'rock', s0: 0.70, sv: 1.05, stretch: false, build: buildScreeGeo },
+  boulder: { tris: 12, mat: 'rock', s0: 0.55, sv: 1.70, stretch: false, build: buildBoulderGeo },
 };
 
 const ARCH_NAMES = Object.keys(GROUND_ARCHETYPES);
 // Archetypes whose instanceColor is a FLOWER hue rather than a foliage green.
 const BLOOM_ARCH = new Set(['bloom', 'petal']);
+// Archetypes that are STONE: tinted from the biome's rock, never from its
+// foliage, and never pulled toward the shoreline sand.
+const ROCK_ARCH = new Set(['pebble', 'scree', 'boulder']);
 
 // ═══════════════════════════════════════════════════════════════════════
 // Tree species
@@ -618,6 +800,42 @@ const TREE_SPECIES = {
 
 export const TREE_SPECIES_NAMES = Object.keys(TREE_SPECIES);
 
+/**
+ * Widest crown radius each species presents at unit scale, measured off its own
+ * slab/cone/droop table rather than typed in — so a species retuned above can
+ * never quietly fall out of step with the spacing rule below it.
+ */
+const SPECIES_CROWN = Object.fromEntries(TREE_SPECIES_NAMES.map((name) => {
+  const spec = TREE_SPECIES[name];
+  let r = spec.trunk.rBot;
+  for (const sl of spec.slabs || []) r = Math.max(r, sl.r);
+  for (const c of spec.cones || []) r = Math.max(r, c.r);
+  if (spec.droops) r = Math.max(r, spec.droops.attachR + Math.sin(spec.droops.tilt) * spec.droops.len * 0.5);
+  return [name, r];
+}));
+const MAX_CROWN = Math.max(...Object.values(SPECIES_CROWN));
+
+/**
+ * Resolve one placed item into its variant and its final lateral/vertical
+ * scale. Called TWICE — once during the scatter (to know how much room the
+ * crown needs) and once when the instance matrix is written — so it has to be
+ * a pure function of the item's four random draws, and both callers have to go
+ * through it or the spacing stops matching the geometry.
+ *
+ * The per-instance band is deliberately wide: ±45% on top of a variant table
+ * that already spans 0.78-1.30. A stand of trees whose crowns all land within
+ * a few percent of one height reads as a flat band of equal domes — the exact
+ * note the art directors wrote against the canopy line — and no amount of
+ * silhouette variety in the species table fixes it, because the SKYLINE is one
+ * curve regardless of what is under it.
+ */
+function treeScale(spec, it, hero) {
+  const nv = spec.variants.length;
+  const v = spec.variants[Math.floor(it.b * nv) % nv];
+  const s = v.s * (0.78 + it.c * 0.52) * (hero ? 1.55 : 1);
+  return { v, sx: s * v.wide * (0.94 + it.d * 0.13), sy: s * v.tall * (0.92 + it.a * 0.20) };
+}
+
 /** One papercut tree, absolute PAPER colours, merged into a single buffer. */
 function buildTreeGeo(spec) {
   const s = sink();
@@ -705,73 +923,93 @@ function buildLandmarkTreeGeo() {
 // `grove` is the fraction of samples that land inside a cluster rather than
 // uniformly, i.e. how thicket-y the biome is.
 
+// `rock` is the scree/boulder budget for the biome's STEEP ground, and `stone`
+// is the pair of PAPER colours that ground is cut from — a cliff wears its own
+// rock, not a recolour of the meadow next door.
+//
+// Every `treeMix` carries 3-4 species now. Two-species regions were producing
+// canopy lines built from one silhouette repeated: broadleaf+conifer across a
+// whole frame is not a forest, it is a texture.
+
 const BIOME_FLORA = {
   garden: {
-    trees: 145, treeMix: [['broadleaf', 0.40], ['willow', 0.18], ['blossom', 0.20], ['umbrella', 0.12], ['conifer', 0.10]],
-    cover: 19000, mix: [['tuft', 0.44], ['clover', 0.21], ['fern', 0.20], ['bloom', 0.15]],
+    trees: 145, treeMix: [['broadleaf', 0.34], ['willow', 0.16], ['blossom', 0.18], ['umbrella', 0.12], ['conifer', 0.10], ['ember', 0.10]],
+    cover: 19000, mix: [['tuft', 0.38], ['clover', 0.19], ['fern', 0.18], ['bloom', 0.13], ['dock', 0.12]],
+    rock: 900, stone: [PAPER.sand, PAPER.creamD],
     tintA: PAPER.leaf, tintB: PAPER.forestL,
     petals: [PAPER.white, PAPER.rose, PAPER.gold],
     grove: 0.74, clusters: 16, glades: 6, hero: 2,
   },
   meadow: {
-    trees: 70, treeMix: [['blossom', 0.46], ['broadleaf', 0.34], ['willow', 0.20]],
-    cover: 14000, mix: [['tuft', 0.40], ['bloom', 0.24], ['clover', 0.18], ['petal', 0.18]],
+    trees: 70, treeMix: [['blossom', 0.38], ['broadleaf', 0.28], ['willow', 0.18], ['umbrella', 0.16]],
+    cover: 14000, mix: [['tuft', 0.34], ['bloom', 0.21], ['clover', 0.16], ['petal', 0.16], ['dock', 0.13]],
+    rock: 500, stone: [PAPER.sand, PAPER.creamD],
     tintA: PAPER.sageD, tintB: PAPER.leaf,
     petals: [PAPER.rose, PAPER.white, PAPER.lavender],
     grove: 0.66, clusters: 12, glades: 5, hero: 1,
   },
   tidepool: {
-    trees: 62, treeMix: [['umbrella', 0.44], ['broadleaf', 0.36], ['willow', 0.20]],
-    cover: 10000, mix: [['tuft', 0.44], ['reed', 0.30], ['pebble', 0.26]],
+    trees: 62, treeMix: [['umbrella', 0.36], ['broadleaf', 0.28], ['willow', 0.18], ['blossom', 0.18]],
+    cover: 10500, mix: [['tuft', 0.38], ['reed', 0.26], ['pebble', 0.22], ['dock', 0.14]],
+    rock: 1100, stone: [PAPER.sand, PAPER.creamD],
     tintA: PAPER.leaf, tintB: PAPER.sage,
     petals: [PAPER.white, PAPER.tealL],
     grove: 0.7, clusters: 11, glades: 4, hero: 0,
   },
   sky: {
-    trees: 56, treeMix: [['conifer', 0.68], ['frostpine', 0.20], ['broadleaf', 0.12]],
-    cover: 7500, mix: [['tuft', 0.50], ['pebble', 0.26], ['shrub', 0.24]],
+    trees: 56, treeMix: [['conifer', 0.50], ['frostpine', 0.22], ['broadleaf', 0.16], ['umbrella', 0.12]],
+    cover: 8000, mix: [['tuft', 0.44], ['pebble', 0.22], ['shrub', 0.22], ['dock', 0.12]],
+    // The cliff biome, so the biggest rock budget on the island: this is the
+    // frame that was 80% one grey albedo with tufts glued to a vertical face.
+    rock: 3200, stone: [PAPER.creamD, PAPER.sand],
     tintA: PAPER.sage, tintB: PAPER.sageD,
     petals: [PAPER.white, PAPER.sky],
     grove: 0.72, clusters: 10, glades: 5, hero: 0,
   },
   ember: {
-    trees: 82, treeMix: [['ember', 0.56], ['conifer', 0.26], ['umbrella', 0.18]],
-    cover: 7500, mix: [['tuft', 0.42], ['reed', 0.30], ['shrub', 0.28]],
+    trees: 82, treeMix: [['ember', 0.46], ['conifer', 0.22], ['umbrella', 0.16], ['broadleaf', 0.16]],
+    cover: 8000, mix: [['tuft', 0.36], ['reed', 0.26], ['shrub', 0.24], ['dock', 0.14]],
+    rock: 2400, stone: [PAPER.coralD, PAPER.sand],
     tintA: PAPER.sageD, tintB: PAPER.sage,
     petals: [PAPER.orange, PAPER.gold],
     grove: 0.78, clusters: 12, glades: 5, hero: 0,
   },
   frost: {
-    trees: 36, treeMix: [['frostpine', 0.82], ['conifer', 0.18]],
-    cover: 4600, mix: [['tuft', 0.52], ['pebble', 0.30], ['shrub', 0.18]],
+    trees: 36, treeMix: [['frostpine', 0.58], ['conifer', 0.20], ['broadleaf', 0.12], ['blossom', 0.10]],
+    cover: 5000, mix: [['tuft', 0.44], ['pebble', 0.26], ['shrub', 0.18], ['dock', 0.12]],
+    rock: 1600, stone: [PAPER.creamD, PAPER.white],
     tintA: PAPER.tealL, tintB: PAPER.sage,
     petals: [PAPER.white, PAPER.sky],
     grove: 0.8, clusters: 8, glades: 6, hero: 0,
   },
   crystal: {
-    trees: 62, treeMix: [['frostpine', 0.44], ['blossom', 0.34], ['conifer', 0.22]],
-    cover: 7500, mix: [['tuft', 0.44], ['bloom', 0.30], ['pebble', 0.26]],
+    trees: 62, treeMix: [['frostpine', 0.36], ['blossom', 0.28], ['conifer', 0.20], ['willow', 0.16]],
+    cover: 8000, mix: [['tuft', 0.38], ['bloom', 0.26], ['pebble', 0.22], ['dock', 0.14]],
+    rock: 2600, stone: [PAPER.lavenderD, PAPER.creamD],
     tintA: PAPER.sage, tintB: PAPER.tealL,
     petals: [PAPER.lavender, PAPER.white],
     grove: 0.76, clusters: 10, glades: 5, hero: 1,
   },
   market: {
-    trees: 22, treeMix: [['broadleaf', 0.56], ['umbrella', 0.44]],
-    cover: 3800, mix: [['tuft', 0.48], ['clover', 0.28], ['pebble', 0.24]],
+    trees: 22, treeMix: [['broadleaf', 0.40], ['umbrella', 0.32], ['blossom', 0.16], ['ember', 0.12]],
+    cover: 4200, mix: [['tuft', 0.42], ['clover', 0.24], ['pebble', 0.20], ['dock', 0.14]],
+    rock: 700, stone: [PAPER.sand, PAPER.creamD],
     tintA: PAPER.sageD, tintB: PAPER.sage,
     petals: [PAPER.gold, PAPER.peach],
     grove: 0.5, clusters: 7, glades: 6, hero: 0,
   },
   library: {
-    trees: 84, treeMix: [['broadleaf', 0.40], ['conifer', 0.26], ['umbrella', 0.22], ['willow', 0.12]],
-    cover: 8200, mix: [['tuft', 0.42], ['fern', 0.32], ['shrub', 0.26]],
+    trees: 84, treeMix: [['broadleaf', 0.34], ['conifer', 0.24], ['umbrella', 0.20], ['willow', 0.12], ['blossom', 0.10]],
+    cover: 8800, mix: [['tuft', 0.36], ['fern', 0.28], ['shrub', 0.22], ['dock', 0.14]],
+    rock: 2200, stone: [PAPER.sand, PAPER.creamD],
     tintA: PAPER.sageD, tintB: PAPER.forestL,
     petals: [PAPER.cream, PAPER.gold],
     grove: 0.76, clusters: 11, glades: 5, hero: 0,
   },
   palace: {
-    trees: 44, treeMix: [['blossom', 0.62], ['conifer', 0.24], ['broadleaf', 0.14]],
-    cover: 9500, mix: [['tuft', 0.42], ['clover', 0.24], ['bloom', 0.20], ['petal', 0.14]],
+    trees: 44, treeMix: [['blossom', 0.48], ['conifer', 0.20], ['broadleaf', 0.16], ['frostpine', 0.16]],
+    cover: 10000, mix: [['tuft', 0.36], ['clover', 0.21], ['bloom', 0.18], ['petal', 0.13], ['dock', 0.12]],
+    rock: 2600, stone: [PAPER.lavenderD, PAPER.sand],
     tintA: PAPER.leaf, tintB: PAPER.sage,
     petals: [PAPER.gold, PAPER.white, PAPER.lavender],
     grove: 0.42, clusters: 9, glades: 4, formal: true, hero: 2,
@@ -802,7 +1040,17 @@ function pick(table, u) {
   return names[names.length - 1];
 }
 
-/** Blob centres a field concentrates into, and the clearings it avoids. */
+/**
+ * Blob centres a field concentrates into, and the clearings it avoids.
+ *
+ * `tone` is the load-bearing addition. Every instance drawn from a blob
+ * inherits it, so a patch of ground cover shares a tint the patch beside it
+ * does not — which is the difference between "grass with per-instance jitter"
+ * (still one flat field, because independent jitter averages out over any area
+ * bigger than a plant) and "a plant community" (patches you can point at).
+ * Independent noise cannot buy this: variation has to be CORRELATED over metres
+ * before the eye reads it as a place rather than as dither.
+ */
 function makeBlobs(rng, cx, cz, R, n, rMin, rMax) {
   const out = [];
   for (let i = 0; i < n; i++) {
@@ -811,9 +1059,47 @@ function makeBlobs(rng, cx, cz, R, n, rMin, rMax) {
     out.push({
       x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r,
       r: R * (rMin + rng() * (rMax - rMin)), w: 0.55 + rng(),
+      tone: rng(), hue: rng(),
     });
   }
   return out;
+}
+
+// ── Shared occupancy grid ───────────────────────────────────────────────
+//
+// ONE grid for every tree pass on the island, not one per call. Trees used to
+// be placed by independent passes that did not share an occupancy structure,
+// so crowns from two different scatters (and from two neighbouring biomes,
+// whose discs overlap) cut straight through each other. A single grid, keyed
+// on world position and holding each trunk's own crown radius, makes that
+// structurally impossible.
+//
+// `cell` must be at least twice the largest exclusion radius, because the
+// lookup only walks the 3x3 neighbourhood: a pair whose radii sum to 2*rMax
+// can be two cells apart at most, and 3x3 covers exactly that.
+
+function makeGapGrid(rMax) {
+  return { cells: new Map(), cell: Math.max(1, rMax * 2) };
+}
+
+/** Test (x,z,r) against the grid; INSERTS and returns true when it fits. */
+function gapTake(G, x, z, r) {
+  const ci = Math.floor(x / G.cell), cj = Math.floor(z / G.cell);
+  for (let dj = -1; dj <= 1; dj++) {
+    for (let di = -1; di <= 1; di++) {
+      const b = G.cells.get((cj + dj) * 4093 + (ci + di));
+      if (!b) continue;
+      for (let k = 0; k < b.length; k += 3) {
+        const dx = x - b[k], dz = z - b[k + 1], rr = r + b[k + 2];
+        if (dx * dx + dz * dz < rr * rr) return false;
+      }
+    }
+  }
+  const key = cj * 4093 + ci;
+  let b = G.cells.get(key);
+  if (!b) { b = []; G.cells.set(key, b); }
+  b.push(x, z, r);
+  return true;
 }
 
 /**
@@ -830,26 +1116,28 @@ function makeBlobs(rng, cx, cz, R, n, rMin, rMax) {
  */
 function scatterField(rng, o) {
   const {
-    cx, cz, R, count, minH, slopeNy, clearings, clusters, glades,
-    grove, grid, sampleHeight, minGap, out,
+    cx, cz, R, count, minH, slopeNy, slopeSoft = 0, slopeMaxNy = 2,
+    clearings, clusters, glades, grove, grid, sampleHeight, out,
+    gap = null, gapRadius = null, weight = null,
   } = o;
-  const maxTries = count * 5 + 512;
-  const gapCells = minGap ? new Map() : null;
-  const gapCell = minGap || 1;
+  // Six, not five: the weighting field below rejects on purpose, and a sampler
+  // that runs out of tries before it runs out of budget silently under-fills
+  // exactly the wet, sheltered ground the weight was written to favour.
+  const maxTries = count * 6 + 512;
   let placed = 0;
 
   for (let t = 0; t < maxTries && placed < count; t++) {
-    let x, z;
+    let x, z, blob = null;
     if (clusters.length && rng() < grove) {
       // Weighted blob pick, then a concentrated radial sample inside it.
       let u = rng() * clusters.length;
-      const b = clusters[Math.min(clusters.length - 1, Math.floor(u))];
+      blob = clusters[Math.min(clusters.length - 1, Math.floor(u))];
       u = rng();
-      if (u > b.w * 0.62) continue;              // per-blob density weighting
+      if (u > blob.w * 0.62) continue;           // per-blob density weighting
       const a = rng() * TAU;
-      const r = b.r * Math.pow(rng(), 0.7);
-      x = b.x + Math.cos(a) * r;
-      z = b.z + Math.sin(a) * r;
+      const r = blob.r * Math.pow(rng(), 0.7);
+      x = blob.x + Math.cos(a) * r;
+      z = blob.z + Math.sin(a) * r;
       const dx0 = x - cx, dz0 = z - cz;
       if (dx0 * dx0 + dz0 * dz0 > R * R) continue;
     } else {
@@ -877,33 +1165,38 @@ function scatterField(rng, o) {
     const hg = gridAt(grid, x, z);
     if (hg <= minH + 0.15) continue;
     const gx = _gx, gz = _gz;
-    if (1 / Math.sqrt(gx * gx + 1 + gz * gz) < slopeNy) continue;
+    const ny = 1 / Math.sqrt(gx * gx + 1 + gz * gz);
+    if (ny < slopeNy || ny > slopeMaxNy) continue;
+    // Soft band above the limit: thin out toward it rather than stopping at a
+    // contour line. This is what turns the slope gate into a treeline.
+    if (slopeSoft > 0 && ny < slopeNy + slopeSoft
+      && rng() * slopeSoft > ny - slopeNy) continue;
 
-    if (gapCells) {
-      const ci = Math.floor(x / gapCell), cj = Math.floor(z / gapCell);
-      let tooClose = false;
-      for (let dj = -1; dj <= 1 && !tooClose; dj++) {
-        for (let di = -1; di <= 1; di++) {
-          const bucket = gapCells.get((cj + dj) * 4093 + (ci + di));
-          if (!bucket) continue;
-          for (let k = 0; k < bucket.length; k += 2) {
-            const dx = x - bucket[k], dz = z - bucket[k + 1];
-            if (dx * dx + dz * dz < minGap * minGap) { tooClose = true; break; }
-          }
-          if (tooClose) break;
-        }
-      }
-      if (tooClose) continue;
-      const key = cj * 4093 + ci;
-      let bucket = gapCells.get(key);
-      if (!bucket) { bucket = []; gapCells.set(key, bucket); }
-      bucket.push(x, z);
-    }
+    // Landform weighting (moisture, curvature, altitude). Runs AFTER the cheap
+    // gates and BEFORE anything that allocates: this sampler throws away far
+    // more candidates than it keeps, so a rejected candidate must not have cost
+    // an object. Hence the positional signature rather than an item record.
+    if (weight && rng() >= weight(x, z, hg, ny, gx, gz)) continue;
+
+    const it = {
+      x, y: hg, z, gx, gz, ny, h: hg,
+      a: rng(), b: rng(), c: rng(), d: rng(),
+      // Every item carries its patch's tone even when it was drawn uniformly:
+      // 0.5 is "no patch", which lands mid-range and reads as the field's
+      // baseline between the patches.
+      tone: blob ? blob.tone : 0.5,
+      hue: blob ? blob.hue : 0.5,
+    };
+
+    // Crown-aware spacing, against the island-wide grid.
+    if (gap && !gapTake(gap, x, z, gapRadius ? gapRadius(it) : 1)) continue;
 
     // Survivor: pay for the exact height so nothing floats or sinks.
     const h = sampleHeight(x, z);
     if (h <= minH) continue;
-    out.push({ x, y: h, z, gx, gz, a: rng(), b: rng(), c: rng(), d: rng() });
+    it.y = h;
+    it.h = h;
+    out.push(it);
     placed++;
   }
   return placed;
@@ -911,7 +1204,10 @@ function scatterField(rng, o) {
 
 /** Even rings with a small jitter — order and rhythm, not scatter. */
 function formalRings(rng, o) {
-  const { cx, cz, R, count, minH, slopeNy, clearings, grid, sampleHeight, minGap, out } = o;
+  const {
+    cx, cz, R, count, minH, slopeNy, clearings, grid, sampleHeight, out,
+    gap = null, gapRadius = null, weight = null,
+  } = o;
   const rings = [R * 0.55, R * 0.82];
   const per = Math.ceil(count / rings.length);
   let placed = 0;
@@ -929,18 +1225,19 @@ function formalRings(rng, o) {
       const hg = gridAt(grid, x, z);
       if (hg <= minH + 0.15) continue;
       const gx = _gx, gz = _gz;
-      if (1 / Math.sqrt(gx * gx + 1 + gz * gz) < slopeNy) continue;
-      if (minGap && out.length) {
-        let tooClose = false;
-        for (let i = out.length - 1, n = 0; i >= 0 && n < 24; i--, n++) {
-          const dx = x - out[i].x, dz = z - out[i].z;
-          if (dx * dx + dz * dz < minGap * minGap) { tooClose = true; break; }
-        }
-        if (tooClose) continue;
-      }
+      const ny = 1 / Math.sqrt(gx * gx + 1 + gz * gz);
+      if (ny < slopeNy) continue;
+      if (weight && rng() >= weight(x, z, hg, ny, gx, gz)) continue;
+      const it = {
+        x, y: hg, z, gx, gz, ny, h: hg,
+        a: rng(), b: rng(), c: rng(), d: rng(), tone: 0.5, hue: 0.5,
+      };
+      if (gap && !gapTake(gap, x, z, gapRadius ? gapRadius(it) : 1)) continue;
       const h = sampleHeight(x, z);
       if (h <= minH) continue;
-      out.push({ x, y: h, z, gx, gz, a: rng(), b: rng(), c: rng(), d: rng() });
+      it.y = h;
+      it.h = h;
+      out.push(it);
       placed++;
     }
   }
@@ -1021,9 +1318,14 @@ export function createVegetation(heightfield, opts = {}) {
   // tooth; blades and petals are two-triangle scraps where a normal map would
   // only fight the toon ramp, so they take pigment grain alone on one top-down
   // projection (a single fetch across ~90 k instances).
-  applyPapercut(treeMat, { grain: 0.075, normal: 0.10, roughnessLike: 0.18, scale: 1.1, space: 'local' });
-  applyPapercut(heroMat, { grain: 0.08, normal: 0.11, roughnessLike: 0.19, scale: 2.4, space: 'local' });
-  applyPapercut(rockMat, { grain: 0.09, normal: 0.13, roughnessLike: 0.2, scale: 0.3, space: 'local' });
+  // `bleach` is the cheap directional read (see PAPERCUT_DEFAULTS): the top of
+  // a canopy slab fades warm, its underside holds the palette's teal cavity.
+  // On a stack of flat discs that is the whole difference between a tree and a
+  // pile of coloured plates, and unlike lighting it survives into shadow — so
+  // a tree on the shaded side of a hill still has a top and a bottom.
+  applyPapercut(treeMat, { grain: 0.075, normal: 0.10, roughnessLike: 0.18, scale: 1.1, space: 'local', bleach: 0.30 });
+  applyPapercut(heroMat, { grain: 0.08, normal: 0.11, roughnessLike: 0.19, scale: 2.4, space: 'local', bleach: 0.30 });
+  applyPapercut(rockMat, { grain: 0.09, normal: 0.13, roughnessLike: 0.2, scale: 0.3, space: 'local', bleach: 0.26 });
   applyPapercut(plantMat, { grain: 0.07, normal: 0, roughnessLike: 0, scale: 0.7, triplanar: false, space: 'local' });
   applyPapercut(petalMat, { grain: 0.06, normal: 0, roughnessLike: 0, scale: 0.3, triplanar: false, space: 'local' });
 
@@ -1044,6 +1346,8 @@ export function createVegetation(heightfield, opts = {}) {
   // ── Placement ──────────────────────────────────────────────────────────
   const rng = makeRng(seed ^ 0x5eed17);
   const grid = makeHeightGrid(sampleHeight);
+  // Baked once — see makeCurvGrid. Every weighting field below reads it.
+  const curv = makeCurvGrid(grid, 6);
 
   // The landmark reserves its own clearing before anything else is scattered.
   treeClear.push(LANDMARK.x, LANDMARK.z, LANDMARK.clearTree);
@@ -1061,11 +1365,46 @@ export function createVegetation(heightfield, opts = {}) {
   let coverTotal = 0;
   const coverByArch = Object.fromEntries(ARCH_NAMES.map((k) => [k, 0]));
 
+  // ONE occupancy grid for every tree on the island — see makeGapGrid. The
+  // largest exclusion radius is the widest crown at the top of the (now much
+  // wider) instance scale band.
+  const treeGap = makeGapGrid(MAX_CROWN * 1.7 * CROWN_GAP_F);
+
   for (const biome of BIOMES) {
     const flora = BIOME_FLORA[biome.id];
     if (!flora) continue;
     const [cx, cz] = biome.center;
     const R = biome.radius;
+    const treeTable = cumulative(flora.treeMix);
+
+    // Species has to be resolved DURING the scatter, not after it: the room a
+    // tree needs is its own crown's, and a pass that spaces every trunk alike
+    // either packs umbrellas into each other or wastes a whole biome's worth
+    // of ground keeping saplings apart.
+    const gapRadius = (it) => {
+      const sp = pick(treeTable, it.a);
+      const spec = TREE_SPECIES[sp];
+      return SPECIES_CROWN[sp] * treeScale(spec, it, false).sx * CROWN_GAP_F;
+    };
+
+    /**
+     * Where trees can grow, as a probability.
+     *
+     * Two terms, both of them scale cues the world had none of:
+     *   TREELINE  a moisture-jittered altitude above which the stand thins and
+     *             then stops. Nothing tells a player how tall a mesa is like a
+     *             band of trees that gives up part-way up it.
+     *   SHELTER   concave ground (gullies, benches, the lee of a ridge) gets a
+     *             real bonus, convex noses get penalised. Trees collect where
+     *             water and soil do.
+     */
+    const treeWeight = (x, z, h) => {
+      const m = moistureAt(x, z, seed ^ 0x4d15);
+      const line = 20 + m * 20;
+      const alt = 1 - smoothstep(line - 5, line + 7, h);
+      const shelter = 1 + Math.max(-0.55, Math.min(0.9, curvAt(curv, x, z) * 260));
+      return (0.30 + 0.85 * m) * alt * shelter;
+    };
 
     // ---- trees ----
     const nTrees = Math.round(flora.trees * density);
@@ -1074,17 +1413,18 @@ export function createVegetation(heightfield, opts = {}) {
     if (flora.formal) {
       formalRings(rng, {
         cx, cz, R, count: nTrees, minH: TREE_MIN_H, slopeNy: TREE_SLOPE_NY,
-        clearings: treeClear, grid, sampleHeight, minGap: TREE_MIN_GAP, out: raw,
+        clearings: treeClear, grid, sampleHeight, out: raw,
+        gap: treeGap, gapRadius,
       });
     } else {
       scatterField(rng, {
-        cx, cz, R: R * 0.94, count: nTrees, minH: TREE_MIN_H, slopeNy: TREE_SLOPE_NY,
+        cx, cz, R: R * 0.94, count: nTrees, minH: TREE_MIN_H,
+        slopeNy: TREE_SLOPE_NY, slopeSoft: TREE_SLOPE_SOFT,
         clearings: treeClear, clusters: makeBlobs(rng, cx, cz, R, flora.clusters, 0.09, 0.17),
         glades: treeGlades, grove: flora.grove, grid, sampleHeight,
-        minGap: TREE_MIN_GAP, out: raw,
+        gap: treeGap, gapRadius, weight: treeWeight, out: raw,
       });
     }
-    const treeTable = cumulative(flora.treeMix);
     for (const it of raw) {
       const sp = pick(treeTable, it.a);
       it.species = sp;
@@ -1104,14 +1444,52 @@ export function createVegetation(heightfield, opts = {}) {
     }
 
     // ---- ground cover ----
+    //
+    // Pass 1 seeds the patch centres (makeBlobs, each carrying its own tone and
+    // hue); pass 2 is the scatter, which now also asks the LANDFORM whether a
+    // plant belongs where it landed. Moisture is the spine of it: wet hollows
+    // fill, dry exposed convex ground goes sparse, and the boundary between
+    // the two is soft and metres wide, which is what a plant community looks
+    // like from a distance.
+    const coverWeight = (x, z, h, ny, gx, gz) => {
+      const m = moistureAt(x, z, seed ^ 0x4d15);
+      const cv = Math.max(-0.5, Math.min(0.85, curvAt(curv, x, z) * 300));
+      const exposure = Math.min(1, Math.hypot(gx, gz) * 1.15);
+      return (0.34 + 0.86 * m) * (1 + cv) * (1 - 0.45 * exposure);
+    };
     const cover = [];
     scatterField(rng, {
       cx, cz, R, count: Math.round(flora.cover * density), minH: PLANT_MIN_H,
-      slopeNy: MAX_SLOPE_NY, clearings: plantClear,
+      slopeNy: MAX_SLOPE_NY, slopeSoft: COVER_SLOPE_SOFT, clearings: plantClear,
       clusters: makeBlobs(rng, cx, cz, R, flora.clusters + 6, 0.12, 0.26),
       glades: makeBlobs(rng, cx, cz, R, flora.glades, 0.07, 0.14),
-      grove: flora.grove * 0.86, grid, sampleHeight, minGap: 0, out: cover,
+      grove: flora.grove * 0.86, grid, sampleHeight, weight: coverWeight, out: cover,
     });
+
+    // ---- scree and boulders ----
+    //
+    // The ground the plants just gave up. A cliff with nothing on it is one
+    // albedo across 80% of frame; a cliff with talus on it has scale, because
+    // a boulder is a thing whose size a five-year-old already knows. Placement
+    // is the inverse of the plant rule — steeper is BETTER — with a convexity
+    // bonus so stones gather at slope breaks and at the foot of a face, the
+    // way talus actually accumulates.
+    const rockWeight = (x, z, h, ny) => {
+      const steep = smoothstep(ROCK_MAX_NY, 0.62, ny);         // 0 flat -> 1 steep
+      const cv = Math.max(-0.6, Math.min(1.0, curvAt(curv, x, z) * 320));
+      return 0.18 + 0.72 * steep + 0.34 * Math.max(0, cv);
+    };
+    if (flora.rock) {
+      const rocks = [];
+      scatterField(rng, {
+        cx, cz, R: R * 1.04, count: Math.round(flora.rock * density), minH: PLANT_MIN_H,
+        slopeNy: ROCK_MIN_NY, slopeMaxNy: ROCK_MAX_NY, clearings: plantClear,
+        clusters: makeBlobs(rng, cx, cz, R, flora.clusters + 3, 0.08, 0.20),
+        glades: [], grove: 0.62, grid, sampleHeight, weight: rockWeight, out: rocks,
+      });
+      for (const it of rocks) { it.rockPass = true; cover.push(it); }
+      rocks.length = 0;
+    }
 
     const coverTable = cumulative(flora.mix);
     for (let i = 0; i < cover.length; i++) {
@@ -1122,27 +1500,49 @@ export function createVegetation(heightfield, opts = {}) {
       const shore = 1 - smoothstep(1.3, 8.5, it.y);
       const slope = Math.sqrt(it.gx * it.gx + it.gz * it.gz);
       const dry = Math.min(1, slope * 0.8);
-      let arch = pick(coverTable, it.b);
-      if (shore > 0.6 && (arch === 'fern' || arch === 'clover' || arch === 'bloom')) {
-        arch = it.c < 0.5 ? 'reed' : 'pebble';
-      } else if (dry > 0.7 && arch === 'fern') {
-        arch = 'tuft';
+      const moist = moistureAt(it.x, it.z, seed ^ 0x4d15);
+      let arch;
+      if (it.rockPass) {
+        // Three size tiers out of two geometries: chips dominate, boulders are
+        // the punctuation, and the instance scale band inside each archetype
+        // does the rest.
+        arch = it.b < 0.74 ? 'scree' : 'boulder';
+      } else {
+        arch = pick(coverTable, it.b);
+        if (shore > 0.6 && (arch === 'fern' || arch === 'clover' || arch === 'bloom' || arch === 'dock')) {
+          arch = it.c < 0.5 ? 'reed' : 'pebble';
+        } else if (dry > 0.7 && arch === 'fern') {
+          arch = 'tuft';
+        } else if (moist < 0.34 && (arch === 'fern' || arch === 'dock')) {
+          // Broad soft leaves do not grow on dry ground. Swapping the SPECIES
+          // on the moisture field (not just the tint) is what makes the field
+          // change character across the biome instead of merely changing hue.
+          arch = it.c < 0.42 ? 'tuft' : 'shrub';
+        }
       }
 
       let col;
-      if (arch === 'pebble') {
-        col = mixHex(PAPER.sand, PAPER.creamD, patchNoise(it.x * 0.06, it.z * 0.06, seed ^ 0x9a1));
+      if (ROCK_ARCH.has(arch)) {
+        const st = flora.stone || [PAPER.sand, PAPER.creamD];
+        col = mixHex(st[0], st[1], patchNoise(it.x * 0.06, it.z * 0.06, seed ^ 0x9a1));
       } else if (BLOOM_ARCH.has(arch)) {
         const hues = flora.petals;
         col = mixHex(hues[Math.floor(it.d * hues.length) % hues.length], PAPER.white, it.a * 0.22);
       } else {
-        col = mixHex(flora.tintA, flora.tintB, patchNoise(it.x * 0.042, it.z * 0.042, seed ^ 0x51));
+        // Moisture picks the green, the patch's own hue draw nudges it, and
+        // only then does the fine noise ride on top. Patch first: correlated
+        // variation is the thing the eye can actually see.
+        col = mixHex(flora.tintA, flora.tintB,
+          Math.min(1, Math.max(0, moist * 0.62 + it.hue * 0.26
+            + patchNoise(it.x * 0.042, it.z * 0.042, seed ^ 0x51) * 0.30 - 0.09)));
         if (shore > 0) col.lerp(SANDC, shore * 0.62);
         if (dry > 0) col.lerp(PALEC, dry * 0.24);
+        if (moist < 0.5) col.lerp(PALEC, (0.5 - moist) * 0.44);
       }
-      // Two scales of jitter: a fine per-instance one plus a 6 m noise, so the
-      // field mottles at arm's length as well as across the meadow.
-      col.multiplyScalar((0.86 + it.c * 0.28)
+      // Three scales of tonal variation now: the PATCH (correlated over tens of
+      // metres — the one that reads), a 6 m noise, and the per-instance jitter.
+      col.multiplyScalar((0.88 + it.tone * 0.22)
+        * (0.88 + it.c * 0.24)
         * (0.94 + patchNoise(it.x * 0.17, it.z * 0.17, seed ^ 0x2f) * 0.13));
       it.arch = arch;
       it.r = col.r; it.g = col.g; it.bl = col.b;
@@ -1177,13 +1577,9 @@ export function createVegetation(heightfield, opts = {}) {
     const geo = track(buildTreeGeo(spec));
     const im = new THREE.InstancedMesh(geo, treeMat, items.length);
     im.name = `trees-${name}`;
-    const nv = spec.variants.length;
     items.forEach((it, i) => {
-      const v = spec.variants[Math.floor(it.b * nv) % nv];
-      const hero = it.hero ? 1.55 : 1;
-      const s = v.s * (0.86 + it.c * 0.30) * hero;
-      const sx = s * v.wide * (0.94 + it.d * 0.13);
-      const sy = s * v.tall * (0.92 + it.a * 0.20);
+      // Same resolver the scatter's spacing rule used — see treeScale.
+      const { v, sx, sy } = treeScale(spec, it, it.hero);
       trees.push({ x: it.x, y: it.y, z: it.z, r: spec.trunk.rBot * sx });
       // Yaw, then a small lean about a random bearing: a forest of perfectly
       // vertical poles is the tell that nothing here grew.
@@ -1316,13 +1712,26 @@ export function createVegetation(heightfield, opts = {}) {
     const im = new THREE.InstancedMesh(coverGeos[arch], matFor[spec.mat], bucket.length);
     im.name = `cover-${arch}`;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    const isRock = ROCK_ARCH.has(arch);
     bucket.forEach((it, i) => {
       const sc = spec.s0 + it.d * spec.sv;
       _q4.setFromAxisAngle(AXIS_Y, it.a * TAU);
-      _v3.set(it.x, it.y - 0.02, it.z);
+      // A stone lies ON the slope; a plant grows UP out of it. Boulders and
+      // scree chips are laid into the surface normal (and bedded a little
+      // deeper, so they sit in the ground rather than on it) — a boulder
+      // standing bolt upright on a 40-degree face is the single most obvious
+      // way a rock scatter announces itself as a scatter.
+      let sink = 0.02;
+      if (isRock) {
+        _ax.set(-it.gx, 1, -it.gz).normalize();
+        _q5.setFromUnitVectors(AXIS_Y, _ax);
+        _q4.premultiply(_q5);
+        sink = 0.06 + sc * 0.10;
+      }
+      _v3.set(it.x, it.y - sink, it.z);
       // Foliage is drawn out or squashed vertically; a stone or a fallen petal
       // is not, because a non-uniform stone reads as a melted stone.
-      _s3.set(sc, spec.stretch ? sc * (0.84 + it.b * 0.52) : sc * (0.94 + it.b * 0.14), sc);
+      _s3.set(sc, spec.stretch ? sc * (0.82 + it.b * 0.40) : sc * (0.94 + it.b * 0.14), sc);
       _m4.compose(_v3, _q4, _s3);
       im.setMatrixAt(i, _m4);
       im.setColorAt(i, _col.setRGB(it.r, it.g, it.bl, THREE.LinearSRGBColorSpace));

@@ -54,10 +54,19 @@ test('vegetation: four or more tree species actually get planted', () => {
 });
 
 test('vegetation: draw calls stay inside the vegetation budget', () => {
-  // Worst case: every sector inside the cull radius, nothing frustum-culled.
-  // The whole scene's hard cap is 250 (see e2e/overworld-boot.spec.js) and
-  // terrain alone is 64 chunks, so vegetation may not spend more than ~90.
-  assert.ok(s.drawCalls <= 90, `vegetation worst-case draw calls ${s.drawCalls}`);
+  // `visibleCoverCalls` is a 360-DEGREE worst case: every ground-cover sector
+  // whose nearest corner is inside the cull radius, with nothing frustum
+  // culled. A real 60-degree frustum sees roughly a third of that.
+  //
+  // The ceiling is set against the scene's hard cap of 250 (see
+  // e2e/overworld-boot.spec.js), which is measured on renderer.info and so
+  // counts only what actually rasterises. Even adding up every module's own
+  // worst case — terrain 64 + props ~21 + hero 17 + sky/water ~10 = ~112 —
+  // vegetation can spend 105 and the total is still inside the cap with room
+  // over. Two of the art directors' notes cost calls directly and were worth
+  // paying for: the knee-high tier that gives the field an interior, and the
+  // scree/boulder tiers that give a bare cliff its scale.
+  assert.ok(s.drawCalls <= 105, `vegetation worst-case draw calls ${s.drawCalls}`);
   // Trees and petals are unsectored and therefore always resident.
   assert.ok(s.treeMeshes <= 12, `tree meshes ${s.treeMeshes}`);
   // Petal swarms are grouped by canopy height, not by tree.
@@ -79,15 +88,130 @@ test('vegetation: nothing grows in the sea or on a cliff', () => {
   let sampled = 0;
   for (const mesh of cover) {
     const a = mesh.instanceMatrix.array;
+    // Plants sit 0.02 m into the ground so blades meet the surface; stones are
+    // BEDDED deeper on purpose, so a boulder sits in the slope rather than
+    // balancing on it. Both are placed on ground above the waterline — the
+    // bedding depth is the only slack this assertion may allow.
+    const bed = /cover-(scree|boulder|pebble)/.test(mesh.name) ? 0.30 : 0.02;
     for (let i = 0; i < mesh.count; i += 37) {
       const x = a[i * 16 + 12], y = a[i * 16 + 13], z = a[i * 16 + 14];
-      // The instance sits 0.02 m into the ground so blades meet the surface.
-      assert.ok(y + 0.02 > PLANT_MIN_H - 1e-6, `${mesh.name} instance at y=${y}`);
+      assert.ok(y + bed > PLANT_MIN_H - 1e-6, `${mesh.name} instance at y=${y}`);
       assert.ok(Math.abs(x) <= WORLD.HALF && Math.abs(z) <= WORLD.HALF);
       sampled++;
     }
   }
   assert.ok(sampled > 500, `sampled ${sampled} ground-cover instances`);
+});
+
+test('vegetation: the field has three height tiers, not one', () => {
+  // A field where every plant reads at the same horizon has no interior: the
+  // eye crosses it in one sweep. Ground-hugging (clover/petal/scree), grass
+  // height (tuft/reed/fern), and a knee-high tier (dock/shrub/boulder) must
+  // all be genuinely present, and the tall tier must be a MINORITY — it is
+  // punctuation, not a second carpet.
+  const by = s.groundCoverByArchetype;
+  const low = (by.clover ?? 0) + (by.petal ?? 0) + (by.scree ?? 0) + (by.pebble ?? 0);
+  const mid = (by.tuft ?? 0) + (by.reed ?? 0) + (by.fern ?? 0) + (by.bloom ?? 0);
+  const tall = (by.dock ?? 0) + (by.shrub ?? 0) + (by.boulder ?? 0);
+  for (const [name, n] of [['low', low], ['mid', mid], ['tall', tall]]) {
+    assert.ok(n > s.groundCover * 0.05, `${name} tier is ${n} of ${s.groundCover}`);
+  }
+  assert.ok(tall < s.groundCover * 0.35, `tall tier ${tall} must stay punctuation`);
+});
+
+test('vegetation: rock lives on the steep ground the plants gave up', () => {
+  // Plants used to grow on 42-degree faces, which is why every cliff shot had
+  // tufts and micro-trees glued to vertical rock. Cover now stops at 30 and
+  // the freed face is backfilled with scree and boulders — so BOTH halves of
+  // that trade have to be true, or the cliffs are simply bare.
+  const by = s.groundCoverByArchetype;
+  assert.ok((by.scree ?? 0) > 2000, `scree ${by.scree}`);
+  assert.ok((by.boulder ?? 0) > 500, `boulders ${by.boulder}`);
+
+  // Sample the ACTUAL terrain slope under placed instances of each kind.
+  const N = 0.6;                       // metres, finite-difference step
+  const slopeAt = (x, z) => {
+    const gx = (hf.sampleHeight(x + N, z) - hf.sampleHeight(x - N, z)) / (2 * N);
+    const gz = (hf.sampleHeight(x, z + N) - hf.sampleHeight(x, z - N)) / (2 * N);
+    return Math.atan(Math.hypot(gx, gz)) * 180 / Math.PI;
+  };
+  const meshes = { plant: [], rock: [] };
+  veg.group.traverse((o) => {
+    if (!o.name.startsWith('cover-')) return;
+    const arch = o.name.slice(6);
+    if (arch === 'scree' || arch === 'boulder') meshes.rock.push(o);
+    else if (arch === 'tuft' || arch === 'dock' || arch === 'fern') meshes.plant.push(o);
+  });
+  assert.ok(meshes.plant.length && meshes.rock.length);
+
+  const angles = (list) => {
+    const out = [];
+    for (const m of list) {
+      const a = m.instanceMatrix.array;
+      for (let i = 0; i < m.count; i += 53) out.push(slopeAt(a[i * 16 + 12], a[i * 16 + 14]));
+    }
+    return out;
+  };
+  const plant = angles(meshes.plant);
+  const rock = angles(meshes.rock);
+  assert.ok(plant.length > 200 && rock.length > 40);
+
+  // The gate is on the SCATTER's own bilinear gradient, so a couple of stragglers
+  // can land a degree or two over once the exact height is sampled. What must
+  // hold is that the population respects the rule.
+  const over = plant.filter((d) => d > 34).length;
+  assert.ok(over / plant.length < 0.02, `${over}/${plant.length} plants on 34+ degree ground`);
+  const mean = (v) => v.reduce((a, b) => a + b, 0) / v.length;
+  assert.ok(mean(rock) > mean(plant) + 4,
+    `rock mean slope ${mean(rock).toFixed(1)} vs plant ${mean(plant).toFixed(1)}`);
+});
+
+test('vegetation: canopies do not grow through one another', () => {
+  // Trees were placed by passes that did not share an occupancy structure, so
+  // crowns from two scatters (and from two overlapping biome discs) cut
+  // straight through each other. One island-wide grid holding each trunk's own
+  // crown radius makes that structurally impossible — so no two trunks may sit
+  // closer than the smaller of their two crowns.
+  const t = veg.trees;
+  assert.ok(t.length > 300);
+  const CELL = 16;
+  const buckets = new Map();
+  t.forEach((tree, i) => {
+    const key = `${Math.floor(tree.x / CELL)},${Math.floor(tree.z / CELL)}`;
+    let b = buckets.get(key);
+    if (!b) { b = []; buckets.set(key, b); }
+    b.push(i);
+  });
+  let worst = Infinity;
+  for (const [key, ids] of buckets) {
+    const [ci, cj] = key.split(',').map(Number);
+    const near = [];
+    for (let dj = -1; dj <= 1; dj++) {
+      for (let di = -1; di <= 1; di++) {
+        const b = buckets.get(`${ci + di},${cj + dj}`);
+        if (b) near.push(...b);
+      }
+    }
+    for (const i of ids) {
+      for (const j of near) {
+        if (i === j) continue;
+        const d = Math.hypot(t[i].x - t[j].x, t[i].z - t[j].z);
+        if (d < worst) worst = d;
+      }
+    }
+  }
+  // The landmark tree keeps its own authored clearing, so the tightest legal
+  // pair is two saplings — still well clear of a shared trunk.
+  assert.ok(worst > 1.6, `closest pair of trunks is ${worst.toFixed(2)} m apart`);
+});
+
+test('vegetation: a treeline exists — stands thin out with altitude', () => {
+  // The cheapest scale cue in existence, and the world had none: trees sat at
+  // identical density on the summit, the 40-degree face and the flats.
+  const low = veg.trees.filter((t) => t.y < 14).length;
+  const high = veg.trees.filter((t) => t.y > 32).length;
+  assert.ok(low > 150, `only ${low} trees on the low ground`);
+  assert.ok(high < low * 0.06, `${high} trees above 32 m vs ${low} below 14 m`);
 });
 
 test('vegetation: colours are jittered, not uniform, within an archetype', () => {

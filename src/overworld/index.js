@@ -13,10 +13,11 @@
  * only code that needs to know about all of them, so it is the only code in
  * this file. Anything that could be pure logic belongs in a sibling.
  *
- * WHY the sun rides the player: the shadow map is 2048 over a ~70 unit ortho
- * box (≈7 cm/texel). That is console-class contact shadowing, and it is only
- * possible because the box never has to cover more than the player's
- * neighbourhood. A world-sized shadow frustum at this resolution would be mush.
+ * WHY the sun rides the player: the shadow map is 2048 over a <=58 unit ortho
+ * box (<=5.7 cm/texel, tightening to ~3 cm as the sun drops — see fitShadow).
+ * That is console-class contact shadowing, and it is only possible because the
+ * box never has to cover more than the player's neighbourhood. A world-sized
+ * shadow frustum at this resolution would be mush.
  *
  * WHY the follow camera samples the ground under ITSELF: a boom that only
  * offsets from the player buries the camera inside every hill the player walks
@@ -36,7 +37,7 @@
 import * as THREE from 'three';
 import { createRenderer } from './renderer.js';
 import { paperColor, PAPER } from './materials/toon.js';
-import { applyAerialFogToTree, setAerialFrame } from './materials/aerialFog.js';
+import { applyAerialFogToTree, setAerialFrame, setAerialTime } from './materials/aerialFog.js';
 import { preloadPaperTextures, textureStats, disposePaperTextures } from './materials/textures.js';
 import { WORLD, SPAWN } from './worldSpec.js';
 import { createHeightfield } from './heightfield.js';
@@ -113,7 +114,9 @@ const CAM = {
   driftFade: 1.6,
 };
 
-const SHADOW_ORTHO = 70;
+const SHADOW_ORTHO = 58;
+/** Elevation floor for the SHADOW camera only (~20°). See fitShadow(). */
+const SHADOW_MIN_Y = 0.34;
 const SUN_DIST = 150;
 // Ground-bounce fill: parked below the player and leaned toward the sun.
 const BOUNCE_DIST = 90;
@@ -167,8 +170,12 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   //
   // Three sources, and each one is doing a job the other two cannot:
   //   hemi    the sky as an area source — cool teal from above, biome ground
-  //           colour from below. This is the fill that stops toon shading from
-  //           collapsing into two flat tones.
+  //           colour from below. Nothing ramps it, so it alone decides how
+  //           deep a shadow is allowed to go, and it is deliberately run at
+  //           roughly a fifth of the key rather than half of it. It exists to
+  //           keep a shaded surface INSIDE the palette, not to make it
+  //           comfortable: a fill that lifts the shade side to half the lit
+  //           side is a fill that has erased every form in the frame.
   //   sun     the key. The only shadow caster; rides the player (see header).
   //   bounce  a low-intensity SECOND directional aimed UPWARD from beneath the
   //           player, tinted with the ground colour. A hemisphere light lifts
@@ -178,13 +185,20 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   //           difference between "flat cutout" and "layered paper with air
   //           under it", and it is the cheapest expensive-looking light in the
   //           rig — no shadow map, one extra ramp fetch.
-  const hemi = new THREE.HemisphereLight(paperColor(PAPER.sky), paperColor(PAPER.sage), 0.6);
+  //
+  // The three intensities below are start values only — applyLight() overwrites
+  // them from the composed frame every time the hour or the weather moves. They
+  // are kept in step with timeOfDay.js's daylight keys so a frame rendered
+  // before the first syncLight is not lit differently from one after it. The
+  // KEY:FILL ratio they encode is the one documented in timeOfDay.js: fill at
+  // roughly a fifth of the key, not half of it.
+  const hemi = new THREE.HemisphereLight(paperColor(PAPER.sky), paperColor(PAPER.sage), 0.32);
   scene.add(hemi);
-  const bounce = new THREE.DirectionalLight(paperColor(PAPER.sage), 0.25);
+  const bounce = new THREE.DirectionalLight(paperColor(PAPER.sage), 0.14);
   bounce.castShadow = false;
   scene.add(bounce);
   scene.add(bounce.target);
-  const sun = new THREE.DirectionalLight(paperColor(PAPER.cream), 1.1);
+  const sun = new THREE.DirectionalLight(paperColor(PAPER.cream), 1.42);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.left = -SHADOW_ORTHO;
@@ -194,9 +208,39 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = SUN_DIST * 2.2;
   sun.shadow.bias = -0.0006;
-  sun.shadow.normalBias = 0.05;
+  sun.shadow.normalBias = 0.05;   // rescaled per frame — see fitShadow()
   scene.add(sun);
   scene.add(sun.target);
+
+  // ── Decoupling the shadow direction from the light direction ───────────
+  //
+  // At dusk the key light sits at 13° elevation. Projected from there, a
+  // 6.8 cm shadow texel lands as a ~44 cm smear on the ground, and every cast
+  // shadow in the frame turns into a hard-edged polygonal slab that has
+  // visibly come adrift from whatever cast it. That was the single worst thing
+  // in the dusk frames, and it is a SAMPLING problem, not a lighting one: the
+  // art wants a low warm key AND crisp contact shadows, and those two wants
+  // are only in conflict if one direction has to serve both.
+  //
+  // So they don't. Shading keeps the true low sun. The shadow camera is built
+  // from a LIFTED copy of that direction (elevation floored at ~20°), which
+  // costs a little shadow-length honesty — nobody has ever noticed a dusk
+  // shadow being shorter than trigonometry demands — and buys texel density
+  // back across the entire low-sun half of the day.
+  //
+  // three drives the shadow camera from `light.matrixWorld` and
+  // `light.target.matrixWorld` and reads nothing else off the light, so the
+  // whole decoupling is: hand LightShadow.updateMatrices a stand-in whose two
+  // matrices carry the lifted geometry. Pinned to r170 by TECH LAW, and the
+  // seam it depends on is the documented signature of that method.
+  const _shadowProxy = {
+    matrixWorld: new THREE.Matrix4(),
+    target: { matrixWorld: new THREE.Matrix4() },
+  };
+  const _baseUpdateMatrices = sun.shadow.updateMatrices.bind(sun.shadow);
+  sun.shadow.updateMatrices = () => _baseUpdateMatrices(_shadowProxy);
+  /** Half-extent currently baked into the shadow ortho projection. */
+  let shadowOrtho = 0;
 
   // ── Visual subsystems ──────────────────────────────────────────────────
   const terrain = createTerrain(heightfield);
@@ -309,6 +353,53 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     setAerialFrame(frame);
   }
 
+  /**
+   * Aim and SIZE the shadow camera for this frame. See the decoupling note at
+   * the light rig. Allocation-free; the projection is only rebuilt when the
+   * box actually resizes, which is a handful of times across a whole day.
+   *
+   * Two things happen here that a fixed shadow rig cannot do:
+   *
+   * 1. The camera is placed along a LIFTED direction, so grazing light never
+   *    stretches a texel into a slab.
+   * 2. The box SHRINKS as the true sun drops. A low sun only lights the near
+   *    ground in a way a child can read anyway, so spending the same 2048 map
+   *    on half the footprint doubles the density exactly when it is needed.
+   *
+   * normalBias then follows the box rather than sitting at a constant: bias is
+   * a distance, the thing it has to out-run is a texel, and a texel is only a
+   * fixed number of metres if the box is. A constant is what leaves shadows
+   * either acne-flecked at one hour or peter-panned away from their casters at
+   * another — and detached shadows were exactly the complaint.
+   */
+  function fitShadow(dir) {
+    const up = dir[1];
+    const ly = up > SHADOW_MIN_Y ? up : SHADOW_MIN_Y;
+    const inv = 1 / (Math.hypot(dir[0], ly, dir[2]) || 1);
+    _shadowProxy.matrixWorld.setPosition(
+      player.pos.x + dir[0] * inv * SUN_DIST,
+      player.pos.y + ly * inv * SUN_DIST,
+      player.pos.z + dir[2] * inv * SUN_DIST,
+    );
+    _shadowProxy.target.matrixWorld.setPosition(player.pos.x, player.pos.y, player.pos.z);
+
+    // Quantised so a slow sunrise cannot rebuild the projection every frame.
+    const wantRaw = SHADOW_ORTHO * Math.min(1, Math.max(0.52, up / 0.62));
+    const want = Math.round(wantRaw * 4) / 4;
+    if (want !== shadowOrtho) {
+      shadowOrtho = want;
+      const cam = sun.shadow.camera;
+      cam.left = -want;
+      cam.right = want;
+      cam.top = want;
+      cam.bottom = -want;
+      cam.updateProjectionMatrix();
+      // 2 * half-extent / mapSize == world metres per shadow texel.
+      const perTexel = (want * 2) / sun.shadow.mapSize.x;
+      sun.shadow.normalBias = Math.min(0.14, Math.max(0.02, perTexel * 2.0));
+    }
+  }
+
   /** Recompose the render frame. `force` skips the day-hasn't-moved guard. */
   function syncLight(force) {
     const dayMoved = force || Math.abs(todT - frameT) >= TOD_EPS;
@@ -410,16 +501,27 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     _camLook.set(player.pos.x + leadX, player.pos.y + CAM.lookUp, player.pos.z + leadZ);
   }
 
-  /** Idle drift, applied as a REMOVABLE offset so it can never accumulate. */
-  function applyDrift(animT) {
+  /** Strip last frame's idle drift so the damping filter never sees it. */
+  function peelDrift() {
     camera.position.x -= driftX;
     camera.position.y -= driftY;
     camera.position.z -= driftZ;
+    driftX = 0; driftY = 0; driftZ = 0;
+  }
+
+  /**
+   * Idle drift, ADDED as a pure offset after the boom has been damped.
+   *
+   * WHY it is peeled off first (peelDrift) instead of being subtracted here:
+   * the drift is decoration, not tracking error. Leaving it on the position
+   * while the lerp runs makes the filter chase it — the lerp eats `k` of the
+   * offset every frame, so the authored 10 cm arrived as ~9 cm carrying a
+   * phase lag that grew with the damping constant. Peel, damp, then add: the
+   * number in CAM.driftAmp is now the amplitude that reaches the screen.
+   */
+  function addDrift(animT) {
     const w = Math.max(0, Math.min(1, (stillT - CAM.driftDelay) / CAM.driftFade));
-    if (w <= 0) {
-      driftX = 0; driftY = 0; driftZ = 0;
-      return;
-    }
+    if (w <= 0) return;
     driftX = Math.sin(animT * 0.37) * CAM.driftAmp * w;
     driftY = Math.sin(animT * 0.29 + 1.7) * CAM.driftAmp * 0.55 * w;
     driftZ = Math.cos(animT * 0.31 + 0.6) * CAM.driftAmp * w;
@@ -445,6 +547,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       camera.lookAt(poseCam.look);
       return;
     }
+    peelDrift();
     computeBoom();
     updateFov(camera.fov + (CAM.fov + CAM.fovRun * speedN - camera.fov) * CAM.fovLerp);
 
@@ -455,8 +558,10 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     if (dy > CAM.yDead) camera.position.y += (dy - CAM.yDead) * CAM.lerpY;
     else if (dy < -CAM.yDead) camera.position.y += (dy + CAM.yDead) * CAM.lerpY;
 
+    addDrift(animT);
+    // The floor check gets the LAST word, after the drift: a 10 cm decorative
+    // dip must never be what puts the eye inside a hillside.
     liftAboveGround(camera.position);
-    applyDrift(animT);
     camera.lookAt(_camLook);
   }
 
@@ -565,6 +670,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     );
     sun.target.position.set(player.pos.x, player.pos.y, player.pos.z);
     sun.target.updateMatrixWorld();
+    fitShadow(d);
 
     // Bounce comes from BELOW and slightly sunward: it is the key light coming
     // back off the ground, so it leans the way the ground was lit.
@@ -592,6 +698,10 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     if (fovDirty) { fovDirty = false; projDirty = true; }
     if (projDirty) camera.updateProjectionMatrix();
 
+    // Cloud shadows travel on the ANIMATION clock, so a frozen pose freezes
+    // them where the pose put them and two runs of the screenshot harness
+    // agree to the pixel.
+    setAerialTime(animT);
     sky.update(lightFrame, animT);
     water.update(lightFrame, animT);
     props.update(animT, player.pos, windT);

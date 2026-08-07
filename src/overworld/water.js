@@ -48,6 +48,27 @@
  * shading can never drift apart. The slope is the analytic derivative of the
  * same sum: no fwidth, no normal attribute, no derivative instructions at all.
  *
+ * ── Two invariants that fail SILENTLY ───────────────────────────────────────
+ * Both of these shipped broken and neither produced a warning, an error or a
+ * failing test. They are the reason water.test.js has the tests it has.
+ *
+ * 1. WINDING. Every surface here is a horizontal fan and every material is
+ *    FrontSide, so each face must wind so that (v1-v0) x (v2-v0) points at +Y.
+ *    Wound the other way the whole sheet is back-facing from any eye above the
+ *    waterline and simply is not drawn — and because terrainMesh paints the
+ *    submerged shelf teal underneath, the frame still looks like a plausible
+ *    hazy sea. The ocean, both pools, the foam, the glitter and the plies were
+ *    all invisible for exactly this reason. Going around a ring by increasing
+ *    theta is CLOCKWISE seen from above, which is what makes it easy to get
+ *    backwards. Jitter must also never invert a face: see buildOceanDisc.
+ *
+ * 2. THE HOUR. This is an unlit ShaderMaterial — it composes colour out of
+ *    papers and never sees the light rig — so nothing about the scene's
+ *    lighting reaches it on its own. update() must be told the hour explicitly
+ *    or the sea and the pools stay at noon brightness while the island goes to
+ *    dusk. Night is a sink toward PAPER.inkTeal plus a pull toward the night
+ *    sky, never a multiply.
+ *
  * ── Palette law ─────────────────────────────────────────────────────────────
  * Every colour resolves from PAPER: tealD -> teal -> tealL -> cream plies,
  * white foam, cream glitter, sand/tealD seabed. Nothing is darkened toward
@@ -115,10 +136,21 @@ const POND_SPOKES = 72;
 const POND_RINGS = [0, 0.34, 0.62, 0.82, 0.94, 1.0];
 const POND_RIM_WOBBLE = 0.17;
 const POND_SKIRT_DROP = 0.55;   // how far the bank skirt sinks below the ground
+const POND_SKIRT_FLARE = 0.32;  // how far out it flares past the waterline
+
+// Night response of the plies. See update(). SINK is the pull toward inkTeal
+// (the palette's stand-in for black); SKY is the EXTRA pull toward the night
+// sky on top of the daytime reflection, which both darkens the sheet and moves
+// it into the indigo the rest of the frame is sitting in — a pond that keeps
+// its noon hue while everything round it goes blue reads as a lit gem in the
+// grass however dark you make it.
+const NIGHT_SINK = 0.70;
+const NIGHT_SKY = 0.20;
 
 const _sunDir = new THREE.Vector3();
 const _c0 = new THREE.Color();
 const _c1 = new THREE.Color();
+const _ink = new THREE.Color(PAPER.inkTeal);
 
 function smoothstep(a, b, t) {
   const u = Math.min(1, Math.max(0, (t - a) / (b - a)));
@@ -445,11 +477,28 @@ const WATER_FRAG = /* glsl */`
   uniform float uRunupOut;
   uniform float uRunupIn;
   uniform float uRunupWidth;
+  // Per-surface weights of the four foam layers: (swash band, standing lip,
+  // run-up line, wet trail). These used to be literals tuned for the ocean,
+  // and a pool inherited all four — which is how a still garden pond ended up
+  // ringed by a saturated white band 0.45 m wide. That is a drawn OUTLINE, and
+  // the papercut law forbids a white one exactly as flatly as a black one. A
+  // pool now gets a faint lace and lets its bank paper carry the edge.
+  uniform vec4 uFoamMix;
 
+  uniform float uSwellGain;   // rescales wave height into the ply range
+  uniform float uSwellPlies;  // how many tonal steps the swell is cut into
+  uniform float uSwellCut;    // 0 = smooth shading, 1 = hard steps
+  uniform float uSwellTone;   // how far each step leans to its neighbour ply
+
+  uniform vec2 uFoamCut;      // contrast window that turns foam into a SHAPE
   uniform float uCrest;
   uniform vec2 uCrestSlope;
   uniform float uGlitter;
   uniform float uGlitterScale;
+  uniform vec2 uGlitterBand;  // window on the sun lobe: where sparkle is ON
+  uniform float uGlitterRare; // 0..1, how much of the lattice blinks at once
+  uniform float uSheen;       // strength of the broad sun path under the glitter
+  uniform float uSheenPow;    // how tight that path is
   uniform float uFresnel;
   uniform float uRefract;
   uniform float uRefractWobble;
@@ -518,6 +567,32 @@ const WATER_FRAG = /* glsl */`
     float shal = smoothstep(uPly.x, 0.0, sd);
     col = mix(col, bed, shal * shal * uRefract);
 
+    // ── Swell plies ──────────────────────────────────────────────────────
+    // The depth plies above are cut around the ISLAND; out past the shelf
+    // there is no shoreline left to read and the sea goes to a single flat
+    // sheet with sparkle on it. So the wave surface gets cut too: quantising
+    // the wave height into a few steps lays tonal bands ALONG the crest
+    // lines, which is the same move the terrain makes with its strata and the
+    // only thing that gives open water form at distance.
+    //
+    // The step is blended back toward the smooth height by uSwellCut rather
+    // than used raw — full quantisation crawls as the wave moves through it.
+    // And the two tones are the neighbouring PLY PAPERS, never a brightness
+    // multiply: a multiply would walk the deep water toward black, and the
+    // palette law says shadows are teal.
+    // uWaveTotal is the wave sum's THEORETICAL peak — five sines all cresting
+    // at once, which essentially never happens. Normalising by it alone left
+    // hN inside about +-0.4, so only the middle two plies were ever reached
+    // and the banding all but vanished. uSwellGain rescales to the range the
+    // sum actually occupies; the clamp handles the rare full crest.
+    float hN = h / max(uWaveTotal, 1e-4);
+    float sw = clamp(hN * uSwellGain + 0.5, 0.0, 1.0);
+    float swQ = (floor(sw * uSwellPlies) + 0.5) / uSwellPlies;
+    float lit = mix(sw, swQ, uSwellCut);
+    float openSea = 1.0 - smoothstep(-12.0, -2.0, sd);
+    col = mix(col, mix(mix(col, uDeep, uSwellTone), mix(col, uShallow, uSwellTone), lit),
+      openSea);
+
     // ── Foam ─────────────────────────────────────────────────────────────
     float wobble = mwNoise(P * 0.055 + uTime * 0.02) - 0.5;
 
@@ -528,6 +603,11 @@ const WATER_FRAG = /* glsl */`
     float band = 1.0 - smoothstep(0.0, uFoamWidth, abs(sdT - swash));
 
     // 2. Standing lip: the thin permanent crest exactly on the waterline.
+    //    Weighted per surface. On the ocean it is the bright seam a beach
+    //    always has; on a still pool, cut sharp by uFoamCut, the same seam
+    //    became a hard white line all the way round the deckle — a drawn
+    //    OUTLINE, which the papercut law forbids as flatly as a black one.
+    //    A pool gets a fifth of it and lets the bank paper carry the edge.
     float lipLine = 1.0 - smoothstep(0.0, uRunupWidth * 1.4, abs(sdT + 0.10));
 
     // 3. Run-up line: the second, inner foam edge. It rushes up the sand and
@@ -539,7 +619,8 @@ const WATER_FRAG = /* glsl */`
     float trail = (1.0 - smoothstep(0.0, 2.4, ru - sdT))
       * (1.0 - smoothstep(0.0, 0.25, sdT - ru));
 
-    float foam = band * 0.62 + lipLine * 0.80 + runLine * 0.95 + trail * 0.30 * shaped;
+    float foam = band * uFoamMix.x + lipLine * uFoamMix.y
+      + runLine * uFoamMix.z + trail * uFoamMix.w * shaped;
     // Foam belongs to water. It may climb a little way past the waterline —
     // that is precisely what the lifted sheet is for — then it is gone.
     foam *= 1.0 - smoothstep(0.55, 1.35, sd);
@@ -547,14 +628,33 @@ const WATER_FRAG = /* glsl */`
     foam *= 0.42 + 0.58 * mwNoise(P * 1.55 + uTime * 0.11);
     foam = clamp(foam, 0.0, 1.0);
 
+    // ── Cut the foam ─────────────────────────────────────────────────────
+    // Everything above is a sum of SOFT ramps, and a sum of soft ramps is an
+    // airbrush — the exact look the papercut law forbids. One contrast window
+    // turns the field into a shape with a definite edge, and because the lace
+    // noise was multiplied in FIRST, that edge is torn rather than machined:
+    // the noise decides where the threshold is crossed, so the deckle comes
+    // out of the same field instead of being drawn on afterwards.
+    // The window is never zero-width — a hard step() would alias into
+    // crawling stair-steps on the 1.3 m mesh.
+    foam = smoothstep(uFoamCut.x, uFoamCut.y, foam);
+
     // 4. Crest foam: where the analytic slope is steep AND the surface is near
     //    the top of its travel, i.e. exactly on the face of a breaking wave.
     //    Computed from the wave functions themselves — no fwidth, no depth.
     float slope = length(grad);
-    float hN = h / max(uWaveTotal, 1e-4);
+    // A whitecap rides the TOP of the wave. Gating at 0.05 of normalised
+    // height let the mask run all the way down the flanks, so each cap came
+    // out a 15 m soft blob — spilled milk floating on the sea rather than a
+    // wave breaking. 0.30 confines it to the crest line itself.
     float crest = smoothstep(uCrestSlope.x, uCrestSlope.y, slope)
-      * smoothstep(0.05, 0.55, hN);
-    crest = smoothstep(0.22, 0.58, crest * (0.55 + 0.60 * mwNoise(P * 0.5 + uTime * 0.16)));
+      * smoothstep(0.30, 0.72, hN);
+    // Then the same two-stage cut the swash gets: lace at two scales so the
+    // cap has both a shape and a torn edge, THEN threshold. Fading a soft mask
+    // out is an airbrush; thresholding a laced one is a tear.
+    crest *= 0.40 + 0.60 * mwNoise(P * 0.85 + uTime * 0.16);
+    crest *= 0.55 + 0.45 * mwNoise(P * 3.10 - uTime * 0.22);
+    crest = smoothstep(0.20, 0.40, crest);
     crest *= 1.0 - smoothstep(-6.0, -1.0, sd);   // inshore, the swash owns it
     foam = clamp(foam + crest * uCrest, 0.0, 1.0);
 
@@ -571,17 +671,50 @@ const WATER_FRAG = /* glsl */`
     // each with its own size and its own on/off blink, multiplied by the
     // half-vector lobe — which is what confines them to a band running from
     // the sun toward the eye.
-    vec3 H = normalize(normalize(uSunDir) + V);
-    float lobe = pow(max(dot(N, H), 0.0), 26.0);
+    vec3 SD = normalize(uSunDir);
+
+    // ── The glitter PATH ─────────────────────────────────────────────────
+    // The diamond lattice below is the right TEXTURE for water within about
+    // 40 m and is worth nothing beyond it: past that the cells fall under a
+    // pixel, the blink averages out, and what is left is a uniform dusting of
+    // white noise over the whole sea — which is exactly how the open water
+    // ended up reading as static wallpaper and the town's ocean as a dead
+    // grey band.
+    //
+    // What is missing at that range is the LOW-FREQUENCY carrier: the bright
+    // road that runs from the sun to the eye across any real body of water.
+    // It is a mirror reflection lobe, so it is anchored to the sun's azimuth
+    // by construction and it survives any amount of minification. The wave
+    // slope already carried in N is what gives the road its wandering,
+    // torn-paper edge instead of a clean airbrushed cone.
+    //
+    // It resolves toward FOAM white rather than pure sun colour so the path
+    // stays inside the same papers the surf is cut from.
+    float road = pow(max(dot(reflect(-V, N), SD), 0.0), uSheenPow);
+    col = mix(col, mix(uSunColor, uFoam, 0.35),
+      clamp(road * uSheen * uSunUp, 0.0, 1.0) * (1.0 - foam));
+
+    vec3 H = normalize(SD + V);
+    // The lobe is WINDOWED, not used raw. On near-flat water a raw pow() lobe
+    // barely falls off across the whole visible sea, so every cell in the
+    // lattice lights up and the sparkle reads as confetti lying on the
+    // surface. Thresholding leaves a band that starts and stops; the wave
+    // slope carried in N is what makes its edge wander instead of being a
+    // clean arc.
+    float lobe = smoothstep(uGlitterBand.x, uGlitterBand.y,
+      pow(max(dot(N, H), 0.0), 30.0));
     vec2 gp = P * uGlitterScale + vec2(uTime * 0.25, uTime * -0.16);
     vec2 cid = floor(gp);
     vec2 gf = fract(gp) - 0.5;
     float r1 = mwHash21(cid);
     float r2 = mwHash21(cid + vec2(17.3, 5.1));
-    float sz = 0.09 + 0.20 * r1;
+    float sz = 0.10 + 0.15 * r1;
     float dia = abs(gf.x) + abs(gf.y);
     float spark = 1.0 - smoothstep(sz * 0.7, sz, dia);
-    float blink = step(0.52, fract(r2 + uTime * (0.55 + 0.9 * r1)));
+    // Only a minority of the lattice is lit at any instant. A sparkle that is
+    // on half the time is a texture; one that is on a fifth of the time is a
+    // sparkle.
+    float blink = step(1.0 - uGlitterRare, fract(r2 + uTime * (0.55 + 0.9 * r1)));
     col += uSunColor * spark * blink * lobe * uGlitter * uSunUp * (1.0 - foam);
 
     // ── Paper ────────────────────────────────────────────────────────────
@@ -634,32 +767,76 @@ function buildOceanDisc() {
 
   pos[0] = 0; pos[1] = 0; pos[2] = 0;
 
+  // ── Jitter, and why it is shaped exactly like this ────────────────────
+  // The jitter exists to break the polar lattice, because a regular grid
+  // sampling world-space noise (the foam tear, the glitter cells) beats
+  // against it and lays visible spokes across the sea.
+  //
+  // It must break the lattice WITHOUT EVER INVERTING A TRIANGLE. A FrontSide
+  // inverted triangle is not a shading artefact, it is a hole in the ocean,
+  // and at 28 k triangles it is not something a screenshot review will catch.
+  // So the jitter is constrained on both axes:
+  //
+  //   ANGLE   is hashed on the SPOKE ALONE, so every vertex of a spoke shares
+  //           one offset and the spoke stays a straight ray. Hashing per
+  //           (ring, spoke) instead lets the two ends of a quad's outer edge
+  //           rotate apart, which collapses the thin half of the quad into a
+  //           sliver — and one of those did tip over. With |jt| < dTheta/2
+  //           the spokes also keep their order, so no two can ever swap.
+  //   RADIUS  is hashed per (ring, spoke) — this is what actually destroys the
+  //           lattice — but budgeted at 30% of the SMALLER neighbouring gap,
+  //           never the average of the two. Spacing is graded and jumps 2.4x
+  //           at the near/mid seam (1.30 m -> 5.00 m); budgeting off the
+  //           average there let a vertex on the wide side step 0.95 m inward
+  //           past its neighbour on the narrow side. At 30% of the smaller
+  //           gap, two adjacent rings can close to 40% of their spacing and
+  //           can never cross.
+  //
+  // Rings therefore stay strictly ordered in r and spokes strictly ordered in
+  // theta, which makes every quad a proper polar wedge — provably positive
+  // area, both halves, everywhere. `water.test.js` asserts it.
   const dTheta = (Math.PI * 2) / S;
+  const ANG_AMP = 0.3;    // fraction of dTheta; < 0.5 keeps spokes in order
+  const RAD_AMP = 0.3;    // fraction of the smaller neighbouring ring gap
+  const theta = new Float64Array(S);
+  for (let s = 0; s < S; s++) {
+    theta[s] = s * dTheta + (hash2(s, 0, 0x2f13) - 0.5) * 2 * ANG_AMP * dTheta;
+  }
   for (let r = 1; r <= R; r++) {
     const rad = radii[r];
-    // Local spacing sets the jitter budget; the outermost ring stays exact so
-    // the horizon rim is a clean circle.
-    const spanR = (radii[Math.min(R, r + 1)] - radii[r - 1]) * 0.5;
-    const amp = r === R ? 0 : 0.3;
+    // The outermost ring stays exact so the horizon rim is a clean circle.
+    const gapIn = radii[r] - radii[r - 1];
+    const gapOut = radii[Math.min(R, r + 1)] - radii[r];
+    const spanR = Math.min(gapIn, gapOut > 0 ? gapOut : gapIn);
+    const amp = r === R ? 0 : RAD_AMP;
     for (let s = 0; s < S; s++) {
       const v = 1 + (r - 1) * S + s;
-      const jr = (hash2(r, s, 0x51ed) - 0.5) * 2 * amp * spanR;
-      const jt = (hash2(r, s, 0x2f13) - 0.5) * 2 * amp * dTheta;
-      const th = s * dTheta + jt;
-      const rr = rad + jr;
-      pos[v * 3] = Math.cos(th) * rr;
+      const rr = rad + (hash2(r, s, 0x51ed) - 0.5) * 2 * amp * spanR;
+      pos[v * 3] = Math.cos(theta[s]) * rr;
       pos[v * 3 + 1] = 0;
-      pos[v * 3 + 2] = Math.sin(th) * rr;
+      pos[v * 3 + 2] = Math.sin(theta[s]) * rr;
     }
   }
 
+  // ── Winding law ──────────────────────────────────────────────────────
+  // Every water surface in this file is a horizontal fan wound so that
+  // (v1-v0) x (v2-v0) points at +Y. The materials are FrontSide, so a fan
+  // wound the other way is silently BACK-FACING from any eye above the
+  // waterline and the whole sheet vanishes — no warning, no error, and the
+  // submerged terrain underneath still paints a plausible teal, which is
+  // exactly how it hides. `buildOceanDisc/buildPondSurface/buildPondBank
+  // wind their faces up` in water.test.js is the guard; keep it green.
+  //
+  // Going around a ring by increasing theta gives (cos t, 0, sin t), which
+  // is CLOCKWISE seen from above (+Y looking down), so the OUTER vertex of
+  // the NEXT spoke has to come second: (inner_s, outer_s1, outer_s).
   const triCount = S + (R - 1) * S * 2;
   const idx = new Uint32Array(triCount * 3);
   let t = 0;
   for (let s = 0; s < S; s++) {
     const a = 1 + s;
     const b = 1 + ((s + 1) % S);
-    idx[t++] = 0; idx[t++] = a; idx[t++] = b;
+    idx[t++] = 0; idx[t++] = b; idx[t++] = a;
   }
   for (let r = 1; r < R; r++) {
     const base0 = 1 + (r - 1) * S;
@@ -667,8 +844,8 @@ function buildOceanDisc() {
     for (let s = 0; s < S; s++) {
       const s1 = (s + 1) % S;
       const a = base0 + s, b = base0 + s1, c = base1 + s, d = base1 + s1;
-      idx[t++] = a; idx[t++] = c; idx[t++] = d;
-      idx[t++] = a; idx[t++] = d; idx[t++] = b;
+      idx[t++] = a; idx[t++] = d; idx[t++] = c;
+      idx[t++] = a; idx[t++] = b; idx[t++] = d;
     }
   }
 
@@ -766,18 +943,19 @@ function buildPondSurface(pond) {
     }
   }
 
+  // Wound +Y, exactly as the ocean disc is — see the winding law there.
   const triCount = S + (nR - 2) * S * 2;
   const idx = new Uint16Array(triCount * 3);
   let t = 0;
   for (let s = 0; s < S; s++) {
-    idx[t++] = 0; idx[t++] = 1 + s; idx[t++] = 1 + ((s + 1) % S);
+    idx[t++] = 0; idx[t++] = 1 + ((s + 1) % S); idx[t++] = 1 + s;
   }
   for (let r = 1; r < nR - 1; r++) {
     const b0 = 1 + (r - 1) * S, b1 = 1 + r * S;
     for (let s = 0; s < S; s++) {
       const s1 = (s + 1) % S;
-      idx[t++] = b0 + s; idx[t++] = b1 + s; idx[t++] = b1 + s1;
-      idx[t++] = b0 + s; idx[t++] = b1 + s1; idx[t++] = b0 + s1;
+      idx[t++] = b0 + s; idx[t++] = b1 + s1; idx[t++] = b1 + s;
+      idx[t++] = b0 + s; idx[t++] = b0 + s1; idx[t++] = b1 + s1;
     }
   }
 
@@ -801,7 +979,10 @@ function buildPondBank(heightfield, pond) {
   const S = POND_SPOKES;
   const pos = new Float32Array(S * 2 * 3);
   const col = new Float32Array(S * 2 * 3);
-  const TOP = linearRGB(PAPER.creamD);
+  // Damp earth, not dry paper. creamD read as a pale apron laid on the grass —
+  // the bank is the ground the pool has soaked, so it starts at sand and goes
+  // to the teal shadow, never up into the cream family.
+  const TOP = linearRGB(PAPER.sand);
   const BOT = linearRGB(PAPER.tealD);
   const MID = [
     TOP[0] + (BOT[0] - TOP[0]) * 0.45,
@@ -825,22 +1006,29 @@ function buildPondBank(heightfield, pond) {
 
     // Bottom ring: flared outward and sunk below the real ground, so the seam
     // between paper and terrain is buried whichever way the ground falls.
-    const ox = pond.x + cx * (rk + 0.5), oz = pond.z + cz * (rk + 0.5);
+    // The flare is kept tight — a wide skirt reads from above as a pale apron
+    // ringing the pool rather than as its bank.
+    const rb = rk + POND_SKIRT_FLARE;
+    const ox = pond.x + cx * rb, oz = pond.z + cz * rb;
     const ground = heightfield.sampleHeight(ox, oz);
     const b = (S + s) * 3;
-    pos[b] = cx * (rk + 0.5);
+    pos[b] = cx * rb;
     pos[b + 1] = Math.min(ground, pond.level) - pond.level - POND_SKIRT_DROP;
-    pos[b + 2] = cz * (rk + 0.5);
+    pos[b + 2] = cz * rb;
     col[b] = BOT[0]; col[b + 1] = BOT[1]; col[b + 2] = BOT[2];
   }
 
+  // The skirt is DoubleSide so it draws either way, but computeVertexNormals
+  // below reads the winding — wound the other way the bank is lit from inside
+  // the pool, i.e. its lip goes dark in full sun. Wind it so the normals point
+  // radially OUTWARD, away from the water.
   const idx = new Uint16Array(S * 6);
   let t = 0;
   for (let s = 0; s < S; s++) {
     const s1 = (s + 1) % S;
     const a = s, b = s1, c = S + s, d = S + s1;
-    idx[t++] = a; idx[t++] = c; idx[t++] = d;
-    idx[t++] = a; idx[t++] = d; idx[t++] = b;
+    idx[t++] = a; idx[t++] = d; idx[t++] = c;
+    idx[t++] = a; idx[t++] = b; idx[t++] = d;
   }
 
   const geo = new THREE.BufferGeometry();
@@ -856,8 +1044,25 @@ function buildPondBank(heightfield, pond) {
 // Material
 // ────────────────────────────────────────────────────────────────────────
 
+/**
+ * Ply papers, per surface family.
+ *
+ * The ocean grades tealD -> teal -> tealL -> cream, because its last ply is
+ * the sunlit sand shelf you can see through. A POOL has no shelf: its last ply
+ * used to inherit the ocean's cream and the result was a fat porcelain rim
+ * around a teal middle — a bathtub dropped on the meadow. A pool stays inside
+ * the teal family the whole way out and lets the bank paper do the edge.
+ */
+const OCEAN_PLIES = {
+  deep: PAPER.tealD, mid: PAPER.teal, shallow: PAPER.tealL, edge: PAPER.cream,
+};
+const POND_PLIES = {
+  deep: PAPER.tealD, mid: PAPER.tealD, shallow: PAPER.teal, edge: PAPER.tealL,
+};
+
 /** Ocean tuning. Distances are METRES OF SHORE DISTANCE, negative seaward. */
 const OCEAN = {
+  palette: OCEAN_PLIES,
   waveAmp: 0.26,
   detailAmp: 1.35,
   taperIn: -1.2,       // swell is fully damped by here
@@ -876,11 +1081,31 @@ const OCEAN = {
   runupIn: 0.62,
   runupWidth: 0.30,
   runupLift: 0.24,
-  crest: 0.85,
-  crestSlope: [0.13, 0.30],
+  foamMix: [0.62, 0.80, 0.95, 0.30],
+  foamCut: [0.20, 0.46],
+  swellGain: 1.15,
+  swellPlies: 4,
+  swellCut: 0.72,
+  swellTone: 0.38,
+  // Crest foam keys on the ANALYTIC slope of the five-wave sum, whose peak
+  // magnitude is ~0.23 (the 12-27 m ripples dominate it, not the swell). The
+  // window used to open at 0.13 and saturate at 0.30 — i.e. above the top of
+  // the range — so the open sea got essentially no crest at all and read as a
+  // flat teal sheet. Opening at a third of peak slope puts a crest on the face
+  // of every wave that is actually steep.
+  crest: 0.90,
+  crestSlope: [0.075, 0.175],
   glitter: 1.15,
-  glitterScale: 0.42,
-  fresnel: 0.40,
+  // 0.42 made 2.4 m cells: at 30 m those are 20-pixel paper chads lying on the
+  // water. 1.5 gives 0.67 m cells — a sparkle the size of a real glint.
+  glitterScale: 1.5,
+  glitterBand: [0.09, 0.40],
+  glitterRare: 0.18,
+  // The road to the sun. Broad, because the ocean is seen at 30-200 m and a
+  // tight lobe would be a dot on the horizon rather than a path across it.
+  sheen: 0.44,
+  sheenPow: 15.0,
+  fresnel: 0.24,
   refract: 0.42,
   refractWobble: 2.6,
   opacityDeep: 0.96,
@@ -889,37 +1114,69 @@ const OCEAN = {
   fiberAmt: 0.13,
 };
 
-/** Pool tuning: everything smaller, calmer and keyed to the pool's own radius. */
+/**
+ * Pool tuning: everything smaller, calmer and keyed to the pool's own radius.
+ *
+ * A pond is not a small ocean, and tuning it as one is what made the first
+ * version read as a bathtub: a fat white rim, a hard bright ring inside it and
+ * a dark amoeba floating in the middle. Three things are different in kind.
+ *
+ *   PLIES sit far further out. `sd` here is distance IN from the rim, so the
+ *         deep ply at -0.72R left the dark paper stranded in the middle 28% of
+ *         the pool, where the rim's own wobble is the only thing shaping it —
+ *         hence the amoeba. At -0.42R the deep paper owns the middle and the
+ *         wobble reads as a bank, which is what it is.
+ *   FOAM  is a lace at the rim and nothing else. There is no swell to break
+ *         and no beach to run up, so the swash band and the run-up line are
+ *         pulled almost on top of the standing lip; what is left is the thin
+ *         bright seam where water meets bank.
+ *   GLITTER is coarser, not finer. The sparkle should read at the 3-8 m the
+ *         player actually stands from a pond, not at the 30-80 m the ocean is
+ *         seen across.
+ */
 function pondTuning(radius) {
   const R = radius;
   return {
+    palette: POND_PLIES,
     waveAmp: 0.018,
     detailAmp: 0.10,
     taperIn: -0.25,
     taperOut: -R * 0.55,
-    ply: [-R * 0.72, -R * 0.38, -R * 0.13],
-    plyBlend: R * 0.055,
-    plyTear: R * 0.045,
-    lip: 0.20,
-    lipWidth: R * 0.035,
-    foamCenter: -R * 0.10,
-    foamWidth: R * 0.055,
-    foamSwing: R * 0.030,
-    foamSpeed: 0.42,
-    runupSpeed: 0.13,
-    runupOut: -R * 0.12,
-    runupIn: -R * 0.012,
-    runupWidth: R * 0.022,
-    runupLift: 0.012,
-    crest: 0.35,
+    ply: [-R * 0.42, -R * 0.20, -R * 0.055],
+    plyBlend: R * 0.075,
+    plyTear: R * 0.05,
+    lip: 0.14,
+    lipWidth: R * 0.022,
+    foamCenter: -R * 0.045,
+    foamWidth: R * 0.030,
+    foamSwing: R * 0.012,
+    foamSpeed: 0.30,
+    runupSpeed: 0.09,
+    runupOut: -R * 0.055,
+    runupIn: -R * 0.008,
+    runupWidth: R * 0.014,
+    runupLift: 0.010,
+    foamMix: [0.16, 0.20, 0.22, 0.08],
+    foamCut: [0.30, 0.62],
+    swellGain: 1.0,
+    swellPlies: 3,
+    swellCut: 0.60,
+    swellTone: 0.10,
+    crest: 0.22,
     crestSlope: [0.04, 0.12],
-    glitter: 0.75,
-    glitterScale: 0.95,
-    fresnel: 0.52,
+    glitter: 0.85,
+    glitterScale: 0.55,
+    glitterBand: [0.04, 0.30],
+    glitterRare: 0.16,
+    // A pond is seen from 3-8 m, so its path is a tight highlight near the
+    // far bank, not a road: much higher power, much lower strength.
+    sheen: 0.22,
+    sheenPow: 46.0,
+    fresnel: 0.46,
     refract: 0.55,
     refractWobble: 0.35,
-    opacityDeep: 0.80,
-    opacityShallow: 0.40,
+    opacityDeep: 0.86,
+    opacityShallow: 0.52,
     fiberScale: 1 / 1.6,
     fiberAmt: 0.16,
   };
@@ -946,10 +1203,10 @@ function waterMaterial(tuning, shoreTex, fiberTex, bedDeep, bedShallow) {
       uTaperIn: { value: t.taperIn },
       uTaperOut: { value: t.taperOut },
 
-      uDeep: { value: new THREE.Color(PAPER.tealD) },
-      uMid: { value: new THREE.Color(PAPER.teal) },
-      uShallow: { value: new THREE.Color(PAPER.tealL) },
-      uEdge: { value: new THREE.Color(PAPER.cream) },
+      uDeep: { value: new THREE.Color(t.palette.deep) },
+      uMid: { value: new THREE.Color(t.palette.mid) },
+      uShallow: { value: new THREE.Color(t.palette.shallow) },
+      uEdge: { value: new THREE.Color(t.palette.edge) },
       uFoam: { value: new THREE.Color(PAPER.white) },
       uSky: { value: new THREE.Color(PAPER.sky) },
       uSunColor: { value: new THREE.Color(PAPER.cream) },
@@ -971,11 +1228,22 @@ function waterMaterial(tuning, shoreTex, fiberTex, bedDeep, bedShallow) {
       uRunupIn: { value: t.runupIn },
       uRunupWidth: { value: t.runupWidth },
       uRunupLift: { value: t.runupLift },
+      uFoamMix: { value: new THREE.Vector4(
+        t.foamMix[0], t.foamMix[1], t.foamMix[2], t.foamMix[3]) },
 
+      uSwellGain: { value: t.swellGain },
+      uSwellPlies: { value: t.swellPlies },
+      uSwellCut: { value: t.swellCut },
+      uSwellTone: { value: t.swellTone },
+      uFoamCut: { value: new THREE.Vector2(t.foamCut[0], t.foamCut[1]) },
       uCrest: { value: t.crest },
       uCrestSlope: { value: new THREE.Vector2(t.crestSlope[0], t.crestSlope[1]) },
       uGlitter: { value: t.glitter },
       uGlitterScale: { value: t.glitterScale },
+      uGlitterBand: { value: new THREE.Vector2(t.glitterBand[0], t.glitterBand[1]) },
+      uGlitterRare: { value: t.glitterRare },
+      uSheen: { value: t.sheen },
+      uSheenPow: { value: t.sheenPow },
       uFresnel: { value: t.fresnel },
       uRefract: { value: t.refract },
       uRefractWobble: { value: t.refractWobble },
@@ -1062,6 +1330,11 @@ export function createWater(heightfield, opts = {}) {
   const geometries = [disc.geo];
   const materials = [oceanMat];
   const uniformSets = [oceanMat.uniforms];
+  // Parallel to uniformSets: the PAPERS each surface's plies are cut from.
+  // update() re-tints the plies toward the hour every frame, and it has to
+  // start from the surface's own stock — re-tinting a pool from the ocean's
+  // papers is what put a cream rim on it.
+  const paletteSets = [OCEAN_PLIES];
   const ponds = [];
   let triangleCount = disc.triangleCount;
 
@@ -1071,7 +1344,7 @@ export function createWater(heightfield, opts = {}) {
     for (const fit of resolvePonds(heightfield)) {
       const surf = buildPondSurface(fit);
       const tune = pondTuning(fit.radius);
-      const mat = waterMaterial(tune, null, fiber, PAPER.sageD, PAPER.sand);
+      const mat = waterMaterial(tune, null, fiber, PAPER.tealD, PAPER.sageD);
       const mesh = new THREE.Mesh(surf.geo, mat);
       mesh.name = `pond-${fit.id}`;
       mesh.position.set(fit.x, fit.level, fit.z);
@@ -1108,6 +1381,7 @@ export function createWater(heightfield, opts = {}) {
       geometries.push(surf.geo, bank.geo);
       materials.push(mat);
       uniformSets.push(mat.uniforms);
+      paletteSets.push(tune.palette);
       triangleCount += surf.triangleCount + bank.triangleCount;
       ponds.push({
         id: fit.id, biome: fit.biome, x: fit.x, z: fit.z,
@@ -1157,17 +1431,36 @@ export function createWater(heightfield, opts = {}) {
       _c1.setHex(frame.fogColor);
       const up = Math.max(0, Math.min(1,
         (frame.sunIntensity ?? 1) * (1 - (frame.night ?? 0) * 0.8)));
+      // ── The hour ──────────────────────────────────────────────────────
+      // This shader is UNLIT: it composes its colour out of papers instead of
+      // asking the light rig, so nothing about the scene's lighting reaches it
+      // automatically. It has to be told the hour, or the sea and the pools sit
+      // at noon brightness while the whole island goes to dusk — which is
+      // exactly what the first night frame showed: a lit swimming pool on a
+      // dark meadow. (Nobody could see this before the winding fix, because
+      // the water never drew at all.)
+      //
+      // Night is a SINK TOWARD inkTeal — the palette's declared stand-in for
+      // black — and never a multiply. Multiplying walks the plies through grey
+      // on their way to black, and grey is the one direction the papercut law
+      // forbids outright.
+      const night = Math.max(0, Math.min(1, frame.night ?? 0));
+      const sink = night * NIGHT_SINK;
+      const skyPull = night * NIGHT_SKY;
       for (let i = 0; i < nSets; i++) {
         const u = uniformSets[i];
+        const ply = paletteSets[i];
         u.uSunDir.value.copy(_sunDir);
         u.uSunColor.value.setHex(frame.sunColor);
         u.uSky.value.setHex(frame.skyMid);
         u.uSunUp.value = up;
-        u.uDeep.value.setHex(PAPER.tealD).lerp(_c0, 0.10);
-        u.uMid.value.setHex(PAPER.teal).lerp(_c0, 0.12);
-        u.uShallow.value.setHex(PAPER.tealL).lerp(_c0, 0.14);
-        u.uEdge.value.setHex(PAPER.cream).lerp(_c1, 0.25);
-        u.uFoam.value.setHex(PAPER.white).lerp(_c1, 0.15);
+        u.uDeep.value.setHex(ply.deep).lerp(_c0, 0.10 + skyPull).lerp(_ink, sink);
+        u.uMid.value.setHex(ply.mid).lerp(_c0, 0.12 + skyPull).lerp(_ink, sink);
+        u.uShallow.value.setHex(ply.shallow).lerp(_c0, 0.14 + skyPull).lerp(_ink, sink);
+        u.uEdge.value.setHex(ply.edge).lerp(_c1, 0.25).lerp(_c0, skyPull).lerp(_ink, sink);
+        // Foam sinks a little less than the plies: moonlit surf is the one
+        // thing on a night sea that still catches a highlight.
+        u.uFoam.value.setHex(PAPER.white).lerp(_c1, 0.15).lerp(_ink, sink * 0.82);
       }
     }
     for (let i = 0; i < nSets; i++) uniformSets[i].uTime.value = simTime;

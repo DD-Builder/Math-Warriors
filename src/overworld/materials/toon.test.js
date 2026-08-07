@@ -12,7 +12,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
-  toonMaterial, toonRamp, papercutMaterial, applyPapercut, PAPERCUT_DEFAULTS,
+  toonMaterial, toonRamp, papercutMaterial, applyPapercut, applyRimLight,
+  PAPERCUT_DEFAULTS, RIM_UNIFORMS,
 } from './toon.js';
 import { disposePaperTextures, paperTextureCacheSize } from './textures.js';
 
@@ -36,8 +37,16 @@ test('overworld/materials/toon', async (t) => {
     const d = toonRamp().image.data;
     const [r, g, b] = [d[0], d[1], d[2]];
     assert.ok(g > r && b > r, `shade step ${r},${g},${b} is not teal-leaning`);
-    assert.ok(r > 70, 'no step may approach black');
-    assert.ok(Math.abs(g - b) < 12, 'shade step should read teal, not green');
+    // "Never black" is a statement about LUMA and HUE, not about any one
+    // channel. The shade texel is deliberately anisotropic — red gives up far
+    // more than blue — because that is what walks a shadow into PAPER.shadow's
+    // teal instead of merely dimming it toward grey. Guarding the red channel
+    // alone would forbid exactly the move the palette law asks for, so the
+    // floor lives on perceived brightness and the chroma is checked separately.
+    const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    assert.ok(luma > 0.22, `shade step luma ${luma.toFixed(3)} approaches black`);
+    assert.ok(g - r > 12, 'shade step must carry real chroma, not be grey');
+    assert.ok(Math.abs(g - b) < 22, 'shade step should read teal, not green');
   });
 
   await t.test('papercutMaterial is still a fogged toon material', () => {
@@ -157,6 +166,55 @@ test('overworld/materials/toon', async (t) => {
     // Different scales must still compile to different programs.
     assert.notEqual(a.customProgramCacheKey(), b.customProgramCacheKey());
     a.dispose(); b.dispose();
+  });
+
+  await t.test('the macro patina is off by default and costs nothing', () => {
+    // paperFiber is sampled at a ~2 m tile and is invisible at ten metres by
+    // design, which used to leave every big surface one flat fill. The macro
+    // layer fixes that — but it is a second texture fetch, so anything that is
+    // small enough not to need it must not pay for it.
+    const off = compileWith(papercutMaterial(0xffffff));
+    assert.ok(!off.fragmentShader.includes('uPaperMottle'));
+    assert.equal(PAPERCUT_DEFAULTS.macro, 0);
+
+    const on = compileWith(papercutMaterial(0xffffff, { macro: 0.09, macroScale: 14 }));
+    assert.equal(count(on.fragmentShader, 'texture2D( uPaperMottle'), 1,
+      'the macro layer is ONE top-down fetch — a triplanar blend buys nothing at 14 m');
+    assert.ok(on.fragmentShader.includes('uniform sampler2D uPaperMottle;'));
+  });
+
+  await t.test('sun-bleach mixes between two palette-derived multipliers', () => {
+    const s = compileWith(papercutMaterial(0xffffff, { bleach: 0.5 }));
+    const added = s.fragmentShader.split('#include <color_fragment>')[1];
+    assert.ok(added.includes('mwFlat'), 'bleach must ride the up-facing weight');
+    // Both ends straddle 1.0 — this is a MULTIPLIER pair, so it can only ever
+    // push a surface toward the palette's teal cavity or toward cream.
+    const nums = (added.match(/vec3\( [0-9.]+, [0-9.]+, [0-9.]+ \)/g) || []);
+    assert.ok(nums.length >= 2, `expected the bleach pair, got ${nums.join(' ')}`);
+    // Never a derivative, even in the new blocks.
+    for (const banned of ['dFdx', 'dFdy', 'fwidth']) assert.ok(!added.includes(banned));
+  });
+
+  await t.test('the rim light is additive AFTER the ramp and chains cleanly', () => {
+    // The hero is the only surface that gets one: it exists so he stays
+    // value-separated from whatever he happens to be standing in front of, and
+    // it has to survive into shade, which means it lands on outgoingLight.
+    const m = papercutMaterial(0xffffff, { space: 'local' });
+    applyRimLight(m, { strength: 0.36 });
+    const s = compileWith(m);
+    assert.ok(s.fragmentShader.includes('outgoingLight += uRimColor'));
+    assert.ok(s.fragmentShader.includes('uniform float uRimStrength;'));
+    assert.equal(s.uniforms.uRimColor, RIM_UNIFORMS.uRimColor, 'one shared uniform object');
+    // The papercut patch underneath must survive.
+    assert.ok(s.fragmentShader.includes('uPaperFiber'));
+    assert.ok(s.vertexShader.includes('vPaper = vec4( position,'));
+    const key = m.customProgramCacheKey();
+    assert.ok(key.includes('mw-paper|') && key.includes('mw-rim|'), key);
+    // No derivatives, and a real float literal for the exponent.
+    const added = s.fragmentShader.split('mwRimV')[1] || '';
+    for (const banned of ['dFdx', 'dFdy', 'fwidth']) assert.ok(!added.includes(banned));
+    assert.ok(/3\.0{2,}/.test(s.fragmentShader), 'the fresnel exponent must be a float literal');
+    m.dispose();
   });
 
   await t.test('only ONE extra varying vector is spent', () => {

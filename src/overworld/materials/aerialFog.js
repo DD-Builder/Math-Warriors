@@ -79,14 +79,41 @@ export const FOG_UNIFORMS = {
   uFogHeightK: { value: 0.030 },
   uFogBaseY: { value: 0 },
   // Metres of perfectly clear air in front of the eye. Keeps the hero crisp.
-  uFogStart: { value: 8 },
+  // Deliberately SHORT: at 8 m the whole mid-ground was still unhazed, which
+  // is how a mountain vista ended up with far-right trees at the same
+  // saturation and value as near ones. Aerial perspective has to start
+  // working within the first few metres or it only ever reads at the horizon.
+  uFogStart: { value: 4 },
   // How much of the fog's HUE a distant surface adopts before it is mixed
   // toward the fog colour outright. This is the "desaturates with distance"
-  // half of aerial perspective.
-  uFogDesat: { value: 0.50 },
+  // half of aerial perspective — and it is the half that does the work at
+  // mid-range, where the extinction term is still small.
+  uFogDesat: { value: 0.72 },
   uFogSunAmt: { value: 0.35 },
   // Ceiling on extinction. 1.0 = distant land dissolves fully into sky.
   uFogMax: { value: 1.0 },
+
+  // ── Cloud shadows ───────────────────────────────────────────────────────
+  // See CLOUD_SHADOW below. Strength 0 skips the whole block on a uniform
+  // branch, which is why the rain state can turn it off for free.
+  uCloudShadow: { value: 0 },
+  // A MULTIPLIER, not a palette colour, and deliberately NOT run through
+  // setFogColor: it is applied in the renderer's output space (the fog chunk
+  // runs after <colorspace_fragment>) so it has to be authored there too.
+  // Teal-leaning by the same law as the toon ramp's shade texel — red gives up
+  // the most, blue the least, so a shadowed patch of meadow moves toward
+  // PAPER.shadow rather than toward grey.
+  uCloudShadowTint: { value: new THREE.Color(0.66, 0.76, 0.78) },
+  uCloudShadowDir: { value: new THREE.Vector2(0.86, 0.51) },
+  // 1/metres. ~95 m banks: two or three of them cross a 200 m vista, which is
+  // the count that reads as weather rather than as a texture.
+  uCloudShadowScale: { value: 0.0105 },
+  uCloudShadowTime: { value: 0 },
+  // Altitude the deck shadows up to. Nothing at or above this is darkened by
+  // it — a cloud may not shadow the crown it is floating beside. Set above the
+  // palace summit so the mesa benches DO catch the banks; that breakup is the
+  // whole reason a big pale landform stops reading as one flat mass.
+  uCloudShadowY: { value: 95 },
 };
 
 const VERT_PARS = /* glsl */`
@@ -116,8 +143,84 @@ const FRAG_PARS = /* glsl */`
 	uniform float uFogDesat;
 	uniform float uFogSunAmt;
 	uniform float uFogMax;
+	uniform float uCloudShadow;
+	uniform vec3 uCloudShadowTint;
+	uniform vec2 uCloudShadowDir;
+	uniform float uCloudShadowScale;
+	uniform float uCloudShadowTime;
+	uniform float uCloudShadowY;
 	varying vec3 vFogWorld;
 #endif`;
+
+/**
+ * Scrolling cloud shadows — the cheapest "designed place" cue there is.
+ *
+ * Odyssey and TotK both lean on these constantly and this world had none: a
+ * 200 m meadow lit by one directional light is one unmodulated value however
+ * good the grass is, because nothing is breaking the light up. Two octaves of
+ * drifting value noise laid over the ground turns that bedsheet into a field
+ * with weather moving across it, and it costs one uniform branch.
+ *
+ * WHY it lives inside the fog chunk rather than in a material patch: this has
+ * to reach terrain, props, vegetation, the hero AND the water sheet, which are
+ * five material families built by four modules. The fog chunk is the one place
+ * every one of them already shares, and it already carries the world position
+ * the noise needs — so this is zero extra varyings and zero call-site drift.
+ *
+ * WHY the darkening is a TEAL-LEANING multiply rather than a neutral one: a
+ * neutral multiply walks the ground through grey on its way to black, and grey
+ * is the one direction the papercut law forbids outright. uCloudShadowTint
+ * gives up far more red than blue, so a shadowed patch of meadow lands in the
+ * same colour family the toon ramp puts on the shaded side of everything else.
+ *
+ * WHY the noise is hand-written and not a texture: identical output under
+ * SwiftShader and on the device, no sampler to thread through six material
+ * factories, and no derivatives anywhere.
+ *
+ * The `uCloudShadowY` gate stops the deck shadowing anything that is level
+ * with it or above it — a cloud may not darken the palace crown it is
+ * floating beside.
+ */
+const CLOUD_SHADOW = /* glsl */`
+		if ( uCloudShadow > 0.001 ) {
+			vec2 mwCsP = vFogWorld.xz * uCloudShadowScale + uCloudShadowDir * uCloudShadowTime;
+			vec2 mwCsI = floor( mwCsP );
+			vec2 mwCsF = fract( mwCsP );
+			mwCsF = mwCsF * mwCsF * ( 3.0 - 2.0 * mwCsF );
+			vec4 mwCsH = fract( sin( vec4(
+				dot( mwCsI, vec2( 127.1, 311.7 ) ),
+				dot( mwCsI + vec2( 1.0, 0.0 ), vec2( 127.1, 311.7 ) ),
+				dot( mwCsI + vec2( 0.0, 1.0 ), vec2( 127.1, 311.7 ) ),
+				dot( mwCsI + vec2( 1.0, 1.0 ), vec2( 127.1, 311.7 ) )
+			) ) * 43758.5453 );
+			float mwCs = mix( mix( mwCsH.x, mwCsH.y, mwCsF.x ), mix( mwCsH.z, mwCsH.w, mwCsF.x ), mwCsF.y );
+			// Second octave at a different drift so the pattern never tiles
+			// visibly and the edges of a bank tear instead of scrolling rigid.
+			vec2 mwCsQ = vFogWorld.xz * uCloudShadowScale * 2.7
+				- uCloudShadowDir.yx * uCloudShadowTime * 1.6;
+			vec2 mwCsJ = floor( mwCsQ );
+			vec2 mwCsG = fract( mwCsQ );
+			mwCsG = mwCsG * mwCsG * ( 3.0 - 2.0 * mwCsG );
+			// Different hash constants, not just a different scale: sharing them
+			// would make the two octaves agree wherever their cell indices
+			// happened to line up, and an octave that correlates with its own
+			// base is a repeating blotch rather than detail.
+			vec4 mwCsK = fract( sin( vec4(
+				dot( mwCsJ, vec2( 269.5, 183.3 ) ),
+				dot( mwCsJ + vec2( 1.0, 0.0 ), vec2( 269.5, 183.3 ) ),
+				dot( mwCsJ + vec2( 0.0, 1.0 ), vec2( 269.5, 183.3 ) ),
+				dot( mwCsJ + vec2( 1.0, 1.0 ), vec2( 269.5, 183.3 ) )
+			) ) * 43758.5453 );
+			mwCs += 0.42 * mix( mix( mwCsK.x, mwCsK.y, mwCsG.x ), mix( mwCsK.z, mwCsK.w, mwCsG.x ), mwCsG.y );
+			// Threshold into BANKS with soft edges. A smooth noise multiply is
+			// a stain; a thresholded one is a cloud passing overhead.
+			float mwCsA = smoothstep( 0.52, 0.92, mwCs / 1.42 );
+			// Under the deck only, and gone again by the time the surface is
+			// deep in the haze — a shadow you cannot resolve is just dirt.
+			mwCsA *= 1.0 - smoothstep( uCloudShadowY * 0.72, uCloudShadowY, vFogWorld.y );
+			mwCsA *= ( 1.0 - mwFogF ) * uCloudShadow;
+			gl_FragColor.rgb = mix( gl_FragColor.rgb, gl_FragColor.rgb * uCloudShadowTint, mwCsA );
+		}`;
 
 /**
  * Optical depth of an exponentially stratified atmosphere along the eye ray.
@@ -151,6 +254,7 @@ const FRAG_BODY = /* glsl */`
 		float mwFogH = clamp( ( cameraPosition.y - uFogBaseY ) * uFogHeightK, -3.0, 12.0 );
 		float mwFogTau = uFogDensity * exp( -mwFogH ) * mwFogDist * max( mwFogR, 0.0 );
 		float mwFogF = min( 1.0 - exp( -mwFogTau * mwFogTau ), uFogMax );
+${CLOUD_SHADOW}
 
 		// Directional scattering: horizon band below, sky band above, key
 		// light inside a tight forward lobe.
@@ -263,6 +367,30 @@ export function setAerialFrame(frame) {
   u.uFogDesat.value = frame.fogDesat;
   u.uFogSunAmt.value = frame.fogSunAmt;
   u.uFogMax.value = frame.fogMax;
+
+  // Cloud shadows drift DOWNWIND OF THE KEY LIGHT's azimuth, which is what
+  // makes them look like they belong to the clouds the sky is actually
+  // drawing rather than to a texture someone slid over the ground.
+  u.uCloudShadow.value = frame.cloudShadow ?? 0;
+  if (u.uCloudShadow.value > 0) {
+    const dx = frame.sunDir[0], dz = frame.sunDir[2];
+    const len = Math.hypot(dx, dz) || 1;
+    u.uCloudShadowDir.value.set(-dx / len, -dz / len);
+  }
+}
+
+/**
+ * Advance the cloud-shadow drift. Separate from setAerialFrame because the
+ * lighting frame only recomposes when the hour or the weather moves, and the
+ * shadows have to keep travelling on a settled frame.
+ *
+ * @param {number} simTime deterministic seconds from the renderer rig.
+ */
+export function setAerialTime(simTime) {
+  // Cells per second. uCloudShadowScale puts a cell at ~95 m, so this is a
+  // ~5 m/s drift — fast enough to see a bank cross the meadow while a child
+  // stands still, slow enough not to strobe.
+  FOG_UNIFORMS.uCloudShadowTime.value = simTime * 0.052;
 }
 
 /**

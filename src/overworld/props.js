@@ -53,12 +53,13 @@
  * outlines. Everything created here is disposed in dispose().
  */
 import * as THREE from 'three';
-import { WORLD, BIOMES, PORTALS, BUILDINGS, COLLECTIBLES, SPAWN } from './worldSpec.js';
+import { WORLD, BIOMES, PORTALS, BUILDINGS, COLLECTIBLES, SPAWN, PATHS, TERRACES } from './worldSpec.js';
 import { toonMaterial, applyPapercut, PAPER } from './materials/toon.js';
 import { deckleDisc } from './materials/textures.js';
-import { g, lin, mixHex, shade, trs, sink, stamp, bake, fanXY } from './geobuild.js';
+import { g, lin, mixHex, shade, trs, sink, stamp, tri, bake, fanXY } from './geobuild.js';
 import { createVegetation } from './vegetation.js';
 import { resolvePonds } from './water.js';
+import { makeRng } from '../systems/rng.js';
 
 const TAU = Math.PI * 2;
 const AXIS_Y = new THREE.Vector3(0, 1, 0);
@@ -225,7 +226,36 @@ function buildArchStone() {
       trs(rMid * Math.cos(th), ARCH_PILLAR_TOP + 0.5 + rMid * Math.sin(th), 0, 0, 0, th - Math.PI / 2),
       shade(k % 2 === 0 ? 1.0 : 0.87));
   }
+  stampArchCarving(s);
   return bake(s);
+}
+
+/**
+ * Fluting and a stepped base, stamped onto the arch stone.
+ *
+ * Split out because it is pure SURFACE: six shallow ribs down each pillar and
+ * two plinth steps under them. None of it changes the gate's silhouette and
+ * none of it costs a draw call (it lands in the same merged buffer), but it is
+ * the difference between a monument and an untextured grey primitive — a
+ * cylinder with a flat fill has no scale, and ribs at 40 cm spacing tell a
+ * child exactly how big the thing is before they walk up to it.
+ */
+function stampArchCarving(s) {
+  for (const sx of [-1, 1]) {
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI - Math.PI / 2 + 0.26;
+      stamp(s, new THREE.BoxGeometry(0.14, ARCH_PILLAR_TOP - 1.5, 0.14),
+        trs(sx * ARCH_PILLAR_X + Math.sin(a) * 0.80, ARCH_PILLAR_TOP / 2 + 0.62,
+          Math.cos(a) * 0.80, 0, -a, 0),
+        shade(k % 2 === 0 ? 1.09 : 0.90));
+    }
+    // Two plinth steps. A pillar that meets the ground in one plane is a peg;
+    // a pillar that steps down to it is architecture.
+    stamp(s, new THREE.CylinderGeometry(1.16, 1.24, 0.30, 8),
+      trs(sx * ARCH_PILLAR_X, 0.95, 0), shade(0.95));
+    stamp(s, new THREE.CylinderGeometry(1.30, 1.40, 0.26, 8),
+      trs(sx * ARCH_PILLAR_X, 0.70, 0), shade(1.06));
+  }
 }
 
 /** Arch trim: caps, keystone, base ring, crest. instanceColor = biome ink, so
@@ -415,7 +445,27 @@ function buildGallery() {
   stamp(s, new THREE.BoxGeometry(1.6, 2.8, 0.10), trs(0, 1.90, 2.25), lin(PAPER.lavenderD));
   for (const sx of [-1, 1]) {
     stamp(s, new THREE.BoxGeometry(0.9, 1.6, 0.10), trs(sx * 2.4, 2.80, 2.25), lin(PAPER.sky));
+    // Shutters, hinged open either side of each window: three plies each, and
+    // the only thing on this wall that casts a shadow onto it.
+    for (const dx of [-0.62, 0.62]) {
+      stamp(s, new THREE.BoxGeometry(0.34, 1.62, 0.08),
+        trs(sx * 2.4 + dx, 2.80, 2.32, 0, dx > 0 ? -0.42 : 0.42, 0), lin(PAPER.teal, 0.94));
+    }
   }
+  // Awning over the entrance, striped like the shop's — the two buildings are
+  // in the same town and should look it.
+  for (let i = 0; i < 4; i++) {
+    stamp(s, new THREE.BoxGeometry(0.95, 0.14, 1.7),
+      trs(-1.425 + i * 0.95, 3.55, 3.05, -0.30, 0, 0),
+      lin(i % 2 === 0 ? PAPER.cream : PAPER.lavender));
+  }
+  // Sign board and a hanging lantern by the door.
+  stamp(s, new THREE.BoxGeometry(1.9, 0.52, 0.10), trs(0, 3.95, 2.42, -0.12, 0, 0), lin(PAPER.cream, 1.05));
+  stamp(s, new THREE.BoxGeometry(1.25, 0.15, 0.12), trs(0, 3.96, 2.48, -0.12, 0, 0), lin(PAPER.lavenderD));
+  stampLantern(s, 2.10, 3.30, 2.65, 0.18);
+  // Crates stacked against the side wall — a gallery receives deliveries too.
+  stampCrate(s, -3.55, 0.42, 1.30, 0.62, 0.28, PAPER.sand);
+  stampCrate(s, -3.40, 0.95, 1.22, 0.48, -0.36, PAPER.creamD);
   return bake(s);
 }
 
@@ -436,6 +486,179 @@ function buildSpireGate() {
 }
 
 const BUILDING_BUILDERS = { shop: buildShop, gallery: buildGallery, gate: buildSpireGate };
+
+// ── Market kit ──────────────────────────────────────────────────────────
+//
+// A place called Market Town contained two buildings and nothing else: no
+// stalls, no awnings, no crates, no lanterns, no signage. A town does not read
+// as inhabited because of its architecture — it reads as inhabited because of
+// the forty small objects a person left lying around it. That is the entire
+// job of this section.
+//
+// Every piece is merged into ONE geometry per stall variant and drawn as an
+// InstancedMesh, so a dozen stalls plus their goods cost three draw calls, not
+// forty. Two variants exist rather than one because a row of identical stalls
+// is a texture; two alternating silhouettes with different awning hues and
+// different goods read as a market.
+
+const STALL_W = 2.7, STALL_D = 2.1, STALL_H = 2.3;
+
+/** Striped gable awning, cut as raw triangles — an awning IS two flat sheets. */
+function stampAwning(s, cA, cB, stripes = 5) {
+  const OVER = 0.30;
+  const RIDGE = STALL_H + 0.58, EAVE = STALL_H + 0.04;
+  const span = STALL_W + 2 * OVER;
+  const zE = STALL_D / 2 + OVER;
+  const drop = RIDGE - EAVE;
+  const inv = 1 / Math.hypot(0, zE, drop);
+  for (let i = 0; i < stripes; i++) {
+    const x0 = -span / 2 + span * (i / stripes);
+    const x1 = -span / 2 + span * ((i + 1) / stripes);
+    const col = lin(i % 2 === 0 ? cA : cB);
+    for (const sz of [-1, 1]) {
+      // Up and outward from the ridge: (0, zE, +-drop) normalised.
+      const nrm = [0, zE * inv, sz * drop * inv];
+      tri(s, [x0, RIDGE, 0], [x1, RIDGE, 0], [x1, EAVE, sz * zE], nrm, col);
+      tri(s, [x0, RIDGE, 0], [x1, EAVE, sz * zE], [x0, EAVE, sz * zE], nrm, col);
+    }
+  }
+  // Scalloped hem: little tabs hanging off the eaves. This is what makes an
+  // awning read as CLOTH at 30 m instead of as a folded card.
+  for (let i = 0; i < stripes; i++) {
+    const xm = -span / 2 + span * ((i + 0.5) / stripes);
+    const col = lin(i % 2 === 0 ? cB : cA, 0.94);
+    for (const sz of [-1, 1]) {
+      const w = span / (stripes * 2.3);
+      tri(s, [xm - w, EAVE, sz * zE], [xm + w, EAVE, sz * zE],
+        [xm, EAVE - 0.20, sz * (zE + 0.04)], [0, 0.30, sz * 0.95], col);
+    }
+  }
+}
+
+/** A crate: a box with a lighter lid ply and two darker banding straps. */
+function stampCrate(s, x, y, z, size, rot, tone) {
+  stamp(s, new THREE.BoxGeometry(size, size * 0.86, size), trs(x, y + size * 0.43, z, 0, rot, 0), lin(tone));
+  stamp(s, new THREE.BoxGeometry(size * 1.04, size * 0.09, size * 1.04),
+    trs(x, y + size * 0.86, z, 0, rot, 0), lin(PAPER.sand, 1.06));
+  stamp(s, new THREE.BoxGeometry(size * 1.06, size * 0.10, size * 0.16),
+    trs(x, y + size * 0.44, z, 0, rot, 0), lin(PAPER.coralD, 0.92));
+}
+
+/** A barrel: an open drum with a lid, two hoops baked as ply colour changes. */
+function stampBarrel(s, x, y, z, r, h, rot, tone) {
+  stamp(s, new THREE.CylinderGeometry(r * 0.86, r * 0.86, h * 0.30, 7, 1, true),
+    trs(x, y + h * 0.15, z, 0, rot, 0), lin(tone, 0.90));
+  stamp(s, new THREE.CylinderGeometry(r, r, h * 0.42, 7, 1, true),
+    trs(x, y + h * 0.51, z, 0, rot, 0), lin(tone));
+  stamp(s, new THREE.CylinderGeometry(r * 0.86, r * 0.86, h * 0.30, 7, 1, true),
+    trs(x, y + h * 0.86, z, 0, rot, 0), lin(tone, 0.90));
+  stamp(s, new THREE.CylinderGeometry(r * 0.80, r * 0.86, 0.07, 7),
+    trs(x, y + h, z, 0, rot, 0), lin(PAPER.sand, 1.08));
+}
+
+/** A hanging paper lantern: cream body, gold cap, dark cord. */
+function stampLantern(s, x, y, z, r) {
+  stamp(s, new THREE.CylinderGeometry(0.02, 0.02, 0.26, 4), trs(x, y + 0.13, z), lin(PAPER.sand, 0.8));
+  stamp(s, new THREE.CylinderGeometry(r * 0.62, r, r * 1.5, 6, 1, true), trs(x, y - r * 0.6, z), lin(PAPER.cream, 1.14));
+  stamp(s, new THREE.CylinderGeometry(r, r * 0.62, r * 1.5, 6, 1, true), trs(x, y - r * 2.1, z), lin(PAPER.gold, 1.10));
+}
+
+/**
+ * One market stall.
+ *
+ * Variant 0 is a produce stall (coral/cream awning, crates and a barrel);
+ * variant 1 is a cloth-and-lantern stall (teal/cream awning, bolts of paper
+ * and a lantern pair). Both stand on a rug, because the single cheapest way to
+ * anchor an object to the ground is to put something flat under it.
+ */
+function buildStall(variant) {
+  const s = sink();
+  const warm = variant === 0;
+  // Rug first — the ground contact ply.
+  stamp(s, new THREE.BoxGeometry(STALL_W + 1.5, 0.06, STALL_D + 1.3),
+    trs(0, 0.03, 0.25, 0, 0.06, 0), lin(warm ? PAPER.coralD : PAPER.lavenderD, 0.95));
+  stamp(s, new THREE.BoxGeometry(STALL_W + 1.1, 0.05, STALL_D + 0.9),
+    trs(0, 0.07, 0.25, 0, 0.06, 0), lin(warm ? PAPER.coral : PAPER.lavender));
+  // Four posts.
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      stamp(s, new THREE.CylinderGeometry(0.065, 0.085, STALL_H, 5, 1, true),
+        trs(sx * STALL_W / 2, STALL_H / 2, sz * STALL_D / 2), lin(PAPER.sand, 0.90));
+    }
+  }
+  stampAwning(s, warm ? PAPER.coral : PAPER.teal, PAPER.cream);
+  // Counter across the front, with a board top.
+  stamp(s, new THREE.BoxGeometry(STALL_W + 0.2, 0.78, 0.62),
+    trs(0, 0.46, STALL_D / 2 - 0.05), lin(PAPER.sand, 0.94));
+  stamp(s, new THREE.BoxGeometry(STALL_W + 0.5, 0.10, 0.82),
+    trs(0, 0.90, STALL_D / 2 - 0.05), lin(PAPER.creamD, 1.06));
+  // Signboard on the ridge.
+  stamp(s, new THREE.BoxGeometry(1.30, 0.46, 0.07),
+    trs(0, STALL_H + 0.94, STALL_D / 2 + 0.22, -0.16, 0, 0), lin(PAPER.cream, 1.05));
+  stamp(s, new THREE.BoxGeometry(0.86, 0.13, 0.09),
+    trs(0, STALL_H + 0.96, STALL_D / 2 + 0.26, -0.16, 0, 0),
+    lin(warm ? PAPER.coralD : PAPER.tealD));
+
+  if (warm) {
+    // Produce: fruit domes on the counter, crates and a barrel behind.
+    for (let i = 0; i < 5; i++) {
+      const x = -1.0 + i * 0.5;
+      stamp(s, new THREE.SphereGeometry(0.15, 6, 4),
+        trs(x, 1.05, STALL_D / 2 - 0.05, 0, i * 0.7, 0, 1, 0.78, 1),
+        lin(i % 3 === 0 ? PAPER.coral : (i % 3 === 1 ? PAPER.gold : PAPER.rose)));
+    }
+    stampCrate(s, -0.85, 0.09, -0.45, 0.62, 0.22, PAPER.sand);
+    stampCrate(s, -0.80, 0.62, -0.40, 0.48, -0.34, PAPER.creamD);
+    stampBarrel(s, 0.92, 0.09, -0.50, 0.34, 0.80, 0.5, PAPER.coralD);
+  } else {
+    // Cloth: rolled bolts leaning on the counter, two hanging lanterns.
+    for (let i = 0; i < 4; i++) {
+      const x = -0.95 + i * 0.62;
+      stamp(s, new THREE.CylinderGeometry(0.13, 0.13, 1.05, 6),
+        trs(x, 1.35, STALL_D / 2 - 0.30, 0.38, 0, i * 0.10 - 0.15),
+        lin([PAPER.tealL, PAPER.lavender, PAPER.rose, PAPER.sky][i]));
+    }
+    stampLantern(s, -STALL_W / 2 + 0.10, STALL_H + 0.02, STALL_D / 2 - 0.08, 0.16);
+    stampLantern(s, STALL_W / 2 - 0.10, STALL_H + 0.02, STALL_D / 2 - 0.08, 0.16);
+    stampCrate(s, 0.70, 0.09, -0.52, 0.55, -0.18, PAPER.creamD);
+  }
+  return bake(s);
+}
+
+/**
+ * A loose pile of goods — crates, a barrel and a sack — for the ground between
+ * stalls and against building walls. One geometry, scattered with a per-pile
+ * yaw and tint, which is what turns a plaza from a floor into a place people
+ * have been working in.
+ */
+function buildCargoPile() {
+  const s = sink();
+  stampCrate(s, 0, 0, 0, 0.66, 0.12, PAPER.sand);
+  stampCrate(s, 0.62, 0, 0.28, 0.50, -0.42, PAPER.creamD);
+  stampCrate(s, 0.04, 0.57, -0.02, 0.46, 0.55, PAPER.creamD);
+  stampBarrel(s, -0.55, 0, 0.34, 0.29, 0.70, 0.9, PAPER.coralD);
+  // A sack: a squashed dome, the one soft shape in a pile of boxes.
+  stamp(s, new THREE.SphereGeometry(0.30, 7, 5),
+    trs(-0.30, 0.24, -0.48, 0, 0.4, 0.12, 1, 0.86, 1), lin(PAPER.sand, 1.06));
+  stamp(s, new THREE.CylinderGeometry(0.07, 0.13, 0.16, 6),
+    trs(-0.30, 0.52, -0.48), lin(PAPER.creamD));
+  return bake(s);
+}
+
+/**
+ * Contact apron: a torn disc of teal-tinted paper laid on the ground under a
+ * built thing.
+ *
+ * "No AO at the ground contact" was written against every building in the set,
+ * and it is the note that makes objects look pasted on rather than placed. A
+ * papercut world has no ambient occlusion to give — but it does have a shadow
+ * hue, and one flat ply of it under a wall is exactly how the 2D game already
+ * says "this sheet is on top of that sheet". Alpha ramps from the centre out,
+ * and the deckle mask stops it being a vector circle.
+ */
+function buildApronGeo() {
+  return buildAuraDiscGeo(1.0, 18, 0.86, 0.16);
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // Placement
@@ -473,6 +696,96 @@ function footprintY(sampleHeight, x, z, radius) {
     y = Math.min(y, sampleHeight(x + Math.cos(a) * radius, z + Math.sin(a) * radius));
   }
   return y;
+}
+
+/**
+ * Lay the market out ALONG ITS OWN STREET.
+ *
+ * The three structures used to stand at independent authored positions on flat
+ * ground, which is why the frame read as object scatter on a plane rather than
+ * as a town. worldSpec.js already carves a road (PATHS 'market-main') and
+ * raises a plaza (TERRACES 'market-plaza'); this reads that same polyline and
+ * hangs everything off it, so the stalls flank the road by construction and
+ * cannot drift out of step with it when the road is retuned.
+ *
+ * Stalls alternate variant along each side, and the two sides are offset by
+ * half a pitch so the row never reads as a grid. Anything that would land on a
+ * building's footprint is dropped rather than nudged — a gap in a market row is
+ * a side alley, and side alleys are free composition.
+ */
+function marketLayout(rng, buildings) {
+  const street = PATHS.find((p) => p.id === 'market-main');
+  const plaza = TERRACES.find((t) => t.id === 'market-plaza');
+  const stalls = [], piles = [];
+  if (!street || street.pts.length < 2) return { stalls, piles };
+
+  // Arc-length parameterisation of the polyline, so stalls are evenly spaced
+  // in METRES rather than in node index (the nodes are not evenly spaced).
+  const pts = street.pts;
+  const seg = [];
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+    seg.push(d);
+    total += d;
+  }
+  const at = (u) => {
+    let want = Math.min(1, Math.max(0, u)) * total;
+    for (let i = 0; i < seg.length; i++) {
+      if (want <= seg[i] || i === seg.length - 1) {
+        const t = seg[i] > 0 ? Math.min(1, want / seg[i]) : 0;
+        const x = pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t;
+        const z = pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t;
+        const dx = (pts[i + 1][0] - pts[i][0]) / (seg[i] || 1);
+        const dz = (pts[i + 1][1] - pts[i][1]) / (seg[i] || 1);
+        return { x, z, dx, dz };
+      }
+      want -= seg[i];
+    }
+    return { x: pts[0][0], z: pts[0][1], dx: 1, dz: 0 };
+  };
+
+  const blocked = (x, z, r) => buildings.some((b) =>
+    (x - b.x) * (x - b.x) + (z - b.z) * (z - b.z) < (r + 3.9) * (r + 3.9));
+  // Keep the row inside the plaza's own reach: a stall out on natural ground
+  // beyond the plinth is back to being an object on a plane.
+  const onPlaza = (x, z) => !plaza
+    || Math.hypot(x - plaza.x, z - plaza.z) < Math.max(plaza.hx, plaza.hz) + plaza.skirt * 0.65;
+
+  const PITCH = 0.063;          // fraction of the street per stall slot
+  const OFFSET = 5.1;           // metres from the centreline to a stall's post
+  let v = 0;
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 7; k++) {
+      const u = 0.36 + (k + (side > 0 ? 0.5 : 0)) * PITCH;
+      const p = at(u);
+      // Perpendicular to the road, in world XZ.
+      const px = -p.dz, pz = p.dx;
+      const x = p.x + px * side * OFFSET;
+      const z = p.z + pz * side * OFFSET;
+      v = (v + 1) % 2;
+      if (!onPlaza(x, z) || blocked(x, z, 2.6)) continue;
+      // The counter (+z in stall-local space) turns to face the road.
+      stalls.push({ x, z, yaw: Math.atan2(-px * side, -pz * side), variant: v });
+      // A pile of goods tucked behind most stalls.
+      if (rng() < 0.62) {
+        const bx = x + px * side * 2.6 + p.dx * (rng() - 0.5) * 2.2;
+        const bz = z + pz * side * 2.6 + p.dz * (rng() - 0.5) * 2.2;
+        piles.push({ x: bx, z: bz, yaw: rng() * TAU, tone: rng() });
+      }
+    }
+  }
+  // A few more piles loose along the street itself, so the plaza floor is not
+  // swept clean between the rows.
+  for (let i = 0; i < 5; i++) {
+    const p = at(0.34 + i * 0.11);
+    const px = -p.dz, pz = p.dx;
+    const off = (rng() < 0.5 ? -1 : 1) * (7.6 + rng() * 2.4);
+    const x = p.x + px * off, z = p.z + pz * off;
+    if (!onPlaza(x, z) || blocked(x, z, 1.4)) continue;
+    piles.push({ x, z, yaw: rng() * TAU, tone: rng() });
+  }
+  return { stalls, piles };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -525,6 +838,14 @@ export function createProps(heightfield, opts = {}) {
   const bannerMat = trackMat(new THREE.MeshBasicMaterial({
     transparent: false, side: THREE.FrontSide, fog: true,
   }));
+  // Ground contact. Unlit on purpose: this ply IS a shadow, so relighting it
+  // would be relighting a shadow. It takes the palette's own shadow hue at low
+  // alpha and the deckle mask cuts its rim, exactly like the hero's blob.
+  const apronMat = trackMat(new THREE.MeshBasicMaterial({
+    color: new THREE.Color().setHex(PAPER.shadow, THREE.SRGBColorSpace),
+    vertexColors: true, transparent: true, depthWrite: false,
+    opacity: 0.30, fog: true, alphaMap: deckleDisc(),
+  }));
 
   patchPulse(pageMat, { amp: 0.26, speed: 1.0 });
   patchPulse(discMat, { amp: 0.26, speed: 1.0 });
@@ -541,8 +862,23 @@ export function createProps(heightfield, opts = {}) {
   // Anything that moves — a tree in the wind, a spinning coin, a swaying blade
   // — takes LOCAL space, because world-space grain on a moving surface crawls
   // across it, which is the one way this effect can look wrong.
-  applyPapercut(structMat, { grain: 0.10, normal: 0.14, roughnessLike: 0.22, scale: 1.6, space: 'world' });
-  applyPapercut(pickupMat, { grain: 0.07, normal: 0.09, roughnessLike: 0.16, scale: 0.42, space: 'local' });
+  //
+  // structMat additionally wears the MACRO layer (see PAPERCUT_DEFAULTS.macro).
+  // A 9 m gate and a 6 m building are exactly the objects the fibre grain
+  // cannot reach: it is tuned for arm's length and is invisible at the range
+  // the establishing shots are taken from, which is why the arches read as
+  // "untextured flat grey" however much grain was on them. The 15 m patina
+  // gives a wall a colour that changes across itself, and the sun-bleach pair
+  // gives every roof slab and every ledge a directional read that survives
+  // into shadow.
+  applyPapercut(structMat, {
+    grain: 0.10, normal: 0.14, roughnessLike: 0.22, scale: 1.6, space: 'world',
+    macro: 0.085, macroScale: 15, bleach: 0.34,
+  });
+  applyPapercut(pickupMat, {
+    grain: 0.07, normal: 0.09, roughnessLike: 0.16, scale: 0.42, space: 'local',
+    bleach: 0.20,
+  });
 
   // ── Clearings, filled as landmarks are placed ──
   const treeClear = [], plantClear = [];
@@ -695,6 +1031,94 @@ export function createProps(heightfield, opts = {}) {
   // structMat with the arches, which do. Give them a neutral vertex-colour
   // pass by leaving material.color white; nothing else is needed.
 
+  // ═══ 2b. THE MARKET ═══
+  // Twelve stalls flanking the authored street, plus loose goods. Two stall
+  // geometries and one cargo geometry, so the whole market costs three colour
+  // calls and three shadow calls — about what one un-instanced building costs.
+  const mkRng = makeRng(seed ^ 0x9a7c15);
+  const market = marketLayout(mkRng, buildingBodies);
+  const stallMeshes = [];
+  const apronSpots = [];
+  for (const b of buildingBodies) apronSpots.push({ x: b.x, z: b.z, r: 6.4 });
+
+  for (let v = 0; v < 2; v++) {
+    const items = market.stalls.filter((st) => st.variant === v);
+    const geo = track(buildStall(v));
+    if (!items.length) continue;
+    const im = new THREE.InstancedMesh(geo, structMat, items.length);
+    im.name = `market-stall-${v}`;
+    items.forEach((st, i) => {
+      const y = footprintY(sampleHeight, st.x, st.z, 2.3);
+      _q4.setFromAxisAngle(AXIS_Y, st.yaw);
+      _v3.set(st.x, y, st.z);
+      _m4.compose(_v3, _q4, _s3);
+      im.setMatrixAt(i, _m4);
+      // Near-neutral per-stall tone: enough that no two awnings in a row are
+      // the same paper, nowhere near enough to leave the palette.
+      im.setColorAt(i, _col.setRGB(1, 1, 1, THREE.LinearSRGBColorSpace)
+        .multiplyScalar(0.93 + ((i * 7) % 5) * 0.035));
+      addClear(st.x, st.z, 6.5, 3.4);
+      apronSpots.push({ x: st.x, z: st.z, r: 3.1 });
+    });
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = castShadow;
+    im.receiveShadow = true;
+    im.computeBoundingSphere();
+    group.add(im);
+    stallMeshes.push(im);
+  }
+
+  let cargoMesh = null;
+  if (market.piles.length) {
+    cargoMesh = new THREE.InstancedMesh(track(buildCargoPile()), structMat, market.piles.length);
+    cargoMesh.name = 'market-cargo';
+    market.piles.forEach((p, i) => {
+      const y = footprintY(sampleHeight, p.x, p.z, 1.0);
+      _q4.setFromAxisAngle(AXIS_Y, p.yaw);
+      _v3.set(p.x, y, p.z);
+      const sc = 0.82 + p.tone * 0.42;
+      _s3.set(sc, sc, sc);
+      _m4.compose(_v3, _q4, _s3);
+      cargoMesh.setMatrixAt(i, _m4);
+      cargoMesh.setColorAt(i, _col.setRGB(1, 1, 1, THREE.LinearSRGBColorSpace)
+        .multiplyScalar(0.90 + p.tone * 0.18));
+      addClear(p.x, p.z, 3.0, 1.8);
+    });
+    _s3.set(1, 1, 1);
+    cargoMesh.instanceMatrix.needsUpdate = true;
+    if (cargoMesh.instanceColor) cargoMesh.instanceColor.needsUpdate = true;
+    cargoMesh.castShadow = castShadow;
+    cargoMesh.receiveShadow = true;
+    cargoMesh.computeBoundingSphere();
+    group.add(cargoMesh);
+  }
+
+  // ═══ 2c. GROUND CONTACT ═══
+  // One torn ply of teal paper under every built thing. See buildApronGeo: a
+  // papercut world has no ambient occlusion to give, but it does have a shadow
+  // hue, and this is how the 2D game already says one sheet sits on another.
+  const apronMesh = apronSpots.length
+    ? new THREE.InstancedMesh(track(buildApronGeo()), apronMat, apronSpots.length)
+    : null;
+  if (apronMesh) {
+    apronMesh.name = 'ground-apron';
+    apronSpots.forEach((a, i) => {
+      _q4.identity();
+      _v3.set(a.x, sampleHeight(a.x, a.z) + 0.045, a.z);
+      _s3.set(a.r, 1, a.r);
+      _m4.compose(_v3, _q4, _s3);
+      apronMesh.setMatrixAt(i, _m4);
+    });
+    _s3.set(1, 1, 1);
+    apronMesh.instanceMatrix.needsUpdate = true;
+    apronMesh.castShadow = false;
+    apronMesh.receiveShadow = false;
+    apronMesh.renderOrder = 1;
+    apronMesh.computeBoundingSphere();
+    group.add(apronMesh);
+  }
+
   // ═══ 3. VEGETATION ═══
   // Ground cover, trees and the hero set-pieces live in ./vegetation.js — see
   // that module for why they need a cached height grid, a clustered scatter and
@@ -810,12 +1234,17 @@ export function createProps(heightfield, opts = {}) {
   // reports its own worst case — every ground-cover sector inside the LOD cull
   // radius, nothing frustum-culled — which is roughly twice what a real frame
   // pays.
-  const shadowCalls = castShadow ? (2 + buildingMeshes.length) : 0;
+  const marketCalls = stallMeshes.length + (cargoMesh ? 1 : 0);
+  const shadowCalls = castShadow ? (2 + buildingMeshes.length + marketCalls) : 0;
   const colorCalls = 3 + (banners ? 1 : 0) + buildingMeshes.length
+    + marketCalls + (apronMesh ? 1 : 0)
     + (coinMesh ? 1 : 0) + (potionMesh ? 1 : 0) + 1;
   const stats = {
     portals: portals.length,
     buildings: buildingMeshes.length,
+    stalls: market.stalls.length,
+    cargo: market.piles.length,
+    aprons: apronSpots.length,
     coins: golds.length,
     potions: potionsSpec.length,
     vegetation: veg.stats,

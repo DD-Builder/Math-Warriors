@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
-  paperFiber, paperTooth, deckleDisc, deckleEdge,
+  paperFiber, paperTooth, paperMottle, deckleDisc, deckleEdge,
   preloadPaperTextures, textureStats, disposePaperTextures,
   paperTextureCacheSize, cavityTint, TEXTURE_DEFAULTS,
 } from './textures.js';
@@ -169,6 +169,45 @@ test('overworld/textures', async (t) => {
     assert.ok(Math.max(...ys) - Math.min(...ys) > h * 0.15, 'tear line is too straight');
   });
 
+  await t.test('paperMottle is a big-feature field that tiles and drifts in hue', () => {
+    const tex = paperMottle();
+    const size = TEXTURE_DEFAULTS.mottleSize;
+    assert.ok(tex instanceof THREE.DataTexture);
+    assert.equal(tex.image.width, size);
+    assert.ok(isPow2(size));
+    assert.equal(tex.wrapS, THREE.RepeatWrapping);
+    assert.equal(tex.colorSpace, THREE.NoColorSpace);
+    const d = tex.image.data;
+
+    // Centred on neutral and using most of the byte range: this is what lets
+    // the shader apply a tiny amplitude without banding.
+    const g = stats(d, 4, 1, size);
+    assert.ok(Math.abs(g.mean - 127.5) < 12, `mottle mean ${g.mean}`);
+    assert.ok(g.max - g.min > 170, `mottle range ${g.min}..${g.max}`);
+
+    // Tiles exactly: the far column must interpolate back to the first.
+    for (let y = 0; y < size; y += 29) {
+      const a = d[(y * size) * 4 + 1];
+      const b = d[(y * size + size - 1) * 4 + 1];
+      assert.ok(Math.abs(a - b) < 26, `mottle seam at y=${y}: ${a} vs ${b}`);
+    }
+
+    // BIG features. A macro patina whose neighbouring texels differ wildly is
+    // just noise — the whole reason this field exists is that paperFiber's low
+    // frequencies are deliberately weak.
+    let step = 0;
+    for (let i = 0; i < size * (size - 1); i += 7) step += Math.abs(d[i * 4 + 1] - d[(i + 1) * 4 + 1]);
+    assert.ok(step / Math.ceil(size * (size - 1) / 7) < 6, 'mottle must be smooth, not noise');
+
+    // Hue drifts: R and B must separate somewhere, or this is grey mottling
+    // and the surface only changes value.
+    let maxSep = 0;
+    for (let i = 0; i < size * size; i += 13) {
+      maxSep = Math.max(maxSep, Math.abs(d[i * 4] - d[i * 4 + 2]));
+    }
+    assert.ok(maxSep > 16, `mottle hue separation ${maxSep} is too flat`);
+  });
+
   await t.test('every texture is shared, cached and re-creatable after dispose', () => {
     assert.equal(paperTextureCacheSize(), 0);
     const a = paperFiber();
@@ -176,10 +215,10 @@ test('overworld/textures', async (t) => {
     assert.equal(a, b, 'materials must share ONE instance');
     assert.equal(paperTextureCacheSize(), 1);
     preloadPaperTextures();
-    // Three, not four: deckleEdge stays lazy until something wears a torn hem.
-    assert.equal(paperTextureCacheSize(), 3);
-    deckleEdge();
+    // Four, not five: deckleEdge stays lazy until something wears a torn hem.
     assert.equal(paperTextureCacheSize(), 4);
+    deckleEdge();
+    assert.equal(paperTextureCacheSize(), 5);
     disposePaperTextures();
     assert.equal(paperTextureCacheSize(), 0);
     const c = paperFiber();
@@ -190,7 +229,7 @@ test('overworld/textures', async (t) => {
     preloadPaperTextures();
     deckleEdge();
     const s = textureStats();
-    assert.equal(s.count, 4);
+    assert.equal(s.count, 5);
     for (const e of s.entries) {
       assert.equal(e.baseBytes, e.width * e.height * 4);
       assert.equal(e.bytes, Math.round(e.baseBytes * 4 / 3));

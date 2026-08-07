@@ -53,20 +53,41 @@
  */
 import * as THREE from 'three';
 import { PAPER } from '../../config.js';
-import { paperFiber, paperTooth, cavityTint } from './textures.js';
+import { paperFiber, paperTooth, paperMottle, cavityTint } from './textures.js';
 import { applyAerialFog } from './aerialFog.js';
 
 let _ramp = null;
 
-/** Shared 3-step ramp: shadow texel teal-tinted, mid neutral, lit full. */
+/**
+ * Shared 3-step ramp: shadow texel teal-tinted, mid neutral, lit full.
+ *
+ * ── Why these numbers and not gentler ones ────────────────────────────────
+ * MeshToonMaterial routes only DIRECT light through this ramp; the hemisphere
+ * fill is added flat afterwards. So the shade texel and the hemi intensity in
+ * timeOfDay.js are the same dial seen from two ends, and both used to be set
+ * far too kind: shade at (0.34,0.47,0.47) under a 0.65 fill meant a fully
+ * shadowed daylight surface never fell below roughly 55% of a lit one. At that
+ * ratio nothing in the frame has FORM — every object is its own flat local
+ * colour with a faint cool tint down one side, which is precisely the note the
+ * art directors kept returning.
+ *
+ * Odyssey and TotK both commit to a hard light/shade split: the shadow side of
+ * a cliff is a different colour family, not a cooler version of the lit side.
+ * The shade texel below drops to ~30% luma to buy that split, and it drops
+ * ANISOTROPICALLY — red loses most, blue least — so the shaded side does not
+ * merely darken, it walks into the teal that PAPER.shadow already declares as
+ * this world's stand-in for black. Darkening toward grey would be the ordinary
+ * move and it is the one the palette law forbids outright.
+ *
+ * The mid step comes down with it. Leaving it near 0.75 would put a bright
+ * plateau across most of the terminator and re-flatten everything the shade
+ * step just bought.
+ */
 export function toonRamp() {
   if (_ramp) return _ramp;
-  // RGB per step. Dark step leans teal (multiplying warm sun light by a
-  // teal-ish factor = teal-shadowed paper); values chosen so nothing on
-  // screen ever drops below ~30% luminance.
   const steps = [
-    [0.34, 0.47, 0.47],  // shade — teal lean (from PAPER.shadow hue)
-    [0.72, 0.76, 0.74],  // half  — near-neutral, slight cool
+    [0.22, 0.32, 0.36],  // shade — hard teal lean, ~30% luma
+    [0.56, 0.63, 0.65],  // half  — a real step, not a highlight
     [1.00, 1.00, 1.00],  // lit
   ];
   const data = new Uint8Array(steps.length * 4);
@@ -127,10 +148,31 @@ export const PAPERCUT_DEFAULTS = {
   scale: 3.0,          // WORLD METRES per texture tile
   triplanar: true,     // blend a top-down and a diagonal side projection
   space: 'world',      // 'world' (static geometry) | 'local' (moving/instanced)
+  // ── MACRO layer (off by default; one extra fetch when enabled) ──────────
+  // `grain` works at arm's length and is invisible at ten metres by design
+  // (see textures.js on why the fibre's low frequencies are kept weak). That
+  // leaves every big surface — a 9 m gate, a market roof, a building wall —
+  // one flat fill at exactly the distance the establishing shots are taken
+  // from. `macro` is the answer: a soft ~14 m patina that swings both value
+  // AND hue, so a wall changes colour across itself.
+  macro: 0,
+  macroScale: 14,      // WORLD METRES per macro tile
+  // Sun-bleach: up-facing paper is faded by the light, tucked-under paper
+  // holds the palette's teal cavity. A free directional read on any form,
+  // driven by the up-facing weight the vertex patch already computes.
+  bleach: 0,
 };
 
 // Cavity multiplier, derived from PAPER.shadow — teal-leaning, never grey.
 const CAVITY = cavityTint();
+
+// Sun-bleach pair. UNDER is a gentler cavity (the same teal family, pulled
+// most of the way back to white) applied to paper that faces sideways or down;
+// OVER is a faint warm lift on paper that faces the sky. Both are MULTIPLIERS
+// straddling 1.0, so the pair costs one mix and can never leave the palette:
+// the darkening can only go teal and the lightening can only go cream.
+const UNDER = cavityTint(0.90, 0.96);
+const OVER = [1.030, 1.022, 1.006];
 
 /**
  * Build the vertex-shader additions.
@@ -200,25 +242,28 @@ export function applyPapercut(material, opts = {}) {
   const grain = Math.max(0, o.grain);
   const tooth = Math.max(0, o.normal);
   const rough = Math.max(0, o.roughnessLike);
-  if (grain <= 0 && tooth <= 0 && rough <= 0) return material;
+  const macro = Math.max(0, o.macro);
+  const bleach = Math.max(0, o.bleach);
+  if (grain <= 0 && tooth <= 0 && rough <= 0 && macro <= 0 && bleach <= 0) return material;
 
   const invScale = 1 / (o.scale > 0 ? o.scale : 1);
+  const invMacro = 1 / (o.macroScale > 0 ? o.macroScale : 1);
   const tri = o.triplanar !== false;
   const needTooth = tooth > 0 || rough > 0;
   const { pars: vPars, body: vBody } = vertexPatch(o.space);
 
-  const fiberTex = paperFiber();
+  const fiberTex = grain > 0 ? paperFiber() : null;
   const toothTex = needTooth ? paperTooth() : null;
+  const mottleTex = macro > 0 ? paperMottle() : null;
 
   // Shared UV derivation. `mwFlat` is 1 on ground-facing paper and 0 on a wall;
   // the side projection is a fixed 45-degree fold rather than a normal-driven
   // one, because a normal-driven projection would jump between the flat facets
   // this world is built from and show a seam on every facet edge.
-  const uvBlock = tri ? `
+  const uvBlock = `
 	float mwFlat = vPaper.w;
-	vec2 mwUvTop = vPaper.xz * ${g(invScale)};
-	vec2 mwUvSide = vec2( ( vPaper.x + vPaper.z ) * 0.70711, vPaper.y ) * ${g(invScale)};` : `
-	vec2 mwUvTop = vPaper.xz * ${g(invScale)};`;
+	vec2 mwUvTop = vPaper.xz * ${g(invScale)};${tri ? `
+	vec2 mwUvSide = vec2( ( vPaper.x + vPaper.z ) * 0.70711, vPaper.y ) * ${g(invScale)};` : ''}`;
 
   const fetch = (sampler) => (tri
     ? `mix( texture2D( ${sampler}, mwUvSide ).rgb, texture2D( ${sampler}, mwUvTop ).rgb, mwFlat )`
@@ -227,6 +272,21 @@ export function applyPapercut(material, opts = {}) {
   const grainBlock = grain > 0 ? `
 	vec3 mwFiber = ${fetch('uPaperFiber')};
 	diffuseColor.rgb *= vec3( 1.0 ) + ( mwFiber - 0.5 ) * ${g(2 * grain)};` : '';
+
+  // MACRO patina. One top-down fetch only — a triplanar blend at a 14 m tile
+  // buys nothing (the features are metres across, so stretching one down a
+  // wall is invisible) and would double the cost of the layer.
+  const macroBlock = macro > 0 ? `
+	vec3 mwMac = texture2D( uPaperMottle, vPaper.xz * ${g(invMacro)} ).rgb;
+	diffuseColor.rgb *= vec3( 1.0 ) + ( mwMac - 0.5 ) * ${g(2 * macro)};` : '';
+
+  // Sun-bleach. `mwFlat` is 1 on paper facing the sky and 0 on a wall, so this
+  // is a free ambient-direction cue: tops fade warm, flanks and undersides
+  // hold the teal cavity. It is NOT lighting — it survives into shadow, which
+  // is exactly what makes a form read when the key light is behind it.
+  const bleachBlock = bleach > 0 ? `
+	diffuseColor.rgb *= mix( mix( vec3( 1.0 ), ${g3(UNDER)}, ${g(bleach)} ),
+	                         mix( vec3( 1.0 ), ${g3(OVER)}, ${g(bleach)} ), mwFlat );` : '';
 
   // Duff et al. branch-free orthonormal basis around the shading normal —
   // the derivative-free replacement for a tangent frame (see the header).
@@ -247,8 +307,9 @@ export function applyPapercut(material, opts = {}) {
   material.onBeforeCompile = (shader, renderer) => {
     if (prevCompile) prevCompile.call(material, shader, renderer);
 
-    shader.uniforms.uPaperFiber = { value: fiberTex };
+    if (fiberTex) shader.uniforms.uPaperFiber = { value: fiberTex };
     if (toothTex) shader.uniforms.uPaperTooth = { value: toothTex };
+    if (mottleTex) shader.uniforms.uPaperMottle = { value: mottleTex };
 
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>${vPars}`)
@@ -256,16 +317,87 @@ export function applyPapercut(material, opts = {}) {
 	#include <project_vertex>`);
 
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>
-uniform sampler2D uPaperFiber;${toothTex ? `
-uniform sampler2D uPaperTooth;` : ''}${vPars}`)
-      .replace('#include <color_fragment>', `#include <color_fragment>${uvBlock}${grainBlock}`)
+      .replace('#include <common>', `#include <common>${fiberTex ? `
+uniform sampler2D uPaperFiber;` : ''}${toothTex ? `
+uniform sampler2D uPaperTooth;` : ''}${mottleTex ? `
+uniform sampler2D uPaperMottle;` : ''}${vPars}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>${uvBlock}${macroBlock}${grainBlock}${bleachBlock}`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>${toothBlock}`);
   };
 
   material.customProgramCacheKey = () => {
     const prev = prevKey ? prevKey.call(material) : '';
-    return `${prev}|mw-paper|${grain}|${tooth}|${rough}|${o.scale}|${tri ? 1 : 0}|${o.space}`;
+    return `${prev}|mw-paper|${grain}|${tooth}|${rough}|${o.scale}|${tri ? 1 : 0}|${o.space}`
+      + `|${macro}|${o.macroScale}|${bleach}`;
+  };
+  material.needsUpdate = true;
+  return material;
+}
+
+// ── Rim light ───────────────────────────────────────────────────────────
+
+/**
+ * Shared rim-light uniforms. One object, so a time-of-day pass can walk the rim
+ * from cream at noon to peach at golden hour with a single write and every
+ * rimmed surface follows.
+ */
+export const RIM_UNIFORMS = {
+  uRimColor: { value: new THREE.Color().setHex(PAPER.cream, THREE.SRGBColorSpace) },
+  uRimStrength: { value: 1 },
+};
+
+/**
+ * Fresnel rim, for the HERO and nothing else.
+ *
+ * Odyssey has a hard rule the art directors called out by name: Mario is
+ * always value-separated from his backdrop. Ours was not — a mid-teal knight
+ * on mid-green grass at effectively equal luma, which is a character that
+ * disappears into the one frame that exists to show him off. The honest fixes
+ * are a backdrop you cannot control or an outline the palette law forbids; the
+ * third is a rim, and a rim is what Nintendo actually uses.
+ *
+ * It is additive on `outgoingLight`, AFTER the toon ramp, so it survives into
+ * shade — which is the whole point: the hero standing in a tree's shadow is
+ * exactly when he most needs an edge. The colour is a PAPER colour and the
+ * strength is small, so the rim reads as light catching a paper edge rather
+ * than as a sci-fi glow.
+ *
+ * Gated by the VIEW-space normal's y, softly, so the strongest rim lands on
+ * up-and-outward facing edges (shoulders, crown, the top of the head) and the
+ * boots keep only a third of it. View space is the right space here despite
+ * sounding wrong: the boom camera is near-level, so view-up and world-up are
+ * within a few degrees, and it costs no varying at all.
+ *
+ * @param {THREE.Material} material a lit material with a normal + vViewPosition
+ * @param {{strength?:number, power?:number}} [opts]
+ */
+export function applyRimLight(material, opts = {}) {
+  const strength = opts.strength ?? 0.35;
+  const power = opts.power ?? 3.0;
+  const floor = opts.floor ?? 0.34;   // rim kept on down-facing paper
+  const prevCompile = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey;
+
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevCompile) prevCompile.call(material, shader, renderer);
+    shader.uniforms.uRimColor = RIM_UNIFORMS.uRimColor;
+    shader.uniforms.uRimStrength = RIM_UNIFORMS.uRimStrength;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform vec3 uRimColor;
+uniform float uRimStrength;`)
+      .replace('#include <opaque_fragment>', `
+	{
+		vec3 mwRimV = normalize( vViewPosition );
+		float mwRim = pow( 1.0 - clamp( dot( normal, mwRimV ), 0.0, 1.0 ), ${g(power)} );
+		mwRim *= mix( ${g(floor)}, 1.0, smoothstep( -0.30, 0.30, normal.y ) );
+		outgoingLight += uRimColor * ( mwRim * ${g(strength)} * uRimStrength );
+	}
+	#include <opaque_fragment>`);
+  };
+  material.customProgramCacheKey = () => {
+    const prev = prevKey ? prevKey.call(material) : '';
+    return `${prev}|mw-rim|${strength}|${power}|${floor}`;
   };
   material.needsUpdate = true;
   return material;
@@ -277,9 +409,14 @@ uniform sampler2D uPaperTooth;` : ''}${vPars}`)
  * MeshToonMaterial untouched.
  */
 export function papercutMaterial(color, opts = {}) {
-  const { grain, normal, roughnessLike, scale, triplanar, space, ...matOpts } = opts;
+  const {
+    grain, normal, roughnessLike, scale, triplanar, space, macro, macroScale, bleach,
+    ...matOpts
+  } = opts;
   const mat = toonMaterial(color, matOpts);
-  return applyPapercut(mat, { grain, normal, roughnessLike, scale, triplanar, space });
+  return applyPapercut(mat, {
+    grain, normal, roughnessLike, scale, triplanar, space, macro, macroScale, bleach,
+  });
 }
 
 export { PAPER };

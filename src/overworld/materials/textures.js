@@ -69,6 +69,7 @@ import { PAPER } from '../../config.js';
 export const TEXTURE_DEFAULTS = {
   fiberSize: 512,
   toothSize: 512,
+  mottleSize: 256,
   deckleDiscSize: 256,
   deckleEdgeWidth: 256,
   deckleEdgeHeight: 64,
@@ -256,6 +257,87 @@ function buildFiber(size, seed) {
   }
   const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
   tex.name = 'paper-fiber';
+  return tex;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// paperMottle — the MACRO pigment field
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Big soft blotches — the layer that stops a nine-metre arch from being one
+ * flat fill.
+ *
+ * paperFiber deliberately keeps its low-frequency energy WEAK, because it is
+ * sampled at a ~2 m tile across the whole island and any big soft blob in it
+ * would announce the tile a thousand times over. That decision is right for
+ * the fibre and wrong for everything else: it means a surface has pigment
+ * density at arm's length and is perfectly uniform at ten metres, which is
+ * precisely the "one albedo per object" note the art directors kept writing.
+ *
+ * So macro variation gets its OWN field, sampled at a ~14 m tile where a soft
+ * blob is a patina and not a pattern. Three octaves only, all of them large,
+ * with a wandering warm/cool drift on R and B so a wall's blotching moves
+ * between the sunned and weathered sides of the same paper rather than between
+ * light grey and dark grey.
+ *
+ * 256 px is plenty: the whole point is that nothing in here is small.
+ */
+export function paperMottle(opts = {}) {
+  const size = opts.size ?? TEXTURE_DEFAULTS.mottleSize;
+  const seed = (opts.seed ?? TEXTURE_DEFAULTS.seed) | 0;
+  return cached(`mottle:${size}:${seed}`, () => finish(buildMottle(size, seed)));
+}
+
+function buildMottle(size, seed) {
+  const n = size * size;
+  const field = new Float32Array(n);
+  const warmF = new Float32Array(n);
+
+  // Every period is small, i.e. every feature is BIG relative to the tile.
+  const layers = [
+    [lattice(2, 2, seed ^ 0xc1), 2, 2, 0.34],
+    [lattice(4, 5, seed ^ 0xd3), 4, 5, 0.30],
+    [lattice(9, 8, seed ^ 0xe5), 9, 8, 0.22],
+    [lattice(17, 19, seed ^ 0xf7), 17, 19, 0.14],
+  ];
+  const warmL = lattice(3, 2, seed ^ 0x1b);
+
+  const inv = 1 / size;
+  for (let j = 0; j < size; j++) {
+    const v = j * inv;
+    const row = j * size;
+    for (let i = 0; i < size; i++) {
+      const u = i * inv;
+      let f = 0;
+      for (let k = 0; k < layers.length; k++) {
+        const [L, px, py, w] = layers[k];
+        f += latNoise(L, u * px, v * py) * w;
+      }
+      field[row + i] = f;
+      warmF[row + i] = latNoise(warmL, u * 3, v * 2) - 0.5;
+    }
+  }
+  // 2.4 sigma, not 3: a patina wants to spend most of its range, and the
+  // shader amplitude on top of it is already a few percent.
+  normalise(field, 2.4);
+
+  // Stronger warm drift than the fibre carries. At this scale the hue shift is
+  // the whole point — a big surface must change COLOUR across itself, not just
+  // value, or it reads as a lighting artefact instead of as weathered paper.
+  const WARM = 0.34;
+  const data = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    const f = field[i];
+    const w = warmF[i] * WARM;
+    const o = i * 4;
+    data[o] = b8(f + w);
+    data[o + 1] = b8(f);
+    data[o + 2] = b8(f - w * 0.7);
+    data[o + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
+  tex.name = 'paper-mottle';
   return tex;
 }
 
@@ -486,6 +568,7 @@ export function textureStats() {
 export function preloadPaperTextures(opts = {}) {
   paperFiber(opts);
   paperTooth(opts);
+  paperMottle(opts);
   deckleDisc(opts);
   return textureStats();
 }

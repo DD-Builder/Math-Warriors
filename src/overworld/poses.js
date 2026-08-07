@@ -43,18 +43,27 @@ export const POSES = [
     name: 'spawn-vista',
     playerPos: { x: 6, z: 158 },
     yaw: Math.PI,
-    camPos: { x: 8, y: 26, z: 182 },
-    camLook: { x: 0, y: 12, z: 110 },
+    camPos: { x: 20, y: 26, z: 186 },
+    camLook: { x: -6, y: 15, z: 104 },
     tod: 0.28,
   },
   {
-    // Three-quarter close on the Floor 1 gate: voussoir arc, glowing page,
-    // floating banner, hero for scale.
+    // Three-quarter on the Floor 1 gate: voussoir arc, glowing page, floating
+    // banner, hero for scale — and the palace mesa deliberately kept IN the
+    // frame behind it.
+    //
+    // The old version put the arch dead centre on a flat pad with the one
+    // landmark amputated by the right edge, which is two composition faults at
+    // once. Backing the eye off to z=168 drops the angle between the gate
+    // (29.7 deg west of north from here) and the mesa (8.8 deg) to 21 deg, and
+    // aiming down the middle of that pair puts the gate a third of the way left
+    // and the mesa a third right — both comfortably inside the 31 deg
+    // horizontal half-angle, neither on an edge.
     name: 'garden-portal',
-    playerPos: { x: 10, z: 148 },
+    playerPos: { x: 18, z: 152 },
     yaw: Math.PI,
-    camPos: { x: 18, y: 18.5, z: 158 },
-    camLook: { x: 10, y: 19.5, z: 141 },
+    camPos: { x: 26, y: 21, z: 168 },
+    camLook: { x: 15.7, y: 19, z: 139.8 },
     tod: 0.3,
   },
   {
@@ -80,7 +89,7 @@ export const POSES = [
     // just above the waterline, in the clear near field. A higher sun throws it
     // off the bottom of the frame; a lower one throws it past the fog wall.
     name: 'tidepool-foam',
-    playerPos: { x: 157, z: 132 },
+    playerPos: { x: 155, z: 129 },
     yaw: 0.87,
     camPos: { x: 141, y: 15, z: 118 },
     camLook: { x: 178, y: 0, z: 149 },
@@ -90,18 +99,22 @@ export const POSES = [
     // Sky Cliffs, seen from out over the water looking back WEST at the wall.
     //
     // The old framing stood on top and looked down the drop, which worked when
-    // the biome was a 30 m dome. It is a table mountain now — a 47 m plateau
-    // whose eastern face steps 46 m down to the sea in four bands — and the
-    // only way to read that is side-on. From 28 m above open water the lip
-    // sits 19 deg above the view axis and the base 23 deg below it, so the
-    // whole wall fills the frame; the hero stands on the brink for scale, and
-    // the 74 m of air between camera and cliff is exactly the depth range the
-    // fog curve is supposed to be tested over.
+    // the biome was a 30 m dome. It is a HALF table mountain now — sheer and
+    // short on the seaward flank, long and shallow on the landward one, with a
+    // spiral shelf cutting across the western face — and the only way to read
+    // an asymmetric mass is obliquely.
+    //
+    // From 44 m above open water on a bearing that is 25 deg off the wall's
+    // normal, the sheer face, the shelf, the crown and the landward apron are
+    // all in one frame at different depths. The look point is aimed 8 m ABOVE
+    // the plateau on purpose: the previous version put the mountain across 80%
+    // of the frame with no negative space, and lifting the axis drops it to
+    // roughly two thirds with sky above and sea at the left edge.
     name: 'sky-cliff-vista',
     playerPos: { x: 166, z: 0 },
     yaw: Math.PI / 2,
-    camPos: { x: 240, y: 28, z: -14 },
-    camLook: { x: 176, y: 22, z: 0 },
+    camPos: { x: 250, y: 44, z: -52 },
+    camLook: { x: 168, y: 32, z: 8 },
     tod: 0.28,
   },
   {
@@ -116,18 +129,18 @@ export const POSES = [
     name: 'ember-dusk',
     playerPos: { x: 127, z: -130 },
     yaw: -Math.PI * 0.75,
-    camPos: { x: 150, y: 22, z: -140 },
-    camLook: { x: 80, y: 14, z: -110 },
+    camPos: { x: 157, y: 26, z: -147 },
+    camLook: { x: 78, y: 16, z: -107 },
     tod: 0.76,
   },
   {
     // Market Town: shop and gallery both inside the horizontal half-angle
     // (~31 deg at fov 50, 4:3) from this stand-off.
     name: 'market-town',
-    playerPos: { x: -136, z: 2 },
+    playerPos: { x: -138, z: 8 },
     yaw: Math.PI / 2,
-    camPos: { x: -108, y: 24, z: 2 },
-    camLook: { x: -156, y: 8, z: 0 },
+    camPos: { x: -114, y: 18, z: 40 },
+    camLook: { x: -168, y: 10, z: -8 },
     tod: 0.22,
   },
   {
@@ -143,10 +156,10 @@ export const POSES = [
     // the sight line to the rim clears the intervening shoulder by ~1.5 m —
     // the crown breaks the horizon exactly where it should.
     name: 'palace-approach',
-    playerPos: { x: 0, z: 46 },
+    playerPos: { x: 0, z: 38 },
     yaw: Math.PI,
-    camPos: { x: 11, y: 38, z: 86 },
-    camLook: { x: 0, y: 46, z: 14 },
+    camPos: { x: 44, y: 26, z: 100 },
+    camLook: { x: -6, y: 42, z: 24 },
     tod: 0.31,
   },
   {
@@ -168,8 +181,8 @@ export const POSES = [
     name: 'night-vista',
     playerPos: { x: 6, z: 158 },
     yaw: Math.PI,
-    camPos: { x: 8, y: 26, z: 182 },
-    camLook: { x: 0, y: 12, z: 110 },
+    camPos: { x: 20, y: 26, z: 186 },
+    camLook: { x: -6, y: 15, z: 104 },
     tod: 0.93,
     weather: 'clear',
   },
