@@ -43,6 +43,15 @@ import { DialogueOverlay } from '../ui/DialogueOverlay.js';
 import { DIALOGUE, getRescueDialogue } from '../data/dialogue.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { goHub, hubSceneKey } from '../ui/hubRouter.js';
+// The floor's RULES live in one place now, shared with the 3D level runtime
+// (src/overworld/level3d.js via OverworldScene). This scene keeps every bit of
+// presentation — dialogue, tweens, particles, transitions — and delegates the
+// decisions. See src/overworld/floorRules.js.
+import {
+  nextLockDoor, doorQuestionSpec, beyondBossBlocked, bossGate, goldenGate,
+  exitGate, advanceChallenge, challengeGoal, grantChest, grantGold, grantPotion,
+  useFountain, syncPartyToSave, objectiveText,
+} from '../overworld/floorRules.js';
 
 /**
  * MazeScene
@@ -844,22 +853,9 @@ export class MazeScene extends Phaser.Scene {
    * "here's what to do next".
    */
   currentObjectiveText() {
-    const ch = this.floor.challenge || { count: 3 };
-    const steps = this.level?.objective || [];
-    const label = (key, fallback) => steps.find(s => s.key === key)?.label || fallback;
-    if (this.challengeProgress < ch.count) {
-      return `${label('challenge', 'Complete the challenges')}  (${this.challengeProgress}/${ch.count})`;
-    }
-    if (this.phase2Active && ch.phase2 && this.phase2Progress < ch.phase2.count) {
-      return `${ch.phase2.label}: ${this.phase2Progress}/${ch.phase2.count}`;
-    }
-    if (!this.bossDefeated) {
-      return this.mazeTransformed
-        ? label('boss', 'Face the boss!')
-        : label('transform', 'The way is open — cross over!');
-    }
-    if (!this.hasKey) return 'Claim the golden treasure!';
-    return 'Step through the glowing exit!';
+    // Shared with the 3D floor HUD — see overworld/floorRules.js. `this`
+    // already carries the progress fields the rule reads.
+    return objectiveText(this, this.floor, this.level);
   }
 
   showHeroSwapOverlay() {
@@ -1542,46 +1538,27 @@ export class MazeScene extends Phaser.Scene {
    * caller must `return`), false if all locks are open (proceed).
    */
   promptNextLock(obj, hint) {
-    if (!obj.lock) return false;
-    const ids = Array.isArray(obj.lock) ? obj.lock : [obj.lock];
-    for (const id of ids) {
-      const lockDoor = this.objects.find(o => o.id === id);
-      if (!lockDoor || lockDoor.open) continue;
-      const operator = lockDoor.operator || FLOOR_OPERATORS[this.floorId] || '+';
-      const q = generateRatedQuestion({
-        operator,
-        grade: getAdaptiveGrade(this.save, operator),
-        streak: 0,
-        floor: this.floorId,
-        targetStars: [2, 3],
-      });
-      // On a correct answer this door opens; re-run the interaction so the
-      // next unopened lock (or the now-unlocked object) is handled.
-      lockDoor.onOpen = () => this.checkObjectAt(obj.x, obj.y);
-      if (hint) this.showFloatText(obj.x, obj.y, hint, '#f0c040');
-      this.showMathDoorPrompt(q, lockDoor);
-      return true;
-    }
-    return false;
+    const lockDoor = nextLockDoor(this.objects, obj);
+    if (!lockDoor) return false;
+    const spec = doorQuestionSpec(lockDoor, this.floorId);
+    const q = generateRatedQuestion({
+      ...spec,
+      grade: getAdaptiveGrade(this.save, spec.operator),
+    });
+    // On a correct answer this door opens; re-run the interaction so the
+    // next unopened lock (or the now-unlocked object) is handled.
+    lockDoor.onOpen = () => this.checkObjectAt(obj.x, obj.y);
+    if (hint) this.showFloatText(obj.x, obj.y, hint, '#f0c040');
+    this.showMathDoorPrompt(q, lockDoor);
+    return true;
   }
 
   checkObjectAt(x, y) {
-    // Boss blocking — if player hasn't defeated the boss, they can't walk
-    // past the boss tile to reach the golden chest or exit
-    if (!this.bossDefeated) {
-      const bossObj = this.objects.find(o => o.type === 'boss' && !o.consumed);
-      if (bossObj) {
-        // Check if the player is on a tile that's beyond the boss
-        // (i.e., between boss and exit, closer to exit)
-        const exitObj = this.objects.find(o => o.type === 'exit');
-        const goldenObj = this.objects.find(o => o.type === 'golden' && !o.consumed);
-        if ((goldenObj && x === goldenObj.x && y === goldenObj.y) ||
-            (exitObj && x === exitObj.x && y === exitObj.y)) {
-          // Push player back to boss tile
-          this.showFloatText(x, y, 'DEFEAT THE BOSS FIRST!', '#e04040');
-          return;
-        }
-      }
+    // Boss blocking — until the boss is down, the golden chest and the exit
+    // are not reachable even if the player is standing on them.
+    if (beyondBossBlocked(this.objects, this.bossDefeated, x, y)) {
+      this.showFloatText(x, y, 'DEFEAT THE BOSS FIRST!', '#e04040');
+      return;
     }
 
     // Secret wall reveal
@@ -1755,21 +1732,11 @@ export class MazeScene extends Phaser.Scene {
           this.showToast('The fountain is depleted...', '#808080');
           return;
         }
-        let totalHealed = 0;
-        for (const hero of this.party) {
-          const healed = hero.maxHp - hero.hp;
-          hero.hp = hero.maxHp;
-          totalHealed += healed;
-        }
-        obj.uses--;
+        const drink = useFountain(this.party, obj);
         updateObjectUses(obj.id, obj.uses);
-        if (totalHealed > 0) {
-          this.showToast(`Party healed! (${obj.uses} uses left)`, '#40c0e0');
-          audio.play('world/chest');
-        } else {
-          this.showToast(`Already at full HP! (${obj.uses} uses left)`, '#40c0e0');
-        }
-        this.save.party = this.party.map(h => ({ id: h.id, name: h.name, hp: h.hp, maxHp: h.maxHp, xp: h.xp ?? 0, level: h.level ?? 1 }));
+        this.showToast(drink.message, '#40c0e0');
+        if (drink.healed > 0) audio.play('world/chest');
+        syncPartyToSave(this.save, this.party);
         writeSave(this.save, this.slot);
         this.updateHud();
         this.saveMazeState();
@@ -1778,8 +1745,7 @@ export class MazeScene extends Phaser.Scene {
       case 'chest': {
         // A vault chest may be gated by a lock door — answer it to claim it.
         if (this.promptNextLock(obj, '🔒 Answer the vault lock!')) return;
-        const gold = obj.loot?.gold ?? 10;
-        this.save.gold += gold;
+        const gold = grantChest(this.save, obj);
         writeSave(this.save, this.slot);
         obj.consumed = true;
         markDead(obj.id);
@@ -1793,7 +1759,7 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'potion': {
-        this.save.potions += 1;
+        grantPotion(this.save);
         writeSave(this.save, this.slot);
         obj.consumed = true;
         markDead(obj.id);
@@ -1859,26 +1825,22 @@ export class MazeScene extends Phaser.Scene {
         // A challenge item may be sealed behind a math-door lock (see
         // promptNextLock): answer it before the item can be operated.
         if (this.promptNextLock(obj, '🔒 Answer the lock!')) return;
-        const isPhase2 = this.phase2Active && this.floor.challenge?.phase2?.type === obj.type;
-        if (isPhase2) {
-          this.phase2Progress++;
+        const step = advanceChallenge(this, this.floor, obj);
+        if (step.phase2) {
           obj.activated = true;
           markActivated(obj.id);
           audio.play('world/chest');
-          const p2 = this.floor.challenge.phase2;
-          const p2remaining = p2.count - this.phase2Progress;
           this.showChallengeEffect(obj.type);
-          if (p2remaining > 0) {
-            this.showFloatText(obj.x, obj.y, `${p2.label} ${p2.verb}! ${p2remaining} left`, '#f0c040');
+          if (!step.done) {
+            this.showFloatText(obj.x, obj.y, step.message, '#f0c040');
           } else {
-            this.showFloatText(obj.x, obj.y, p2.allDoneMsg, '#f0d040');
+            this.showFloatText(obj.x, obj.y, step.message, '#f0d040');
             const p2Key = `floor${this.floorId}_phase2_done`;
             if (DIALOGUE[p2Key]) this.dialogue.show(DIALOGUE[p2Key]);
           }
           this.updateHud();
           break;
         }
-        this.challengeProgress++;
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/chest');
@@ -1886,15 +1848,14 @@ export class MazeScene extends Phaser.Scene {
         // Staged draining (Floor 2 tide): if this sluice opens its own band
         // of tiles, drain them NOW so a whole new district surfaces before
         // the final transform. The final valve still triggers transformFloor.
-        if (Array.isArray(obj.drain)) {
-          this.applyDrain(obj.drain);
-          if (obj.drainMessage) this.showToast(obj.drainMessage, '#60d0e8');
+        if (step.drain) {
+          this.applyDrain(step.drain);
+          if (step.drainMessage) this.showToast(step.drainMessage, '#60d0e8');
           audio.play('world/floor-complete');
         }
-        const ch = this.floor.challenge || { count: 3, label: 'ITEM', verb: 'found', allDoneMsg: 'Challenge complete!' };
-        const remaining = ch.count - this.challengeProgress;
-        if (remaining > 0) {
-          this.showFloatText(obj.x, obj.y, `${ch.label} ${ch.verb}! ${remaining} left`, '#e088c0');
+        const ch = challengeGoal(this.floor);
+        if (!step.done) {
+          this.showFloatText(obj.x, obj.y, step.message, '#e088c0');
           if (this.challengeProgress === 1 && DIALOGUE.mid_floor_encourage) {
             this.dialogue.show(DIALOGUE.mid_floor_encourage);
           } else if (this.challengeProgress === 2 && !this.fairyTalkShown) {
@@ -1912,7 +1873,7 @@ export class MazeScene extends Phaser.Scene {
             this.dialogue.show([{ speaker: 'Hint', text: getTutorialText('FIRST_FAIRY') }]);
           }
         } else {
-          this.showFloatText(obj.x, obj.y, ch.allDoneMsg, '#f0d040');
+          this.showFloatText(obj.x, obj.y, step.message, '#f0d040');
           const egs = getGameState();
           if (egs) { egs.fairies = this.challengeProgress; setGameState(egs); }
           this.showChallengeEffect(obj.type);
@@ -1930,8 +1891,9 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'golden': {
-        if (!this.bossDefeated) {
-          this.showFloatText(obj.x, obj.y, 'DEFEAT THE BOSS FIRST!', '#e088c0');
+        const gate = goldenGate(this);
+        if (!gate.ok) {
+          this.showFloatText(obj.x, obj.y, gate.message, '#e088c0');
           return;
         }
         obj.consumed = true;
@@ -1949,12 +1911,12 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'gold': {
-        this.save.gold += 8;
+        const nuggets = grantGold(this.save);
         writeSave(this.save, this.slot);
         obj.consumed = true;
         markDead(obj.id);
         audio.play('world/gold');
-        this.showFloatText(obj.x, obj.y, '+8 GOLD', COLORS_CSS.goldL);
+        this.showFloatText(obj.x, obj.y, `+${nuggets} GOLD`, COLORS_CSS.goldL);
         this.updateHud();
         break;
       }
@@ -1970,13 +1932,9 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'boss': {
-        const bch = this.floor.challenge || { count: 3 };
-        if (this.challengeProgress < bch.count) {
-          this.showFloatText(obj.x, obj.y, 'COMPLETE THE CHALLENGE FIRST!', '#e088c0');
-          return;
-        }
-        if (bch.phase2 && this.phase2Progress < bch.phase2.count) {
-          this.showFloatText(obj.x, obj.y, `FIND ALL ${bch.phase2.label}S FIRST!`, '#e088c0');
+        const bgate = bossGate(this, this.floor);
+        if (!bgate.ok) {
+          this.showFloatText(obj.x, obj.y, bgate.message, '#e088c0');
           return;
         }
         // Cage lock: the boss sits sealed behind its final math door(s) — a
@@ -1993,8 +1951,9 @@ export class MazeScene extends Phaser.Scene {
         break;
       }
       case 'exit': {
-        if (!this.hasKey) {
-          this.showFloatText(obj.x, obj.y, 'FIND THE GOLDEN KEY FIRST', '#f0d040');
+        const xgate = exitGate(this);
+        if (!xgate.ok) {
+          this.showFloatText(obj.x, obj.y, xgate.message, '#f0d040');
           return;
         }
         audio.play('world/floor-complete');

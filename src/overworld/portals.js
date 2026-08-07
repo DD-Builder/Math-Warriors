@@ -38,9 +38,18 @@ export function portalUnlocked(save, floorId) {
  *   localStorage — the impure lookup stays in the caller)
  * @param {boolean} [args.hasEntryDialogue] override; defaults to whether
  *   DIALOGUE has non-empty floor<N>_entry lines, exactly like enterFloor
- * @returns {{block:string}|{sceneKey:string, data:object}}
+ * @param {'2d'|'3d'} [args.mode] which front-end is asking. '2d' (the default,
+ *   and what the no-WebGL fallback keeps using) routes to a Phaser scene:
+ *   MazeScene, possibly behind CutsceneScene. '3d' does NOT leave the scene at
+ *   all — the floor is built inside the live 3D world — so it answers with the
+ *   floor to build and the entry lines to play in place, if any. The party and
+ *   lock gates are identical either way, which is the whole point of this
+ *   module: two doors into the same floor must never drift apart.
+ * @returns {{block:string}
+ *          |{sceneKey:string, data:object}
+ *          |{target:'floor3d', floorId:number, lines:?Array}}
  */
-export function routePortal({ save, floorId, hasMazeState = false, hasEntryDialogue }) {
+export function routePortal({ save, floorId, hasMazeState = false, hasEntryDialogue, mode = '2d' }) {
   const haveParty = !!(save && save.party && save.party.length >= 3);
   if (!haveParty) return { block: 'no-party' };
   if (!portalUnlocked(save, floorId)) return { block: 'locked' };
@@ -50,6 +59,15 @@ export function routePortal({ save, floorId, hasMazeState = false, hasEntryDialo
   // An explicit hasEntryDialogue:true still needs real lines to show —
   // CutsceneScene cannot render an empty script.
   const wantsCutscene = (hasEntryDialogue === undefined ? hasLines : hasEntryDialogue) && hasLines;
+
+  if (mode === '3d') {
+    return {
+      target: 'floor3d',
+      floorId,
+      lines: (wantsCutscene && !hasMazeState) ? lines : null,
+    };
+  }
+
   if (wantsCutscene && !hasMazeState) {
     return {
       sceneKey: SCENES.CUTSCENE,

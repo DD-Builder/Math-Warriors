@@ -30,8 +30,11 @@ const BASE_ARGS = [
   '--disable-extensions',
 ];
 
-// Specs that require a real WebGL context (the Three.js overworld).
-const OVERWORLD_SPECS = /overworld-.*\.spec\.js/;
+// Specs that require a real WebGL context (the Three.js overworld). Anything
+// added here is BOTH claimed by the '3d' project and excluded from '2d' — the
+// two lists are one regex on purpose, because a WebGL spec that leaks into the
+// Canvas2D project fails in a way that looks like a game bug.
+const OVERWORLD_SPECS = /(overworld-.*|level3d-shots)\.spec\.js/;
 
 export default defineConfig({
   testDir: './e2e',

@@ -20,6 +20,7 @@ import {
   pickEnemyTarget,
 } from '../systems/combat.js';
 import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
+import { classAttackProfile, battleRewards, recordAnswerStats } from '../systems/battleRules.js';
 import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
 import { speakQuestion } from '../systems/a11y.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
@@ -183,6 +184,11 @@ export class BattleScene extends Phaser.Scene {
     // victory goes back to World Map.
     this.returnScene = this.registry.get('battleReturnScene') || hubSceneKey(this.save);
     this.returnData = this.registry.get('battleReturnData') || null;
+    // A fight launched from INSIDE a 3D floor returns to the Overworld scene —
+    // which is a hub key — but it is not the "straight off the map, no maze
+    // wrapper" fast path, so it must not let a random encounter win complete
+    // the floor. `resumeFloor` is the marker OverworldScene sets.
+    this.fromFloor3d = !!this.returnData?.resumeFloor;
 
     this.momentum = 0.5;
     this.streak = 0;
@@ -2787,14 +2793,12 @@ export class BattleScene extends Phaser.Scene {
     // A scaffolded retry records nothing new — mastery/SM-2/adaptive keep
     // the FIRST attempt; the retry only restores lost attack power.
     if (!this._retryPending) {
-      recordAnswer(correct);
-      recordSkillAnswer(this.save, this.currentQuestion?.op, correct);
-      // Upgrade 1: adjust the child's per-skill adaptive level; stash an
-      // up-promotion so it can be celebrated (wired to visuals in U9).
-      const levelChange = updateAdaptiveLevel(this.save, this.currentQuestion?.op);
+      // Rolling accuracy, per-skill mastery, the adaptive level and the
+      // spaced-repetition schedule, in one shared call — battleRules owns
+      // this block so the 3D battle books an answer identically.
+      const levelChange = recordAnswerStats(this.save, this.currentQuestion, correct);
+      // Upgrade 1: stash an up-promotion so it can be celebrated (U9 visuals).
       if (levelChange.changed && levelChange.direction === 'up') this._pendingLevelUp = levelChange;
-      // Upgrade 2: update the persistent spaced-repetition schedule.
-      scheduleReview(this.save, this.currentQuestion, correct);
     }
 
     if (correct) {
@@ -2942,24 +2946,18 @@ export class BattleScene extends Phaser.Scene {
       const sigAtk = getEffectiveAtk(hero, this.party);
       const effectiveHero = { ...hero, atk: sigAtk + atkBonus };
 
-      // Class-specific modifiers
-      let classMult = 1;
-      let hitCount = 1;
-      if (cls === 'knight') {
-        classMult = 1.3;
-      } else if (cls === 'wizard') {
-        if (this.streak >= 5) {
-          const weakest = this.party.filter(h => h.hp > 0).sort((a, b) => a.hp - b.hp)[0];
-          if (weakest) {
-            weakest.hp = Math.min(weakest.maxHp, weakest.hp + 10);
-            this.showToast(`${weakest.name} healed 10 HP!`, '#60ff60');
-            this.updateAllHeroHp();
-          }
+      // Class-specific modifiers — the numbers live in battleRules so the
+      // 3D battle swings for exactly the same damage.
+      const classProfile = classAttackProfile(cls, this.streak);
+      const classMult = classProfile.classMult;
+      const hitCount = classProfile.hitCount;
+      if (classProfile.allyHeal > 0) {
+        const weakest = this.party.filter(h => h.hp > 0).sort((a, b) => a.hp - b.hp)[0];
+        if (weakest) {
+          weakest.hp = Math.min(weakest.maxHp, weakest.hp + classProfile.allyHeal);
+          this.showToast(`${weakest.name} healed ${classProfile.allyHeal} HP!`, '#60ff60');
+          this.updateAllHeroHp();
         }
-        classMult = this.streak >= 3 ? 1.5 : 1.0;
-      } else if (cls === 'bunny') {
-        hitCount = 2 + (this.streak >= 4 ? 1 : 0);
-        classMult = 1.0 / hitCount * 1.2;
       }
 
       if (this.streak === 8) {
@@ -4090,8 +4088,9 @@ export class BattleScene extends Phaser.Scene {
     audio.stopMusic();
     audio.playStinger('victory');
 
-    // Compute rewards
-    const goldEarned = 10 + this.floor * 5;
+    // Compute rewards (shared curve — see systems/battleRules.js)
+    const rewards = battleRewards(this.floor, this.battleCorrect);
+    const goldEarned = rewards.gold;
     const save = this.save;
     save.gold += goldEarned;
     save.stats.totalBattles++;
@@ -4099,7 +4098,7 @@ export class BattleScene extends Phaser.Scene {
     save.stats.totalWrong = (save.stats.totalWrong ?? 0) + this.battleWrong;
 
     // Award XP and check for level ups
-    const xpEarned = 10 + this.floor * 5 + this.battleCorrect * 2;
+    const xpEarned = rewards.xp;
     let leveledUp = [];
     for (let i = 0; i < this.party.length && i < 3; i++) {
       if (!save.party[i]) save.party[i] = {};
@@ -4144,7 +4143,8 @@ export class BattleScene extends Phaser.Scene {
     // still advances on the fast path. But Boss Rush and Spire fights must
     // NEVER flip real floor progression — a Spire boss (unlocked at Floor 3)
     // would otherwise complete unbeaten floors and unlock heroes early.
-    if ((this.isBoss && !this.bossRush && !this.spire) || isHubScene(this.returnScene)) {
+    if ((this.isBoss && !this.bossRush && !this.spire) ||
+        (isHubScene(this.returnScene) && !this.fromFloor3d)) {
       markFloorComplete(save, this.floor);
       const newHeroes = unlockHeroesForFloor(save, this.floor);
       if (newHeroes.length > 0) {

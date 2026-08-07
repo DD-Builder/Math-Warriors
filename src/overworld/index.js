@@ -47,7 +47,9 @@ import { createTerrain } from './terrainMesh.js';
 import { createSky } from './sky.js';
 import { createWater } from './water.js';
 import { createProps } from './props.js';
-import { createCharacterView } from './characterView.js';
+import { createHeroRig } from './heroRig.js';
+import { buildLevel3D } from './level3d.js';
+import { TILE_M } from './level3dBuild.js';
 import { createAtmosphere } from './atmosphere.js';
 import { timeOfDay } from './timeOfDay.js';
 import { WEATHER_NAMES, createWeatherBlender, createRenderFrame, applyWeather } from './weather.js';
@@ -88,31 +90,88 @@ const TOD_EPS = 0.001;
 //   drift*          a still frame is never quite still. Two incommensurate
 //                   sines at ~10 cm, faded in after a second of no input, so a
 //                   paused game breathes instead of freezing into a screenshot.
+//
+// THE FRAMING (rewritten): the previous boom sat 11.5 m back and 6 m up on a
+// 1.72 m character, which put the hero at ~13% of frame height — a speck in a
+// landscape photograph, not a character you are playing. The numbers below are
+// Odyssey/TotK third-person framing: close enough that the face, the cape and
+// the silhouette all read, far enough that the next platform is on screen.
+//
+//   6.4 m back, 3.0 m up, looking at the chest (1.15 m) is a 16 degree
+//   downward pitch. At 50 deg vertical FOV the visible slab at the hero's
+//   distance is ~6.2 m tall, so a 1.72 m hero occupies ~28% of frame height.
+//   That is the number that makes a character read as a character.
+//
+// Everything shrank in proportion: look-ahead (a close camera must lead LESS
+// or the hero slides off the bottom of frame), the terrain clearance, and the
+// eye floor. minDist dropped to 3.0 so a hill can still shorten the boom
+// meaningfully before it has to start raising it.
 const CAM = {
-  dist: 11.5,
-  distRun: 1.4,    // extra boom length at full sprint
-  minDist: 4.2,    // never closer than this, however hard terrain pushes
-  height: 6.0,
-  lookAhead: 2.2,
-  leadMax: 3.4,    // extra look-ahead along velocity at full sprint
+  dist: 6.4,
+  distRun: 1.1,    // extra boom length at full sprint
+  minDist: 3.0,    // never closer than this, however hard terrain pushes
+  height: 3.0,
+  lookAhead: 1.3,
+  leadMax: 1.8,    // extra look-ahead along velocity at full sprint
   leadLerp: 0.07,
-  lookUp: 1.5,
-  minAbove: 2.6,   // eye floor above terrain/water under the camera itself
-  clearance: 1.6,  // boom must clear the ground under it by this much
+  lookUp: 1.15,    // chest height on a 1.72 m hero
+  minAbove: 1.1,   // eye floor above terrain/water under the camera itself
+  clearance: 0.8,  // boom must clear the ground under it by this much
   boomSteps: 6,
-  lerp: 0.12,
-  lerpY: 0.055,
-  yDead: 0.07,     // vertical error under this is simply ignored
+  lerp: 0.16,
+  lerpY: 0.075,
+  yDead: 0.05,     // vertical error under this is simply ignored
   distIn: 0.34,    // shorten fast (a pop-through is unforgivable)…
   distOut: 0.055,  // …extend slowly (nobody should notice it happen)
   fov: 50,
   fovRun: 5.0,
   fovLerp: 0.045,
-  driftAmp: 0.10,
-  driftLook: 0.20,
+  driftAmp: 0.06,
+  driftLook: 0.12,
   driftDelay: 0.9, // seconds of stillness before the drift fades in
   driftFade: 1.6,
+  // When the boom is squeezed by something solid, the eye RISES as it comes
+  // in. Shortening alone is not enough inside a hedge maze: the wall behind
+  // the player is 4 m of solid geometry, and a camera that only pulls in ends
+  // up inside it. Rising as it pulls in turns that failure into the shot you
+  // actually want — a high, close over-the-shoulder that sees over the hedge.
+  squeezeLift: 2.6,
 };
+
+/** Hero standing height, metres. Everything in CAM is framed against this. */
+const HERO_HEIGHT = 1.72;
+
+/**
+ * The rig's RESTING elevation, in radians above the look-at pivot, derived
+ * from the framing above rather than authored twice. At zero orbit pitch the
+ * boom reproduces CAM.height exactly (lookUp + dist*tan(BASE_ELEV) == height),
+ * so adding player-driven pitch is a pure offset on top of the authored shot.
+ */
+const BASE_ELEV = Math.atan2(CAM.height - CAM.lookUp, CAM.dist);
+/** Hard elevation stops. Below level the eye starts clipping the hero's feet;
+ *  above ~66 deg the shot is a plan view and the horizon is gone. */
+const ELEV_MIN = -0.10;
+const ELEV_MAX = 1.15;
+
+/**
+ * Controls (rewritten). The stick used to drive WORLD axes: "up" was always
+ * world -Z regardless of where the camera was looking, while the camera itself
+ * rides the hero's facing. Push up, walk north, watch the camera swing — that
+ * is the "abysmal" feel. Movement is now CAMERA-RELATIVE: up on the stick is
+ * always away from the eye, which is the only scheme a five-year-old can hold
+ * in their head, and the one every third-person game has shipped for 25 years.
+ *
+ * The controller's turn rate went up with it, because a close camera makes a
+ * lazy turn look like the hero is skating.
+ *
+ * The camera is no longer welded to the hero's facing either. OverworldScene
+ * owns the ORBIT (controls3d.js: right-half drag, pinch, inertia, slow
+ * auto-recentre) and pushes it here through setCameraOrbit as three absolute
+ * numbers — yaw, pitch offset, boom multiplier. Until it does, orbitActive
+ * stays false and the rig behaves exactly as it always did, so a caller that
+ * never calls setCameraOrbit (a pose shot, an e2e harness) is unaffected.
+ */
+const TURN_RATE = 15;
 
 const SHADOW_ORTHO = 58;
 /** Elevation floor for the SHADOW camera only (~20°). See fitShadow(). */
@@ -127,6 +186,9 @@ const PICKUP_RADIUS = 1.6;
 // Extra slack on the portal trigger so the prompt appears before the arch
 // fills the screen.
 const PORTAL_PAD = 2.2;
+// The context ACTION button announces an interactable this many trigger-radii
+// out, so the word is already on screen by the time the player arrives.
+const ACTION_RING = 1.9;
 
 // Animation phase used while a pose is active. The rig's simTime depends on
 // how long boot took, so a pose that fed it through would give coins, grass
@@ -150,9 +212,29 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   preloadPaperTextures();
 
   // ── World logic ────────────────────────────────────────────────────────
+  //
+  // There are TWO places the player can be — the island hub and a floor — and
+  // each has its own ground, its own colliders and therefore its own collision
+  // world and controller. `collisionWorld` / `controller` / `groundAt` are the
+  // ACTIVE pair; enterFloor swaps them and exitFloor swaps them back. The
+  // island's pair is never torn down, so returning is instant.
   const heightfield = createHeightfield(WORLD.SEED);
-  const collisionWorld = createCollisionWorld(heightfield);
-  const controller = createController(collisionWorld);
+  const islandCollision = createCollisionWorld(heightfield);
+  const islandController = createController(islandCollision, { ...DEFAULT_TUNING, turnRate: TURN_RATE });
+  let collisionWorld = islandCollision;
+  let controller = islandController;
+  /** Ground sampler for whichever place is active — camera + shadow read this. */
+  let groundAt = (x, z) => heightfield.sampleHeight(x, z);
+  /** Water plane for the eye-floor test. A floor has no ocean under it. */
+  let waterLevel = WORLD.WATER_Y;
+  /**
+   * The open floor, or null on the island. Declared HERE, far above the floor
+   * machinery that fills it, because the camera rig below reads it on its very
+   * first frame (snapCamera runs during boot) and a `let` further down would
+   * be in its temporal dead zone at that point.
+   * @type {null | {id:number, lvl:object, collision:object, controller:object}}
+   */
+  let floor = null;
 
   // ── Scene + atmosphere ─────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -283,19 +365,18 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     collisionWorld.addCollider({ id: `building-${b.id}`, kind: 'circle', x: b.x, z: b.z, r: b.r });
   }
   props.trees.forEach((t, i) => {
-    collisionWorld.addCollider({ id: `tree-${i}`, kind: 'circle', x: t.x, z: t.z, r: t.r });
+    islandCollision.addCollider({ id: `tree-${i}`, kind: 'circle', x: t.x, z: t.z, r: t.r });
   });
 
   // ── Hero ───────────────────────────────────────────────────────────────
-  // A paper-doll rig cut from the same stock as the world (characterView.js),
-  // dressed from the party LEADER's class — the child's own chosen hero is the
-  // one they walk around in, which is the entire reason the hub exists.
-  // `fx` is a SIBLING of the hero group, not a child: dust is left behind on
-  // the ground, not carried around on the character's hip.
-  const heroView = createCharacterView({ leader: save?.party?.[0] ?? null });
-  const hero = heroView.group;
+  // The REAL hero: heroRig.js traces the party leader's papercut art out of
+  // data/heroArt.js and extrudes it, so the figure walking around the world is
+  // the same character the child picked in Party Select — not a stand-in. A
+  // corrupt or empty save resolves to that class's flagship rather than
+  // throwing (see resolveHeroId), so the avatar can never be lost.
+  const heroRig = createHeroRig(save?.party?.[0] ?? null, { height: HERO_HEIGHT });
+  const hero = heroRig.group;
   scene.add(hero);
-  scene.add(heroView.fx);
 
   // ── Player state ───────────────────────────────────────────────────────
   const restored = fromSave(save?.overworld);
@@ -304,7 +385,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     : controller.spawnState(SPAWN);
   let lastPortalId = restored.portalId;
 
-  const input = { x: 0, y: 0, jump: false, run: false };
+  const input = { x: 0, y: 0, jump: false, run: false, world: false };
   let jumpLatch = false;
 
   // ── Collectibles: hide what the save already granted ───────────────────
@@ -424,6 +505,13 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   // 1-D quantity and keeping them unboxed is what makes updateCamera allocate
   // nothing at all.
   let camDist = CAM.dist;
+  // Player-driven orbit, pushed in by OverworldScene/controls3d. `orbitActive`
+  // is the opt-in: until the scene speaks, the boom rides the hero's facing
+  // exactly as before.
+  let orbitActive = false;
+  let orbitYaw = 0;
+  let orbitPitch = 0;
+  let orbitZoom = 1;
   let leadX = 0;
   let leadZ = 0;
   let driftX = 0;
@@ -437,8 +525,8 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
 
   /** Never let the eye sink into terrain (or under the ocean plane). */
   function liftAboveGround(v) {
-    const gy = heightfield.sampleHeight(v.x, v.z);
-    const floorY = (gy > WORLD.WATER_Y ? gy : WORLD.WATER_Y) + CAM.minAbove;
+    const gy = groundAt(v.x, v.z);
+    const floorY = (gy > waterLevel ? gy : waterLevel) + CAM.minAbove;
     if (v.y < floorY) v.y = floorY;
   }
 
@@ -453,18 +541,40 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
    * angle and loses only distance, while lifting keeps the distance and turns a
    * three-quarter view into a plan view. Given the choice, always shorten.
    */
-  function boomLength(want, s, c) {
+  /**
+   * True where the boom may not pass. On the island this is nothing — the
+   * heightfield IS the world and the ground test above already covers it. In
+   * a floor the walls are separate architecture that the height sampler knows
+   * nothing about, so without this the camera sits inside the hedge every time
+   * the player's back is to one, which on a spawn tile is always.
+   *
+   * Tile lookup, not a collider scan: O(1) per sample instead of O(walls), and
+   * the tile grid is the same authority the walls were built from.
+   */
+  function boomBlocked(x, z) {
+    if (!floor) return false;
+    const lv = floor.lvl.level;
+    const tx = Math.floor(x / TILE_M + lv.width / 2);
+    const ty = Math.floor(z / TILE_M + lv.height / 2);
+    // Off the edge of the floor is "blocked": there is nothing out there to
+    // look through, and a boom that leaves the level frames the void.
+    if (tx < 0 || ty < 0 || tx >= lv.width || ty >= lv.height) return true;
+    // Walls only. Liquid does not block the eye — looking across a moat is a
+    // shot, looking through a hedge is a bug.
+    return lv.code[ty][tx] === 'W';
+  }
+
+  function boomLength(want, s, c, rise) {
     const pivotY = player.pos.y + CAM.lookUp;
-    const rise = player.pos.y + CAM.height - pivotY;
     let ok = 1 / CAM.boomSteps;
     for (let i = 1; i <= CAM.boomSteps; i++) {
       const t = i / CAM.boomSteps;
       const x = player.pos.x - s * want * t;
       const z = player.pos.z - c * want * t;
       const y = pivotY + rise * t;
-      const gy = heightfield.sampleHeight(x, z);
-      const floorY = (gy > WORLD.WATER_Y ? gy : WORLD.WATER_Y) + CAM.clearance;
-      if (y < floorY) break;
+      const gy = groundAt(x, z);
+      const floorY = (gy > waterLevel ? gy : waterLevel) + CAM.clearance;
+      if (y < floorY || boomBlocked(x, z)) break;
       ok = t;
     }
     const d = want * ok;
@@ -472,21 +582,40 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   }
 
   function computeBoom(snap = false) {
-    const s = Math.sin(player.yaw);
-    const c = Math.cos(player.yaw);
+    // The eye orbits where the PLAYER pointed it. Only when no orbit has ever
+    // been pushed does it fall back to riding the hero's facing.
+    const yawUse = orbitActive ? orbitYaw : player.yaw;
+    const s = Math.sin(yawUse);
+    const c = Math.cos(yawUse);
 
     const spd = Math.hypot(player.vel.x, player.vel.z);
     speedN = Math.min(1, spd / DEFAULT_TUNING.runSpeed);
 
+    // Elevation: the authored resting angle plus whatever the player dragged.
+    // Expressed as an angle rather than a height so the shot keeps its framing
+    // as the boom shortens against a hill.
+    let elev = BASE_ELEV + (orbitActive ? orbitPitch : 0);
+    if (elev < ELEV_MIN) elev = ELEV_MIN;
+    else if (elev > ELEV_MAX) elev = ELEV_MAX;
+    const tanE = Math.tan(elev);
+
     // Boom length: eased toward the terrain-resolved target, fast in and slow
-    // out so a hill pops the camera in but never yanks it back out.
-    const want = boomLength(CAM.dist + CAM.distRun * speedN, s, c);
+    // out so a hill pops the camera in but never yanks it back out. Pinch zoom
+    // scales the REQUEST, so terrain still gets the last word.
+    const reach = (CAM.dist + CAM.distRun * speedN) * (orbitActive ? orbitZoom : 1);
+    const want = boomLength(reach, s, c, reach * tanE);
     if (snap) camDist = want;
     else camDist += (want - camDist) * (want < camDist ? CAM.distIn : CAM.distOut);
 
+    // Squeeze lift: how much of the requested boom the world took away, turned
+    // into height. At full squeeze this is a close, high, looking-down shot —
+    // which is the readable answer to "your back is against a hedge", and the
+    // one thing a pure pull-in cannot give.
+    const squeeze = reach > 0 ? Math.max(0, Math.min(1, 1 - camDist / reach)) : 0;
+
     _camWant.set(
       player.pos.x - s * camDist,
-      player.pos.y + CAM.height,
+      player.pos.y + CAM.lookUp + camDist * tanE + squeeze * CAM.squeezeLift,
       player.pos.z - c * camDist,
     );
     liftAboveGround(_camWant);
@@ -569,6 +698,12 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   function snapCamera() {
     driftX = 0; driftY = 0; driftZ = 0;
     stillT = 0;
+    // A hard place is also a re-anchor: entering a floor or teleporting must
+    // put the eye BEHIND the hero, not at whatever heading the island orbit
+    // happened to be left on. The scene resyncs its own orbit state from
+    // getCameraYaw() right afterwards.
+    orbitYaw = player.yaw;
+    orbitPitch = 0;
     updateFov(CAM.fov);
     if (poseCam) {
       camera.position.copy(poseCam.pos);
@@ -625,10 +760,183 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     }
   }
 
+  // ── THE FLOOR: a level as a 3D place ───────────────────────────────────
+  //
+  // Walking into a portal no longer leaves the 3D world for the 2D maze. The
+  // floor is BUILT here (level3d.js) and swapped in: its own collision world,
+  // its own controller, its own ground sampler. The island is not destroyed —
+  // its meshes are only hidden and its player state parked — so coming back
+  // out of a floor costs a visibility flip and nothing else.
+  //
+  // This module owns geometry, collision and proximity. It owns NO game rules:
+  // every trigger is handed up through hooks.onFloorTrigger and the scene
+  // answers with floorRules.js, the same module MazeScene answers with.
+  let parkedIsland = null;
+  /** Object ids the player is currently standing inside — edge-triggered. */
+  const insideIds = new Set();
+  /**
+   * The nearest interactable's type, or null. Label fuel for the context
+   * ACTION button (controls3d.actionLabel maps it to ENTER / OPEN / TALK) and
+   * nothing else — it must never gate a rule.
+   */
+  let nearActionKind = null;
+  /** While true the stick is ignored and no trigger fires (a modal is up). */
+  let inputLocked = false;
+
+  function enterFloor(floorId) {
+    if (floor) return null;
+    const lvl = buildLevel3D(floorId, { castShadow: true });
+    const fCollision = createCollisionWorld({
+      sampleHeight: lvl.sampleHeight,
+      sampleNormal: lvl.sampleNormal,
+    });
+    for (const c of lvl.colliders) fCollision.addCollider(c);
+    const fController = createController(fCollision, { ...DEFAULT_TUNING, turnRate: TURN_RATE });
+
+    // Park the island: state kept, meshes hidden, nothing disposed.
+    parkedIsland = { player, camPos: camera.position.clone() };
+    terrain.group.visible = false;
+    water.group.visible = false;
+    props.group.visible = false;
+    atmosphere.group.visible = false;
+    clearNearPortal();
+
+    scene.add(lvl.group);
+    // Only the level's own materials need the atmosphere seal — the rest of
+    // the scene was sealed at boot and applyAerialFogToTree is idempotent.
+    applyAerialFogToTree(lvl.group);
+
+    collisionWorld = fCollision;
+    controller = fController;
+    groundAt = lvl.sampleHeight;
+    // A floor has no ocean. Parking the plane far below stops the eye-floor
+    // test from lifting the camera to y=0 inside a level that sits at y=1.
+    waterLevel = -1e4;
+    floor = { id: floorId, lvl, collision: fCollision, controller: fController };
+    insideIds.clear();
+
+    player = fController.spawnState({ x: lvl.spawn.x, z: lvl.spawn.z, yaw: lvl.spawn.yaw });
+    heroRig.reset();
+    snapCamera();
+    return {
+      floorId,
+      level: lvl.level,
+      objects: lvl.objects,
+      bounds: lvl.bounds,
+      theme: lvl.theme.key,
+      stats: lvl.stats,
+    };
+  }
+
+  function exitFloor() {
+    if (!floor) return false;
+    scene.remove(floor.lvl.group);
+    floor.lvl.dispose();
+    floor = null;
+    insideIds.clear();
+
+    terrain.group.visible = true;
+    water.group.visible = true;
+    props.group.visible = true;
+    atmosphere.group.visible = true;
+
+    collisionWorld = islandCollision;
+    controller = islandController;
+    groundAt = (x, z) => heightfield.sampleHeight(x, z);
+    waterLevel = WORLD.WATER_Y;
+
+    // Back at the portal the player walked into, facing away from it.
+    if (parkedIsland) {
+      player = parkedIsland.player;
+      parkedIsland = null;
+    }
+    heroRig.reset();
+    snapCamera();
+    return true;
+  }
+
+  /** Remove a set of collider ids from the ACTIVE floor's collision world. */
+  function retract(ids) {
+    if (!floor) return 0;
+    for (const id of ids) floor.collision.removeCollider(id);
+    return ids.length;
+  }
+
+  /**
+   * Edge-triggered proximity over the floor's objects. Fires once on entry and
+   * re-arms only after the player has left the radius, so standing on a gate
+   * cannot re-ask the same question every frame.
+   */
+  function checkFloorTriggers() {
+    const objs = floor.lvl.objects;
+    // Nearest interactable inside the ANNOUNCE ring (a little wider than the
+    // trigger ring). It drives nothing but the context button's label — the
+    // triggers themselves stay edge-fired on contact, exactly as before.
+    let bestKind = null;
+    let bestD2 = Infinity;
+    for (let i = 0; i < objs.length; i++) {
+      const o = objs[i];
+      if (o.consumed || (o.hidden && o.mesh && !o.mesh.visible)) { insideIds.delete(o.id); continue; }
+      const dx = player.pos.x - o.x;
+      const dz = player.pos.z - o.z;
+      const r = o.radius;
+      const ar = r * ACTION_RING;
+      const d2 = dx * dx + dz * dz;
+      if (d2 <= ar * ar && d2 < bestD2) {
+        bestD2 = d2;
+        bestKind = (o.data && o.data.type) || o.type || null;
+      }
+      const near = d2 <= r * r;
+      if (!near) { insideIds.delete(o.id); continue; }
+      if (insideIds.has(o.id)) continue;
+      insideIds.add(o.id);
+      hooks.onFloorTrigger?.(o);
+      // One trigger per frame: the scene may have opened a modal, and two
+      // stacked prompts is how a five-year-old loses the plot.
+      if (inputLocked) { nearActionKind = bestKind; return; }
+    }
+    nearActionKind = bestKind;
+  }
+
   // ── Fixed-step simulation ──────────────────────────────────────────────
+  //
+  // Camera-relative input. `input` holds the raw stick; `_worldInput` is that
+  // stick rotated into world space by the camera's yaw, which is what the
+  // controller consumes. See the TURN_RATE note above.
+  //
+  // A caller that has ALREADY resolved the stick against the camera (which
+  // controls3d.js does, because its acceleration filter has to run in world
+  // space or a camera swing would fight the hero's momentum) sets
+  // `input.world` and the rotation below is skipped. Rotating twice would
+  // double every camera turn into the movement — a spin, not a walk.
+  const _worldInput = { x: 0, y: 0, jump: false, run: false };
+
+  function toWorldInput() {
+    if (input.world) {
+      _worldInput.x = inputLocked ? 0 : input.x;
+      _worldInput.y = inputLocked ? 0 : input.y;
+      _worldInput.run = !inputLocked && input.run;
+      _worldInput.jump = !inputLocked && input.jump;
+      return _worldInput;
+    }
+    const dx = player.pos.x - camera.position.x;
+    const dz = player.pos.z - camera.position.z;
+    const camYaw = (dx * dx + dz * dz) > 1e-6 ? Math.atan2(dx, dz) : player.yaw;
+    const s = Math.sin(camYaw);
+    const c = Math.cos(camYaw);
+    const sx = inputLocked ? 0 : input.x;
+    const sy = inputLocked ? 0 : input.y;
+    // forward = (sin, cos), right = (cos, -sin)
+    _worldInput.x = c * sx + s * sy;
+    _worldInput.y = -s * sx + c * sy;
+    _worldInput.run = !inputLocked && input.run;
+    _worldInput.jump = !inputLocked && input.jump;
+    return _worldInput;
+  }
+
   function step(dt) {
     if (jumpLatch) { input.jump = true; jumpLatch = false; }
-    player = controller.step(player, input, dt);
+    player = controller.step(player, toWorldInput(), dt);
     input.jump = false;
     if (!todFrozen) {
       todT += dt / DAY_SECONDS;
@@ -640,12 +948,19 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // step, so the fade-in takes the same wall time on any frame rate.
     const moving = player.vel.x !== 0 || player.vel.z !== 0 || !player.grounded;
     stillT = moving ? 0 : stillT + dt;
-    checkPortals();
-    checkCollectibles();
+    if (floor) {
+      checkFloorTriggers();
+    } else {
+      checkPortals();
+      checkCollectibles();
+    }
   }
 
   // ── Draw ───────────────────────────────────────────────────────────────
   let firstFrame = false;
+  /** Sim clock at the previous draw — the rig integrates on the delta. A
+   *  frozen pose advances neither, so dt is 0 and the pose holds exactly. */
+  let lastDrawSim = 0;
 
   function draw(simTime) {
     renderer.getSize(_size);
@@ -691,8 +1006,13 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
 
     // The rig moves the hero group itself (position, facing AND every joint),
     // and it needs the ground under the player for the contact shadow — the one
-    // altitude cue a child has mid-jump.
-    heroView.update(player, animT, heightfield.sampleHeight(player.pos.x, player.pos.z));
+    // altitude cue a child has mid-jump. `groundY` is written onto the state
+    // rather than passed alongside it because controller.step hands back a
+    // fresh object every frame, so there is nothing here to leak into.
+    const heroDt = Math.max(0, simTime - lastDrawSim);
+    lastDrawSim = simTime;
+    player.groundY = groundAt(player.pos.x, player.pos.z);
+    heroRig.update(heroDt, player);
 
     updateCamera(animT);
     if (fovDirty) { fovDirty = false; projDirty = true; }
@@ -703,9 +1023,15 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // agree to the pixel.
     setAerialTime(animT);
     sky.update(lightFrame, animT);
-    water.update(lightFrame, animT);
-    props.update(animT, player.pos, windT);
-    atmosphere.update(lightFrame, animT, player.pos, camera);
+    // Inside a floor the island is parked: its subsystems are invisible, so
+    // updating them would be pure cost. The sky still runs — a floor has a sky.
+    if (floor) {
+      floor.lvl.update(animT, player.pos);
+    } else {
+      water.update(lightFrame, animT);
+      props.update(animT, player.pos, windT);
+      atmosphere.update(lightFrame, animT, player.pos, camera);
+    }
 
     renderer.render(scene, camera);
     if (!firstFrame) {
@@ -724,7 +1050,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       poseCam = null;
       player = controller.spawnState({ x, z, yaw });
       clearNearPortal();
-      heroView.reset();
+      heroRig.reset();
       snapCamera();
       api.renderOnce();
     },
@@ -794,7 +1120,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       // Canonical idle: without this a pose would inherit whatever mid-stride
       // phase, squash and dust the player happened to be carrying, and two runs
       // of the same pose would not be the same image.
-      heroView.reset();
+      heroRig.reset();
       rig.setFrozen(true);
       snapCamera();
       rig.renderOnce();
@@ -806,16 +1132,57 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       poseCam = null;
       todFrozen = false;
       rig.setFrozen(false);
-      heroView.reset();
+      heroRig.reset();
       snapCamera();
     },
+
+    /**
+     * Where the hero faces, and where the eye actually points.
+     *
+     * READ-ONLY on purpose. There is no harness setter for the orbit, because
+     * while OverworldScene is alive it re-pushes setCameraOrbit from
+     * controls3d EVERY FRAME — a harness-set orbit would be overwritten on the
+     * next tick, and a screenshot rig that appeared to work but silently
+     * didn't is worse than no rig at all. A harness that wants a different
+     * angle must DRAG, exactly as the player does; these two getters are how
+     * it checks the drag landed.
+     */
+    getFacing() { return world.getFacing(); },
+    getCameraYaw() { return world.getCameraYaw(); },
+
+    /**
+     * Where the island's gates stand. The harness uses this to WALK THE
+     * PLAYER INTO a real arch (teleport → proximity → onPortalNear → the
+     * scene's ENTER button) instead of hardcoding worldSpec coordinates into
+     * a spec, which would let the two drift apart silently. Read-only copies:
+     * the live entries own meshes.
+     */
+    portals() {
+      return props.portals.map((p) => ({
+        id: p.id, floorId: p.floorId, x: p.x, y: p.y, z: p.z, radius: p.radius,
+      }));
+    },
+
+    // Floor entry, drivable from the harness without walking into an arch.
+    enterFloor(floorId) {
+      const r = enterFloor(floorId);
+      api.renderOnce();
+      return r ? { floorId: r.floorId, objects: r.objects.length, stats: r.stats } : null;
+    },
+    exitFloor() {
+      const ok = exitFloor();
+      api.renderOnce();
+      return ok;
+    },
+    activeFloor() { return floor ? floor.id : null; },
+    floorStats() { return floor ? floor.lvl.stats : null; },
 
     worldStats() {
       return {
         terrain: { chunks: terrain.chunkCount, triangles: terrain.triangleCount },
         atmosphere: atmosphere.stats,
         props: props.stats,
-        hero: heroView.stats,
+        hero: heroRig.stats,
         colliders: props.trees.length + props.buildings.length + props.portals.length * 2,
         // Live, not the boot snapshot: a critique run wants to know what is
         // actually resident, including anything generated after boot.
@@ -842,14 +1209,52 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   api.ready = true;
   hooks.onReady?.();
 
-  return {
+  // Named, not returned anonymously: the debug `api` above delegates its
+  // camera-orbit accessors here, and it can only do that if this object has a
+  // name in the closure. Nothing is called before createOverworld returns, so
+  // the temporal dead zone is never entered.
+  const world = {
     api,
-    setInput({ x = 0, y = 0, jump = false, run = false }) {
+    /**
+     * The move vector for this frame.
+     * @param {object} i
+     *   x, y   move vector. SCREEN-space by default (rotated here by the
+     *          camera's yaw); already WORLD-space when `world` is true.
+     *   run    select the controller's run speed for this frame
+     *   jump   latched, so a jump asked between fixed steps is never dropped
+     */
+    setInput({ x = 0, y = 0, jump = false, run = false, world = false }) {
       input.x = x;
       input.y = y;
       input.run = !!run;
+      input.world = !!world;
       if (jump) jumpLatch = true;
     },
+    /**
+     * Player-driven camera orbit (controls3d.js owns the feel; this is the
+     * only place the numbers land). Absolute, not deltas: the orbit integrator
+     * lives in the input layer where it is pure and testable, and the rig just
+     * renders whatever it is told.
+     * @param {{yaw:number, pitch:number, zoom:number}} o
+     *   yaw   world yaw the eye looks ALONG
+     *   pitch radians of elevation ABOVE the rig's authored resting angle
+     *   zoom  boom-length multiplier (pinch)
+     */
+    setCameraOrbit({ yaw, pitch = 0, zoom = 1 } = {}) {
+      if (!Number.isFinite(yaw)) return;
+      orbitActive = true;
+      orbitYaw = yaw;
+      orbitPitch = Number.isFinite(pitch) ? pitch : 0;
+      orbitZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+    },
+    /** Hand the eye back to the old facing-follow rig (poses, debug shots). */
+    clearCameraOrbit() { orbitActive = false; },
+    /** Live, allocation-free reads the input layer needs every frame. */
+    getFacing() { return player.yaw; },
+    /** Where the eye is currently pointed — the orbit's truth after a snap. */
+    getCameraYaw() { return orbitActive ? orbitYaw : player.yaw; },
+    getSpeedNorm() { return speedN; },
+    isGrounded() { return !!player.grounded; },
     /** Current player transform, for save writing. */
     getPlayerState() {
       return {
@@ -863,21 +1268,93 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     notePortalUsed(id) { lastPortalId = id || null; },
     /** The portal the player is standing in, or null. */
     getNearPortal() { return nearPortal; },
+    /**
+     * What the context ACTION button should say it will do, as a raw type
+     * string — 'portal' on the island, the nearest floor object's type inside
+     * a floor, null when there is nothing to press. Presentation only.
+     */
+    getNearActionKind() {
+      if (floor) return nearActionKind;
+      return nearPortal ? 'portal' : null;
+    },
+
+    // ── Floors ───────────────────────────────────────────────────────────
+    // The whole reason this file changed: the scene asks for a floor and gets
+    // a 3D place, not a scene transition. Every method below is geometry,
+    // collision or visibility — the RULES stay in floorRules.js.
+    /** Build floor `floorId`, park the island, drop the player at its spawn. */
+    enterFloor(floorId) { return enterFloor(floorId); },
+    /** Tear the floor down and put the player back where the portal was. */
+    exitFloor() { return exitFloor(); },
+    /** The active floor id, or null when the player is on the island. */
+    activeFloor() { return floor ? floor.id : null; },
+    /** Live object handles for the active floor (the trigger list). */
+    floorObjects() { return floor ? floor.lvl.objects : []; },
+    /** The floor's raw level record — tiles, objective steps, secret. */
+    floorLevel() { return floor ? floor.lvl.level : null; },
+    /** Hide one object and re-arm its trigger (a consumed pickup). */
+    consumeFloorObject(id) {
+      if (!floor) return false;
+      const o = floor.lvl.objects.find((x) => x.id === id);
+      if (!o) return false;
+      o.consumed = true;
+      if (o.mesh) o.mesh.visible = false;
+      insideIds.delete(id);
+      return true;
+    },
+    /** A math door was answered: swing it open and unbar its tile. */
+    openFloorGate(gateId) {
+      if (!floor) return false;
+      retract(floor.lvl.openGate(gateId).removed);
+      return true;
+    },
+    /** A caged hero was freed: drop the cage's collider. */
+    openFloorCage(tileX, tileY) {
+      if (!floor) return false;
+      const tag = `cage:${tileX}-${tileY}`;
+      const ids = floor.lvl.colliders.filter((c) => c.tag === tag).map((c) => c.id);
+      retract(ids);
+      return ids.length > 0;
+    },
+    /** The challenge is complete: the bridge grows / the tide drains. */
+    applyFloorTransform() {
+      if (!floor) return false;
+      retract(floor.lvl.applyTransform().removed);
+      return true;
+    },
+    /** The signature secret opened. */
+    revealFloorSecret() {
+      if (!floor) return false;
+      retract(floor.lvl.revealSecret().removed);
+      return true;
+    },
+    /** Freeze the stick and the triggers while a modal owns the screen. */
+    setInputLocked(v) {
+      inputLocked = !!v;
+      if (inputLocked) { input.x = 0; input.y = 0; input.run = false; jumpLatch = false; }
+    },
+    /** Re-arm every trigger the player is currently standing inside. */
+    clearFloorTriggerLatch() { insideIds.clear(); },
     pause() { rig.stop(); },
     resume() { rig.start(); },
     setVisible(v) { rig.setVisible(v); },
     dispose() {
       rig.dispose();
+      if (floor) {
+        scene.remove(floor.lvl.group);
+        floor.lvl.dispose();
+        floor = null;
+      }
       scene.remove(
         terrain.group, sky.group, water.group, props.group, atmosphere.group,
-        hero, heroView.fx,
+        hero,
       );
       terrain.dispose();
       sky.dispose();
       water.dispose();
       props.dispose();
       atmosphere.dispose();
-      heroView.dispose();
+      heroRig.dispose();
       // Shared textures are owned here, not by the subsystems that borrow
       // them, so they are released exactly once — after every material that
       // referenced them is already gone. The cache repopulates on demand, so a
@@ -887,4 +1364,5 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       if (typeof window !== 'undefined' && window.__MW_OVERWORLD === api) delete window.__MW_OVERWORLD;
     },
   };
+  return world;
 }

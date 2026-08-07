@@ -1291,18 +1291,27 @@ const _eul = new THREE.Euler(0, 0, 0, 'YXZ');
  * normalising here is what lets a silhouette be transcribed from the 2D art
  * without anyone having to do the arithmetic twice.
  */
-function buildSpeciesGeometry(spec) {
+export function buildSpeciesGeometry(spec) {
   const s = sink(false);
   spec.build(s);
   const geo = bake(s);
+  // COPY the bounds out before touching the geometry: geo.scale() runs
+  // applyMatrix4, which RECOMPUTES geo.boundingBox in place. Holding a
+  // reference to it and reading it after the scale fed the already-scaled
+  // minimum back through `* k` a second time, which parked every creature
+  // in the game a few centimetres under its own feet — and would have
+  // buried a 3 m boss by a quarter of a metre.
   const bb = geo.boundingBox;
-  const h = Math.max(1e-4, bb.max.y - bb.min.y);
+  const minX = bb.min.x, maxX = bb.max.x;
+  const minY = bb.min.y, maxY = bb.max.y;
+  const minZ = bb.min.z, maxZ = bb.max.z;
+  const h = Math.max(1e-4, maxY - minY);
   const k = spec.height / h;
   geo.scale(k, k, k);
   geo.translate(
-    -(bb.min.x + bb.max.x) * 0.5 * k,
-    -bb.min.y * k,
-    -(bb.min.z + bb.max.z) * 0.5 * k,
+    -(minX + maxX) * 0.5 * k,
+    -minY * k,
+    -(minZ + maxZ) * 0.5 * k,
   );
   geo.computeBoundingSphere();
   geo.computeBoundingBox();
