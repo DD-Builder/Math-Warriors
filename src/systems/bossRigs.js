@@ -767,6 +767,37 @@ export const BOSS_RIGS = {
       });
       finish(scene, b, 1500 + extra, done);
     },
+    // VICTORY: THE THAW. The pillars that had closed in fall and melt,
+    // and warmth comes back into the paper — the whole stage shifts
+    // from sky-blue to cream. Absolute Zero loses by getting warm.
+    defeat(scene, spriteData, ctx, done) {
+      defeatRig(scene, spriteData, ctx, done, 1700, (at, rm) => {
+        const w = scene.scale.width, h = scene.scale.height;
+        // The ice comes down as shards…
+        const n = rm ? 4 : 12;
+        for (let i = 0; i < n; i++) {
+          const x = w * (0.06 + (i / n) * 0.9);
+          const shard = scene.add.triangle?.(x, h * 0.35, 0, 0, 30, 0, 15, 90, PAPER.sky, 0.55);
+          if (!shard) break;
+          shard.setDepth?.(BATTLE_DEPTH.VFX);
+          shard.setScrollFactor?.(0);
+          scene.tweens.add({
+            targets: shard, y: h * 1.05, angle: (Math.random() - 0.5) * 200, alpha: 0,
+            duration: (rm ? 250 : 900) + Math.random() * 400, delay: i * 45,
+            ease: 'Quad.in', onComplete: () => shard.destroy?.(),
+          });
+        }
+        // …and the room warms up.
+        scene.time.delayedCall(rm ? 0 : 700, () => {
+          flash(scene, ctx, { color: PAPER.cream, alpha: 0.4, duration: 900 });
+          playImpactRing(scene, at.x, at.y, { color: PAPER.peach, endRadius: 300, duration: 900 });
+          paperDrift(scene, w * 0.5, h * 0.55, {
+            count: rm ? 5 : 16, colors: [PAPER.peach, PAPER.gold, PAPER.cream],
+            spread: w * 0.7, rise: -220, duration: 1300, size: 13,
+          });
+        });
+      });
+    },
   },
 
   // 6 — Theprism · SHATTER RAY
@@ -835,6 +866,29 @@ export const BOSS_RIGS = {
       });
       scene.time.delayedCall(700, () => flash(scene, ctx, { color: PAPER.white, alpha: 0.4, duration: 200 }));
       finish(scene, b, 1500 + extra, done);
+    },
+    // VICTORY: THE LIGHT REASSEMBLES. The Prism's whole trick was
+    // splitting one thing into five; its ending runs that backwards —
+    // five coloured beams travel INWARD and become a single white point.
+    defeat(scene, spriteData, ctx, done) {
+      defeatRig(scene, spriteData, ctx, done, 1600, (at, rm) => {
+        const cols = [PAPER.lavender, PAPER.sky, PAPER.rose, PAPER.tealL, PAPER.gold];
+        cols.forEach((c, i) => {
+          const a = (i / cols.length) * Math.PI * 2 - Math.PI / 2;
+          const fx = at.x + Math.cos(a) * 340, fy = at.y + Math.sin(a) * 240;
+          scene.time.delayedCall(rm ? 0 : i * 110, () => {
+            playBeamTrail(scene, fx, fy, at.x, at.y, { color: c, trailColor: c });
+          });
+        });
+        scene.time.delayedCall(rm ? 0 : 780, () => {
+          playImpactRing(scene, at.x, at.y, { color: PAPER.white, endRadius: 320, duration: 800 });
+          flash(scene, ctx, { color: PAPER.white, alpha: 0.42, duration: 650 });
+          playSparkBurst(scene, at.x, at.y, {
+            count: rm ? 6 : 22, colors: [PAPER.white, PAPER.cream],
+            minDist: 20, maxDist: 200, duration: 1000,
+          });
+        });
+      });
     },
   },
 
@@ -909,6 +963,39 @@ export const BOSS_RIGS = {
       });
       scene.time.delayedCall(900, () => shake(scene, ctx, 0.008, 240));
       finish(scene, b, 1700 + extra, done);
+    },
+    // VICTORY: THE COINS TURN BACK INTO PAPER. Every forged coin the
+    // Counterfeiter threw drifts down and, halfway, stops being a coin —
+    // it is a blank cream rectangle again. The joke lands without a line
+    // of dialogue: none of it was ever real.
+    defeat(scene, spriteData, ctx, done) {
+      defeatRig(scene, spriteData, ctx, done, 1700, (at, rm) => {
+        const w = scene.scale.width, h = scene.scale.height;
+        const n = rm ? 6 : 18;
+        for (let i = 0; i < n; i++) {
+          const x = at.x + (Math.random() - 0.5) * 420;
+          const coin = scene.add.circle?.(x, at.y - 40 + (Math.random() - 0.5) * 120, 11, PAPER.gold);
+          if (!coin) break;
+          coin.setStrokeStyle?.(2, PAPER.white, 0.9);
+          coin.setDepth?.(BATTLE_DEPTH.VFX);
+          coin.setScrollFactor?.(0);
+          scene.tweens.add({
+            targets: coin, y: h * 0.62, duration: (rm ? 220 : 520) + i * 30, ease: 'Quad.in',
+            onComplete: () => {
+              coin.destroy?.();
+              // …and lands as an ordinary scrap of paper.
+              paperDrift(scene, x, h * 0.62, {
+                count: 1, colors: [PAPER.cream], spread: 60, rise: -40, fall: 140,
+                duration: 900, size: 20,
+              });
+            },
+          });
+        }
+        scene.time.delayedCall(rm ? 0 : 900, () => {
+          flash(scene, ctx, { color: PAPER.cream, alpha: 0.26, duration: 700 });
+          playImpactRing(scene, w * 0.5, h * 0.6, { color: PAPER.sand, endRadius: 280, duration: 800 });
+        });
+      });
     },
   },
 
