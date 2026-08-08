@@ -133,25 +133,100 @@ describe('per-domain atmosphere', () => {
     assert.equal(FOG_UNIFORMS.uFogStart.value, f.fogStart);
   });
 
+  /**
+   * What a floor's air ACTUALLY does, at the ranges a floor spans.
+   *
+   * Asserting on `density` alone stopped being meaningful once `heightMul`
+   * landed: two floors with the same multiplier now hold very different
+   * amounts of haze at eye level. Every assertion below therefore runs the
+   * real extinction curve at a real eye height, which is the number that
+   * reaches the screen.
+   */
+  const EYE_Y = 4.6;      // the level camera profile's eye over flat ground
+  const GROUND_Y = 1.0;
+  function extinction(key, dist, fragY = GROUND_Y) {
+    const a = LEVEL_ATMOSPHERE[key];
+    const f = frame();
+    return aerialFogFactor(EYE_Y, fragY, dist, {
+      density: f.fogDensity * a.density,
+      heightK: f.fogHeightK * a.heightMul,
+      baseY: 0,
+      start: a.start,
+      max: a.max,
+    });
+  }
+
   test('the Library is the thin one and the Garden is the thick one', () => {
     // The two reviews disagreed about the fog because the floors disagreed:
     // "dissolves to grey-purple mush at mid-range" (library) and "effectively
     // none" (garden) were both true under ONE set of island numbers.
-    assert.ok(LEVEL_ATMOSPHERE.library.density < 0.7, 'the library cut must be real');
-    assert.ok(LEVEL_ATMOSPHERE.garden.density > 1.2, 'the garden needs MORE air, not less');
-    assert.ok(LEVEL_ATMOSPHERE.library.density < LEVEL_ATMOSPHERE.garden.density * 0.5);
+    const lib = extinction('library', 55);
+    const gdn = extinction('garden', 55);
+    assert.ok(lib < gdn * 0.62, `library ${lib.toFixed(3)} vs garden ${gdn.toFixed(3)} at 55 m`);
+    assert.ok(lib > 0.04, `the library cut went all the way to nothing (${lib.toFixed(3)})`);
+    assert.ok(gdn > 0.12, `the garden still has no air in it (${gdn.toFixed(3)})`);
   });
 
-  test('every domain keeps its near field clear and its far wall solid', () => {
+  test('the near field is untouched and the far field is still climbing', () => {
+    for (const key of Object.keys(LEVEL_ATMOSPHERE)) {
+      // A room is 60-90 m across: haze on a wall twenty metres away is a bug.
+      assert.ok(extinction(key, 20) < 0.05,
+        `${key}: ${extinction(key, 20).toFixed(3)} of haze at 20 m — the near field is not clear`);
+      // THE CEILING IS NOT THE DIAL. If the curve reaches `max` inside the play
+      // space then everything beyond that point is one flat wash, which is the
+      // exact failure ("dissolves into mush") this table exists to prevent.
+      const far = extinction(key, 95);
+      assert.ok(far < LEVEL_ATMOSPHERE[key].max * 0.92,
+        `${key}: extinction ${far.toFixed(3)} has hit its ${LEVEL_ATMOSPHERE[key].max} ceiling`
+        + ' inside the room — the far half of the floor is one flat tint');
+      // And it has to actually separate the far plane from the near one.
+      assert.ok(far > 0.2, `${key}: ${far.toFixed(3)} at 95 m is no aerial perspective at all`);
+    }
+  });
+
+  test('the haze POOLS: a landmark crown stays clearer than the ground under it', () => {
+    // The whole point of the per-floor heightMul. A 16 m crown at 55 m must be
+    // markedly crisper than the ground at 55 m, or distance eats the very
+    // silhouette the player is meant to navigate by.
+    for (const key of Object.keys(LEVEL_ATMOSPHERE)) {
+      const ground = extinction(key, 55, GROUND_Y);
+      const crown = extinction(key, 55, 16);
+      assert.ok(crown < ground * 0.72,
+        `${key}: crown ${crown.toFixed(3)} vs ground ${ground.toFixed(3)} — the fog is a flat sheet`);
+    }
+  });
+
+  test('every domain declares a whole atmosphere', () => {
     for (const [key, a] of Object.entries(LEVEL_ATMOSPHERE)) {
-      // A room is 60-90 m across: haze on a wall two metres away is a bug.
       assert.ok(a.start >= 6, `${key} starts hazing at ${a.start} m`);
       // Indoors there is no sky behind the far wall, so full extinction would
       // punch a hole in the room rather than reading as distance.
       assert.ok(a.max <= 0.92, `${key} lets the far wall dissolve to ${a.max}`);
       assert.ok(a.desat > 0 && a.desat <= 1, `${key} desat ${a.desat}`);
+      assert.ok(a.heightMul >= 1, `${key} thins its air slower than the island's`);
+      assert.ok(a.split >= 40 && a.split <= 120, `${key} split ${a.split}`);
       assert.ok(a.far === null || (a.far >= 0 && a.far <= 0xffffff), `${key} far`);
     }
+  });
+
+  test('the near/far split is driven by DEPTH, not by extinction', () => {
+    // It used to be `mix(near, far, f)`, which inside a floor delivered the far
+    // paper at ~9% of its intended strength — the split existed and did nothing.
+    setFogDomain(null);
+    setAerialFrame(frame());
+    assert.equal(FOG_UNIFORMS.uFogSplitInv.value, 0, 'the island must have no split');
+    setFogDomain('library');
+    setAerialFrame(frame());
+    assert.ok(Math.abs(FOG_UNIFORMS.uFogSplitInv.value
+      - 1 / LEVEL_ATMOSPHERE.library.split) < 1e-12);
+    // And the vertical gradient really is steeper than the island's.
+    const f = frame();
+    assert.ok(Math.abs(FOG_UNIFORMS.uFogHeightK.value
+      - f.fogHeightK * LEVEL_ATMOSPHERE.library.heightMul) < 1e-12);
+    setFogDomain(null);
+    setAerialFrame(f);
+    assert.equal(FOG_UNIFORMS.uFogHeightK.value, f.fogHeightK);
+    assert.equal(FOG_UNIFORMS.uFogSplitInv.value, 0);
   });
 
   test('an unknown theme falls back to the island rather than throwing', () => {

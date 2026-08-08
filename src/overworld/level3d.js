@@ -95,7 +95,7 @@ import {
   readLevel, distanceField, heightField, makeHeightSampler,
   wallTiles, wallProfile, liquidTiles, groundTiles, levelColliders, objectSpecs,
   levelSpawn, levelBounds, themeForFloor,
-  buildGroundSurface, groundScatter,
+  buildGroundSurface, groundScatter, ventSpots,
   landmarkSpecs, landmarkProfile, paperLinear,
 } from './level3dBuild.js';
 
@@ -517,40 +517,159 @@ function bladeFan(s, { blades, h, hVar, w, lean, phase = 0.55, tip = shade(1.10)
  * almost flat, a 0.05 m petal — so the dressing has an interior instead of one
  * horizon, which is the same note vegetation.js records about the island.
  */
-function buildDetail(kind) {
+function buildDetail(kind, variant = 0) {
   const s = sink();
+  const v = ((variant % 3) + 3) % 3;
   switch (kind) {
     case 'pebble':
       // The one hard archetype: a solid, so it holds a lit face and a shaded
-      // one instead of reading as another blade.
-      prism(s, 0.19, 0.15, 0.00, 0.10, 5, shade(0.90), { tilt: 0.05 });
-      prism(s, 0.12, 0.09, 0.08, 0.14, 5, shade(1.14));
+      // one instead of reading as another blade. v0 a rounded cobble, v1 a
+      // flat shale plate, v2 a split chip standing on its edge — three
+      // silhouettes, not one shape at three sizes.
+      if (v === 0) {
+        prism(s, 0.19, 0.15, 0.00, 0.10, 5, shade(0.90), { tilt: 0.05 });
+        prism(s, 0.12, 0.09, 0.08, 0.14, 5, shade(1.14));
+      } else if (v === 1) {
+        prism(s, 0.27, 0.24, 0.00, 0.05, 6, shade(0.92), { tilt: 0.10 });
+        prism(s, 0.17, 0.13, 0.04, 0.08, 6, shade(1.16), { ox: 0.06 });
+      } else {
+        plate(s, 0.26, 0.09, 0.00, 0.22, shade(0.94), { tilt: 0.22 });
+        plate(s, 0.15, 0.07, 0.00, 0.11, shade(1.18), { ox: 0.15, rot: 0.6 });
+      }
       break;
     case 'petal':
-      bladeFan(s, { blades: 4, h: 0.055, hVar: 0.4, w: 0.055, lean: 0.10, phase: 0.9, tip: shade(1.30) });
+      if (v === 0) bladeFan(s, { blades: 4, h: 0.055, hVar: 0.4, w: 0.055, lean: 0.10, phase: 0.9, tip: shade(1.30) });
+      else if (v === 1) bladeFan(s, { blades: 3, h: 0.085, hVar: 0.5, w: 0.038, lean: 0.22, phase: 0.3, tip: shade(1.34) });
+      else {
+        plate(s, 0.13, 0.02, 0.00, 0.09, shade(1.26), { tilt: 0.5 });
+        plate(s, 0.10, 0.02, 0.00, 0.06, shade(1.12), { ox: 0.08, rot: 1.1, tilt: 0.7 });
+      }
       break;
     case 'leaf':
-      bladeFan(s, { blades: 3, h: 0.13, hVar: 0.3, w: 0.11, lean: 0.26, phase: 0.2, tip: shade(1.22) });
+      if (v === 0) bladeFan(s, { blades: 3, h: 0.13, hVar: 0.3, w: 0.11, lean: 0.26, phase: 0.2, tip: shade(1.22) });
+      else if (v === 1) bladeFan(s, { blades: 5, h: 0.09, hVar: 0.5, w: 0.14, lean: 0.40, phase: 1.1, tip: shade(1.14) });
+      else {
+        // A single flake lying almost flat: the ground-hugging tier. Without
+        // one of these a scatter field has exactly one horizon.
+        plate(s, 0.30, 0.02, 0.00, 0.20, shade(1.10), { tilt: 1.24 });
+        plate(s, 0.20, 0.02, 0.01, 0.13, shade(1.24), { ox: 0.13, rot: 0.9, tilt: 1.30 });
+      }
       break;
     case 'shell':
-      prism(s, 0.26, 0.10, 0.00, 0.16, 6, shade(1.0), { tilt: 0.3 });
-      prism(s, 0.14, 0.06, 0.00, 0.10, 5, shade(1.18), { ox: 0.24 });
+      if (v === 0) {
+        prism(s, 0.26, 0.10, 0.00, 0.16, 6, shade(1.0), { tilt: 0.3 });
+        prism(s, 0.14, 0.06, 0.00, 0.10, 5, shade(1.18), { ox: 0.24 });
+      } else if (v === 1) {
+        prism(s, 0.18, 0.05, 0.00, 0.30, 5, shade(1.04), { tilt: 0.62 });
+        prism(s, 0.09, 0.03, 0.00, 0.14, 5, shade(1.22), { ox: 0.16, tilt: 0.2 });
+      } else {
+        prism(s, 0.30, 0.26, 0.00, 0.04, 7, shade(0.96));
+        prism(s, 0.19, 0.14, 0.03, 0.09, 7, shade(1.20), { tilt: 0.16 });
+      }
       break;
     case 'crystal':
-      prism(s, 0.13, 0.02, 0.00, 0.52, 4, shade(1.0));
-      prism(s, 0.09, 0.02, 0.00, 0.30, 4, shade(1.20), { ox: 0.18, tilt: 0.3 });
+      if (v === 0) {
+        prism(s, 0.13, 0.02, 0.00, 0.52, 4, shade(1.0));
+        prism(s, 0.09, 0.02, 0.00, 0.30, 4, shade(1.20), { ox: 0.18, tilt: 0.3 });
+      } else if (v === 1) {
+        prism(s, 0.10, 0.02, 0.00, 0.34, 5, shade(1.06), { tilt: 0.34 });
+        prism(s, 0.07, 0.02, 0.00, 0.22, 5, shade(1.26), { ox: -0.14, tilt: -0.28 });
+        prism(s, 0.05, 0.01, 0.00, 0.14, 4, shade(1.12), { ox: 0.15, oz: 0.10, tilt: 0.5 });
+      } else {
+        prism(s, 0.20, 0.11, 0.00, 0.13, 6, shade(0.94));
+        prism(s, 0.07, 0.01, 0.10, 0.44, 5, shade(1.28), { tilt: 0.18 });
+      }
       break;
     case 'ember':
-      prism(s, 0.22, 0.14, 0.00, 0.12, 6, shade(0.9));
-      prism(s, 0.10, 0.02, 0.08, 0.34, 5, shade(1.30));
+      // THE CONE FIELD. This one archetype is the one the critic counted, so
+      // it gets the three most different readings in the file: a vent cone, a
+      // cracked slag lump with a lit fissure, and a low spatter ring.
+      if (v === 0) {
+        prism(s, 0.22, 0.14, 0.00, 0.12, 6, shade(0.9));
+        prism(s, 0.10, 0.02, 0.08, 0.34, 5, shade(1.30));
+      } else if (v === 1) {
+        prism(s, 0.26, 0.20, 0.00, 0.16, 5, shade(0.86), { tilt: 0.14 });
+        plate(s, 0.20, 0.03, 0.10, 0.30, shade(1.34), { rot: 0.5, tilt: 0.24 });
+        plate(s, 0.11, 0.03, 0.12, 0.22, shade(1.20), { rot: -0.7, ox: 0.10 });
+      } else {
+        prism(s, 0.34, 0.30, 0.00, 0.05, 8, shade(0.92));
+        prism(s, 0.21, 0.17, 0.04, 0.09, 8, shade(1.16));
+        prism(s, 0.06, 0.01, 0.07, 0.20, 5, shade(1.36), { ox: 0.10, tilt: 0.3 });
+      }
       break;
     case 'page':
-      plate(s, 0.44, 0.03, 0.00, 0.32, shade(1.0), { tilt: 0.22 });
-      plate(s, 0.34, 0.03, 0.00, 0.22, shade(1.16), { ox: 0.16, rot: 0.7 });
+      if (v === 0) {
+        plate(s, 0.44, 0.03, 0.00, 0.32, shade(1.0), { tilt: 0.22 });
+        plate(s, 0.34, 0.03, 0.00, 0.22, shade(1.16), { ox: 0.16, rot: 0.7 });
+      } else if (v === 1) {
+        plate(s, 0.38, 0.02, 0.00, 0.26, shade(1.08), { tilt: 1.18 });
+        plate(s, 0.24, 0.02, 0.02, 0.17, shade(1.24), { ox: 0.18, rot: 1.2, tilt: 1.02 });
+      } else {
+        // A folded leaf standing on its spine: the tall member of the family.
+        plate(s, 0.30, 0.03, 0.00, 0.40, shade(1.04), { rot: 0.4, tilt: 0.12 });
+        plate(s, 0.30, 0.03, 0.00, 0.34, shade(1.22), { rot: -0.4, tilt: -0.16 });
+      }
       break;
     default:  // tuft — the tall tier, at the island's own grass height
-      bladeFan(s, { blades: 7, h: 0.58, hVar: 0.26, w: 0.048, lean: 0.20 });
+      if (v === 0) bladeFan(s, { blades: 7, h: 0.58, hVar: 0.26, w: 0.048, lean: 0.20 });
+      else if (v === 1) bladeFan(s, { blades: 5, h: 0.36, hVar: 0.44, w: 0.062, lean: 0.44, phase: 1.4, tip: shade(1.16) });
+      else bladeFan(s, { blades: 9, h: 0.74, hVar: 0.18, w: 0.036, lean: 0.11, phase: 0.1, tip: shade(1.22) });
       break;
+  }
+  return bake(s);
+}
+
+/**
+ * THE VENT GLOW — floor 4's light sources, as geometry.
+ *
+ * The tech law forbids post-processing, so a bloom is out; a PointLight per
+ * vent would cost a forward-render pass per light per material. What is left,
+ * and what the papercut world uses everywhere else anyway, is CUT PAPER: an
+ * additively-blended disc lying just above the ground with a soft falloff
+ * baked into its vertex colours, and a low flare standing over it. Additive
+ * against a dark warm ground reads as heat, costs one draw call for every vent
+ * on the floor, and is the reason the Ember Caves finally have somewhere to
+ * look.
+ */
+function buildVentGlow() {
+  const s = sink();
+  const seg = 16;
+  // THE POOL. Bright at the mouth, falling to (0,0,0) at the rim — which in
+  // ADDITIVE terms adds nothing rather than painting black, so there is no ink
+  // anywhere in this and the palette law survives a blend mode it was not
+  // written for. The pool is the load-bearing half: what sells a vent is the
+  // ground around it being lit, not a shape standing in it.
+  for (let i = 0; i < seg; i++) {
+    const a0 = (i / seg) * TAU, a1 = ((i + 1) / seg) * TAU;
+    tri(s,
+      [0, 0.03, 0],
+      [Math.cos(a0), 0.015, Math.sin(a0)],
+      [Math.cos(a1), 0.015, Math.sin(a1)],
+      [0, 1, 0], shade(0.46), shade(0.0), shade(0.0));
+  }
+  // The mouth: a small hot core, well inside the pool.
+  for (let i = 0; i < seg; i++) {
+    const a0 = (i / seg) * TAU, a1 = ((i + 1) / seg) * TAU;
+    tri(s,
+      [0, 0.05, 0],
+      [Math.cos(a0) * 0.26, 0.04, Math.sin(a0) * 0.26],
+      [Math.cos(a1) * 0.26, 0.04, Math.sin(a1) * 0.26],
+      [0, 1, 0], shade(0.60), shade(0.14), shade(0.14));
+  }
+  // THE PLUME. Three narrow cards, not two: two crossed quads seen from the
+  // side stack into one solid triangle, which is exactly what the first cut of
+  // this looked like — a white pyramid standing in a cave. Three thin ones at
+  // 60 degrees, dim at the base and vanishing at the tip, read as heat coming
+  // off the mouth instead. Each is emitted in both windings so it is visible
+  // from either face without a two-sided material.
+  const PL = 3;
+  for (let k = 0; k < PL; k++) {
+    const a = (k / PL) * Math.PI;
+    const dx = Math.cos(a) * 0.20, dz = Math.sin(a) * 0.20;
+    tri(s, [-dx, 0.03, -dz], [dx, 0.03, dz], [0, 0.78, 0],
+      [0, 1, 0], shade(0.30), shade(0.30), shade(0.0));
+    tri(s, [dx, 0.03, dz], [-dx, 0.03, -dz], [0, 0.78, 0],
+      [0, 1, 0], shade(0.30), shade(0.30), shade(0.0));
   }
   return bake(s);
 }
@@ -751,6 +870,40 @@ export function buildLevel3D(floorId, opts = {}) {
   // a transform or a secret opens later go to their own merged mesh instead,
   // so exactly those can fold away without touching the static chunks.
   const walls = wallTiles(level, hf);
+
+  // ── THE CREST FIELD ───────────────────────────────────────────────────
+  // Absolute world height of the top of the wall on each tile, or -Infinity
+  // where there is no wall. Built here because this is the one place that
+  // knows both the tile grid and what was actually stamped onto it: a wall's
+  // crest is its terrace base plus its own drawn height, and both numbers vary
+  // per tile (the boundary ring runs 9-13 m on the Ember Caves against a 2.9 m
+  // interior band).
+  //
+  // WHO NEEDS IT: the follow camera. Its boom used to treat every 'W' tile as
+  // an infinite occluder, which is only true if you never look at how tall the
+  // wall is — and the level camera's eye sits 3.3 m over the hero, which
+  // CLEARS most of this game's architecture. Measured on the nine spawns, that
+  // one missing comparison was crushing the boom from 9.4 m to 4.7 m on four
+  // floors while the boom line was already half a metre above the crest it was
+  // being stopped by. One Float32Array per floor, disposed with the level.
+  const wallCrest = new Float32Array(level.width * level.height).fill(-Infinity);
+  for (const w of walls) {
+    const k = w.ty * level.width + w.tx;
+    const top = w.y + w.h;
+    if (top > wallCrest[k]) wallCrest[k] = top;
+  }
+  /**
+   * Absolute height the eye must clear at (x, z), in world metres.
+   * -Infinity where nothing stands; +Infinity off the edge of the floor,
+   * because there is no world out there to look through.
+   */
+  function wallCrestAt(x, z) {
+    const tx = Math.floor(x / TILE_M + level.width / 2);
+    const ty = Math.floor(z / TILE_M + level.height / 2);
+    if (tx < 0 || ty < 0 || tx >= level.width || ty >= level.height) return Infinity;
+    return wallCrest[ty * level.width + tx];
+  }
+
   const wallMeshes = [];
   const wallChunks = new Map();
   const transientChunks = new Map();
@@ -917,12 +1070,18 @@ export function buildLevel3D(floorId, opts = {}) {
   }
 
   // ── GROUND DETAIL SCATTER ─────────────────────────────────────────────
-  // Three or four archetypes per floor — grass tufts, pebbles, petals, fallen
-  // leaves or pages — clumped on noise, thickened along the verge of the paver
-  // ribbon and kept off the ribbon itself. Placement is decided in
-  // level3dBuild.groundScatter (pure, deterministic); all this loop does is
-  // pack each archetype into one InstancedMesh, so the whole dressing of a
-  // floor costs three or four draw calls no matter how many pieces it holds.
+  // Four archetypes per floor — grass tufts, pebbles, petals, embers, fallen
+  // leaves or pages — each cut in THREE variants, clumped poisson-ish off the
+  // tile grid, thickened along the verge of the paver ribbon and kept off the
+  // ribbon itself. Placement is decided in level3dBuild.groundScatter (pure,
+  // deterministic); all this loop does is pack each (archetype, variant) into
+  // one InstancedMesh.
+  //
+  // TWELVE buckets, not four: three geometries per archetype is the difference
+  // between "several hundred identical yellow cones" and a field. It costs
+  // eight more draw calls on a budget of 120, of which a floor was using 58,
+  // and not one extra triangle — the instance count is unchanged, the
+  // instances are just distributed over three shapes instead of one.
   const detailMeshes = [];
   {
     const scatter = groundScatter(level, hf, theme, sampleHeight, {
@@ -931,32 +1090,82 @@ export function buildLevel3D(floorId, opts = {}) {
     });
     const byKind = new Map();
     for (const sp of scatter) {
-      let rows = byKind.get(sp.kind);
-      if (!rows) { rows = []; byKind.set(sp.kind, rows); }
+      const key = `${sp.kind}#${sp.variant || 0}`;
+      let rows = byKind.get(key);
+      if (!rows) { rows = []; byKind.set(key, rows); }
       rows.push(sp);
     }
-    for (const [kind, rows] of byKind) {
-      const dgeo = track(countTris(buildDetail(kind), rows.length));
+    for (const [key, rows] of byKind) {
+      const hash = key.indexOf('#');
+      const kind = key.slice(0, hash);
+      const variant = +key.slice(hash + 1);
+      const dgeo = track(countTris(buildDetail(kind, variant), rows.length));
       const im = new THREE.InstancedMesh(dgeo, propMat, rows.length);
-      im.name = `level-detail-${kind}`;
+      im.name = `level-detail-${kind}-${variant}`;
       im.castShadow = false;
       im.receiveShadow = true;
       for (let i = 0; i < rows.length; i++) {
         const sp = rows[i];
         _v3.set(sp.x, sp.y, sp.z);
-        _eu.set(0, sp.yaw, 0);
+        // Roll THEN lean THEN yaw. A piece that only ever spins about Y is a
+        // decal with a rotation on it; the lean is what makes a scatter field
+        // look like it was rained down rather than planted.
+        _eu.set(sp.tilt || 0, sp.yaw, sp.roll || 0, 'YXZ');
         _q4.setFromEuler(_eu);
-        _s3.set(sp.scale, sp.scale, sp.scale);
+        // Non-uniform: the same `scale` at two aspect ratios reads as two
+        // different objects, which is three variants' worth of variety for one
+        // extra float.
+        const sxz = sp.scale, sy = sp.scale * (sp.stretch ?? 1);
+        _s3.set(sxz, sy, sxz);
         _m4.compose(_v3, _q4, _s3);
         im.setMatrixAt(i, _m4);
         _col.setHex(sp.hex, THREE.SRGBColorSpace).multiplyScalar(sp.tone);
         im.setColorAt(i, _col);
       }
       _s3.set(1, 1, 1);
+      _eu.set(0, 0, 0, 'XYZ');
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
       detailMeshes.push(im);
       group.add(im);
+    }
+  }
+
+  // ── VENT GLOW ─────────────────────────────────────────────────────────
+  // Opt-in per theme (`theme.glow`), which today means floor 4 alone. See
+  // buildVentGlow for why this is additive geometry and not a light or a
+  // bloom. One InstancedMesh, one draw call, one unlit material.
+  let ventMesh = null;
+  if (theme.glow) {
+    const vents = ventSpots(level, hf);
+    if (vents.length) {
+      const vgeo = track(countTris(buildVentGlow(), vents.length));
+      // Unlit + additive: a glow that the toon ramp shades is not a glow, and
+      // a glow that writes depth cuts a hole in the fog it is meant to sit in.
+      const vmat = trackMat(new THREE.MeshBasicMaterial({
+        vertexColors: true, transparent: true, depthWrite: false,
+        blending: THREE.AdditiveBlending, toneMapped: false, fog: false,
+      }));
+      ventMesh = new THREE.InstancedMesh(vgeo, vmat, vents.length);
+      ventMesh.name = 'level-vent-glow';
+      ventMesh.castShadow = false;
+      ventMesh.receiveShadow = false;
+      ventMesh.renderOrder = 3;
+      for (let i = 0; i < vents.length; i++) {
+        const vt = vents[i];
+        _v3.set(vt.x, sampleHeight(vt.x, vt.z) + 0.05, vt.z);
+        _eu.set(0, i * 1.37, 0, 'XYZ');
+        _q4.setFromEuler(_eu);
+        _s3.set(vt.r, vt.r * 0.9, vt.r);
+        _m4.compose(_v3, _q4, _s3);
+        ventMesh.setMatrixAt(i, _m4);
+        _col.setHex(theme.glow, THREE.SRGBColorSpace);
+        ventMesh.setColorAt(i, _col);
+      }
+      _s3.set(1, 1, 1);
+      ventMesh.instanceMatrix.needsUpdate = true;
+      if (ventMesh.instanceColor) ventMesh.instanceColor.needsUpdate = true;
+      group.add(ventMesh);
     }
   }
 
@@ -1274,7 +1483,11 @@ export function buildLevel3D(floorId, opts = {}) {
   return {
     group,
     colliders,
-    spawn: levelSpawn(level, sampleHeight),
+    // Facing the primary landmark, not "roughly inward": the opening frame is
+    // the one the player judges the floor by, so it is aimed at the thing they
+    // are meant to walk to. `landmarks[0]` is the tier-0 hero structure at the
+    // objective end (see level3dBuild.landmarkSpecs).
+    spawn: levelSpawn(level, sampleHeight, landmarks[0] || null),
     objects,
     bounds: levelBounds(level),
     theme,
@@ -1282,6 +1495,7 @@ export function buildLevel3D(floorId, opts = {}) {
     level,
     sampleHeight,
     sampleNormal,
+    wallCrestAt,
     applyTransform,
     revealSecret,
     openGate,

@@ -32,7 +32,10 @@ import {
   wallTiles, wallProfile, landmarkSpecs, landmarkProfile, groundScatter,
   levelSpawn, maxAdjacentStep, stepDegrees, paperLinear, isWalkableChar,
   LEVEL_THEMES, WALL_H_TALL, PLY_SHADOW_MIX, SEAM_SKIP, LANDMARK_H,
+  WALL_YAW_JIT, WALL_H_JIT, WALL_SLIDE_ALONG, TILE_M, ventSpots, wallFaceYaw,
 } from './level3dBuild.js';
+import { LEVEL_SKY, applyFloorSky, timeOfDay } from './timeOfDay.js';
+import { createRenderFrame, applyWeather, weatherByName } from './weather.js';
 import { buildLevel3D } from './level3d.js';
 
 const FLOORS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -112,6 +115,46 @@ test('the skyline', async (t) => {
           assert.ok(d > 24, `floor ${id}: two landmarks only ${d.toFixed(0)} m apart`);
         }
       }
+    }
+  });
+
+  await t.test('every floor has its OWN hero structure, not a shared needle', () => {
+    // Four of the nine floors used to resolve to the same generic 'spire', so
+    // the Shattered Sky, the Frozen Peak, the Crystal Caverns and the Mending
+    // Room all navigated by the identical object. A landmark you have already
+    // seen on three other floors is scenery, not a destination.
+    const kinds = FLOORS.map((id) => themeForFloor(id).landmark);
+    const dupes = kinds.filter((k, i) => kinds.indexOf(k) !== i);
+    assert.equal(dupes.length, 0,
+      `landmark shapes repeat across floors: ${JSON.stringify(dupes)}`);
+    for (const id of FLOORS) {
+      const t2 = themeForFloor(id);
+      assert.ok(t2.landmark && t2.mast, `floor ${id}: missing landmark or mast kind`);
+      // A mast that is the primary at 40% scale cancels the primary — with
+      // four copies of one tower, none of them is "the" tower.
+      assert.notEqual(t2.mast, t2.landmark,
+        `floor ${id}: masts are miniature copies of the ${t2.landmark}`);
+    }
+  });
+
+  await t.test('every landmark kind actually builds a distinct profile', () => {
+    // A kind string that no case in landmarkProfile handles falls through to
+    // `default` and silently becomes the generic spire again — which is the
+    // failure above, reintroduced as a typo. Compare the built geometry.
+    for (const id of FLOORS) {
+      const { level, hf, theme, dist } = rigs.get(id);
+      const lms = landmarkSpecs(level, hf, theme, dist);
+      const prim = lms.find((l) => l.tier === 0);
+      const mast = lms.find((l) => l.tier > 0);
+      if (!mast) continue;
+      const sig = (s) => landmarkProfile(s, theme).length;
+      // Same host, same height, same seed — only `kind` differs, so an equal
+      // piece count means both resolved to the same builder.
+      const a = sig({ ...prim, kind: theme.landmark });
+      const b = sig({ ...prim, kind: theme.mast });
+      assert.notEqual(a, b,
+        `floor ${id}: '${theme.mast}' and '${theme.landmark}' build the same shape`
+        + ' — one of them is falling through to the default spire');
     }
   });
 
@@ -274,7 +317,14 @@ test('the tile grid', async (t) => {
     for (const id of FLOORS) {
       const { level, walls } = rigs.get(id);
       const ring = walls.filter((w) => w.ring);
-      if (!ring.length) continue;
+      // NOT `if (!ring.length) continue`. That skip is how this test passed on
+      // a floor that had no boundary ring AT ALL: Ebbport and the Shattered Sky
+      // are islands in a field of 'Q', so every one of their perimeter tiles
+      // was culled by facesOpenSpace and floor 3 shipped with nine wall tiles
+      // in the whole level and open sky to the fog in every direction. A test
+      // that skips the failing case is not a test.
+      assert.ok(ring.length > 0,
+        `floor ${id}: no boundary ring — the level has no top edge, it is a lawn`);
       // Ring tiles near the spawn stay low on purpose — the establishing shot
       // must not open on a six-metre wall in the player's face.
       const far = ring.filter((w) =>
@@ -310,6 +360,31 @@ test('the establishing shot', async (t) => {
       assert.ok(drop > 1.2,
         `floor ${id}: the spawn looks down only ${drop.toFixed(2)} m in the first 20 m — `
         + 'the establishing shot is a plane');
+    }
+  });
+
+  await t.test('faces the landmark it is composed around', () => {
+    // The whole opening-frame effort — the entrance terrace, the landmark at
+    // the objective end, the planters you see it through — is aimed at a frame
+    // the camera has to actually be pointed at. It was not: levelSpawn built
+    // its heading with `Math.atan2(-c.z, -c.x)` while every other heading in
+    // the overworld is `Math.atan2(dx, dz)`, and swapping those two arguments
+    // does not rotate a bearing, it MIRRORS it about the 45 degree diagonal.
+    // Floor 1 spawned the hero 121 degrees off the tower, staring into a hedge.
+    for (const id of FLOORS) {
+      const { level, hf, theme, dist, sampleHeight } = rigs.get(id);
+      const primary = landmarkSpecs(level, hf, theme, dist).find((l) => l.tier === 0);
+      const sp = levelSpawn(level, sampleHeight, primary);
+      const want = Math.atan2(primary.x - sp.x, primary.z - sp.z);
+      let off = Math.abs(((sp.yaw - want + Math.PI) % (Math.PI * 2)) - Math.PI);
+      assert.ok(off < 1e-9,
+        `floor ${id}: spawn faces ${(off * 180 / Math.PI).toFixed(0)} degrees off the landmark`);
+      // And the fallback bearing must use the same convention, or the bug just
+      // moves to the callers that do not pass an aim.
+      const bare = levelSpawn(level, sampleHeight);
+      const toCentre = Math.atan2(-sp.x, -sp.z);
+      off = Math.abs(((bare.yaw - toCentre + Math.PI) % (Math.PI * 2)) - Math.PI);
+      assert.ok(off < 1e-9, `floor ${id}: the no-aim spawn bearing is mirrored`);
     }
   });
 
@@ -401,4 +476,336 @@ test('the whole floor still fits its budget', () => {
     assert.ok(s.triangleCount <= 250_000, `floor ${id}: ${s.triangleCount} triangles`);
     assert.ok(s.landmarks >= 1 && s.landmarkHeight >= LANDMARK_H[0]);
   }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BREAK THE GRID
+//
+// The pass before this one claimed anti-grid jitter and did not have it. The
+// numbers, measured across all nine floors on the build these tests were
+// written against:
+//
+//   yaw       ±0.42 rad free-standing (±0.11 on the fronted vocabularies)
+//   height    σ = 11% of the mean, max/min = 1.50x
+//   offset    ±0.16 m on a 4 m tile — 4%, so neighbours met FLUSH
+//   colour    7 to 10 distinct hexes for a WHOLE FLOOR
+//   scatter   index of dispersion 0.64-0.93 on five of nine floors, i.e. the
+//             field was measurably MORE REGULAR THAN RANDOM — a lattice
+//
+// Every assertion below is one of those numbers with a threshold on it, so the
+// next person to "tidy" a jitter constant down to a rounding error has to
+// argue with a failing test rather than with a comment.
+// ═══════════════════════════════════════════════════════════════════════════
+
+test('the anti-grid budget is large enough to SEE', async (t) => {
+  await t.test('a tile slides a real fraction of its own width', () => {
+    // ±0.14 m on a 4 m tile is ±3.5%: a rounding error, not a composition.
+    assert.ok(WALL_SLIDE_ALONG / TILE_M > 0.12,
+      `a run tile slides only ${(100 * WALL_SLIDE_ALONG / TILE_M).toFixed(1)}% of a tile`);
+    for (const id of FLOORS) {
+      const { walls } = rigs.get(id);
+      const inner = walls.filter((w) => !w.ring);
+      if (inner.length < 12) continue;
+      const off = inner.map((w) => Math.hypot(w.ox, w.oz));
+      const worst = Math.max(...off);
+      assert.ok(worst / TILE_M > 0.10,
+        `floor ${id}: the largest in-tile offset is ${(100 * worst / TILE_M).toFixed(1)}%`
+        + ' of a tile — neighbouring tiles still meet flush');
+    }
+  });
+
+  await t.test('yaw and height vary by more than the eye can dismiss', () => {
+    assert.ok(WALL_YAW_JIT >= 0.5, `free-standing yaw jitter is only ±${WALL_YAW_JIT} rad`);
+    assert.ok(WALL_H_JIT >= 0.35, `height jitter is only ±${(WALL_H_JIT * 100) | 0}%`);
+    for (const id of FLOORS) {
+      const { walls, theme, level } = rigs.get(id);
+      const inner = walls.filter((w) => !w.ring);
+      if (inner.length < 12) continue;
+      // The jitter itself, not the absolute yaw: a fronted vocabulary's base
+      // yaw is where the corridor is, and that is signal, not variance.
+      const jit = inner.map((w) => w.yaw - wallFaceYaw(level, w.tx, w.ty, theme.wall));
+      const mean = jit.reduce((a, b) => a + b, 0) / jit.length;
+      const sd = Math.sqrt(jit.reduce((a, b) => a + (b - mean) ** 2, 0) / jit.length);
+      assert.ok(sd > 0.10,
+        `floor ${id}: yaw jitter has σ = ${sd.toFixed(3)} rad — the run is still parallel`);
+      const hs = inner.filter((w) => !w.low).map((w) => w.h);
+      if (hs.length < 8) continue;
+      const hm = hs.reduce((a, b) => a + b, 0) / hs.length;
+      const hsd = Math.sqrt(hs.reduce((a, b) => a + (b - hm) ** 2, 0) / hs.length);
+      assert.ok(hsd / hm > 0.15,
+        `floor ${id}: wall heights vary by only ${(100 * hsd / hm).toFixed(1)}% — one top edge`);
+    }
+  });
+
+  await t.test('a floor is cut from many papers, not from seven', () => {
+    for (const id of FLOORS) {
+      const { walls, theme } = rigs.get(id);
+      const inner = walls.filter((w) => !w.ring);
+      if (inner.length < 12) continue;
+      const hexes = new Set();
+      for (const w of inner) for (const p of wallProfile(w, theme)) hexes.add(p.hex);
+      // Not per tile — per FLOOR. Colour is the strongest grouping cue there
+      // is, and every tile printing the same swatch is what made a run of
+      // forty crafted pieces measure as one shape.
+      assert.ok(hexes.size > inner.length,
+        `floor ${id}: ${inner.length} wall tiles share only ${hexes.size} colours`);
+    }
+  });
+
+  await t.test('runs are broken: gap tiles, planters AND rubble', () => {
+    let gaps = 0, low = 0, planters = 0, rubble = 0, inner = 0;
+    for (const id of FLOORS) {
+      for (const w of rigs.get(id).walls) {
+        if (w.ring) continue;
+        inner++;
+        if (w.gap) gaps++;
+        if (w.low) low++;
+        if (w.planter) planters++;
+        if (w.rubble) rubble++;
+      }
+    }
+    assert.ok(gaps / inner > 0.20,
+      `only ${gaps}/${inner} interior tiles drop their seam-filling footing`);
+    assert.ok(planters > 8 && rubble > 8,
+      `the low tiles are all one archetype (${planters} planters, ${rubble} rubble)`);
+    assert.equal(planters + rubble, low, 'every low tile must be one archetype or the other');
+    // And the flag must actually change the tile: same tile, gap on vs off.
+    const { walls, theme } = rigs.get(1);
+    const g = walls.find((w) => w.gap && !w.ring);
+    assert.ok(g, 'floor 1 has no gap tiles at all');
+    const span = (t2) => wallProfile(t2, theme)
+      .reduce((a, p) => Math.max(a, p.w || p.r0 || 0), 0);
+    assert.ok(span(g) < span({ ...g, gap: false }) * 0.95,
+      'a gap tile is no narrower than the same tile without the flag');
+  });
+
+  await t.test('the footing that welds a run is skipped, not merely hidden', () => {
+    // The widest piece at ground level is the join-hider. On a gap tile there
+    // must not be one.
+    const { walls, theme } = rigs.get(1);
+    const ground = (w) => wallProfile(w, theme)
+      .filter((p) => p.y0 < 0 && !p.seam)
+      .reduce((a, p) => Math.max(a, p.w || 0), 0);
+    const gapTiles = walls.filter((w) => w.gap && !w.ring);
+    const solidTiles = walls.filter((w) => !w.gap && !w.ring && !w.low);
+    assert.ok(gapTiles.length && solidTiles.length, 'floor 1 must have both kinds of tile');
+    for (const w of gapTiles) {
+      assert.equal(ground(w), 0, `a gap tile at ${w.tx},${w.ty} still has its footing ply`);
+    }
+    assert.ok(solidTiles.some((w) => ground(w) > 3),
+      'a solid tile lost its footing — the run has nothing holding it together');
+  });
+});
+
+test('the scatter is not a lattice', async (t) => {
+  /** Index of dispersion (variance/mean of per-cell counts). 1.0 is a Poisson
+   *  field; BELOW 1 means more regular than random, which is a grid. */
+  function dispersion(spots, cell) {
+    const counts = new Map();
+    for (const s of spots) {
+      const k = `${Math.floor(s.x / cell)},${Math.floor(s.z / cell)}`;
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    const v = [...counts.values()];
+    const m = v.reduce((a, b) => a + b, 0) / v.length;
+    return v.reduce((a, b) => a + (b - m) ** 2, 0) / v.length / m;
+  }
+
+  await t.test('clusters instead of spreading evenly', () => {
+    for (const id of FLOORS) {
+      const { level, hf, theme, sampleHeight } = rigs.get(id);
+      const spots = groundScatter(level, hf, theme, sampleHeight, {});
+      const d = dispersion(spots, TILE_M);
+      assert.ok(d > 1.25,
+        `floor ${id}: index of dispersion ${d.toFixed(2)} at tile scale — at or below 1`
+        + ' means the field is as regular as a grid');
+      const d8 = dispersion(spots, TILE_M * 2);
+      assert.ok(d8 > 1.6,
+        `floor ${id}: index of dispersion ${d8.toFixed(2)} at 8 m — no thickets, no clearings`);
+    }
+  });
+
+  await t.test('every archetype comes in three cut variants and leans', () => {
+    for (const id of FLOORS) {
+      const { level, hf, theme, sampleHeight } = rigs.get(id);
+      const spots = groundScatter(level, hf, theme, sampleHeight, {});
+      const byKind = new Map();
+      for (const s of spots) {
+        if (!byKind.has(s.kind)) byKind.set(s.kind, new Set());
+        byKind.get(s.kind).add(s.variant);
+        assert.ok(Number.isInteger(s.variant) && s.variant >= 0 && s.variant < 3,
+          `floor ${id}: scatter variant ${s.variant} is not one of three`);
+      }
+      assert.ok(byKind.size >= 4, `floor ${id}: only ${byKind.size} scatter archetypes`);
+      for (const [k, vs] of byKind) {
+        assert.equal(vs.size, 3, `floor ${id}: "${k}" uses ${vs.size} of its three variants`);
+      }
+      // Lean and aspect. A field of plumb-vertical, uniformly-scaled pieces
+      // advertises the transform that placed them however well it is placed.
+      const tilts = spots.map((s) => Math.abs(s.tilt));
+      assert.ok(Math.max(...tilts) > 0.25, `floor ${id}: nothing in the scatter leans`);
+      const st = spots.map((s) => s.stretch);
+      assert.ok(Math.max(...st) / Math.min(...st) > 1.8,
+        `floor ${id}: every piece has the same aspect ratio`);
+    }
+  });
+});
+
+test('a floor sky matches the floor premise', async (t) => {
+  /** The composed frame a floor actually renders under. */
+  function frameFor(key) {
+    const out = createRenderFrame();
+    applyWeather(timeOfDay(0.32), weatherByName('clear'), out);
+    applyFloorSky(out, key);
+    return out;
+  }
+  const luma709 = (hex) =>
+    (0.2126 * ((hex >> 16) & 255) + 0.7152 * ((hex >> 8) & 255) + 0.0722 * (hex & 255)) / 255;
+
+  await t.test('the Ember Caves are not under a clear blue sky', () => {
+    const island = frameFor(null);
+    const cave = frameFor('ember');
+    // Warmer: red must beat blue at the horizon, which it does not in any
+    // daylight sky this world owns.
+    const red = (cave.skyBottom >> 16) & 255, blue = cave.skyBottom & 255;
+    assert.ok(red > blue * 1.5, 'the cave horizon is not warm');
+    // And darker overhead, by a lot — that is the lid.
+    assert.ok(luma709(cave.skyTop) < luma709(island.skyTop) * 0.45,
+      `the cave roof is ${luma709(cave.skyTop).toFixed(2)} against an open sky at `
+      + `${luma709(island.skyTop).toFixed(2)} — still a sky, not a ceiling`);
+    // Lit from BELOW: the fill's ground half outshines its sky half, which is
+    // true in a lava cavern and in nothing else in this game.
+    assert.ok(luma709(cave.hemiGround) > luma709(cave.hemiSky) * 1.6,
+      'the cave is lit from above like a meadow');
+    assert.ok(cave.cloudTintAmt > 0.7, 'the cloud layer is not sunk into smoke');
+  });
+
+  await t.test('every declared sky stays inside the palette and leaves sunDir alone', () => {
+    const base = frameFor(null);
+    for (const key of Object.keys(LEVEL_SKY)) {
+      const f = frameFor(key);
+      assert.deepEqual(f.sunDir, base.sunDir,
+        `${key}: a floor sky moved the key light — the shadow rig is derived from it`);
+      for (const field of ['skyTop', 'skyMid', 'skyBottom', 'fogColor', 'hemiSky', 'hemiGround']) {
+        const v = f[field];
+        assert.ok(Number.isInteger(v) && v >= 0 && v <= 0xffffff, `${key}.${field}`);
+        // PAPER.inkTeal is the palette floor. Nothing, at any hour, in any
+        // room, may go under it — that is the no-black law.
+        const ch = [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+        const ink = [(PAPER.inkTeal >> 16) & 255, (PAPER.inkTeal >> 8) & 255, PAPER.inkTeal & 255];
+        assert.ok(ch[0] + ch[1] + ch[2] >= ink[0] + ink[1] + ink[2] - 1,
+          `${key}.${field} = #${v.toString(16)} is darker than PAPER.inkTeal`);
+      }
+      assert.ok(f.sunIntensity > 0.2, `${key}: the key light went out`);
+      assert.ok(f.hemiIntensity > 0.15, `${key}: a five-year-old cannot see the floor`);
+    }
+  });
+
+  await t.test('and EVERY floor has one — an hour is not a colour script', () => {
+    // The resolution index.js performs: an explicit borrow first, the floor's
+    // own theme key otherwise. A floor with neither would be lit by the island.
+    for (const id of FLOORS) {
+      const theme = LEVEL_THEMES[id];
+      const key = theme.sky || theme.key;
+      assert.ok(LEVEL_SKY[key],
+        `floor ${id} ("${theme.name}") resolves to sky "${key}", which does not exist`
+        + ' — it would stand under the island\'s meadow noon');
+      if (theme.sky) {
+        assert.ok(LEVEL_SKY[theme.sky], `floor ${id} names a sky that does not exist`);
+      }
+    }
+    assert.equal(LEVEL_THEMES[4].sky, 'ember', 'floor 4 must not be under the island sky');
+  });
+
+  await t.test('no two floors are lit the same way', () => {
+    // Nine rooms photographed at the same hour is the defect this table exists
+    // to fix, so "they all have an entry" is not enough — they have to DIFFER.
+    // The fill's two halves are the strongest single tell: hemiSky/hemiGround
+    // is what decides the colour family of every shaded surface in the room.
+    const seen = new Map();
+    for (const id of FLOORS) {
+      const t2 = LEVEL_THEMES[id];
+      const f = frameFor(t2.sky || t2.key);
+      const sig = `${f.hemiSky.toString(16)}/${f.hemiGround.toString(16)}/${f.skyTop.toString(16)}`;
+      assert.ok(!seen.has(sig),
+        `floors ${seen.get(sig)} and ${id} are lit identically (${sig})`);
+      seen.set(sig, id);
+    }
+  });
+
+  await t.test('a warm room is warm and a cold room is cold', () => {
+    const warmth = (hex) => (((hex >> 16) & 255) - (hex & 255)) / 255;
+    const fill = (id) => {
+      const t2 = LEVEL_THEMES[id];
+      return frameFor(t2.sky || t2.key).hemiGround;
+    };
+    // Ember (4), Market (7) and the Library (8) bounce warm paper; Frost (5)
+    // and the Crystal Caverns (6) bounce cold. If those two groups ever cross,
+    // the light is no longer saying which room you are standing in.
+    for (const warm of [4, 7, 8]) {
+      for (const cold of [5, 6]) {
+        assert.ok(warmth(fill(warm)) > warmth(fill(cold)) + 0.10,
+          `floor ${warm}'s fill is not warmer than floor ${cold}'s`);
+      }
+    }
+  });
+});
+
+test('the Ember Caves read as caves', async (t) => {
+  await t.test('the rim closes the horizon', () => {
+    const { walls } = rigs.get(4);
+    const ring = walls.filter((w) => w.ring);
+    const far = ring.filter((w) => w.h > 6);
+    assert.ok(far.length > ring.length * 0.5,
+      `only ${far.length}/${ring.length} rim tiles clear 6 m — the caldera is a fence`);
+    const tallest = ring.reduce((a, w) => Math.max(a, w.h), 0);
+    assert.ok(tallest > 9, `the rim tops out at ${tallest.toFixed(1)} m`);
+    // And the interior must NOT come up with it, or the floor is a solid block.
+    const interior = walls.filter((w) => !w.ring).reduce((a, w) => Math.max(a, w.h), 0);
+    assert.ok(interior < 4, `interior walls reached ${interior.toFixed(1)} m`);
+  });
+
+  await t.test('the vents are real places, spread out and off the spawn', () => {
+    const { level, hf } = rigs.get(4);
+    const vents = ventSpots(level, hf);
+    assert.ok(vents.length >= 4, `only ${vents.length} vents — that is not a lit cavern`);
+    for (const v of vents) {
+      assert.ok(Math.hypot(v.u - 0.5 - level.startX, v.v - 0.5 - level.startY) >= 4,
+        'a vent landed on the spawn');
+      assert.ok(v.r > 2 && v.r < 7, `vent radius ${v.r}`);
+      assert.ok(Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z));
+    }
+    for (let i = 0; i < vents.length; i++) {
+      for (let j = i + 1; j < vents.length; j++) {
+        assert.ok(Math.hypot(vents[i].u - vents[j].u, vents[i].v - vents[j].v) >= 6,
+          'two vents landed in the same room');
+      }
+    }
+    // Deterministic, like everything else the harness screenshots.
+    assert.deepEqual(ventSpots(level, hf), vents);
+    // And no other floor lights itself this way.
+    assert.equal(ventSpots(rigs.get(1).level, rigs.get(1).hf).length > 0, true,
+      'ventSpots is a pure placement query and must work anywhere it is asked');
+    assert.ok(!LEVEL_THEMES[1].glow, 'only a floor with a glow paper gets vents built');
+  });
+
+  await t.test('the ember field thickens around the vents', () => {
+    const { level, hf, theme, sampleHeight } = rigs.get(4);
+    const vents = ventSpots(level, hf);
+    const spots = groundScatter(level, hf, theme, sampleHeight, {});
+    let near = 0, far = 0;
+    for (const s of spots) {
+      const u = s.x / TILE_M + level.width / 2, v = s.z / TILE_M + level.height / 2;
+      let d = Infinity;
+      for (const vt of vents) d = Math.min(d, Math.hypot(u - vt.u, v - vt.v));
+      if (d < 5.5) near++; else far++;
+    }
+    assert.ok(near > 0 && far > 0, 'the scatter is all in one place or all in the other');
+    // Area within 5.5 tiles of any of ~7 vents is a small share of the floor,
+    // so a merely uniform field would put a small share of its pieces there.
+    assert.ok(near / spots.length > 0.18,
+      `only ${(100 * near / spots.length).toFixed(0)}% of the dressing is at a vent`
+      + ' — the caves are lit from nowhere');
+  });
 });

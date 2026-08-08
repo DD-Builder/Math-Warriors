@@ -81,11 +81,22 @@ export const FOG_UNIFORMS = {
   // stack at the far end were tinted toward the SAME value, so the aerial
   // perspective that was supposed to separate them separated nothing.
   //
-  // This is a DISTANCE choice, blended in by the extinction factor itself, so
-  // near haze can stay warm while the far end of the same corridor goes cool
-  // and recedes. Defaults to uFogLow (setAerialFrame writes both from the same
-  // frame colour), which makes the whole term an exact identity on the island.
+  // This is a DISTANCE choice, so near haze can stay warm while the far end of
+  // the same corridor goes cool and recedes. Defaults to uFogLow (setAerialFrame
+  // writes both from the same frame colour), which makes the whole term an
+  // exact identity on the island.
   uFogFar: { value: new THREE.Color(1, 1, 1) },
+  // 1 / the distance at which uFogFar is fully reached. Zero disables the split.
+  //
+  // WHY A SEPARATE DISTANCE AND NOT THE EXTINCTION FACTOR: the split used to be
+  // `mix(near, far, f)` — blended by the extinction itself — which made it
+  // self-defeating in precisely the room it was written for. Inside a floor f
+  // tops out around 0.2–0.3, so the far colour arrived at 30% strength and was
+  // then applied to the surface at 30%: a 9% tint, i.e. nothing. The near/far
+  // split has to be a function of DEPTH so that at the end of a sightline the
+  // haze is fully the far paper, and the extinction decides only how much of
+  // that haze covers the surface — which is the one thing extinction means.
+  uFogSplitInv: { value: 0 },
   // Forward-scattering tint applied within a tight lobe around the key light.
   uFogSunColor: { value: new THREE.Color(1, 1, 1) },
   uFogSunDir: { value: new THREE.Vector3(0, 1, 0) },
@@ -151,6 +162,7 @@ const FRAG_PARS = /* glsl */`
 	uniform vec3 uFogLow;
 	uniform vec3 uFogHigh;
 	uniform vec3 uFogFar;
+	uniform float uFogSplitInv;
 	uniform vec3 uFogSunColor;
 	uniform vec3 uFogSunDir;
 	uniform float uFogDensity;
@@ -278,8 +290,9 @@ ${CLOUD_SHADOW}
 		vec3 mwFogCol = mix( uFogLow, uFogHigh, smoothstep( -0.06, 0.42, mwFogV.y ) );
 		// Warm near, cool far. See uFogFar — this is the term that lets a
 		// corridor's far end sit at a different value from its near walls
-		// when every ray in the frame points the same way.
-		mwFogCol = mix( mwFogCol, uFogFar, mwFogF );
+		// when every ray in the frame points the same way. Blended on DEPTH,
+		// not on extinction: see the uniform.
+		mwFogCol = mix( mwFogCol, uFogFar, clamp( mwFogDist * uFogSplitInv, 0.0, 1.0 ) );
 		float mwFogSun = pow( max( dot( mwFogV, uFogSunDir ), 0.0 ), 6.0 ) * uFogSunAmt;
 		mwFogCol = mix( mwFogCol, uFogSunColor, mwFogSun );
 
@@ -366,42 +379,79 @@ export function applyAerialFogToTree(root) {
 // needs, expressed as MULTIPLIERS and OVERRIDES on whatever the hour and the
 // weather composed, so time of day still travels through it.
 //
-//   density  multiplier on the composed fog density
-//   start    absolute metres of perfectly clear air (a room is small; the
-//            near field has to stay completely untouched or the walls two
-//            metres away start hazing)
-//   desat    absolute uFogDesat — the hue-swap half of aerial perspective, and
-//            the half that does the work at the ranges a floor spans
-//   max      extinction ceiling: how far a surface may dissolve. A floor has
-//            no sky behind it at eye level, so letting the far wall reach 1.0
-//            punches a hole in the room. Nothing indoors goes above ~0.8.
-//   far      PAPER int for uFogFar (see the uniform). null keeps it equal to
-//            the frame's own fog colour, i.e. no near/far split.
+//   density   multiplier on the composed fog density
+//   start     absolute metres of perfectly clear air (a room is small; the
+//             near field has to stay completely untouched or the walls two
+//             metres away start hazing)
+//   heightMul multiplier on the composed fogHeightK — see THE VERTICAL GRADIENT
+//   desat     absolute uFogDesat — the hue-swap half of aerial perspective, and
+//             the half that does the work at the ranges a floor spans
+//   max       extinction ceiling: how far a surface may dissolve. Sized to sit
+//             ABOVE anything inside the room (see THE CEILING IS NOT THE DIAL)
+//             so it only ever binds on the boundary beyond it.
+//   far       PAPER int for uFogFar (see the uniform). null keeps it equal to
+//             the frame's own fog colour, i.e. no near/far split.
+//   split     metres at which `far` is fully reached — set to the floor's own
+//             span, so the end of a sightline is the far paper and the near
+//             field is the frame's own haze.
 //
-// @type {Record<string, {density:number,start:number,desat:number,max:number,far:number|null}>}
+// ── THE CEILING IS NOT THE DIAL ────────────────────────────────────────────
+// The previous pass drove the look with `density` and clipped it with `max`,
+// and every outdoor floor ended up SATURATED inside its own play space: the
+// Garden reached 0.687 against a ceiling of 0.72 at 75 m, so everything past
+// about sixty metres was one flat wash at the ceiling value. A flat wash is
+// the exact opposite of aerial perspective — the rim, the far hedges and the
+// landmark behind them all arrived at the same tint, so nothing separated from
+// anything. Densities are down 20–45% and the ceilings are up, which inverts
+// the roles: the CURVE now does the art inside the room and the ceiling is a
+// safety rail for the boundary past it. Measured, at eye 4.6 m over ground
+// 1 m, noon/clear: every floor is still climbing at 95 m and none of them
+// touches its ceiling anywhere a player can stand.
+//
+// ── THE VERTICAL GRADIENT (this is the "reveal structure" half) ────────────
+// Haze is a fluid and it pools. The island runs fogHeightK at ~0.042 (a 24 m
+// e-folding height), which over a 400 m vista is right and inside a 70 m room
+// is indistinguishable from no gradient at all: the ground and the thing
+// standing 16 m above it are equally hazy, so distance eats the whole silhouette
+// including the part you were supposed to navigate by. At 2–3x that rate the
+// e-folding height drops to 8–12 m, which puts the murk in the FLOOR of the
+// room and leaves the crowns in clear air — measured, a 16 m landmark crown at
+// 55 m carries a third to a fifth of the haze the ground under it does. That
+// single number is what turns fog from something that hides the level into the
+// thing that reveals its structure, and it is why a distant tower reads as
+// distant AND as a tower.
+//
+// @type {Record<string, {density:number,start:number,heightMul:number,desat:number,max:number,far:number|null,split:number}>}
 export const LEVEL_ATMOSPHERE = {
-  // Open, sunlit, green. It needs MORE haze, not less: with none, the far
-  // hedges sit at exactly the value of the near ones and the maze is flat.
-  garden: { density: 1.55, start: 7, desat: 0.86, max: 0.72, far: PAPER.sage },
-  // A drained harbour. Damp air pooling in the streets, going teal with depth.
-  ebbport: { density: 1.70, start: 7, desat: 0.84, max: 0.76, far: PAPER.tealD },
-  // Actually in the sky. The one domain the island's density is nearly right
-  // for, and the one place a far edge SHOULD dissolve.
-  sky: { density: 1.30, start: 8, desat: 0.80, max: 0.92, far: PAPER.sky },
+  // Open, sunlit, green. Needs real air — with none the far hedges sit at
+  // exactly the value of the near ones — but the maze is the composition, so
+  // the haze stays low and the crowns stay crisp.
+  garden: { density: 1.20, start: 8, heightMul: 2.4, desat: 0.84, max: 0.80, far: PAPER.sage, split: 70 },
+  // A drained harbour. Damp air pooling in the streets, going teal with depth:
+  // the thickest floor in the set, and the one whose murk sits lowest.
+  ebbport: { density: 1.32, start: 8, heightMul: 2.2, desat: 0.82, max: 0.80, far: PAPER.tealD, split: 70 },
+  // Actually in the sky. The one place a far edge SHOULD dissolve, and the one
+  // place the gradient must be gentle — there is no floor for murk to pool on.
+  sky: { density: 1.05, start: 9, heightMul: 1.5, desat: 0.80, max: 0.90, far: PAPER.sky, split: 85 },
   // Warm near, cool far, hard. Floor 4's review note was "orange ground at 97
   // chroma against teal slabs at 22 — two games in one frame"; a warm near
-  // haze is what stitches the two families into one room.
-  ember: { density: 1.60, start: 7, desat: 0.88, max: 0.78, far: PAPER.coralD },
-  frost: { density: 1.75, start: 8, desat: 0.78, max: 0.86, far: PAPER.sky },
-  prism: { density: 1.35, start: 7, desat: 0.82, max: 0.78, far: PAPER.lavenderD },
-  market: { density: 1.25, start: 7, desat: 0.80, max: 0.70, far: PAPER.coral },
-  // THE 40% CUT. The Library was the worst frame in the set for exactly this:
-  // a corridor with a designed sightline, thrown away by haze that reached
-  // mush before the sightline resolved. Density down hard, ceiling down hard
-  // so the far stack stays a stack, and a cool far end against warm near
-  // shelves so the corridor has two planes in it instead of one.
-  library: { density: 0.60, start: 10, desat: 0.62, max: 0.62, far: PAPER.lavenderD },
-  mending: { density: 0.80, start: 9, desat: 0.70, max: 0.66, far: PAPER.lavender },
+  // haze is what stitches the two families into one room. The steepest
+  // gradient in the set, because the read of a caldera is smoke lying in it
+  // with the vent chimney standing clear above.
+  ember: { density: 1.30, start: 8, heightMul: 2.8, desat: 0.86, max: 0.74, far: PAPER.coralD, split: 70 },
+  // Thin cold air over snow: mist in the hollows, nothing above them.
+  frost: { density: 1.28, start: 9, heightMul: 2.0, desat: 0.78, max: 0.82, far: PAPER.sky, split: 75 },
+  prism: { density: 1.20, start: 8, heightMul: 2.6, desat: 0.82, max: 0.72, far: PAPER.lavenderD, split: 65 },
+  market: { density: 1.12, start: 8, heightMul: 2.2, desat: 0.80, max: 0.76, far: PAPER.coral, split: 70 },
+  // THE THIN ONE. The Library was the worst frame in the set: a corridor with a
+  // designed sightline, thrown away by haze that reached mush before the
+  // sightline resolved. It keeps the deepest cut in the game — a third of the
+  // island's extinction at the same range, and the steepest vertical gradient,
+  // so the tops of the stacks stay legible all the way down the aisle — but it
+  // is no longer NOTHING either: at 0.21 extinction over 75 m with a cool far
+  // paper against warm near shelves, the corridor finally has two planes in it.
+  library: { density: 0.92, start: 10, heightMul: 3.0, desat: 0.66, max: 0.58, far: PAPER.lavenderD, split: 55 },
+  mending: { density: 1.02, start: 9, heightMul: 2.2, desat: 0.72, max: 0.64, far: PAPER.lavender, split: 65 },
 };
 
 /** The atmosphere for a theme key, or null for the island's own. */
@@ -484,15 +534,22 @@ export function setAerialFrame(frame) {
   // whatever the hour and the weather did to the COLOURS. See LEVEL_ATMOSPHERE.
   if (_domain) {
     u.uFogDensity.value = frame.fogDensity * _domain.density;
+    u.uFogHeightK.value = frame.fogHeightK * _domain.heightMul;
     u.uFogStart.value = _domain.start;
     u.uFogDesat.value = _domain.desat;
     u.uFogMax.value = Math.min(frame.fogMax, _domain.max);
-    if (_domain.far !== null) setFogColor(u.uFogFar.value, _domain.far);
-    else u.uFogFar.value.copy(u.uFogLow.value);
+    if (_domain.far !== null) {
+      setFogColor(u.uFogFar.value, _domain.far);
+      u.uFogSplitInv.value = 1 / _domain.split;
+    } else {
+      u.uFogFar.value.copy(u.uFogLow.value);
+      u.uFogSplitInv.value = 0;
+    }
   } else {
     // No split on the island: far haze IS near haze, which makes the whole
     // uFogFar term an exact identity there.
     u.uFogFar.value.copy(u.uFogLow.value);
+    u.uFogSplitInv.value = 0;
   }
 
   // Cloud shadows drift DOWNWIND OF THE KEY LIGHT's azimuth, which is what

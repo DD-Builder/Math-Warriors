@@ -54,7 +54,7 @@ import { createBattle3D } from './battle3d.js';
 import { buildLevel3D } from './level3d.js';
 import { TILE_M } from './level3dBuild.js';
 import { createAtmosphere } from './atmosphere.js';
-import { timeOfDay } from './timeOfDay.js';
+import { timeOfDay, applyFloorSky, levelSky } from './timeOfDay.js';
 import { WEATHER_NAMES, createWeatherBlender, createRenderFrame, applyWeather } from './weather.js';
 import { fromSave } from './state.js';
 import { POSES, poseByName } from './poses.js';
@@ -94,63 +94,157 @@ const TOD_EPS = 0.001;
 //                   sines at ~10 cm, faded in after a second of no input, so a
 //                   paused game breathes instead of freezing into a screenshot.
 //
-// THE FRAMING (rewritten): the previous boom sat 11.5 m back and 6 m up on a
-// 1.72 m character, which put the hero at ~13% of frame height — a speck in a
-// landscape photograph, not a character you are playing. The numbers below are
+// THE FRAMING: the boom used to sit 11.5 m back and 6 m up on a 1.72 m
+// character, which put the hero at ~13% of frame height — a speck in a
+// landscape photograph, not a character you are playing. What replaced it is
 // Odyssey/TotK third-person framing: close enough that the face, the cape and
 // the silhouette all read, far enough that the next platform is on screen.
 //
-//   6.4 m back, 3.0 m up, looking at the chest (1.15 m) is a 16 degree
-//   downward pitch. At 50 deg vertical FOV the visible slab at the hero's
-//   distance is ~6.2 m tall, so a 1.72 m hero occupies ~28% of frame height.
-//   That is the number that makes a character read as a character.
+// ── AND WHY THERE ARE NOW TWO OF THEM ──────────────────────────────────────
 //
-// Everything shrank in proportion: look-ahead (a close camera must lead LESS
-// or the hero slides off the bottom of frame), the terrain clearance, and the
-// eye floor. minDist dropped to 3.0 so a hill can still shorten the boom
-// meaningfully before it has to start raising it.
+// One boom served the island AND the nine floors, and the two places do not
+// want the same shot. The island is a 400 m vista with a 60 m mesa in it: the
+// composition is already in the LANDSCAPE, so the camera's job is to stay near
+// the hero and let the world do the work. A floor is a 60–90 m room whose
+// tallest architecture is a 2.9 m wall band, so the composition has to be
+// MADE by the lens — and the island's rig made exactly the wrong frame there:
+//
+//   6.4 back / 3.0 up / look at 1.15 is 16.1 deg of downward pitch. At 50 deg
+//   vertical FOV the horizon lands 19% down from the top edge, so 81% of the
+//   frame is floor — and inside a level, floor means bare ground, because
+//   nothing in the room is tall enough to occupy the space above it. Every
+//   level screenshot came back as "a character standing on a plane".
+//
+// The level profile trades pitch for distance and distance back for a longer
+// lens, which is the standard fix and it is worth spelling out why all three
+// numbers have to move together:
+//
+//   PITCH DOWN, 16.1 -> 10.6 deg. This is the whole point. The horizon moves
+//     from 19% to 27% down the frame — the upper third — so the top quarter of
+//     every level frame is sky with the wall band and the landmarks CUT
+//     AGAINST it. Pitch is set indirectly, as (height - lookUp) / dist, so the
+//     shot keeps its angle when a wall shortens the boom.
+//   LOOK UP, 1.15 -> 1.55. Aiming at the chest of a hero standing on a plane
+//     centres the plane. Aiming at the head puts the hero low in frame and
+//     hands the upper half to the room, which is where the level is.
+//   BACK, 6.4 -> 9.4 m. A room read at 6 m is a corridor; at 9.4 m you can see
+//     the turn, the far wall and the thing you are walking toward at once.
+//   LENS, 50 -> 44 deg. Moving back alone shrinks the hero out of the frame
+//     (at 9.4 m and 50 deg he is 19% of frame height, under the 20% floor a
+//     character needs to read). Six degrees of lens buys it straight back —
+//     1.72 m over a 7.85 m slab is 22% — AND compresses the depth planes,
+//     which is exactly what you want in a room and exactly what you do not
+//     want on an island vista.
+//
+// Everything else — damping, drift, dead-bands, the eye floor — is shared,
+// because none of it is a compositional choice.
 const CAM = {
-  dist: 6.4,
-  distRun: 1.1,    // extra boom length at full sprint
-  minDist: 3.0,    // never closer than this, however hard terrain pushes
-  height: 3.0,
-  lookAhead: 1.3,
-  leadMax: 1.8,    // extra look-ahead along velocity at full sprint
   leadLerp: 0.07,
-  lookUp: 1.15,    // chest height on a 1.72 m hero
   minAbove: 1.1,   // eye floor above terrain/water under the camera itself
-  clearance: 0.8,  // boom must clear the ground under it by this much
   boomSteps: 6,
   lerp: 0.16,
   lerpY: 0.075,
   yDead: 0.05,     // vertical error under this is simply ignored
   distIn: 0.34,    // shorten fast (a pop-through is unforgivable)…
   distOut: 0.055,  // …extend slowly (nobody should notice it happen)
-  fov: 50,
   fovRun: 5.0,
   fovLerp: 0.045,
   driftAmp: 0.06,
   driftLook: 0.12,
   driftDelay: 0.9, // seconds of stillness before the drift fades in
   driftFade: 1.6,
-  // When the boom is squeezed by something solid, the eye RISES as it comes
-  // in. Shortening alone is not enough inside a hedge maze: the wall behind
-  // the player is 4 m of solid geometry, and a camera that only pulls in ends
-  // up inside it. Rising as it pulls in turns that failure into the shot you
-  // actually want — a high, close over-the-shoulder that sees over the hedge.
-  squeezeLift: 2.6,
+  /** Per-frame ease between the two profiles. ~0.8 s end to end. */
+  profileLerp: 0.055,
+  /** Per-frame ease on the boom-obstructed flag. Stops a wall the boom is
+   *  grazing from strobing the eye up and down. */
+  blockLerp: 0.11,
+  /** How much of the boom a WALL has to eat before the eye starts to rise.
+   *  See the squeezeLift note on the profiles. */
+  liftDead: 0.35,
+  /** Metres the boom line must clear a WALL CREST by. Small on purpose: see
+   *  boomBlocked — skimming a hedge top is a shot, not a fault. */
+  // Measured across all nine spawns and 32 headings each: at 0.55 the boom on
+  // floor 1 was stopped six centimetres short of clearing its own boundary
+  // ring; at 0.40 every floor but 2, 6 and 9 gets its full 9.4 m at the spawn
+  // and the mean surviving boom over all headings is 7.6–9.4 m. Below 0.40 it
+  // buys nothing more, so this is the knee and not a shaved number.
+  wallClear: 0.40,
 };
 
-/** Hero standing height, metres. Everything in CAM is framed against this. */
-const HERO_HEIGHT = 1.72;
+/**
+ * THE ISLAND PROFILE — open-world play. Unchanged; this is the shot the
+ * 7/10 vista was framed with and nothing about it was the problem.
+ */
+const CAM_ISLAND = {
+  dist: 6.4,
+  distRun: 1.1,    // extra boom length at full sprint
+  minDist: 3.0,    // never closer than this, however hard terrain pushes
+  height: 3.0,
+  lookUp: 1.15,    // chest height on a 1.72 m hero
+  lookAhead: 1.3,
+  leadMax: 1.8,    // extra look-ahead along velocity at full sprint
+  clearance: 0.8,  // boom must clear the ground under it by this much
+  fov: 50,
+  // No lens compensation out here: see fovCrushMax on the level profile. The
+  // island's boom is short enough that terrain rarely takes much of it, and
+  // this is the framing the 7/10 vista was shot with — it does not move.
+  fovCrushMax: 50,
+  // When the boom is genuinely BLOCKED, the eye rises as it comes in. See the
+  // gate in computeBoom: this is not a proximity term, and on the island it is
+  // inert today because boomBlocked only knows about floor architecture.
+  squeezeLift: 1.6,
+};
 
 /**
- * The rig's RESTING elevation, in radians above the look-at pivot, derived
- * from the framing above rather than authored twice. At zero orbit pitch the
- * boom reproduces CAM.height exactly (lookUp + dist*tan(BASE_ELEV) == height),
- * so adding player-driven pitch is a pure offset on top of the authored shot.
+ * THE LEVEL PROFILE — inside a floor. See the derivation above.
+ *
+ * Resting geometry, on flat ground, at 4:3:
+ *   pitch    atan2(3.30 - 1.55, 9.40)          = 10.5 deg
+ *   horizon  0.5 - 0.5 * tan(pitch)/tan(fov/2) = 0.27 down from the top edge
+ *   hero     1.72 / (2 * 9.71 * tan(fov/2))    = 0.22 of frame height
  */
-const BASE_ELEV = Math.atan2(CAM.height - CAM.lookUp, CAM.dist);
+const CAM_LEVEL = {
+  dist: 9.4,
+  distRun: 1.4,
+  // A room boom that collapses to 3 m is back to the shot this profile exists
+  // to replace, so the floor under it is higher: a wall may crush the boom by
+  // 60%, not by 70%.
+  minDist: 3.6,
+  height: 3.30,
+  lookUp: 1.55,    // the head, not the chest — see LOOK UP above
+  lookAhead: 1.6,
+  leadMax: 2.1,
+  clearance: 0.9,
+  fov: 44,
+  // ── THE LENS COMPENSATION ────────────────────────────────────────────
+  // A 44 deg lens is only the right lens at 9.4 m. When a wall takes the boom
+  // away the hero GROWS — at 6.3 m he is 33% of frame height, which is a worse
+  // shot than the one this profile replaced, because a long lens up close is
+  // the most claustrophobic frame there is. A camera operator who cannot dolly
+  // back goes wider, so this rig does too: as the world crushes the boom the
+  // lens opens to hold the hero's angular size, up to this ceiling. It also
+  // holds the horizon — pitch is unchanged and a wider lens only pushes the
+  // horizon further DOWN the frame, which is the direction it wants to go.
+  //
+  // Only the WORLD's crushing counts. A pinch-zoom shortens `reach` itself, so
+  // a player who asked to be close gets to be close.
+  fovCrushMax: 56,
+  // Higher than the island's because the thing being seen over is a 2.9 m wall
+  // standing on the same ground the hero does. Still gated on real obstruction.
+  squeezeLift: 2.1,
+};
+
+/** The keys that differ between profiles, blended per frame into `shot`. */
+const SHOT_KEYS = [
+  'dist', 'distRun', 'minDist', 'height', 'lookUp',
+  'lookAhead', 'leadMax', 'clearance', 'fov', 'fovCrushMax', 'squeezeLift',
+];
+
+const DEG = Math.PI / 180;
+
+/** Hero standing height, metres. Everything in the profiles is framed against
+ *  this — see cameraFraming() on the debug api, which reports the live numbers. */
+const HERO_HEIGHT = 1.72;
 /** Hard elevation stops. Below level the eye starts clipping the hero's feet;
  *  above ~66 deg the shot is a plan view and the horizon is gone. */
 const ELEV_MIN = -0.10;
@@ -476,7 +570,12 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
    * one thing to clear on the way out and no way to leave half a floor's
    * lighting behind on the island.
    *
-   * @type {null | {ground:number}}
+   * `ground` is the theme's paper, used as the bounce/hemi-ground colour on a
+   * floor that declares no sky script. `sky` is the LEVEL_SKY key, or null —
+   * when set, applyFloorSky has already chosen the fill and the bounce and
+   * applyLight must not re-impose the paper over them.
+   *
+   * @type {null | {ground:number, sky:string|null}}
    */
   let interior = null;
 
@@ -490,9 +589,19 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // Inside a floor the bounce comes off THAT floor's paper, not the island's
     // meadow. See INTERIOR_LIGHT for why this is a bug fix and not a mood.
     if (interior) {
-      hemi.groundColor.setHex(interior.ground);
+      // A floor that declares a sky has already had its fill and its bounce
+      // chosen by applyFloorSky — the Ember Caves are lit from BELOW, which is
+      // the whole read of a cave and would be undone by re-imposing the
+      // theme's ground paper here.
+      //
+      // All nine themes declare one now (see LEVEL_SKY), so in practice this
+      // always takes the first branch. The second is not dead: it is what a
+      // floor whose theme key has no script falls back to, and keeping it is
+      // what makes adding a tenth theme a colour-table edit rather than a
+      // relighting bug.
+      hemi.groundColor.setHex(interior.sky ? frame.hemiGround : interior.ground);
       hemi.intensity *= INTERIOR_LIGHT.hemiMul;
-      bounce.color.setHex(interior.ground);
+      bounce.color.setHex(interior.sky ? frame.bounceColor : interior.ground);
       bounce.intensity *= INTERIOR_LIGHT.bounceMul;
     } else {
       hemi.groundColor.setHex(frame.hemiGround);
@@ -560,6 +669,12 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     }
     weatherDirty = false;
     applyWeather(hourFrame, weather.params, lightFrame);
+    // A floor's sky is folded in LAST, over the composed hour x weather frame,
+    // so a cavern inherits the whole live rig — sun direction, shadow fit,
+    // weather blend, day clock — and overrides only the fields that say where
+    // you are. See LEVEL_SKY in timeOfDay.js. No-op on the island and on every
+    // floor that has not declared one.
+    applyFloorSky(lightFrame, interior && interior.sky);
     applyLight(lightFrame);
   }
   syncLight(true);
@@ -568,12 +683,71 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   const _camWant = new THREE.Vector3();
   const _camLook = new THREE.Vector3();
   const _size = new THREE.Vector2();
+  // Scratch for cameraFraming(), which projects points to measure the shot.
+  // Built here rather than in the getter so nothing on the debug path can be
+  // mistaken for something the frame loop allocates.
+  const _probeA = new THREE.Vector3();
+  const _probeB = new THREE.Vector3();
   /** @type {{pos:THREE.Vector3, look:THREE.Vector3}|null} */
   let poseCam = null;
   // Smoothed rig state. Scalars, not vectors: every one of these is a damped
   // 1-D quantity and keeping them unboxed is what makes updateCamera allocate
   // nothing at all.
-  let camDist = CAM.dist;
+  let camDist = CAM_ISLAND.dist;
+  /**
+   * THE LIVE PROFILE. Every compositional number the boom reads comes from
+   * here rather than from CAM_ISLAND/CAM_LEVEL directly, so a profile change is
+   * one scalar (`profileT`) moving and not ten call sites branching.
+   *
+   * One mutable record, rewritten in place by blendProfile — the update loop
+   * must not allocate, and a per-frame `{...CAM_ISLAND}` would allocate eleven
+   * times a second per property.
+   */
+  const shot = { ...CAM_ISLAND };
+  /** 0 = island framing, 1 = level framing. Eased; snapCamera lands it. */
+  let profileT = 0;
+  let profileTarget = 0;
+
+  /**
+   * Blend the two profiles into `shot`.
+   *
+   * WHY it eases at all when both of today's callers snap: a portal is a CUT —
+   * the screen has just been through an entry cutscene, and cutting to the new
+   * framing is right, so enterFloor/exitFloor hard-place through snapCamera.
+   * The ease is what makes the profile safe to move from anywhere else (a
+   * scripted beat, a boss arena, a debug toggle) without whipping the frame,
+   * and it costs one lerp on one scalar.
+   */
+  function blendProfile(snap) {
+    if (snap) {
+      profileT = profileTarget;
+    } else if (profileT !== profileTarget) {
+      profileT += (profileTarget - profileT) * CAM.profileLerp;
+      if (Math.abs(profileTarget - profileT) < 1e-3) profileT = profileTarget;
+    }
+    for (let i = 0; i < SHOT_KEYS.length; i++) {
+      const k = SHOT_KEYS[i];
+      shot[k] = CAM_ISLAND[k] + (CAM_LEVEL[k] - CAM_ISLAND[k]) * profileT;
+    }
+  }
+
+  /** Ask for a framing. `snap` is for a cut; otherwise it eases. */
+  function setCamProfile(level, snap = false) {
+    profileTarget = level ? 1 : 0;
+    blendProfile(snap);
+  }
+
+  /**
+   * The rig's RESTING elevation, in radians above the look-at pivot, derived
+   * from the live profile rather than authored twice. At zero orbit pitch the
+   * boom reproduces `shot.height` exactly (lookUp + dist*tan(e) == height), so
+   * player-driven pitch is a pure offset on top of the authored shot — and a
+   * profile blend moves the ANGLE, never just the eye position.
+   */
+  function baseElev() {
+    return Math.atan2(shot.height - shot.lookUp, shot.dist);
+  }
+
   // Player-driven orbit, pushed in by OverworldScene/controls3d. `orbitActive`
   // is the opt-in: until the scene speaks, the boom rides the hero's facing
   // exactly as before.
@@ -591,6 +765,17 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   let stillT = 0;
   /** Set when fov changes; draw() folds it into the one projection rebuild. */
   let fovDirty = false;
+  /**
+   * Did the last boomLength walk stop on SOLID ARCHITECTURE (as opposed to
+   * running its full length, or being shortened by rising ground)? This is the
+   * only thing allowed to raise the eye — see the squeeze note in computeBoom.
+   */
+  let boomWall = false;
+  /** boomWall, damped. A binary flag on a grazed wall corner would strobe. */
+  let blockT = 0;
+  /** The lens the shot wants this frame, before the speed term. Written by
+   *  computeBoom (it is the only thing that knows how much boom survived). */
+  let shotFov = CAM_ISLAND.fov;
 
   /** Never let the eye sink into terrain (or under the ocean plane). */
   function liftAboveGround(v) {
@@ -611,46 +796,70 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
    * three-quarter view into a plan view. Given the choice, always shorten.
    */
   /**
-   * True where the boom may not pass. On the island this is nothing — the
-   * heightfield IS the world and the ground test above already covers it. In
-   * a floor the walls are separate architecture that the height sampler knows
-   * nothing about, so without this the camera sits inside the hedge every time
-   * the player's back is to one, which on a spawn tile is always.
+   * True where the boom at height `y` may not pass. On the island this is
+   * nothing — the heightfield IS the world and the ground test already covers
+   * it. In a floor the walls are separate architecture that the height sampler
+   * knows nothing about, so without this the camera sits inside the hedge every
+   * time the player's back is to one, which on a spawn tile is always.
    *
-   * Tile lookup, not a collider scan: O(1) per sample instead of O(walls), and
-   * the tile grid is the same authority the walls were built from.
+   * ── WHY IT TAKES A HEIGHT ──────────────────────────────────────────────
+   * It used to be `code[ty][tx] === 'W'`, and that is a test with no vertical
+   * axis in it: every wall tile was an infinitely tall occluder. The level
+   * camera's eye sits 3.3 m over the hero and rises another 1.75 m across the
+   * boom, which CLEARS most of this game's architecture — so the old test was
+   * stopping the boom against things it was already floating over. Measured on
+   * the nine spawns it crushed 9.4 m to 4.7 m on four floors while the boom
+   * line was 0.5–1.1 m ABOVE the crest it was being stopped by, and a crushed
+   * boom is the flat, hero-fills-the-screen shot this profile exists to
+   * replace. Now it compares against the real crest (level3d.wallCrestAt).
+   *
+   * WALL_CLEAR is much smaller than the ground clearance on purpose. Skimming
+   * a hedge top is a SHOT — it is the Steam Gardens camera — while skimming
+   * the ground is a camera in the dirt. Off the edge of the floor stays
+   * absolutely blocked: there is nothing out there to look through.
+   *
+   * Falls back to the old tile test if a level was built without a crest field,
+   * so the camera can never be broken by the level builder changing shape.
    */
-  function boomBlocked(x, z) {
+  function boomBlocked(x, z, y) {
     if (!floor) return false;
     const lv = floor.lvl.level;
+    const crestAt = floor.lvl.wallCrestAt;
+    if (crestAt) return y < crestAt(x, z) + CAM.wallClear;
     const tx = Math.floor(x / TILE_M + lv.width / 2);
     const ty = Math.floor(z / TILE_M + lv.height / 2);
-    // Off the edge of the floor is "blocked": there is nothing out there to
-    // look through, and a boom that leaves the level frames the void.
     if (tx < 0 || ty < 0 || tx >= lv.width || ty >= lv.height) return true;
-    // Walls only. Liquid does not block the eye — looking across a moat is a
-    // shot, looking through a hedge is a bug.
     return lv.code[ty][tx] === 'W';
   }
 
   function boomLength(want, s, c, rise) {
-    const pivotY = player.pos.y + CAM.lookUp;
+    const pivotY = player.pos.y + shot.lookUp;
     let ok = 1 / CAM.boomSteps;
+    boomWall = false;
     for (let i = 1; i <= CAM.boomSteps; i++) {
       const t = i / CAM.boomSteps;
       const x = player.pos.x - s * want * t;
       const z = player.pos.z - c * want * t;
       const y = pivotY + rise * t;
       const gy = groundAt(x, z);
-      const floorY = (gy > waterLevel ? gy : waterLevel) + CAM.clearance;
-      if (y < floorY || boomBlocked(x, z)) break;
+      const floorY = (gy > waterLevel ? gy : waterLevel) + shot.clearance;
+      // The two reasons the walk can stop are NOT the same reason, and the
+      // difference is the whole squeezeLift fix below. Rising ground is already
+      // answered by liftAboveGround, which floats the eye over the slope while
+      // keeping the pitch. Solid architecture is not: no amount of floating
+      // gets the eye out of a hedge, so only that case is recorded.
+      if (boomBlocked(x, z, y)) { boomWall = true; break; }
+      if (y < floorY) break;
       ok = t;
     }
     const d = want * ok;
-    return d < CAM.minDist ? CAM.minDist : d;
+    return d < shot.minDist ? shot.minDist : d;
   }
 
   function computeBoom(snap = false) {
+    // Island framing or level framing, and everything in between.
+    blendProfile(snap);
+
     // The eye orbits where the PLAYER pointed it. Only when no orbit has ever
     // been pushed does it fall back to riding the hero's facing.
     const yawUse = orbitActive ? orbitYaw : player.yaw;
@@ -663,7 +872,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // Elevation: the authored resting angle plus whatever the player dragged.
     // Expressed as an angle rather than a height so the shot keeps its framing
     // as the boom shortens against a hill.
-    let elev = BASE_ELEV + (orbitActive ? orbitPitch : 0);
+    let elev = baseElev() + (orbitActive ? orbitPitch : 0);
     if (elev < ELEV_MIN) elev = ELEV_MIN;
     else if (elev > ELEV_MAX) elev = ELEV_MAX;
     const tanE = Math.tan(elev);
@@ -671,32 +880,66 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // Boom length: eased toward the terrain-resolved target, fast in and slow
     // out so a hill pops the camera in but never yanks it back out. Pinch zoom
     // scales the REQUEST, so terrain still gets the last word.
-    const reach = (CAM.dist + CAM.distRun * speedN) * (orbitActive ? orbitZoom : 1);
+    const reach = (shot.dist + shot.distRun * speedN) * (orbitActive ? orbitZoom : 1);
     const want = boomLength(reach, s, c, reach * tanE);
     if (snap) camDist = want;
     else camDist += (want - camDist) * (want < camDist ? CAM.distIn : CAM.distOut);
 
-    // Squeeze lift: how much of the requested boom the world took away, turned
-    // into height. At full squeeze this is a close, high, looking-down shot —
-    // which is the readable answer to "your back is against a hedge", and the
-    // one thing a pure pull-in cannot give.
-    const squeeze = reach > 0 ? Math.max(0, Math.min(1, 1 - camDist / reach)) : 0;
+    // ── SQUEEZE LIFT, GATED ON ACTUAL OBSTRUCTION ──────────────────────────
+    //
+    // THE DEFECT: this used to be `1 - camDist/reach` and nothing else, so ANY
+    // shortening raised the eye by up to 2.6 m. Three things shorten the boom
+    // and only one of them is a reason to rise:
+    //
+    //   · a wall behind the hero        — rising is the fix (see below)
+    //   · rising ground behind the hero — liftAboveGround already floats the
+    //                                     eye over it WITHOUT losing the pitch
+    //   · the player pinching the zoom  — the shot they asked for, not a fault
+    //
+    // Conflating them is what forced the near-top-down look inside the Garden:
+    // a hero standing in a 4 m corridor sits within a boom-length of ground and
+    // hedge in every direction, so the term was pinned near 1 all the time and
+    // the level was permanently viewed from above. It read as proximity because
+    // it WAS proximity.
+    //
+    // Now: `blockT` only rises when boomLength actually walked into solid
+    // architecture, damped so a grazed corner cannot strobe it, and the lift
+    // only starts once a wall has eaten `liftDead` of the requested boom — a
+    // shot that lost 20% of its length does not need a new angle, one that lost
+    // 70% does. Below that threshold the camera shortens and holds its pitch,
+    // which is the composition this profile exists to protect.
+    // The lens the CURRENT boom length needs to hold the authored framing.
+    // See fovCrushMax. `reach` is what was asked for, so a pinch zoom is
+    // honoured and only the world's crushing is compensated.
+    if (camDist >= reach - 1e-3 || shot.fovCrushMax <= shot.fov) {
+      shotFov = shot.fov;
+    } else {
+      const t = Math.tan(shot.fov * DEG * 0.5) * (reach / camDist);
+      const f = 2 * Math.atan(t) / DEG;
+      shotFov = f > shot.fovCrushMax ? shot.fovCrushMax : f;
+    }
+
+    const blockWant = boomWall ? 1 : 0;
+    if (snap) blockT = blockWant;
+    else blockT += (blockWant - blockT) * CAM.blockLerp;
+    const crush = reach > 0 ? Math.max(0, Math.min(1, 1 - camDist / reach)) : 0;
+    const squeeze = blockT * Math.max(0, (crush - CAM.liftDead) / (1 - CAM.liftDead));
 
     _camWant.set(
       player.pos.x - s * camDist,
-      player.pos.y + CAM.lookUp + camDist * tanE + squeeze * CAM.squeezeLift,
+      player.pos.y + shot.lookUp + camDist * tanE + squeeze * shot.squeezeLift,
       player.pos.z - c * camDist,
     );
     liftAboveGround(_camWant);
 
     // Look-ahead leads VELOCITY where there is any and facing otherwise, so a
     // standing turn does not swing the whole frame around the hero.
-    const lead = CAM.lookAhead + CAM.leadMax * speedN;
-    const lx = spd > 0.05 ? (player.vel.x / spd) * lead : s * CAM.lookAhead;
-    const lz = spd > 0.05 ? (player.vel.z / spd) * lead : c * CAM.lookAhead;
+    const lead = shot.lookAhead + shot.leadMax * speedN;
+    const lx = spd > 0.05 ? (player.vel.x / spd) * lead : s * shot.lookAhead;
+    const lz = spd > 0.05 ? (player.vel.z / spd) * lead : c * shot.lookAhead;
     leadX += (lx - leadX) * CAM.leadLerp;
     leadZ += (lz - leadZ) * CAM.leadLerp;
-    _camLook.set(player.pos.x + leadX, player.pos.y + CAM.lookUp, player.pos.z + leadZ);
+    _camLook.set(player.pos.x + leadX, player.pos.y + shot.lookUp, player.pos.z + leadZ);
   }
 
   /** Strip last frame's idle drift so the damping filter never sees it. */
@@ -739,7 +982,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
 
   function updateCamera(animT) {
     if (poseCam) {
-      updateFov(CAM.fov);
+      updateFov(shot.fov);
       camera.position.copy(poseCam.pos);
       liftAboveGround(camera.position);
       camera.lookAt(poseCam.look);
@@ -747,7 +990,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     }
     peelDrift();
     computeBoom();
-    updateFov(camera.fov + (CAM.fov + CAM.fovRun * speedN - camera.fov) * CAM.fovLerp);
+    updateFov(camera.fov + (shotFov + CAM.fovRun * speedN - camera.fov) * CAM.fovLerp);
 
     // Horizontal tracks; vertical is damped and dead-banded (see CAM header).
     camera.position.x += (_camWant.x - camera.position.x) * CAM.lerp;
@@ -773,17 +1016,26 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // getCameraYaw() right afterwards.
     orbitYaw = player.yaw;
     orbitPitch = 0;
-    updateFov(CAM.fov);
+    // The profile lands BEFORE the lens is set and before the boom is seeded:
+    // a hard place into a floor must produce the level framing on the very
+    // first frame, which is the frame the whole level gets judged on.
+    blendProfile(true);
     if (poseCam) {
+      updateFov(shot.fov);
       camera.position.copy(poseCam.pos);
       liftAboveGround(camera.position);
       camera.lookAt(poseCam.look);
       return;
     }
     // Seed the smoothed boom/lead from the resting pose rather than lerping in.
-    leadX = Math.sin(player.yaw) * CAM.lookAhead;
-    leadZ = Math.cos(player.yaw) * CAM.lookAhead;
+    leadX = Math.sin(player.yaw) * shot.lookAhead;
+    leadZ = Math.cos(player.yaw) * shot.lookAhead;
     computeBoom(true);
+    // The LENS comes after the boom, not before it: computeBoom is the only
+    // thing that knows how much of the boom the room left standing, and a hard
+    // place must open the lens for a crushed boom on the same frame rather
+    // than easing into it over the next second.
+    updateFov(shotFov);
     camera.position.copy(_camWant);
     camera.lookAt(_camLook);
   }
@@ -966,13 +1218,23 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // atmosphere each one needs. syncLight(true) forces the recomposition
     // through immediately: the day clock would not otherwise move for seconds,
     // and the first frame inside a floor is the one the player judges it by.
-    interior = { ground: lvl.theme.ground[0] };
+    // Every theme key now has a colour script (LEVEL_SKY in timeOfDay.js), so
+    // the resolution is `theme.sky || theme.key`: an explicit borrow first, the
+    // floor's own script otherwise, and null only if a theme key somehow has
+    // neither — in which case the floor falls back to the island's hour rather
+    // than throwing, exactly as it did before any of this existed.
+    const skyKey = lvl.theme.sky || lvl.theme.key;
+    interior = { ground: lvl.theme.ground[0], sky: levelSky(skyKey) ? skyKey : null };
     setFogDomain(lvl.theme.key);
     syncLight(true);
     shadowOrtho = 0;   // force fitShadow to rebuild the projection at room size
 
     player = fController.spawnState({ x: lvl.spawn.x, z: lvl.spawn.z, yaw: lvl.spawn.yaw });
     heroRig.reset();
+    // The room gets the ROOM's shot: wider, further back, longer lens, horizon
+    // on the upper third. snapCamera lands it on this frame — a portal is a
+    // cut, and the establishing frame must already be the composed one.
+    setCamProfile(true, true);
     snapCamera();
     return {
       floorId,
@@ -1015,6 +1277,8 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       parkedIsland = null;
     }
     heroRig.reset();
+    // …and the island gets the island's back.
+    setCamProfile(false, true);
     snapCamera();
     return true;
   }
@@ -1230,6 +1494,54 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     },
     renderOnce() { rig.renderOnce(); },
     stats() { return { ...rig.stats(), simTime: rig.simTime }; },
+
+    /**
+     * THE FRAMING, MEASURED — not the authored numbers, the ones on screen.
+     *
+     * Every value below is read back off the live camera and PROJECTED through
+     * its actual matrices, so it accounts for the eye-floor lift, the damping,
+     * the orbit, the speed-opened lens and the aspect ratio the renderer is
+     * actually running at. That is the difference between "the profile says
+     * 22%" and "the hero is 22% of this frame".
+     *
+     *   profile      0 island .. 1 level, blended
+     *   heroFrac     the hero's standing height as a fraction of frame height.
+     *                A character reads at 0.20–0.28; below that he is scenery.
+     *   horizonFrac  where the true horizon lands, 0 = top edge, 1 = bottom.
+     *                The level profile puts it on the upper third (~0.27); the
+     *                old one-size boom put it at ~0.19 and left 81% floor.
+     *   pitch        degrees the eye is tilted down.
+     */
+    cameraFraming() {
+      camera.updateMatrixWorld();
+      _probeA.set(player.pos.x, player.pos.y, player.pos.z).project(camera);
+      const feet = (1 - _probeA.y) * 0.5;
+      _probeA.set(player.pos.x, player.pos.y + HERO_HEIGHT, player.pos.z).project(camera);
+      const head = (1 - _probeA.y) * 0.5;
+      // The horizon is the projection of a point at eye height, infinitely far
+      // along the eye's own heading. 10 km is infinity at 600 m of far plane.
+      camera.getWorldDirection(_probeB);
+      const hx = _probeB.x, hz = _probeB.z;
+      const hl = Math.hypot(hx, hz) || 1;
+      _probeA.set(
+        camera.position.x + (hx / hl) * 1e4,
+        camera.position.y,
+        camera.position.z + (hz / hl) * 1e4,
+      ).project(camera);
+      return {
+        profile: profileT,
+        inFloor: floor !== null,
+        fov: camera.fov,
+        dist: camDist,
+        eyeY: camera.position.y,
+        heroY: player.pos.y,
+        pitch: Math.asin(Math.max(-1, Math.min(1, -_probeB.y))) * 180 / Math.PI,
+        heroFrac: feet - head,
+        heroMidFrac: (feet + head) * 0.5,
+        horizonFrac: (1 - _probeA.y) * 0.5,
+        blocked: blockT,
+      };
+    },
 
     /** Freeze the day at t and relight immediately. */
     setTimeOfDay(t) {

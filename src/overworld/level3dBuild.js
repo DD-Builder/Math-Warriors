@@ -221,7 +221,7 @@ function smoothstep(e0, e1, x) {
 /** @typedef {{key:string,name:string,wall:string,crown:string,wallH:[number,number],
  *   ground:[number,number],groundAccent:number,path:number,pathRim:number,
  *   wallPlies:[number,number,number],wallStack:[number,number,number],wallTop:number,
- *   landmark:string,crownPapers:number[],
+ *   landmark:string,mast:string,crownPapers:number[],
  *   liquid:{deep:number,mid:number,shallow:number,edge:number,kind:string},
  *   detail:string,special:number,vergeBias:number,groundAccentMix?:number}} LevelTheme
  *
@@ -260,7 +260,7 @@ export const LEVEL_THEMES = {
     wallPlies: [PAPER.forest, PAPER.forestL, PAPER.forestD],
     wallStack: [PAPER.forestD, PAPER.forestL, PAPER.leaf],
     wallTop: PAPER.sage,
-    landmark: 'topiary',
+    landmark: 'topiary', mast: 'tree',
     crownPapers: [PAPER.rose, PAPER.white, PAPER.gold],
     liquid: { deep: PAPER.tealD, mid: PAPER.teal, shallow: PAPER.tealL, edge: PAPER.cream, kind: 'water' },
     detail: 'tuft', special: PAPER.rose, vergeBias: 0.24,
@@ -274,7 +274,7 @@ export const LEVEL_THEMES = {
     // where the single cream family this used to be managed 1.15x.
     wallStack: [PAPER.tealD, PAPER.sand, PAPER.cream],
     wallTop: PAPER.white,
-    landmark: 'lighthouse',
+    landmark: 'lighthouse', mast: 'shipmast',
     crownPapers: [PAPER.sageD, PAPER.leaf, PAPER.tealL],
     liquid: { deep: PAPER.tealD, mid: PAPER.teal, shallow: PAPER.tealL, edge: PAPER.cream, kind: 'water' },
     detail: 'shell', special: PAPER.tealL, vergeBias: 0.20,
@@ -286,7 +286,7 @@ export const LEVEL_THEMES = {
     wallPlies: [PAPER.white, PAPER.cream, PAPER.sky],
     wallStack: [PAPER.lavender, PAPER.sky, PAPER.cream],
     wallTop: PAPER.white,
-    landmark: 'spire',
+    landmark: 'tether', mast: 'shard',
     crownPapers: [PAPER.white, PAPER.sky, PAPER.lavender],
     liquid: { deep: PAPER.sky, mid: PAPER.tealL, shallow: PAPER.cream, edge: PAPER.white, kind: 'cloud' },
     detail: 'crystal', special: PAPER.gold, vergeBias: 0.18, groundAccentMix: 0.20,
@@ -299,14 +299,37 @@ export const LEVEL_THEMES = {
     // The Ember Caves' walls had no ember in them — three dark teals sitting at
     // chroma 22 against a ground at 97. Basalt still starts at inkTeal, but it
     // is lit from the vents by the time it reaches the fracture faces.
-    wallStack: [PAPER.tealD, PAPER.coralD, PAPER.coral],
+    // BASALT, NOT TEAL. The critic counted "a picket fence of ~40 identical
+    // teal cuboids" walling the Ember Caves, and the footing ply — the widest
+    // piece in the vocabulary — was the reason: PAPER.tealD is a saturated
+    // blue-green and it was the biggest shape in every wall tile of a lava
+    // cavern. There is no dark warm stone in PAPER, so the base ply is now a
+    // lerp of the two papers the floor already owns: the palette's darkest
+    // (inkTeal) walked most of the way to its lava (coralD). Still two PAPER
+    // constants, still inside the hull, and it reads as cooled basalt.
+    wallStack: [mixPaper(PAPER.inkTeal, PAPER.coralD, 0.55), PAPER.coralD, PAPER.coral],
     wallTop: PAPER.gold,
-    landmark: 'chimney',
+    landmark: 'chimney', mast: 'vent',
     crownPapers: [PAPER.orange, PAPER.gold, PAPER.coral],
     liquid: { deep: PAPER.coralD, mid: PAPER.coral, shallow: PAPER.orange, edge: PAPER.gold, kind: 'lava' },
     // NEGATIVE: the cone field was marching straight up to the paver ribbon in
     // a visible lattice. Clearing ~1.5 m either side gives the path an edge.
-    detail: 'ember', special: PAPER.gold, vergeBias: -0.85,
+    detail: 'ember', special: PAPER.gold, vergeBias: -0.55,
+    // ── THE CALDERA ──────────────────────────────────────────────────────
+    // "'Ember Caves' is an open red plain under a clear blue sky." It was: the
+    // 6 m boundary ring left the horizon wide open, the theme's own atmosphere
+    // was the only thing saying "cave", and the sky above it was the island's
+    // noon sky. Three numbers turn a plain into a caldera and all three have to
+    // agree, which is why they live together here:
+    //   ringH      the rim, at 9-13 m, closes the horizon from any standing eye
+    //   landmarkH  the vent chimney has to beat the rim by 2x or it joins it
+    //   sky        the lid: see LEVEL_SKY in timeOfDay.js
+    ringH: [9.2, 13.0],
+    landmarkH: [26.5, 31.0],
+    sky: 'ember',
+    // The paper the vent glow is cut from. Opts the floor into `ventSpots`,
+    // the additive glow cards, and the ember thickets that grow around them.
+    glow: PAPER.orange,
   },
   5: {
     key: 'frost', name: 'Frozen Peak', wall: 'slab', crown: 'spike', wallH: [2.25, 2.80],
@@ -315,7 +338,7 @@ export const LEVEL_THEMES = {
     wallPlies: [PAPER.white, PAPER.sky, PAPER.tealL],
     wallStack: [PAPER.tealD, PAPER.tealL, PAPER.cream],
     wallTop: PAPER.white,
-    landmark: 'spire',
+    landmark: 'obelisk', mast: 'shard',
     crownPapers: [PAPER.white, PAPER.tealL, PAPER.sky],
     liquid: { deep: PAPER.tealD, mid: PAPER.sky, shallow: PAPER.tealL, edge: PAPER.white, kind: 'water' },
     detail: 'crystal', special: PAPER.tealL, vergeBias: 0.16, groundAccentMix: 0.22,
@@ -327,7 +350,10 @@ export const LEVEL_THEMES = {
     wallPlies: [PAPER.lavender, PAPER.tealL, PAPER.lavenderD],
     wallStack: [PAPER.lavenderD, PAPER.lavender, PAPER.tealL],
     wallTop: PAPER.white,
-    landmark: 'spire',
+    landmark: 'cluster', mast: 'shard',
+    // Underground, and COLD — the counterweight to the Ember Caves' hot lid,
+    // so the two caverns cannot be mistaken for each other. See LEVEL_SKY.
+    sky: 'prism',
     crownPapers: [PAPER.rose, PAPER.tealL, PAPER.white],
     liquid: { deep: PAPER.lavenderD, mid: PAPER.lavender, shallow: PAPER.tealL, edge: PAPER.white, kind: 'water' },
     detail: 'crystal', special: PAPER.rose, vergeBias: -0.40,
@@ -339,7 +365,7 @@ export const LEVEL_THEMES = {
     wallPlies: [PAPER.coral, PAPER.gold, PAPER.cream],
     wallStack: [PAPER.coralD, PAPER.coral, PAPER.cream],
     wallTop: PAPER.white,
-    landmark: 'banner',
+    landmark: 'belltower', mast: 'banner',
     crownPapers: [PAPER.gold, PAPER.orange, PAPER.white],
     liquid: { deep: PAPER.tealD, mid: PAPER.teal, shallow: PAPER.tealL, edge: PAPER.cream, kind: 'water' },
     detail: 'tuft', special: PAPER.gold, vergeBias: 0.24,
@@ -354,7 +380,10 @@ export const LEVEL_THEMES = {
     // in it was cut from the same three near-whites.
     wallStack: [PAPER.coralD, PAPER.orange, PAPER.peach],
     wallTop: PAPER.cream,
-    landmark: 'stack',
+    landmark: 'stack', mast: 'pylon',
+    // "The only shot with a designed sightline, thrown away by fog and an OPEN
+    // SKY over a library." An interior gets a lamplit vault. See LEVEL_SKY.
+    sky: 'library',
     crownPapers: [PAPER.coral, PAPER.teal, PAPER.lavenderD],
     liquid: { deep: PAPER.lavenderD, mid: PAPER.lavender, shallow: PAPER.tealL, edge: PAPER.cream, kind: 'ink' },
     detail: 'page', special: PAPER.gold, vergeBias: 0.20, groundAccentMix: 0.26,
@@ -366,7 +395,8 @@ export const LEVEL_THEMES = {
     wallPlies: [PAPER.cream, PAPER.white, PAPER.sand],
     wallStack: [PAPER.lavender, PAPER.creamD, PAPER.white],
     wallTop: PAPER.white,
-    landmark: 'spire',
+    landmark: 'spire', mast: 'pylon',
+    sky: 'mending',
     crownPapers: [PAPER.gold, PAPER.lavender, PAPER.tealL],
     liquid: { deep: PAPER.lavenderD, mid: PAPER.lavender, shallow: PAPER.tealL, edge: PAPER.white, kind: 'void' },
     detail: 'page', special: PAPER.gold, vergeBias: 0.18, groundAccentMix: 0.22,
@@ -438,11 +468,80 @@ export const WALL_H_MAX = 2.90;
 /** After the per-tile height multiplier, the hard stops a run may reach. The
  *  low one stays clear of the 1.72 m hero's eyeline — a wall you can see over
  *  by accident is a wall that stopped being a wall — and the high one keeps a
- *  terrace step (2.2 m) meaningful against it. */
-export const WALL_H_SHORT = 1.95;
-export const WALL_H_TALL = 3.35;
+ *  terrace step (2.2 m) meaningful against it.
+ *
+ *  The band was [1.95, 3.35], a 1.72x window that the ±19% per-tile multiplier
+ *  could not fill: measured across the tower, wall heights spanned 1.50x and
+ *  their standard deviation was 11% of the mean. A run whose tiles agree to
+ *  within a tenth is one extruded box with texture on it. [1.78, 3.62] is a
+ *  2.03x window and the multiplier below is now ±35%, which realises it. */
+export const WALL_H_SHORT = 1.78;
+export const WALL_H_TALL = 3.62;
 export const PLANTER_H = [1.05, 1.42];
 export const RING_H = [4.8, 6.4];
+/** How far a boundary-ring tile's footing is buried. Sized to clear
+ *  LIQUID_DROP (2.4 m) plus a full swing of shelf relief, so the ring meets
+ *  water, ground or void without ever showing daylight under itself. */
+export const RING_FOOT = 5.0;
+
+/**
+ * THE ANTI-GRID BUDGET, in one place, because the last pass set every one of
+ * these numbers too low to see and the build still claimed to have "anti-grid
+ * jitter".
+ *
+ * Measured on the build this replaces, across all nine floors:
+ *   yaw       ±0.42 rad free-standing, ±0.11 rad on the fronted vocabularies
+ *   height    σ = 11% of the mean; max/min = 1.50x
+ *   offset    ±0.16 m on a 4 m tile — 4% — so neighbours met FLUSH
+ *   colour    7 to 10 distinct hexes on a whole floor: every tile the same ink
+ *
+ * The offset is the one that mattered most and was smallest. It is now split
+ * into two axes that are not interchangeable: ALONG the run a tile may slide a
+ * sixth of a tile, which opens and closes the joins so a run reads as a
+ * sequence of pieces; ACROSS it — the direction the corridor is in — it may
+ * lean about half as far, and pays for the lean out of its own footprint via
+ * WALL_REACH_MAX. Measured after: ±0.63 to ±0.77 m, i.e. 16-19% of a tile.
+ *
+ * ALL FOUR ARE FREE TO BE THIS LARGE BECAUSE THE COLLIDER DID NOT MOVE. The
+ * reach clamp below is what buys that: yaw, slide and footprint are solved
+ * together per tile so the union of them lands on one constant, which means
+ * every number here can be chosen for how it LOOKS.
+ */
+export const WALL_YAW_JIT = 0.52;        // rad, free-standing vocabularies
+export const WALL_YAW_JIT_FRONT = 0.24;  // rad, the ones with a display face
+export const WALL_YAW_JIT_RING = 0.05;   // rad, the airtight perimeter
+export const WALL_H_JIT = 0.35;          // ±fraction of the banded height
+export const WALL_SLIDE_ALONG = 0.62;    // m, ±, parallel to the run
+export const WALL_SLIDE_ACROSS = 0.28;   // m, ±, into the corridor
+export const WALL_SLIDE_FREE = 0.55;     // m, ±, on bends / junctions / ends
+/**
+ * How far any wall geometry may reach from its tile centre, metres.
+ *
+ * This is the number that lets the slide be large. A tile's swept half-diagonal
+ * plus whatever it slid TOWARD the corridor is checked against this and the
+ * tile is shrunk until it fits, so the offsets above can be authored for how
+ * they LOOK and the thing the hero can bump into is a constant. 2.36 m is what
+ * the build this replaces already reached at its own worst case, against a
+ * WALL_COLLIDER_R of 2.3 — so nothing here makes contact worse than it was, and
+ * a heavily-offset tile simply comes out as a smaller piece pushed out of line,
+ * which is what a hand-built run looks like anyway.
+ */
+export const WALL_REACH_MAX = 2.36;
+/** How far a tile's papers are walked toward one of the floor's accent papers,
+ *  and how far its value is pushed. Both per tile, both seeded. */
+export const WALL_HUE_JIT = 0.16;
+export const WALL_VAL_JIT = 0.11;
+/**
+ * Fraction of interior run tiles that lose their seam-filling footing ply and
+ * shrink, so the run visibly SEPARATES instead of welding into one mass.
+ *
+ * The footing is the widest, flushest thing in every vocabulary — a full-span
+ * sheet at ground level whose only job is to hide the join. Hiding the join on
+ * every single tile is what turns forty crafted pieces into one extruded box,
+ * so roughly every third tile now does without it and stands 16% narrower.
+ */
+export const WALL_GAP_RATE = 0.34;
+export const WALL_GAP_SHRINK = 0.84;
 
 /** N, E, S, W in tile steps; bit i of a wall mask is direction i. */
 export const WALL_DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -596,8 +695,10 @@ function addTerminals(out, ctx) {
 function vocabHedge(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, 0, -0.30, 0.20, S, S * 0.98, dark, { tone: 0.94 });                 // leaf litter
-  seamBox(ctx, out, 0, 0, 0.21, S * 0.99, S * 0.97, dark);
+  if (!ctx.noBase) {                                                            // leaf litter
+    B(out, 0, 0, -0.30, 0.20, S, S * 0.98, dark, { tone: 0.94 });
+    seamBox(ctx, out, 0, 0, 0.21, S * 0.99, S * 0.97, dark);
+  }
   // Solid clipped paper to just above eye height: a maze wall a five-year-old
   // can see through is a maze wall that stops reading as a wall. The width and
   // the yaw of this ply are the per-tile zigzag — a run of identical squares
@@ -643,8 +744,10 @@ function vocabHedge(ctx) {
 function vocabMasonry(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, 0, -0.30, 0.22, S, S * 0.94, dark, { tone: 0.92 });
-  seamBox(ctx, out, 0, 0, 0.23, S * 0.99, S * 0.93, dark);
+  if (!ctx.noBase) {
+    B(out, 0, 0, -0.30, 0.22, S, S * 0.94, dark, { tone: 0.92 });
+    seamBox(ctx, out, 0, 0, 0.23, S * 0.99, S * 0.93, dark);
+  }
   let y = 0.20;
   const courses = 3;
   for (let c = 0; c < courses; c++) {
@@ -680,8 +783,10 @@ function vocabMasonry(ctx) {
 function vocabCloudbank(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, 0, -0.40, 0.30, S, S * 0.96, dark, { tone: 0.94 });
-  seamBox(ctx, out, 0, 0, 0.31, S * 0.99, S * 0.95, dark);
+  if (!ctx.noBase) {
+    B(out, 0, 0, -0.40, 0.30, S, S * 0.96, dark, { tone: 0.94 });
+    seamBox(ctx, out, 0, 0, 0.31, S * 0.99, S * 0.95, dark);
+  }
   const plies = 3;
   let y = 0.24;
   for (let i = 0; i < plies; i++) {
@@ -712,8 +817,10 @@ function vocabCloudbank(ctx) {
 function vocabColumn(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, 0, -0.35, h * 0.30, S, S * 0.96, dark, { tone: 0.90 });               // rubble berm
-  seamBox(ctx, out, 0, 0, h * 0.31, S * 0.99, S * 0.95, dark);
+  if (!ctx.noBase) {                                                              // rubble berm
+    B(out, 0, 0, -0.35, h * 0.30, S, S * 0.96, dark, { tone: 0.90 });
+    seamBox(ctx, out, 0, 0, h * 0.31, S * 0.99, S * 0.95, dark);
+  }
   // Four columns, snapped off at four different heights. A basalt column that
   // does not taper and does not break on a slant is a tin can, so every one of
   // them loses radius as it rises and every fracture face is raked.
@@ -757,8 +864,10 @@ function vocabColumn(ctx) {
 function vocabSlab(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, 0, -0.30, 0.20, S, S * 0.92, dark, { tone: 0.93 });
-  seamBox(ctx, out, 0, 0, 0.21, S * 0.99, S * 0.91, dark);
+  if (!ctx.noBase) {
+    B(out, 0, 0, -0.30, 0.20, S, S * 0.92, dark, { tone: 0.93 });
+    seamBox(ctx, out, 0, 0, 0.21, S * 0.99, S * 0.91, dark);
+  }
   B(out, -S * 0.04, (r() - 0.5) * 0.18, 0.16, h * (0.72 + r() * 0.10),
     S * 1.00, S * 0.62, mid, { tone: 0.96, tilt: 0.05, rot: (r() - 0.5) * 0.09 });
   seamBox(ctx, out, -S * 0.04, 0, h * 0.73 + r() * 0.10 * h, S * 0.99, S * 0.61, mid);
@@ -782,8 +891,10 @@ function vocabSlab(ctx) {
 function vocabCrystal(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, 0, -0.35, h * 0.34, S, S * 0.96, dark, { tone: 0.92 });
-  seamBox(ctx, out, 0, 0, h * 0.35, S * 0.99, S * 0.95, dark);
+  if (!ctx.noBase) {
+    B(out, 0, 0, -0.35, h * 0.34, S, S * 0.96, dark, { tone: 0.92 });
+    seamBox(ctx, out, 0, 0, h * 0.35, S * 0.99, S * 0.95, dark);
+  }
   const pts = [
     [-0.19, -0.12, 0.20, 1.00],
     [0.20, 0.05, 0.17, 0.80],
@@ -808,9 +919,13 @@ function vocabCrystal(ctx) {
 function vocabStall(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, S * 0.12, -0.30, h * 0.48, S * 0.90, S * 0.52, mid, { tone: 0.94 });   // counter
-  seamBox(ctx, out, 0, S * 0.12, h * 0.49, S * 0.93, S * 0.55, mid);
-  B(out, 0, S * 0.12, h * 0.47, h * 0.56, S * 0.94, S * 0.56, light, { tone: 1.0 }); // counter top
+  // A stall's counter is its footing: it cannot vanish on a gap tile without
+  // leaving the awning standing on air, so it narrows to two thirds instead and
+  // the run separates at the stall fronts rather than under them.
+  const cw = ctx.noBase ? 0.60 : 0.90;
+  B(out, 0, S * 0.12, -0.30, h * 0.48, S * cw, S * 0.52, mid, { tone: 0.94 });   // counter
+  seamBox(ctx, out, 0, S * 0.12, h * 0.49, S * (cw + 0.03), S * 0.55, mid);
+  B(out, 0, S * 0.12, h * 0.47, h * 0.56, S * (cw + 0.04), S * 0.56, light, { tone: 1.0 }); // counter top
   for (const sx of [-1, 1]) {
     B(out, sx * S * 0.40, -S * 0.14, 0, h * (0.86 + r() * 0.06), S * 0.07, S * 0.07,
       dark, { tone: 0.95 });
@@ -843,8 +958,10 @@ function vocabStall(ctx) {
 function vocabShelf(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, 0, -0.30, 0.14, S * 0.96, S * 0.50, dark, { tone: 0.92 });
-  seamBox(ctx, out, 0, 0, 0.15, S * 0.95, S * 0.49, dark);
+  if (!ctx.noBase) {
+    B(out, 0, 0, -0.30, 0.14, S * 0.96, S * 0.50, dark, { tone: 0.92 });
+    seamBox(ctx, out, 0, 0, 0.15, S * 0.95, S * 0.49, dark);
+  }
   for (const sx of [-1, 1]) {
     B(out, sx * S * 0.44, 0, 0.10, h * 0.94, S * 0.08, S * 0.46, mid, { tone: 0.95 });
   }
@@ -871,8 +988,10 @@ function vocabShelf(ctx) {
 function vocabScreen(ctx) {
   const out = [];
   const { h, S, dark, mid, light, crown, acc, r } = ctx;
-  B(out, 0, 0, -0.30, 0.16, S * 0.92, S * 0.34, dark, { tone: 0.93 });
-  seamBox(ctx, out, 0, 0, 0.17, S * 0.91, S * 0.33, dark);
+  if (!ctx.noBase) {
+    B(out, 0, 0, -0.30, 0.16, S * 0.92, S * 0.34, dark, { tone: 0.93 });
+    seamBox(ctx, out, 0, 0, 0.17, S * 0.91, S * 0.33, dark);
+  }
   const leaves = 3;
   for (let i = 0; i < leaves; i++) {
     const t = i / (leaves - 1) - 0.5;
@@ -989,6 +1108,51 @@ function planterProfile(ctx) {
 }
 
 /**
+ * The OTHER low tile: a spill of broken slabs where a run has come apart.
+ *
+ * A planter is tidy, symmetrical and obviously placed. If every gap in every
+ * run is a planter then the gap itself becomes the new repeating unit — the
+ * grid, moved up one level of abstraction — which is precisely the failure this
+ * whole pass exists to undo. Rubble is the counter-example: an off-centre heap
+ * of four slabs at four rakes, no two the same size, with nothing at the tile
+ * centre at all, so half the low tiles in a floor do not even share a
+ * silhouette family with the other half.
+ *
+ * Deliberately cheaper than a planter (eight pieces against eleven) because
+ * these are the tiles the player looks OVER, not at.
+ */
+function rubbleProfile(ctx) {
+  const out = [];
+  const { h, S, dark, mid, light, crown, acc, r } = ctx;
+  // A scree apron, off-centre, so the pile has a direction.
+  const ax = (r() - 0.5) * S * 0.30, az = (r() - 0.5) * S * 0.30;
+  P(out, ax, az, -0.30, h * 0.30, S * (0.44 + r() * 0.10), S * 0.40, 7, dark,
+    { tone: 0.93, rot: r() * TAU });
+  seamPrism(ctx, out, ax, az, h * 0.31, S * 0.42, 7, dark);
+  // Four slabs leaning on each other. The heights are drawn independently, so
+  // the pile's own top edge is jagged before the tile is even placed.
+  const slabs = 4;
+  for (let i = 0; i < slabs; i++) {
+    const a = (i / slabs) * TAU + r() * 1.4;
+    const rad = S * (0.14 + r() * 0.16);
+    const top = h * (0.42 + r() * 0.58);
+    B(out, ax + Math.cos(a) * S * (0.10 + r() * 0.20),
+      az + Math.sin(a) * S * (0.10 + r() * 0.20),
+      h * 0.14, top, rad, rad * (0.55 + r() * 0.5),
+      i === slabs - 1 ? light : mid,
+      { tone: 0.92 + r() * 0.16, tilt: (r() - 0.5) * 0.55, rot: r() * TAU });
+  }
+  // One bright cut edge on top, and one accent chip, so the pile still reads as
+  // cut paper rather than as a lump.
+  const cx = ax + (r() - 0.5) * S * 0.24, cz = az + (r() - 0.5) * S * 0.24;
+  P(out, cx, cz, h * 0.62, h * (0.78 + r() * 0.26), S * 0.17, S * 0.12, 6, crown,
+    { tone: 1.03, tilt: (r() - 0.5) * 0.4, rot: r() * TAU });
+  P(out, cx, cz, h * 0.30, h * 0.44, S * 0.07, S * 0.05, 5,
+    acc[(ctx.ti + 1) % acc.length], { tone: 1.05, rot: r() * TAU });
+  return out;
+}
+
+/**
  * The PEDESTAL a boundary-ring tile stands its vocabulary on.
  *
  * Raising the ring to 5-7 m fixed the horizon — the level finally reads as an
@@ -1010,7 +1174,14 @@ function ringPedestal(ctx, lift) {
   // A course every ~1.15 m. Two courses over four metres is a slab with a line
   // on it; three or four is a stack of sheets, which is the read.
   const courses = Math.max(3, Math.round(lift / 1.15));
-  let y = -0.35;
+  // The footing sinks RING_FOOT metres, not 0.35. On the archipelago floors the
+  // ring stands over a liquid sheet that has already dropped LIQUID_DROP below
+  // the band it shares, so a 0.35 m footing left the whole perimeter hanging in
+  // ~3 m of air with the sky visible underneath it. Burying the bottom course
+  // costs nothing — it is one box that was always being drawn — and it is the
+  // difference between a wall that grows out of the water and a wall that
+  // floats above it.
+  let y = -RING_FOOT;
   for (let c = 0; c < courses; c++) {
     const y1 = (lift * (c + 1)) / courses;
     const inset = 1.0 - c * 0.075;
@@ -1042,7 +1213,12 @@ export function wallProfile(tile, theme) {
   const ringLift = tile.ring ? Math.max(0, tile.h - Math.min(tile.h * 0.52, 2.7)) : 0;
   const ctx = {
     h: tile.h - ringLift,
-    S: WALL_SPAN * tile.sx * (ringLift ? 0.90 : 1),
+    // A GAP TILE stands narrower and, via ctx.noBase, without the full-span
+    // footing ply. Applying the shrink to S rather than to each ply means every
+    // one of the nine vocabularies separates from its neighbour by the same
+    // rule, and none of them had to learn about it.
+    S: WALL_SPAN * tile.sx * (ringLift ? 0.90 : 1) * (tile.gap ? WALL_GAP_SHRINK : 1),
+    noBase: !!tile.gap,
 
     dark: stack[0], mid: stack[1], light: stack[2],
     // The sunlit cut edge. Falls back to the stack's own lightest ply for any
@@ -1057,10 +1233,11 @@ export function wallProfile(tile, theme) {
     seamJit: seamShift,
     r,
   };
-  // A planter is its own object and takes no terminals — a corner post on a
-  // 1.2 m trough is a bollard, and it would fill the gap the planter exists
-  // to open.
-  if (tile.planter) return planterProfile(ctx);
+  // A planter (or a rubble pile) is its own object and takes no terminals — a
+  // corner post on a 1.2 m trough is a bollard, and it would fill the gap the
+  // low tile exists to open.
+  if (tile.planter) return tintTile(planterProfile(ctx), tile, theme);
+  if (tile.rubble) return tintTile(rubbleProfile(ctx), tile, theme);
   const build = WALL_VOCAB[theme.wall] || vocabHedge;
   const out = build(ctx);
   const face = WALL_FACING[theme.wall];
@@ -1082,7 +1259,40 @@ export function wallProfile(tile, theme) {
     for (const p of out) { p.y0 += ringLift; p.y1 += ringLift; }
     out.unshift(...ringPedestal({ ...ctx, S: WALL_SPAN * tile.sx }, ringLift));
   }
-  return out;
+  return tintTile(out, tile, theme);
+}
+
+/**
+ * PER-TILE COLOUR: walk this tile's whole paper stack toward one of the floor's
+ * accent papers, and shift its value.
+ *
+ * A floor's walls were cut from SEVEN distinct hexes. Not seven per tile —
+ * seven for the entire level, repeated across forty tiles, which is why a hedge
+ * run measured as one shape no matter how much its geometry was jittered:
+ * colour is the strongest grouping cue there is, and every tile was printing
+ * the same swatch. Yaw and height cannot undo that on their own.
+ *
+ * Applied as a post-pass over the finished piece list rather than inside the
+ * nine vocabularies, for the same reason ctx.S carries the gap shrink: one rule
+ * that every vocabulary, every crown, every terminal and the ring plinth obey,
+ * and nothing to keep in sync. The papers it walks TOWARD are the theme's own
+ * `crownPapers`, so a tile can only ever land somewhere inside the floor's
+ * declared palette — the art law survives the variance.
+ */
+function tintTile(pieces, tile, theme) {
+  const hue = tile.hue || 0, val = tile.val || 0;
+  if (!hue && !val) return pieces;
+  const acc = theme.crownPapers;
+  const toward = acc && acc.length
+    ? acc[(tile.accIdx || 0) % acc.length]
+    : (theme.wallTop ?? PAPER.cream);
+  const amt = Math.abs(hue) * WALL_HUE_JIT;
+  const tmul = 1 + val * WALL_VAL_JIT;
+  for (const p of pieces) {
+    p.hex = mixPaper(p.hex, toward, amt);
+    p.tone *= tmul;
+  }
+  return pieces;
 }
 
 /** Triangles one piece costs. Boxes are 12; an n-gon prism is 4n (2n side,
@@ -1935,18 +2145,52 @@ export function buildGroundSurface(level, hf, theme, opts = {}) {
 // placement record — level3d.js owns the six triangles each one is cut from —
 // so the mix, the density and the palette stay unit-testable.
 
-/** Weighted scatter mix per theme key. Weights need not sum to 1. */
+/**
+ * Weighted scatter mix per theme key. Weights need not sum to 1.
+ *
+ * Every floor now runs FOUR archetypes, not three, and every archetype is cut
+ * in three geometry variants (level3d.js `buildDetail`). Three shapes covering
+ * a floor is still three shapes: the eye finds the repeat in about a second,
+ * and once it has, the whole field collapses into a texture. Twelve shapes,
+ * each at three sizes and an arbitrary lean, does not resolve.
+ */
 export const SCATTER_MIX = {
-  garden:  [['tuft', 0.46], ['petal', 0.20], ['leaf', 0.16], ['pebble', 0.18]],
-  ebbport: [['pebble', 0.42], ['shell', 0.30], ['tuft', 0.28]],
-  sky:     [['petal', 0.42], ['crystal', 0.28], ['pebble', 0.30]],
-  ember:   [['pebble', 0.44], ['ember', 0.32], ['crystal', 0.24]],
-  frost:   [['crystal', 0.40], ['pebble', 0.32], ['petal', 0.28]],
-  prism:   [['crystal', 0.42], ['pebble', 0.30], ['petal', 0.28]],
-  market:  [['pebble', 0.36], ['tuft', 0.32], ['petal', 0.32]],
-  library: [['page', 0.38], ['petal', 0.30], ['pebble', 0.32]],
-  mending: [['petal', 0.38], ['page', 0.34], ['pebble', 0.28]],
+  garden:  [['tuft', 0.44], ['petal', 0.20], ['leaf', 0.18], ['pebble', 0.18]],
+  ebbport: [['pebble', 0.36], ['shell', 0.26], ['tuft', 0.24], ['leaf', 0.14]],
+  sky:     [['petal', 0.36], ['crystal', 0.24], ['pebble', 0.26], ['tuft', 0.14]],
+  // The Ember Caves' scatter WAS several hundred identical cones. It is now a
+  // basalt chip, a vent ember, a glass shard and a flat ash flake — and the
+  // flake matters most, because a field with nothing lying FLAT in it has one
+  // horizon and reads as a pincushion.
+  ember:   [['pebble', 0.32], ['ember', 0.28], ['crystal', 0.16], ['leaf', 0.24]],
+  frost:   [['crystal', 0.36], ['pebble', 0.28], ['petal', 0.22], ['tuft', 0.14]],
+  prism:   [['crystal', 0.38], ['pebble', 0.26], ['petal', 0.22], ['shell', 0.14]],
+  market:  [['pebble', 0.32], ['tuft', 0.28], ['petal', 0.26], ['page', 0.14]],
+  library: [['page', 0.34], ['petal', 0.26], ['pebble', 0.26], ['leaf', 0.14]],
+  mending: [['petal', 0.34], ['page', 0.30], ['pebble', 0.22], ['tuft', 0.14]],
 };
+
+/**
+ * How close two clump centres may come, in tiles, and how far a centre may
+ * wander out of the tile that seeded it.
+ *
+ * These two numbers together are the "poisson-ish" in the brief. WANDER larger
+ * than half a tile is what decouples placement from the tile grid at all — a
+ * centre seeded in tile (7,3) can land in (6,4) — and SEP is what stops the
+ * wandered centres from piling into each other, which is the only thing a pure
+ * jitter cannot do. The result is over-dispersed at CLUMP scale and strongly
+ * clustered at PIECE scale, which is what real ground cover looks like.
+ *
+ * SEP is 0.86 tiles — 3.4 m — against a clump whose members fall inside 0.18 to
+ * 0.60 tiles of their centre, so two clumps never merge into a mat, and WANDER
+ * is 0.92, which is wider than a tile: a centre seeded in tile (7,3) can end up
+ * anywhere in a 3.7 m square that is not centred on any tile at all. Measured
+ * index of dispersion after both: 2.0 to 3.0 at tile scale and 3.6 to 5.7 at
+ * 8 m, against 0.64 to 0.93 (i.e. sub-Poisson — a grid) on five of the nine
+ * floors before.
+ */
+export const CLUMP_SEP = 0.86;
+export const CLUMP_WANDER = 0.92;
 
 /** Which paper each scatter archetype is cut from, given a theme. */
 function scatterPaper(kind, theme, r) {
@@ -1967,13 +2211,42 @@ function scatterPaper(kind, theme, r) {
 /**
  * Deterministic ground dressing for one floor.
  *
- * Density clumps on low-frequency noise (scatter that is evenly spread reads
- * as wallpaper), thickens along the VERGE of a path — the band just outside
- * the paving, where a real verge grows — and stays OFF the paving itself,
- * because the ribbon is the player's guide and clutter on it costs legibility.
+ * ── THE LATTICE, AND WHY THE LAST FIX DID NOT TAKE ─────────────────────────
+ * The Ember Caves shipped as "several hundred identical yellow cones on a
+ * visible lattice", and the pass before this one already added clumping to
+ * stop exactly that. It did not work, and the reason is at the BOTTOM of the
+ * old function, not the top: after clumping the floor, the result was thinned
+ * to the instance cap with a Bresenham stride over the emitted array. That
+ * array is in row-major tile order, so keeping every k-th element is a
+ * PERFECTLY REGULAR subsample of the floor — a lattice, reimposed by the
+ * budget code, on top of a field that had just been carefully clustered. The
+ * measured index of dispersion (occupancy variance / mean, 1.0 for a Poisson
+ * field, below 1 for a grid) came out at 0.64-0.93 on five of the nine floors:
+ * the scatter was measurably MORE regular than random.
  *
- * @returns {Array<{kind:string,x:number,z:number,y:number,yaw:number,
- *                  scale:number,hex:number,tone:number}>}
+ * So the budget is now spent in whole CLUMPS, chosen by hash, before a single
+ * member is emitted. Dropping a clump leaves a bare patch, which is what bare
+ * ground looks like; dropping every fourth piece leaves a thinner lattice.
+ *
+ * ── WHAT REPLACES IT ───────────────────────────────────────────────────────
+ *   1. Clump centres wander up to CLUMP_WANDER tiles out of the tile that
+ *      seeded them, so placement is not a function of the grid at all, and are
+ *      rejected within CLUMP_SEP of an accepted centre (a spatial hash, i.e.
+ *      Bridson's test without Bridson's queue). Poisson-disc at clump scale.
+ *   2. Members inside a clump fall on a sqrt-radius disc around the centre, so
+ *      they are dense in the middle and sparse at the rim.
+ *   3. Every piece carries a VARIANT (three geometries per archetype), a lean,
+ *      a full roll and a non-uniform stretch, on top of the three size classes
+ *      and the hue walk. A cone that is always vertical and always the same
+ *      cone is a decal; one of nine, leaning, at four aspect ratios, is not.
+ *
+ * Density still clumps on low-frequency noise, thickens along the VERGE of a
+ * path — the band just outside the paving, where a real verge grows — and
+ * stays OFF the paving, because the ribbon is the player's guide.
+ *
+ * @returns {Array<{kind:string,variant:number,x:number,z:number,y:number,
+ *                  yaw:number,tilt:number,roll:number,scale:number,
+ *                  stretch:number,hex:number,tone:number}>}
  */
 export function groundScatter(level, hf, theme, sampleHeight, opts = {}) {
   const density = opts.density ?? 1;
@@ -1984,100 +2257,215 @@ export function groundScatter(level, hf, theme, sampleHeight, opts = {}) {
   const mix = SCATTER_MIX[theme.key] || SCATTER_MIX.garden;
   const total = mix.reduce((a, m) => a + m[1], 0);
   const vergeBias = theme.vergeBias ?? 0.24;
-  const out = [];
   const tiles = groundTiles(level);
   // Per-tile density is normalised against the floor's size, not fixed: the
   // Garden is 212 walkable tiles and is walked at arm's length, floor 9 is
   // 1110 and is mostly seen across a room. A fixed rate leaves the small
-  // floors swept bare and blows the big ones past the instance budget — and a
-  // hard cap would fix the count by shaving the dressing off whichever end of
-  // the floor the loop reaches last, which is worse than either.
+  // floors swept bare and blows the big ones past the instance budget.
   const norm = Math.min(6.5, 1500 / Math.max(1, tiles.length));
+  // Hot spots — the vents on floor 4, empty everywhere else. A clump that
+  // lands near one is kept preferentially and grows larger, which is what
+  // gives the Ember Caves an ember FIELD around each vent instead of an even
+  // dusting of cones over the whole plain.
+  const hot = theme.glow ? ventSpots(level, hf) : [];
 
-  // ── WHY THE PLACEMENT IS CLUMPED, NOT SEEDED PER PIECE ─────────────────
-  // The old loop drew every piece independently inside its tile, at one size
-  // and one colour per archetype. What that produces is a uniform lattice — the
-  // Ember Caves came out as several hundred identical cones on a visible grid,
-  // and uniform scatter is the single clearest "generated, not designed" tell
-  // there is. Real ground cover grows in CLUMPS with a size hierarchy: a few
-  // big ones, more middling, a scatter of small, all of the same family but no
-  // two the same. So a tile now seeds CLUMP CENTRES, and each centre grows 3-8
-  // members around it, drawn from three size classes spanning 4x, with the hue
-  // walked +/-8% off the family paper per piece.
+  // ── 1. CLUMP CENTRES, POISSON-DISC ─────────────────────────────────────
+  // The separation widens as the quality tier thins the floor, so a low tier
+  // is a SPARSER field of the same clumps rather than the same field with
+  // holes punched in it — which is the one way a quality dial can turn a
+  // designed scatter back into a lattice.
+  const dq = Math.min(1, Math.max(0.05, density));
+  const sepCell = CLUMP_SEP / Math.pow(dq, 0.75);
+  const grid = new Map();
+  const key = (i, j) => i * 8191 + j;
+  /** True (and records the point) if (u,v) is CLUMP_SEP clear of every
+   *  accepted centre. 3x3 cell scan; the cell size IS the separation, so no
+   *  accepted point can be missed. */
+  function accept(u, v) {
+    const ci = Math.floor(u / sepCell), cj = Math.floor(v / sepCell);
+    for (let dj = -1; dj <= 1; dj++) {
+      for (let di = -1; di <= 1; di++) {
+        const bucket = grid.get(key(ci + di, cj + dj));
+        if (!bucket) continue;
+        for (let b = 0; b < bucket.length; b += 2) {
+          const dx = bucket[b] - u, dy = bucket[b + 1] - v;
+          if (dx * dx + dy * dy < sepCell * sepCell) return false;
+        }
+      }
+    }
+    const k = key(ci, cj);
+    let bucket = grid.get(k);
+    if (!bucket) { bucket = []; grid.set(k, bucket); }
+    bucket.push(u, v);
+    return true;
+  }
+
+  /** @type {Array<object>} */
+  const centres = [];
   const SIZE_CLASS = [[0.42, 0.20, 0.44], [0.82, 0.34, 0.38], [1.35, 0.58, 0.18]];
   for (const t of tiles) {
     if (t.transient) continue;
-    const clump = valueNoise(t.tx, t.ty, 3.2, level.id + 71);
-    const want = (0.45 + clump * clump * 3.6) * density * norm;
+    // Squared twice, not once: the old field was a gentle swell that never
+    // reached zero, so every tile in the floor got something and the "clumps"
+    // sat in a uniform matrix of singletons. A quartic leaves genuinely bare
+    // ground between the thickets, and bare ground is half of what makes the
+    // thickets read as thickets.
+    const cn = valueNoise(t.tx, t.ty, 3.2, level.id + 71);
+    let field = cn * cn * cn * (0.20 + 3.4 * cn);
+    // Vent proximity, floor 4 only.
+    for (const v of hot) {
+      const d = Math.hypot(t.tx + 0.5 - v.u, t.ty + 0.5 - v.v);
+      if (d < 5.5) field += (1 - d / 5.5) * 1.7;
+    }
+    const want = field * density * norm * 1.15;
+    if (want <= 0) continue;
     const r = tileRandom(t.tx, t.ty, level.id * 131 + 17);
-    // Clump centres, not pieces. The count is stochastic rather than clamped
-    // to a minimum of one, because the quality tiers dial `density` and a
-    // per-tile floor of one clump would make the low tier no cheaper at all.
-    const cw = want / 3.6;
-    const centres = Math.floor(cw) + (r() < (cw % 1) ? 1 : 0);
-    const perCentre = centres ? want / centres : 0;
-    for (let ci = 0; ci < centres; ci++) {
-      const cu = t.tx + 0.12 + r() * 0.76;
-      const cv = t.ty + 0.12 + r() * 0.76;
-      const members = Math.min(8, Math.max(3,
-        Math.round(perCentre * (0.8 + r() * 1.0))));
-      // One archetype per clump. A clump of mixed archetypes is not a clump.
+    // At most two attempts per tile; both may wander out of it and both may be
+    // rejected by the separation test. The expected yield is well under one
+    // per tile, which is the point — the grid stops being visible when most of
+    // its cells are empty.
+    const tries = want > 1.4 ? 2 : 1;
+    for (let ci = 0; ci < tries; ci++) {
+      if (r() > Math.min(0.92, want)) continue;
+      const cu = t.tx + 0.5 + (r() - 0.5) * 2 * CLUMP_WANDER;
+      const cv = t.ty + 0.5 + (r() - 0.5) * 2 * CLUMP_WANDER;
+      if (cu < 0.1 || cv < 0.1 || cu > width - 0.1 || cv > height - 0.1) continue;
+      if (!accept(cu, cv)) continue;
       let pick = r() * total, kind = mix[0][0];
       for (const [k, w] of mix) { pick -= w; if (pick <= 0) { kind = k; break; } }
-      const spread = 0.16 + r() * 0.30;                        // tiles
-      for (let i = 0; i < members; i++) {
-        const a = r() * TAU, rad = spread * Math.sqrt(r());
-        const u = cu + Math.cos(a) * rad;
-        const v = cv + Math.sin(a) * rad;
-        const { paved, verge } = pavedAt(gf, u, v, seed);
-        if (paved > 0.30) continue;                            // keep the guide clear
-        const wet = sampleCorner(gf.cWet, gf.cw, gf.ch, u, v);
-        if (wet > 0.55) continue;                              // that is the water, not the bank
-        // POSITIVE vergeBias grows a verge along the shoulder of the ribbon;
-        // NEGATIVE clears a band either side of it. Floor 4 is the reason the
-        // sign matters — see LEVEL_THEMES.
-        if (r() > 0.74 + (verge - paved) * vergeBias) continue;
-        // Three size classes, weighted so big ones are rare. 0.42 to ~1.93 is
-        // a 4.6x span, against a flat 0.75-1.90 uniform draw that in practice
-        // produced one apparent size.
-        let sp = r(), cls = SIZE_CLASS[0];
-        for (const c of SIZE_CLASS) { sp -= c[2]; if (sp <= 0) { cls = c; break; } }
-        const scale = cls[0] + r() * cls[1];
-        const x = (u - width / 2) * TILE_M;
-        const z = (v - height / 2) * TILE_M;
-        const g = r();
-        // Hue walk: mix up to 16% toward one of two neighbouring papers, which
-        // lands each piece within about +/-8% of the family colour. A field of
-        // one exact hex is the other half of the wallpaper read.
-        const basePaper = scatterPaper(kind, theme, g);
-        const hex = mixPaper(basePaper,
-          r() < 0.5 ? theme.groundAccent : theme.pathRim, r() * 0.16);
-        out.push({
-          kind,
-          // The DRAWN surface, relief included — a pebble placed on the
-          // collider height alone is a pebble half buried in a swell.
-          x, z, y: sampleHeight(x, z) + groundRelief(u, v, seed, paved),
-          yaw: r() * TAU,
-          scale,
-          hex,
-          tone: 0.90 + r() * 0.24,
-        });
-      }
+      centres.push({
+        u: cu, v: cv, kind,
+        members: Math.max(3, Math.round(
+          (4 + r() * 10 * Math.min(1.4, 0.5 + want * 0.5)) * (0.30 + 0.70 * dq))),
+        spread: 0.18 + r() * 0.42,
+        rank: hash2(t.tx * 13 + ci, t.ty * 7, level.id + 4211),
+        seed: (level.id * 131 + 17 + ci * 7717 + t.tx * 31 + t.ty * 131) | 0,
+        tx: t.tx, ty: t.ty, ci,
+      });
     }
   }
-  // Thin to the instance budget by DECIMATING, never by stopping early: the
-  // loop walks the floor in row order, so a `break` at the cap would shave the
-  // whole dressing off whichever end of the level it reached last. A
-  // Bresenham stride keeps the survivors spread evenly over the floor.
-  if (out.length > cap) {
-    const kept = [];
-    for (let i = 0, acc = 0; i < out.length; i++) {
-      acc += cap;
-      if (acc >= out.length) { acc -= out.length; kept.push(out[i]); }
+
+  // ── 2. BUDGET IN WHOLE CLUMPS ──────────────────────────────────────────
+  // See the header. Never decimate members: a uniform subsample of a clustered
+  // field is a lattice, and that is literally what shipped.
+  let projected = 0;
+  for (const c of centres) projected += c.members;
+  if (projected > cap * 1.25) {
+    centres.sort((a, b) => a.rank - b.rank);
+    let acc = 0, n = 0;
+    while (n < centres.length && acc < cap) { acc += centres[n].members; n++; }
+    centres.length = n;
+  }
+  // Emission order must not depend on the sort above, or the instanced meshes
+  // would reorder between two identical builds in a way that is fine for the
+  // renderer and maddening for a screenshot diff.
+  centres.sort((a, b) => (a.ty - b.ty) || (a.tx - b.tx) || (a.ci - b.ci));
+
+  // ── 3. MEMBERS ─────────────────────────────────────────────────────────
+  const out = [];
+  for (const c of centres) {
+    const r = tileRandom(c.tx, c.ty, c.seed);
+    for (let i = 0; i < c.members; i++) {
+      const a = r() * TAU, rad = c.spread * Math.sqrt(r());
+      const u = c.u + Math.cos(a) * rad;
+      const v = c.v + Math.sin(a) * rad;
+      const { paved, verge } = pavedAt(gf, u, v, seed);
+      if (paved > 0.30) continue;                            // keep the guide clear
+      const wet = sampleCorner(gf.cWet, gf.cw, gf.ch, u, v);
+      if (wet > 0.55) continue;                              // that is the water, not the bank
+      // POSITIVE vergeBias grows a verge along the shoulder of the ribbon;
+      // NEGATIVE clears a band either side of it. Floor 4 is the reason the
+      // sign matters — see LEVEL_THEMES.
+      if (r() > 0.90 + (verge - paved) * vergeBias) continue;
+      // Three size classes, weighted so big ones are rare: 0.42 to ~1.93 is a
+      // 4.6x span, against a flat uniform draw that produced one apparent size.
+      let sp = r(), cls = SIZE_CLASS[0];
+      for (const cc of SIZE_CLASS) { sp -= cc[2]; if (sp <= 0) { cls = cc; break; } }
+      const scale = cls[0] + r() * cls[1];
+      const x = (u - width / 2) * TILE_M;
+      const z = (v - height / 2) * TILE_M;
+      const g = r();
+      // Hue walk: mix up to 16% toward one of two neighbouring papers, which
+      // lands each piece within about +/-8% of the family colour. A field of
+      // one exact hex is the other half of the wallpaper read.
+      const basePaper = scatterPaper(c.kind, theme, g);
+      const hex = mixPaper(basePaper,
+        r() < 0.5 ? theme.groundAccent : theme.pathRim, r() * 0.16);
+      out.push({
+        kind: c.kind,
+        // Which of the three cut geometries this piece wears. Rolled per
+        // PIECE, not per clump: a clump of nine identical cones is still a
+        // field of identical cones, it is just a smaller one.
+        variant: (r() * 3) | 0,
+        // The DRAWN surface, relief included — a pebble placed on the collider
+        // height alone is a pebble half buried in a swell.
+        x, z, y: sampleHeight(x, z) + groundRelief(u, v, seed, paved),
+        yaw: r() * TAU,
+        // Lean and roll. Nothing in nature stands perfectly upright and
+        // nothing in a papercut world should either; a field of plumb-vertical
+        // cones advertises the transform that placed them.
+        tilt: (r() - 0.5) * 0.62,
+        roll: r() * TAU,
+        scale,
+        // Aspect. Two pieces at the same `scale` are still visibly different
+        // objects if one is 40% taller than it is wide and the other is squat.
+        stretch: 0.62 + r() * 0.92,
+        hex,
+        tone: 0.90 + r() * 0.24,
+      });
     }
-    return kept;
   }
   return out;
+}
+
+/**
+ * THE VENTS: where the Ember Caves are lit from.
+ *
+ * A cave is not a dark room, it is a room lit from a few places you can point
+ * at. Floor 4 had no such places — its ground was one even red field — so
+ * `theme.glow` opts a floor into a small set of hot spots, chosen on open
+ * ground, spread apart, and away from the spawn so the establishing shot looks
+ * TOWARD them rather than standing on one.
+ *
+ * Pure placement: level3d.js cuts the glow cards and the scatter above thickens
+ * around them, so a vent is a light, a colour and a thicket of embers, from one
+ * list of coordinates.
+ *
+ * @returns {Array<{u:number,v:number,x:number,z:number,y:number,r:number}>}
+ */
+export function ventSpots(level, hf, opts = {}) {
+  const want = opts.count ?? 7;
+  const { width, height, startX, startY } = level;
+  const tiles = groundTiles(level).filter((t) => !t.transient);
+  if (!tiles.length) return [];
+  const picked = [];
+  // Greedy farthest-point, seeded off the tile hash so it is deterministic and
+  // so two vents never land in the same room.
+  for (let n = 0; n < want; n++) {
+    let best = null, bestScore = -Infinity;
+    for (const t of tiles) {
+      const ds = Math.hypot(t.tx - startX, t.ty - startY);
+      if (ds < 4) continue;
+      let near = Infinity;
+      for (const p of picked) near = Math.min(near, Math.hypot(t.tx - p.tx, t.ty - p.ty));
+      if (near < 6) continue;
+      const score = Math.min(18, near === Infinity ? 18 : near)
+        + Math.min(10, ds) * 0.5
+        + hash2(t.tx, t.ty, level.id + 6161) * 6;
+      if (score > bestScore) { bestScore = score; best = t; }
+    }
+    if (!best) break;
+    picked.push(best);
+  }
+  return picked.map((t) => {
+    const c = tileCenter(t.tx, t.ty, width, height);
+    return {
+      u: t.tx + 0.5, v: t.ty + 0.5,
+      x: c.x, z: c.z,
+      y: hf.tileH[t.ty * width + t.tx],
+      r: 1.7 + hash2(t.tx, t.ty, level.id + 7171) * 1.9,
+    };
+  });
 }
 
 // ── Boundary culling ───────────────────────────────────────────────────────
@@ -2112,12 +2500,31 @@ export function wallTiles(level, hf) {
     for (let x = 0; x < width; x++) {
       if (code[y][x] !== 'W') continue;
       const k = y * width + x;
-      if (!facesOpenSpace(level, x, y)) continue;
+      // THE BOUNDARY RING IS NEVER CULLED. Everything else here is culled to
+      // tiles that face something walkable, because a wall buried in walls has
+      // no silhouette — but the map's outer ring is the one run whose whole job
+      // is to be seen from far away, and on the two ARCHIPELAGO floors it was
+      // being deleted wholesale. Ebbport and the Shattered Sky are islands in a
+      // field of 'Q', so not one of their 132 and 128 perimeter tiles touches
+      // walkable ground, and the cull took floor 3 down to NINE wall tiles in
+      // the entire level and floor 2 to forty. Those two floors had no
+      // enclosure at all: the horizon was open sky straight to the fog, which
+      // is exactly the "lawn with furniture" read, and it was worst on the two
+      // floors that already had the least geometry.
+      //
+      // This is geometry only. `levelColliders` still culls on facesOpenSpace,
+      // so the ring adds no collider, no BFS change and no route change — the
+      // tiles it restores are ones no player can ever reach or touch.
+      const onBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+      if (!onBorder && !facesOpenSpace(level, x, y)) continue;
       const r0 = hash2(x, y, level.id);
       const r1 = hash2(x, y, level.id + 101);
       const r2 = hash2(x, y, level.id + 202);
       const r3 = hash2(x, y, level.id + 303);
       const r4 = hash2(x, y, level.id + 404);
+      const r5 = hash2(x, y, level.id + 515);
+      const r6 = hash2(x, y, level.id + 626);
+      const r7 = hash2(x, y, level.id + 737);
       const c = tileCenter(x, y, width, height);
       const mask = wallNeighbourMask(level, x, y);
       const topo = wallTopology(mask);
@@ -2148,11 +2555,24 @@ export function wallTiles(level, hf) {
       // shoulder exists to prevent. So the ring keeps its yaw tiny and its
       // plies slightly oversized, and buys its relief from the stepped plinth
       // instead (see ringPedestal).
-      const ring = x === 0 || y === 0 || x === width - 1 || y === height - 1;
-      const yawJit = ring ? (r0 - 0.5) * 0.07
-        : (fronted ? (r0 - 0.5) * 0.22 : (r0 - 0.5) * 0.84);
+      //
+      // RAISED AGAIN, and this is the third time, so here is the measurement
+      // rather than the adjective: on the build this replaces the free-standing
+      // vocabularies took ±0.42 rad and the fronted ones ±0.11 rad. It is now
+      // WALL_YAW_JIT = ±0.52 (±30°) and WALL_YAW_JIT_FRONT = ±0.24 (±14°), so
+      // two neighbours can differ by sixty degrees and no pair in a run reads
+      // as parallel. 85% of the sweep correction is applied rather than 72%,
+      // which keeps the worst-case swept half-diagonal PLUS the new lateral
+      // lean at 2.37 m against the 2.36 m the old build already reached: the
+      // silhouette got much louder and what the player can bump into did not
+      // move at all.
+      const ring = onBorder;
+      const yawSpan = ring ? WALL_YAW_JIT_RING
+        : (fronted ? WALL_YAW_JIT_FRONT : WALL_YAW_JIT);
+      const yawJit = (r0 - 0.5) * 2 * yawSpan;
       const sweep = Math.abs(Math.cos(yawJit)) + Math.abs(Math.sin(yawJit));
-      const shrink = ring ? 1 : 1 + (sweep - 1) * 0.72;
+      const shrink = ring ? 1 : 1 + (sweep - 1) * 0.85;
+      const yaw = wallFaceYaw(level, x, y, theme.wall) + yawJit;
 
       // ── HEIGHT ─────────────────────────────────────────────────────────
       // Two thirds smooth noise so NEIGHBOURS AGREE IN BANDS (a run swells and
@@ -2167,7 +2587,8 @@ export function wallTiles(level, hf) {
       const bend = (topo.corner || topo.junction) ? 0.10 : 0;
       const banded = Math.min(WALL_H_MAX,
         Math.max(WALL_H_MIN, hMin + (hMax - hMin) * undulate + bend * (hMax - hMin)));
-      let h = Math.min(WALL_H_TALL, Math.max(WALL_H_SHORT, banded * (0.80 + r4 * 0.38)));
+      let h = Math.min(WALL_H_TALL,
+        Math.max(WALL_H_SHORT, banded * (1 + (r4 - 0.5) * 2 * WALL_H_JIT)));
 
       // ── THE BOUNDARY RING ──────────────────────────────────────────────
       // The outermost ring of wall is raised to 4.8-6.4 m. Every floor used to
@@ -2176,33 +2597,98 @@ export function wallTiles(level, hf) {
       // enclosures — TotK never lets you see the edge of the world. The rise
       // fades out within four tiles of the spawn, because the establishing
       // shot must not open on a six-metre wall in the player's face.
+      //
+      // `theme.ringH` overrides the band. The Ember Caves are a CAVE, and a
+      // cave is defined by the thing over your head being nearer than the
+      // horizon, so its rim runs to eleven metres and takes the sky with it.
+      const ringBand = theme.ringH || RING_H;
       if (ring) {
         const nearSpawn = smoothstep(1.5, 5.0, Math.hypot(x - startX, y - startY));
-        const tall = RING_H[0] + (RING_H[1] - RING_H[0]) * r2;
+        const tall = ringBand[0] + (ringBand[1] - ringBand[0]) * r2;
         h += (tall - h) * nearSpawn;
       }
 
-      // ── PLANTERS ───────────────────────────────────────────────────────
-      // Roughly one straight run tile in four drops below hero eyeline. Only
-      // straight deg-2 tiles qualify — a bend or a junction is where a run
-      // needs its post, and punching the hole there reads as damage rather
-      // than as design. See planterProfile: this is the gap you see the
-      // landmark through.
-      const planter = !ring && topo.straight && r3 > 0.74;
-      if (planter) h = PLANTER_H[0] + (PLANTER_H[1] - PLANTER_H[0]) * r1;
+      // ── PLANTERS AND RUBBLE ────────────────────────────────────────────
+      // Roughly one straight run tile in four drops below hero eyeline, and
+      // half of THOSE drop to rubble rather than to a planter. A low pile of
+      // broken slabs is a different object from a trough, and two archetypes
+      // is the difference between "this run has gaps in it" and "this run has
+      // the same gap in it eleven times". Only straight deg-2 tiles qualify: a
+      // bend or a junction is where a run needs its post, and punching the
+      // hole there reads as damage rather than as design. See planterProfile
+      // and rubbleProfile: this is the gap you see the landmark through.
+      const low = !ring && topo.straight && r3 > 0.72;
+      const planter = low && r5 < 0.5;
+      const rubble = low && !planter;
+      if (low) h = PLANTER_H[0] + (PLANTER_H[1] - PLANTER_H[0]) * r1;
+
+      // ── THE GAP TILE ───────────────────────────────────────────────────
+      // See WALL_GAP_RATE. Roughly a third of the interior run loses the
+      // full-span footing ply that hides the join with its neighbour, and
+      // stands WALL_GAP_SHRINK narrower besides, so the eye reads discrete
+      // pieces of paper rather than one extrusion with lines drawn on it.
+      const gap = !ring && !low && r6 < WALL_GAP_RATE;
+
+      // ── THE SLIDE ──────────────────────────────────────────────────────
+      // Along the run, a big offset; across it, a small one. See the budget
+      // block at WALL_SLIDE_ALONG. The offsets are authored in WORLD metres and
+      // counter-rotated into tile-local space here, because the stamp rotates
+      // them by the tile yaw and "along the run" must not depend on how far
+      // this particular tile happens to be turned.
+      const cy = Math.cos(yaw), sy = Math.sin(yaw);
+      const jA = (r1 - 0.5) * 2, jB = (r2 - 0.5) * 2;
+      let wx, wz, intrude;
+      if (ring) {
+        wx = jA * 0.05; wz = jB * 0.05; intrude = 0;
+      } else if (topo.straight && topo.axis === 'x') {
+        wx = jA * WALL_SLIDE_ALONG; wz = jB * WALL_SLIDE_ACROSS;
+        intrude = Math.abs(wz);          // only the across component can intrude
+      } else if (topo.straight && topo.axis === 'z') {
+        wx = jB * WALL_SLIDE_ACROSS; wz = jA * WALL_SLIDE_ALONG;
+        intrude = Math.abs(wx);
+      } else {
+        // A bend, a junction or an end has no "along": every direction it could
+        // move in is either into more wall or into the corridor, and the tile
+        // does not know which without asking. So it slides freely and pays for
+        // it in the reach clamp below — which is the same bargain the yaw
+        // already strikes, and it is why the two can both be large.
+        wx = jA * WALL_SLIDE_FREE; wz = jB * WALL_SLIDE_FREE;
+        intrude = Math.hypot(wx, wz);
+      }
+
+      // ── THE REACH CLAMP ────────────────────────────────────────────────
+      // See WALL_REACH_MAX. A ply of half-width a at yaw t reaches a*sweep at
+      // its corner; add whatever the tile slid toward the corridor and shrink
+      // until the total fits. Authored variance in, constant collision out.
+      let sx = (ring ? 1.04 + r0 * 0.06 : 0.96 + r0 * 0.12) / shrink;
+      if (!ring) {
+        const swept = WALL_SPAN * 0.5 * sx * sweep;
+        if (swept + intrude > WALL_REACH_MAX) {
+          sx *= Math.max(0.42, (WALL_REACH_MAX - intrude) / swept);
+        }
+      }
 
       out.push({
         key: k, tx: x, ty: y, x: c.x, z: c.z,
         y: hf.tileH[k],
         h,
-        mask, topo, planter, ring,
+        mask, topo, planter, rubble, low, gap, ring,
         variant: (r1 * 3) | 0,
-        yaw: wallFaceYaw(level, x, y, theme.wall) + yawJit,
-        ox: (r1 - 0.5) * TILE_M * 0.06,
-        oz: (r2 - 0.5) * TILE_M * 0.06,
-        // The ring runs a touch oversized so neighbours overlap outright.
-        sx: (ring ? 1.04 + r0 * 0.06 : 0.98 + r0 * 0.14) / shrink,
+        yaw,
+        ox: wx * cy - wz * sy,
+        oz: wx * sy + wz * cy,
+        // The ring runs a touch oversized so neighbours overlap outright; an
+        // interior tile has already been shrunk to fit WALL_REACH_MAX above.
+        sx,
         tint: r2,
+        // Per-tile COLOUR. `hue` is how far and which way the tile's whole
+        // paper stack is walked toward one of the floor's accent papers,
+        // `accIdx` picks which accent, `val` shifts its value. A floor used to
+        // be cut from seven to ten hexes in total; this is what makes forty
+        // tiles forty sheets of paper instead of forty prints of one.
+        hue: (r5 - 0.5) * 2,
+        val: (r7 - 0.5) * 2,
+        accIdx: (r6 * 997) | 0,
         seed: (level.id * 7919 + 331) | 0,
         transient: transformTiles.has(k) ? 'transform' : (secretTiles.has(k) ? 'secret' : null),
       });
@@ -2234,8 +2720,18 @@ export function wallTiles(level, hf) {
 // pieces merge into the wall chunk the host tile already belongs to.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Primary landmark height band, metres, and the secondary masts'. */
-export const LANDMARK_H = [14.0, 18.0];
+/**
+ * Primary landmark height band, metres, and the secondary masts'.
+ *
+ * Raised from [14, 18] because the interior wall band was widened to reach
+ * 3.62 m (see WALL_H_JIT): the landmark's whole job is to be unmistakably
+ * ABOVE everything else in the floor, and the architecture test holds it to at
+ * least four times the tallest interior wall. `theme.landmarkH` overrides the
+ * band for a floor whose enclosure is itself tall — the Ember Caves' rim runs
+ * to eleven metres, so its vent chimney has to clear twenty-five before it
+ * reads as the thing you navigate by rather than as part of the wall.
+ */
+export const LANDMARK_H = [15.6, 20.5];
 export const MAST_H = [6.2, 9.0];
 /** Tiles a mast must keep from the spawn, from the primary, and from another
  *  mast. Three towers in a heap is one tower. */
@@ -2339,6 +2835,41 @@ export function landmarkProfile(spec, theme) {
           H * (0.30 + r() * 0.4), H * (0.36 + r() * 0.4), 0.24, 0.13, 5,
           acc[i % acc.length], { tone: 1.08 });                                        // vent flares
       }
+      // THE PLUME. A chimney without smoke is a pipe, and the plume is the
+      // only part of this floor's silhouette that is not made of rock — it
+      // reads at any distance, it leans (so the level has a prevailing wind and
+      // therefore a direction), and it carries the eye ABOVE the tower, which
+      // is what makes a 17 m object feel like 25 m of world. Cut from the same
+      // cream/white stock as the sky so it sits in the aerial perspective
+      // rather than on top of it, and each puff is a flattened prism with a
+      // shadow underside — layered paper, not a particle.
+      {
+        let py = top + 1.3;
+        let px = 0, pz = 0;
+        const lean = 0.42 + r() * 0.20;                 // metres of drift per puff
+        const dir = r() * TAU;
+        const cd = Math.cos(dir), sd = Math.sin(dir);
+        for (let i = 0; i < 5; i++) {
+          const f = i / 4;
+          const rad = R * (0.52 + f * 0.95) * (0.86 + r() * 0.28);
+          const thick = 0.55 + f * 0.75;
+          px += cd * lean * (1 + f * 1.7);
+          pz += sd * lean * (1 + f * 1.7);
+          // Underside first, dragged to shadow: a puff with a dark belly is a
+          // volume; a puff of one flat colour is a sticker.
+          P(out, px, pz, py, py + thick * 0.30, rad * 0.80, rad,
+            7, mixPaper(PAPER.creamD, PAPER.shadow, PLY_SHADOW_MIX * 0.9),
+            { rot: r() * 0.9 });
+          P(out, px, pz, py + thick * 0.26, py + thick,
+            rad, rad * (0.62 - f * 0.12), 7, i < 2 ? PAPER.creamD : PAPER.cream,
+            { tone: 1.0 + f * 0.06, rot: r() * 0.9 });
+          if (i === 0) {                                 // the lit throat of it
+            P(out, px, pz, py - 0.35, py + 0.45, rad * 0.46, rad * 0.34, 6,
+              acc[0], { tone: 1.10 });
+          }
+          py += thick * (0.80 + r() * 0.25);
+        }
+      }
       break;
     }
     case 'stack': {
@@ -2364,9 +2895,224 @@ export function landmarkProfile(spec, theme) {
       P(out, 0, 0, y - 0.1, y + 1.0, R * 0.44, R * 0.18, 6, crown, { tone: 1.06 });
       break;
     }
+    case 'tether': {
+      // Floor 3 — a FLOATING spire, held down by ribbons.
+      //
+      // The gap is the entire idea. Every other silhouette in this build grows
+      // out of the ground, so the eye reads it as terrain and stops; a shape
+      // with daylight underneath it cannot be terrain, and on the one floor
+      // whose fantasy is that the world came apart, the landmark should be the
+      // proof. The ribbons are what make the gap legible — without a line
+      // crossing it the spire just looks badly placed.
+      const anchorTop = y0 + 1.10;
+      P(out, 0, 0, y0 - 0.3, anchorTop, R * 1.24, R * 0.98, 8, mid, { tone: 0.96 });
+      P(out, 0, 0, anchorTop - 0.09, anchorTop + 0.09, R * 1.06, R * 1.06, 8,
+        mixPaper(mid, PAPER.shadow, PLY_SHADOW_MIX));
+      P(out, 0, 0, anchorTop, anchorTop + 0.34, R * 0.92, R * 0.74, 8, light, { tone: 1.0 });
+
+      // The island the spire stands on, hanging in the air: a shallow inverted
+      // cone so it has a visible UNDERSIDE, which is the whole read.
+      const gap = (H - anchorTop) * 0.20;
+      const isleY = anchorTop + gap;
+      P(out, 0, 0, isleY, isleY + (H - isleY) * 0.10, R * 0.20, R * 1.22, 9, dark,
+        { tone: 0.90 });
+      P(out, 0, 0, isleY + (H - isleY) * 0.085, isleY + (H - isleY) * 0.125,
+        R * 1.28, R * 1.24, 9, mixPaper(dark, PAPER.shadow, PLY_SHADOW_MIX));
+      P(out, 0, 0, isleY + (H - isleY) * 0.11, isleY + (H - isleY) * 0.20,
+        R * 1.22, R * 1.02, 9, light, { tone: 1.02 });
+
+      const bodyY = isleY + (H - isleY) * 0.18;
+      const top = shaft(out, ctx, bodyY, H * 0.84, R * 0.94, R * 0.30, 4, 7);
+      P(out, 0, 0, top - 0.2, top + 0.5, R * 0.58, R * 0.70, 7, light, { tone: 1.03 });
+      P(out, 0, 0, top + 0.46, top + 0.60, R * 0.74, R * 0.68, 7,
+        mixPaper(light, PAPER.shadow, PLY_SHADOW_MIX));
+      P(out, 0, 0, top + 0.56, H * 1.06, R * 0.50, R * 0.14, 6, crown, { tone: 1.06 });
+
+      // RIBBONS across the gap: long thin leaning slabs from the anchor rim up
+      // to the underside of the isle. Three, at three angles, in three papers.
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * TAU + r() * 0.8;
+        const rr = R * 1.02;
+        B(out, Math.cos(a) * rr, Math.sin(a) * rr,
+          anchorTop - 0.2, isleY + (H - isleY) * 0.09,
+          0.20, 0.07, acc[i % acc.length], { tone: 1.04, rot: a, tilt: 0.16 });
+      }
+      // and a few loose ones streaming off the isle, so the gap has traffic.
+      for (let i = 0; i < 3; i++) {
+        const a = i * 2.4 + r();
+        const yy = bodyY + (top - bodyY) * (0.26 + i * 0.26);
+        B(out, Math.cos(a) * R * 1.0, Math.sin(a) * R * 1.0, yy, yy + 1.9,
+          R * 1.35, 0.09, acc[(i + 1) % acc.length], { tone: 1.05, rot: a, tilt: 0.22 });
+      }
+      break;
+    }
+    case 'obelisk': {
+      // Floor 5 — a SHATTERED ice obelisk. A four-sided monolith cut in plied
+      // courses, snapped a third of the way up: the upper block is offset and
+      // leaning off the break, and the piece that came away is planted in the
+      // ground beside it. A monolith that is merely tall is a domino; the break
+      // is what gives it a story and three separate silhouette events.
+      const breakAt = y0 + (H - y0) * 0.42;
+      let y = y0, w = R * 1.55;
+      const lower = 4;
+      for (let i = 0; i < lower; i++) {
+        const f = (i + 1) / lower;
+        const y1 = y0 + (breakAt - y0) * f;
+        const ww = w * (1 - f * 0.16);
+        const paper = i === lower - 1 ? light : (i % 2 ? mid : dark);
+        B(out, (r() - 0.5) * 0.16, (r() - 0.5) * 0.16, y, y1, ww, ww * 0.88, paper,
+          { tone: 0.90 + i * 0.05, rot: 0.18 + (r() - 0.5) * 0.05 });
+        B(out, 0, 0, y1 - 0.10, y1 + 0.10, ww * 1.05, ww * 0.93,
+          mixPaper(paper, PAPER.shadow, PLY_SHADOW_MIX), { rot: 0.18 });
+        y = y1;
+      }
+      // The break face — raked, bright, and the widest thing on the tower.
+      B(out, 0, 0, breakAt - 0.15, breakAt + 0.55, w * 0.92, w * 0.84, crown,
+        { tone: 1.05, rot: 0.18, tilt: 0.22 });
+      // The upper block, shunted off the break and leaning.
+      let uy = breakAt + 0.45;
+      const shove = R * 0.42;
+      const upper = 4;
+      for (let i = 0; i < upper; i++) {
+        const f = (i + 1) / upper;
+        const y1 = uy + (H - 0.9 - uy) * (f - (i ? (i) / upper : 0));
+        const yb = breakAt + 0.45 + (H - 0.9 - breakAt - 0.45) * f;
+        const ww = w * (0.80 - f * 0.34);
+        const paper = i === upper - 1 ? crown : (i % 2 ? light : mid);
+        B(out, shove * (0.4 + f * 0.9), shove * 0.25 * f, uy, yb, ww, ww * 0.88, paper,
+          { tone: 0.96 + i * 0.04, rot: 0.18 + f * 0.22, tilt: 0.10 + f * 0.05 });
+        B(out, shove * (0.4 + f * 0.9), shove * 0.25 * f, yb - 0.09, yb + 0.09,
+          ww * 1.06, ww * 0.94, mixPaper(paper, PAPER.shadow, PLY_SHADOW_MIX),
+          { rot: 0.18 + f * 0.22 });
+        uy = yb;
+        void y1;
+      }
+      // The tip: a raked shard, not a flat top.
+      P(out, shove * 1.3, shove * 0.25, uy - 0.2, H * 1.04, w * 0.30, w * 0.05, 4, crown,
+        { tone: 1.07, tilt: 0.18, rot: 0.5 });
+      // Shards driven into the ground round the foot, at four lengths.
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * TAU + r() * 0.9;
+        const sh = (H - y0) * (0.10 + r() * 0.16);
+        P(out, Math.cos(a) * R * 1.5, Math.sin(a) * R * 1.5, y0 - 0.3, y0 + sh,
+          R * (0.22 + r() * 0.12), R * 0.03, 4,
+          i % 2 ? light : acc[i % acc.length],
+          { tone: 1.0 + r() * 0.08, tilt: 0.18 + r() * 0.26, rot: a });
+      }
+      break;
+    }
+    case 'cluster': {
+      // Floor 6 — a giant REFRACTING crystal cluster. Not one spire: seven
+      // points of wildly different length and rake sharing a plied plinth, so
+      // the silhouette is a bristle you could not confuse with anything else on
+      // any other floor. The two tallest carry the crown paper; the short ones
+      // are there to make the tall ones read as tall.
+      P(out, 0, 0, y0 - 0.4, y0 + 0.9, R * 1.70, R * 1.46, 7, dark, { tone: 0.90 });
+      P(out, 0, 0, y0 + 0.82, y0 + 1.00, R * 1.52, R * 1.48, 7,
+        mixPaper(dark, PAPER.shadow, PLY_SHADOW_MIX));
+      P(out, 0, 0, y0 + 0.94, y0 + 1.55, R * 1.44, R * 1.16, 7, mid, { tone: 0.97 });
+      const base = y0 + 1.35;
+      const pts = [
+        [0.00, 0.00, 0.30, 1.00, 0.00],
+        [-0.62, -0.34, 0.24, 0.78, 0.16],
+        [0.58, -0.20, 0.21, 0.63, 0.20],
+        [0.20, 0.62, 0.23, 0.86, 0.13],
+        [-0.30, 0.58, 0.17, 0.47, 0.26],
+        [0.66, 0.34, 0.14, 0.36, 0.30],
+        [-0.70, 0.16, 0.12, 0.28, 0.34],
+      ];
+      for (let i = 0; i < pts.length; i++) {
+        const [ox, oz, rad, top, rake] = pts[i];
+        const tip = base + (H - base) * top * (0.94 + r() * 0.12);
+        const paper = i === 0 ? crown : (i === 3 ? crown : (i % 2 ? light : mid));
+        // Each point is TWO plies with a shadow collar, not one cone: a 15 m
+        // crystal cut from a single tapered prism is a traffic cone.
+        const mids = base + (tip - base) * 0.46;
+        P(out, ox * R, oz * R, base, mids, R * rad, R * rad * 0.72, 5, mid,
+          { tone: 0.93 + i * 0.02, tilt: rake, rot: r() * 1.2 });
+        P(out, ox * R, oz * R, mids - 0.12, mids + 0.12, R * rad * 0.80, R * rad * 0.78, 5,
+          mixPaper(mid, PAPER.shadow, PLY_SHADOW_MIX), { tilt: rake });
+        P(out, ox * R, oz * R, mids, tip, R * rad * 0.72, R * rad * 0.06, 5, paper,
+          { tone: 1.0 + i * 0.02, tilt: rake, rot: r() * 1.2 });
+      }
+      // Chips floating off the cluster — the refraction, in cut paper.
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * TAU + r();
+        const yy = base + (H - base) * (0.30 + i * 0.16);
+        P(out, Math.cos(a) * R * 1.5, Math.sin(a) * R * 1.5, yy, yy + 0.6 + r() * 0.5,
+          0.30, 0.06, 4, acc[i % acc.length],
+          { tone: 1.08, tilt: (r() - 0.5) * 0.7, rot: a });
+      }
+      break;
+    }
+    case 'belltower': {
+      // Floor 7 — a CLOCK AND BELL TOWER over the stalls. A market needs a
+      // civic object: the one thing in Coinford taller than a canvas awning,
+      // and the thing a child navigates by ("meet me under the clock"). Four
+      // stages, each narrower than the last, then an open belfry with a real
+      // bell hanging in it and a pennant on the cap.
+      const stages = 4;
+      let y = y0, w = R * 1.62;
+      for (let i = 0; i < stages; i++) {
+        const f = (i + 1) / stages;
+        const y1 = y0 + (H * 0.62 - y0) * f;
+        const ww = w * (1 - f * 0.26);
+        const paper = i === stages - 1 ? light : (i % 2 ? mid : dark);
+        B(out, 0, 0, y, y1, ww, ww, paper, { tone: 0.91 + i * 0.05, rot: i * 0.05 });
+        // A proud string course between stages — the papercut tell, and what
+        // stops four boxes reading as one box.
+        B(out, 0, 0, y1 - 0.14, y1 + 0.14, ww * 1.10, ww * 1.10,
+          mixPaper(paper, PAPER.shadow, PLY_SHADOW_MIX), { rot: i * 0.05 });
+        B(out, 0, 0, y1 + 0.10, y1 + 0.30, ww * 1.07, ww * 1.07, light, { tone: 1.0 });
+        y = y1 + 0.24;
+      }
+      // THE CLOCK FACE, on all four sides so it reads from any approach.
+      const clockY = y0 + (H * 0.62 - y0) * 0.80;
+      const faceR = w * 0.40;
+      for (let s = 0; s < 4; s++) {
+        const a = (s / 4) * TAU;
+        const cx = Math.cos(a) * w * 0.60, cz = Math.sin(a) * w * 0.60;
+        P(out, cx, cz, clockY - faceR, clockY + faceR, faceR * 1.06, faceR * 1.06, 9,
+          crown, { tone: 1.04, rot: a, tilt: Math.PI / 2 });
+        P(out, cx * 1.06, cz * 1.06, clockY - faceR * 0.84, clockY + faceR * 0.84,
+          faceR * 0.84, faceR * 0.84, 9, PAPER.white, { tone: 1.06, rot: a, tilt: Math.PI / 2 });
+        // Hands: two thin slabs at an honest ten-past-ten, which is what every
+        // clock in every illustration reads, because it looks like a smile.
+        B(out, cx * 1.12, cz * 1.12, clockY - 0.05, clockY + faceR * 0.62, faceR * 0.13, 0.07,
+          acc[0], { tone: 1.02, rot: a + 0.55 });
+        B(out, cx * 1.12, cz * 1.12, clockY - 0.05, clockY + faceR * 0.44, faceR * 0.13, 0.07,
+          acc[0], { tone: 1.02, rot: a - 0.7 });
+      }
+      // THE BELFRY: four corner posts, open air between them, a bell inside.
+      const belY = y;
+      const belH = (H - y) * 0.46;
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * TAU + Math.PI / 4;
+        B(out, Math.cos(a) * w * 0.52, Math.sin(a) * w * 0.52, belY, belY + belH,
+          w * 0.20, w * 0.20, mid, { tone: 0.95, rot: a });
+      }
+      P(out, 0, 0, belY + belH * 0.30, belY + belH * 0.86, w * 0.30, w * 0.44, 8,
+        acc[1], { tone: 1.06 });                                              // the bell
+      B(out, 0, 0, belY + belH * 0.84, belY + belH * 0.98, w * 0.16, w * 0.16, dark);
+      // Cap: a stepped pyramid of three plies, then the pennant.
+      let cy2 = belY + belH;
+      for (let i = 0; i < 3; i++) {
+        const f = i / 3;
+        const ch2 = (H * 0.98 - cy2) * 0.42;
+        B(out, 0, 0, cy2, cy2 + ch2, w * (1.14 - f * 0.40), w * (1.14 - f * 0.40),
+          i === 2 ? crown : light, { tone: 1.0 + i * 0.03, rot: 0.10 * i, tilt: 0 });
+        B(out, 0, 0, cy2 + ch2 - 0.09, cy2 + ch2 + 0.09,
+          w * (1.18 - f * 0.40), w * (1.18 - f * 0.40),
+          mixPaper(light, PAPER.shadow, PLY_SHADOW_MIX), { rot: 0.10 * i });
+        cy2 += ch2;
+      }
+      B(out, 0, 0, cy2, H * 1.02, w * 0.10, w * 0.10, dark);
+      B(out, w * 0.42, 0, H * 0.90, H * 1.00, w * 0.80, 0.08, acc[0], { tone: 1.06 });
+      break;
+    }
     case 'banner': {
-      // Floor 7 — a market mast: pennants at three heights, which is a skyline
-      // made of cloth and costs nine boxes.
+      // Floor 7's old primary, kept as a MAST: pennants at three heights,
+      // which is a skyline made of cloth and costs nine boxes.
       const top = shaft(out, ctx, y0, H * 0.92, R * 0.60, R * 0.26, 4, 6);
       for (let i = 0; i < 3; i++) {
         const yy = y0 + (top - y0) * (0.34 + i * 0.24);
@@ -2377,9 +3123,136 @@ export function landmarkProfile(spec, theme) {
       P(out, 0, 0, top, top + 1.0, R * 0.34, R * 0.15, 6, crown, { tone: 1.06 });
       break;
     }
+    // ── THE MAST FAMILY ────────────────────────────────────────────────────
+    // Secondary 6-9 m structures. These used to be the PRIMARY's profile at a
+    // smaller scale, which quietly cancelled the primary: four copies of one
+    // tower means none of them is "the" tower, and the eye has no reason to
+    // pick the far one. A mast is therefore a different OBJECT — same paper,
+    // same floor, subordinate silhouette — so the hero structure stays
+    // singular and the middle distance still has something in it.
+    case 'tree': {
+      // Floor 1 — an old flowering tree. Leaning trunk, three canopy lobes at
+      // three heights, blossom.
+      const lean = (r() - 0.5) * 0.16;
+      const trunk = shaft(out, ctx, y0, y0 + (H - y0) * 0.44, R * 0.42, R * 0.30, 2, 7);
+      B(out, 0, 0, y0, trunk, R * 0.20, R * 0.20, dark, { tone: 0.92, tilt: lean });
+      let cy3 = trunk;
+      for (let i = 0; i < 3; i++) {
+        const f = i / 2;
+        const rad = R * (1.15 - f * 0.34);
+        const th2 = (H - trunk) * (0.34 - f * 0.06);
+        const ox2 = Math.cos(i * 2.3 + r()) * R * 0.22;
+        const oz2 = Math.sin(i * 2.3 + r()) * R * 0.22;
+        P(out, ox2, oz2, cy3, cy3 + th2 * 0.56, rad * 0.70, rad, 8,
+          i === 2 ? light : mid, { tone: 0.95 + i * 0.04, rot: r() * 0.8 });
+        P(out, ox2, oz2, cy3 + th2 * 0.52, cy3 + th2 * 0.66, rad * 1.03, rad * 1.00, 8,
+          mixPaper(mid, PAPER.shadow, PLY_SHADOW_MIX));
+        P(out, ox2, oz2, cy3 + th2 * 0.62, cy3 + th2, rad, rad * 0.52, 8,
+          i === 2 ? crown : light, { tone: 1.0 + i * 0.03, rot: r() * 0.8 });
+        cy3 += th2 * 0.72;
+      }
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * TAU + r();
+        P(out, Math.cos(a) * R * 0.66, Math.sin(a) * R * 0.66, cy3 - 0.4, cy3 - 0.12,
+          0.20, 0.16, 5, acc[i % acc.length], { tone: 1.06 });
+      }
+      break;
+    }
+    case 'shipmast': {
+      // Floor 2 — a wreck's mast still standing in the shallows: leaning pole,
+      // one spar, a torn sail and two stays. Ebbport's whole fiction in nine
+      // pieces, and it says "the sea was here" from across the floor.
+      const lean = 0.10 + r() * 0.07;
+      const top = shaft(out, ctx, y0, H * 0.90, R * 0.34, R * 0.16, 3, 6);
+      const spY = y0 + (top - y0) * 0.62;
+      B(out, 0, 0, spY, spY + 0.22, R * 2.4, R * 0.16, mid, { tone: 0.97, rot: r() * TAU, tilt: lean * 0.5 });
+      // The sail: one big torn slab hanging off the spar, with a shadow edge.
+      B(out, R * 0.30, 0, spY - (top - y0) * 0.34, spY + 0.05, R * 1.7, 0.10, light,
+        { tone: 1.02, rot: 0.2, tilt: -0.06 });
+      B(out, R * 0.30, 0, spY - (top - y0) * 0.36, spY - (top - y0) * 0.33, R * 1.74, 0.13,
+        mixPaper(light, PAPER.shadow, PLY_SHADOW_MIX), { rot: 0.2 });
+      for (let i = 0; i < 2; i++) {                                       // stays
+        const a = i ? 0.9 : -1.9;
+        B(out, Math.cos(a) * R * 0.9, Math.sin(a) * R * 0.9, y0, spY, 0.10, 0.07,
+          dark, { tone: 0.94, rot: a, tilt: 0.26 });
+      }
+      P(out, 0, 0, top - 0.1, top + 0.5, R * 0.24, R * 0.09, 5, crown, { tone: 1.05 });
+      B(out, R * 0.5, 0, top - 0.6, top - 0.1, R * 0.9, 0.07, acc[0], { tone: 1.06, rot: 0.4 });
+      break;
+    }
+    case 'shard': {
+      // Floors 3 / 5 / 6 — a single splinter, raked hard. Its job is to be a
+      // DIAGONAL: the sky, frost and prism floors are all verticals and the
+      // horizon needs one line that is not parallel to the others.
+      const rake = 0.16 + r() * 0.16;
+      const a0 = r() * TAU;
+      P(out, 0, 0, y0 - 0.3, y0 + (H - y0) * 0.22, R * 0.90, R * 0.68, 6, dark,
+        { tone: 0.92, rot: r() });
+      P(out, 0, 0, y0 + (H - y0) * 0.20, y0 + (H - y0) * 0.25, R * 0.72, R * 0.70, 6,
+        mixPaper(dark, PAPER.shadow, PLY_SHADOW_MIX));
+      const midY = y0 + (H - y0) * 0.60;
+      P(out, 0, 0, y0 + (H - y0) * 0.22, midY, R * 0.66, R * 0.44, 5, mid,
+        { tone: 0.97, tilt: rake, rot: a0 });
+      P(out, 0, 0, midY - 0.10, midY + 0.10, R * 0.48, R * 0.46, 5,
+        mixPaper(mid, PAPER.shadow, PLY_SHADOW_MIX), { tilt: rake });
+      P(out, 0, 0, midY, H * 1.02, R * 0.44, R * 0.05, 5, crown,
+        { tone: 1.05, tilt: rake, rot: a0 });
+      for (let i = 0; i < 2; i++) {
+        const a = a0 + 1.6 + i * 2.2;
+        const sh = (H - y0) * (0.20 + r() * 0.18);
+        P(out, Math.cos(a) * R * 0.78, Math.sin(a) * R * 0.78, y0, y0 + sh,
+          R * 0.22, R * 0.03, 4, i ? light : acc[i % acc.length],
+          { tone: 1.04, tilt: 0.24 + r() * 0.24, rot: a });
+      }
+      break;
+    }
+    case 'vent': {
+      // Floor 4 — a small sibling of the chimney: a squat flared stack with a
+      // short plume, so the Ember Caves read as a FIELD of vents rather than
+      // one tower on a plain.
+      const top = shaft(out, ctx, y0, H * 0.72, R * 0.86, R * 0.44, 3, 6);
+      P(out, 0, 0, top - 0.1, top + 0.6, R * 0.50, R * 0.76, 6, light, { tone: 1.02 });
+      P(out, 0, 0, top + 0.54, top + 0.70, R * 0.78, R * 0.72, 6,
+        mixPaper(light, PAPER.shadow, PLY_SHADOW_MIX));
+      P(out, 0, 0, top + 0.62, top + 1.0, R * 0.60, R * 0.40, 6, acc[0], { tone: 1.10 });
+      let py2 = top + 1.0, px2 = 0, pz2 = 0;
+      const dir2 = r() * TAU, cd2 = Math.cos(dir2), sd2 = Math.sin(dir2);
+      for (let i = 0; i < 3; i++) {
+        const f = i / 2;
+        const rad = R * (0.44 + f * 0.62);
+        px2 += cd2 * 0.36 * (1 + f); pz2 += sd2 * 0.36 * (1 + f);
+        P(out, px2, pz2, py2, py2 + 0.20, rad * 0.82, rad, 6,
+          mixPaper(PAPER.creamD, PAPER.shadow, PLY_SHADOW_MIX * 0.9), { rot: r() });
+        P(out, px2, pz2, py2 + 0.17, py2 + 0.72, rad, rad * 0.56, 6, PAPER.creamD,
+          { tone: 1.0 + f * 0.05, rot: r() });
+        py2 += 0.68;
+      }
+      break;
+    }
+    case 'pylon': {
+      // Floors 8 / 9 — a stepped stack of plied slabs, each turned on the one
+      // below, with a lamp on top. Reads as built rather than grown, which is
+      // what the Library and the Mending Room are.
+      let y2 = y0;
+      const steps = 5;
+      for (let i = 0; i < steps; i++) {
+        const f = i / (steps - 1);
+        const sh2 = (H * 0.86 - y0) / steps;
+        const w2 = R * 1.5 * (1.0 - f * 0.46);
+        const paper = i === steps - 1 ? crown : (i % 2 ? light : mid);
+        B(out, 0, 0, y2, y2 + sh2 * 0.84, w2, w2 * 0.86, paper,
+          { tone: 0.93 + f * 0.14, rot: i * 0.42 + r() * 0.1 });
+        B(out, 0, 0, y2 + sh2 * 0.80, y2 + sh2 * 0.92, w2 * 1.07, w2 * 0.92,
+          mixPaper(paper, PAPER.shadow, PLY_SHADOW_MIX), { rot: i * 0.42 });
+        y2 += sh2;
+      }
+      B(out, 0, 0, y2, y2 + 0.5, R * 0.20, R * 0.20, dark, { tone: 0.94 });
+      P(out, 0, 0, y2 + 0.42, H * 1.02, R * 0.44, R * 0.20, 6, acc[0], { tone: 1.08 });
+      break;
+    }
     default: {
       // 'spire' — the generic: a faceted needle with a collar and a floating
-      // cap. Used by the sky, frost, prism and mending floors.
+      // cap. Used by the mending floor's manuscript spire.
       const top = shaft(out, ctx, y0, H * 0.78, R, R * 0.34, 5, 7);
       P(out, 0, 0, top - 0.2, top + 0.5, R * 0.62, R * 0.74, 7, light, { tone: 1.02 });
       P(out, 0, 0, top + 0.46, top + 0.60, R * 0.78, R * 0.72, 7,
@@ -2410,15 +3283,25 @@ export function landmarkProfile(spec, theme) {
  */
 export function landmarkSpecs(level, hf, theme, dist) {
   const { width, height, code, objects, startX, startY } = level;
+  // Two host pools. INTERIOR hosts are wall tiles that face somewhere the
+  // player can stand, so a tower on one is a tower in the level. RIM hosts are
+  // the map's outer ring, which on the archipelago floors is the ONLY wall
+  // there is — floor 3 has just nine interior hosts in a 30x34 map, so without
+  // a rim pool its masts had nowhere to go and it got one mast instead of
+  // three. The rim is a fallback, never a preference: a mast on the perimeter
+  // is a horizon event, and horizon events do not furnish a middle distance.
   const hosts = [];
+  const rim = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (code[y][x] !== 'W') continue;
-      if (!facesOpenSpace(level, x, y)) continue;
-      hosts.push({ x, y });
+      const onBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+      if (facesOpenSpace(level, x, y)) hosts.push({ x, y });
+      else if (onBorder) rim.push({ x, y });
     }
   }
-  if (!hosts.length) return [];
+  if (!hosts.length && !rim.length) return [];
+  if (!hosts.length) hosts.push(...rim);
 
   // The anchor: the boss if the floor has one, else the exit, else the tile the
   // distance field says is furthest from the spawn — in every case, the end of
@@ -2460,15 +3343,19 @@ export function landmarkSpecs(level, hf, theme, dist) {
     if (d < primD) { primD = d; prim = hst; }
   }
   if (!prim) prim = hosts[0];
-  const ph = LANDMARK_H[0] + (LANDMARK_H[1] - LANDMARK_H[0]) * hash2(prim.x, prim.y, level.id + 77);
+  const lmBand = theme.landmarkH || LANDMARK_H;
+  const ph = lmBand[0] + (lmBand[1] - lmBand[0]) * hash2(prim.x, prim.y, level.id + 77);
   const out = [rec(ph, 0, theme.landmark || 'spire', prim.x, prim.y)];
 
   // Masts: greedy farthest-point over the remaining hosts, so three of them
   // land in three different parts of the floor rather than in one clump.
+  // Interior hosts are tried first and the rim is only opened up if the floor
+  // could not seat MAST_COUNT of them — see the two pools above.
   const chosen = [];
-  for (let n = 0; n < MAST_COUNT; n++) {
+  const mastKind = theme.mast || theme.landmark || 'spire';
+  const pick = (pool) => {
     let best = null, bestScore = -Infinity;
-    for (const hst of hosts) {
+    for (const hst of pool) {
       if (Math.hypot(hst.x - startX, hst.y - startY) < MAST_MIN_SPAWN) continue;
       if (Math.hypot(hst.x - prim.x, hst.y - prim.y) < MAST_MIN_PRIMARY) continue;
       let near = Infinity;
@@ -2481,10 +3368,14 @@ export function landmarkSpecs(level, hf, theme, dist) {
         + hash2(hst.x, hst.y, level.id + 909) * 3;
       if (score > bestScore) { bestScore = score; best = hst; }
     }
+    return best;
+  };
+  for (let n = 0; n < MAST_COUNT; n++) {
+    const best = pick(hosts) || pick(rim);
     if (!best) break;
     chosen.push(best);
     const mh = MAST_H[0] + (MAST_H[1] - MAST_H[0]) * hash2(best.x, best.y, level.id + 505);
-    out.push(rec(mh, n + 1, theme.landmark || 'spire', best.x, best.y));
+    out.push(rec(mh, n + 1, mastKind, best.x, best.y));
   }
   return out;
 }
@@ -2606,14 +3497,42 @@ export function objectSpecs(level, sampleHeight) {
 }
 
 /**
- * The hero's entry point: the spawn tile's centre, lifted onto the ground.
- * `yaw` faces the level's interior so the opening shot is never a wall.
+ * The hero's entry point: the spawn tile's centre, lifted onto the ground, and
+ * — the part that matters — the direction they are FACING when the level fades
+ * up.
+ *
+ * ── THE BUG THIS FUNCTION SHIPPED WITH ─────────────────────────────────────
+ * The yaw was `Math.atan2(-c.z, -c.x)`. Everywhere else in the overworld a
+ * heading is `Math.atan2(dx, dz)` — controller.js line 89 turns the hero with
+ * `Math.atan2(nx, nz)` — so this had its two arguments the wrong way round,
+ * which does not rotate a bearing, it MIRRORS it about the 45 degree diagonal.
+ * On floor 1 the interior lies at 1.86 rad and the hero was spawned at
+ * -0.29 rad: 121 degrees off, i.e. staring into the boundary hedge three
+ * metres away.
+ *
+ * That one swapped pair of arguments is why the establishing shot was a wall.
+ * Every other piece of opening-frame composition in this file — the entrance
+ * terrace, the landmark at the objective end, the planters you see the
+ * landmark through — was aimed at a frame the camera was never pointed at.
+ *
+ * ── AND WHY IT NOW TAKES AN AIM ────────────────────────────────────────────
+ * "Toward the centre" is only a proxy for what the opening shot actually
+ * wants, which is the thing the player is meant to walk to. Given the primary
+ * landmark's position the spawn looks straight down the level at it, so the
+ * first frame is: a 2.2 m step down into the first court, the floor climbing
+ * away beyond it, and a 15 m tower on the skyline at the far end. You see the
+ * thing, you walk to the thing. Falls back to the (corrected) centre bearing
+ * when no aim is supplied, so callers that only want a position still work.
+ *
+ * @param {{x:number,z:number}} [aim] world point to face — the primary landmark
  */
-export function levelSpawn(level, sampleHeight) {
+export function levelSpawn(level, sampleHeight, aim = null) {
   const { width, height, startX, startY } = level;
   const c = tileCenter(startX, startY, width, height);
-  const toCentre = Math.atan2(-c.z, -c.x);
-  return { x: c.x, y: sampleHeight(c.x, c.z), z: c.z, yaw: toCentre };
+  const tx = aim ? aim.x - c.x : -c.x;
+  const tz = aim ? aim.z - c.z : -c.z;
+  const yaw = (tx === 0 && tz === 0) ? 0 : Math.atan2(tx, tz);
+  return { x: c.x, y: sampleHeight(c.x, c.z), z: c.z, yaw };
 }
 
 /** World-space bounds of the whole floor, for camera clamping and framing. */
