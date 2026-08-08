@@ -17,7 +17,11 @@ import {
   HERO_DAMAGE_FLOOR, KNIGHT_BLOCK_CHANCE, BUNNY_DODGE_CHANCE,
   WIZARD_HEAL_AMOUNT, REWARD_BASE, REWARD_PER_FLOOR, XP_PER_CORRECT,
   SUPER_STREAK, COMMANDS,
+  composeEncounter, applyBattleVictory, applyBattleDefeat,
+  FLOOR_BOSS, PACK_HP_SCALE, BOSS_HP_BONUS,
 } from './battleRules.js';
+import { BOSS_IDS } from '../data/enemies.js';
+import { computeLevel } from '../data/heroes.js';
 
 const hero = (over = {}) => ({
   id: 'h', name: 'Hero', class: 'knight', hp: 40, maxHp: 40, atk: 16, def: 4, ...over,
@@ -423,6 +427,168 @@ test('systems/battleRules', async (t) => {
       assert.ok(commandsForHero({ class: 'bunny' }, 3).includes('magic'));
       assert.deepEqual(commandsForHero({ class: 'wizard' }, 0), ['fight', 'guard'],
         'K-1 never sees MAGIC, whatever the class');
+    });
+  });
+
+  // ================================================================
+  // THE SHARED SEAM THE 3D BATTLE JOINS AT
+  //
+  // composeEncounter / applyBattleVictory / applyBattleDefeat are called by
+  // BOTH BattleScene (2D) and OverworldScene (the 3D fight in
+  // overworld/battle3d.js). If any of these go red the two battles have
+  // drifted and a child's gold, XP or floor progress depends on which one
+  // they happened to land in.
+  // ================================================================
+  await t.test('composeEncounter', async (tt) => {
+    await tt.test('a boss fight is exactly one boss, with the boss HP bonus', () => {
+      for (const floor of [1, 5, 9]) {
+        const pack = composeEncounter({ floor, grade: 3, isBoss: true, rng: () => 0.5 });
+        assert.equal(pack.length, 1, `floor ${floor} boss is alone`);
+        assert.ok(BOSS_IDS.includes(pack[0].id), 'and it really is a boss');
+        assert.equal(pack[0].id, FLOOR_BOSS[floor]);
+        assert.equal(pack[0].hp, pack[0].maxHp, 'at full HP');
+      }
+    });
+
+    await tt.test('a named boss overrides the floor default', () => {
+      const pack = composeEncounter({ floor: 1, isBoss: true, enemyId: 'theorem' });
+      assert.equal(pack[0].id, 'theorem');
+    });
+
+    await tt.test('the boss bonus is the +10% both battles agree on', () => {
+      const plain = composeEncounter({ floor: 1, grade: 3, isBoss: true, enemyId: 'briarking' });
+      // Recompose with the bonus removed to recover the base roll.
+      const base = Math.round(plain[0].maxHp / BOSS_HP_BONUS);
+      assert.ok(Math.abs(plain[0].maxHp - Math.round(base * BOSS_HP_BONUS)) <= 1);
+    });
+
+    await tt.test('a wandering pack never contains a boss', () => {
+      for (let i = 0; i < 40; i++) {
+        const pack = composeEncounter({ floor: 1 + (i % 9), grade: 3 });
+        assert.ok(pack.length >= 1 && pack.length <= 3, 'one to three creatures');
+        for (const e of pack) assert.ok(!BOSS_IDS.includes(e.id), `${e.id} is a boss in a mob slot`);
+      }
+    });
+
+    await tt.test('a bigger pack splits one fight worth of HP between them', () => {
+      const one = composeEncounter({ floor: 1, grade: 3, count: 1, rng: () => 0 });
+      const three = composeEncounter({ floor: 1, grade: 3, count: 3, rng: () => 0 });
+      assert.equal(one.length, 1);
+      assert.equal(three.length, 3);
+      // Same species (rng pinned to 0 picks the same definition every time),
+      // so the ratio is purely the pack scale.
+      assert.ok(three[0].maxHp < one[0].maxHp, 'three of them are individually weaker');
+      const want = Math.max(1, Math.round(one[0].maxHp * PACK_HP_SCALE[3]));
+      assert.ok(Math.abs(three[0].maxHp - want) <= 1);
+      for (const e of three) assert.equal(e.hp, e.maxHp);
+    });
+
+    await tt.test('the pack size follows the documented roll', () => {
+      assert.equal(composeEncounter({ floor: 1, rng: () => 0.1 }).length, 1);
+      assert.equal(composeEncounter({ floor: 1, rng: () => 0.6 }).length, 2);
+      assert.equal(composeEncounter({ floor: 1, rng: () => 0.95 }).length, 3);
+    });
+  });
+
+  await t.test('applyBattleVictory', async (tt) => {
+    const freshSave = () => ({
+      gold: 100,
+      party: [
+        { id: 'knight-shadow', name: 'Shadow', hp: 20, maxHp: 52, xp: 0, level: 1 },
+      ],
+      unlockedHeroes: ['knight-shadow'],
+      floors: Array.from({ length: 9 }, (_, i) => ({
+        id: i + 1, unlocked: i === 0, complete: false, bestStreak: 0,
+      })),
+      stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0 },
+      settings: {},
+    });
+    const live = () => [{ id: 'knight-shadow', name: 'Shadow', hp: 31, maxHp: 52 }];
+
+    await tt.test('gold and XP are the shared reward curve, banked into the save', () => {
+      const save = freshSave();
+      const r = applyBattleVictory(save, { floor: 2, correct: 4, party: live() });
+      const want = battleRewards(2, 4);
+      assert.equal(r.gold, want.gold);
+      assert.equal(r.xp, want.xp);
+      assert.equal(save.gold, 100 + want.gold);
+      assert.equal(save.party[0].xp, want.xp);
+    });
+
+    await tt.test('lifetime stats and the live HP both land in the save', () => {
+      const save = freshSave();
+      applyBattleVictory(save, { floor: 1, correct: 3, wrong: 2, party: live() });
+      assert.equal(save.stats.totalBattles, 1);
+      assert.equal(save.stats.totalCorrect, 3);
+      assert.equal(save.stats.totalWrong, 2);
+      assert.equal(save.party[0].hp, 31, 'the hero carries their wounds out of the fight');
+    });
+
+    await tt.test('a level-up raises the level, the HP ceiling and the current HP', () => {
+      const save = freshSave();
+      // Enough XP that a single win crosses at least one threshold.
+      save.party[0].xp = 0;
+      const r = applyBattleVictory(save, { floor: 9, correct: 20, party: live() });
+      const expectLevel = computeLevel(save.party[0].xp);
+      assert.equal(save.party[0].level, expectLevel);
+      if (expectLevel > 1) {
+        assert.ok(r.leveledUp.length > 0, 'and it is announced');
+        assert.ok(save.party[0].maxHp > 52);
+        assert.ok(save.party[0].hp > 31);
+        assert.ok(save.party[0].hp <= save.party[0].maxHp, 'never over the ceiling');
+      }
+    });
+
+    await tt.test('only a marked win completes the floor and unlocks the next', () => {
+      const plain = freshSave();
+      applyBattleVictory(plain, { floor: 1, party: live(), markFloor: false });
+      assert.equal(plain.floors[0].complete, false, 'a wandering creature is not a floor');
+      assert.equal(plain.floors[1].unlocked, false);
+
+      const boss = freshSave();
+      const r = applyBattleVictory(boss, { floor: 1, party: live(), markFloor: true });
+      assert.equal(r.floorMarked, true);
+      assert.equal(boss.floors[0].complete, true);
+      assert.equal(boss.floors[1].unlocked, true, 'the next floor opens');
+    });
+
+    await tt.test('a perfect battle is recorded; a bloodied one is not', () => {
+      const clean = freshSave();
+      applyBattleVictory(clean, { floor: 1, party: live(), damageTaken: false });
+      assert.equal(clean.stats.perfectBattle, true);
+      const hurt = freshSave();
+      applyBattleVictory(hurt, { floor: 1, party: live(), damageTaken: true });
+      assert.notEqual(hurt.stats.perfectBattle, true);
+    });
+
+    await tt.test('no save (a harness, the screenshot rig) is not a crash', () => {
+      const r = applyBattleVictory(null, { floor: 3, correct: 2, party: live() });
+      assert.equal(r.gold, battleRewards(3, 2).gold);
+      assert.deepEqual(r.leveledUp, []);
+      assert.equal(r.floorMarked, false);
+    });
+  });
+
+  await t.test('applyBattleDefeat', async (tt) => {
+    await tt.test('the party comes back at half HP — a loss is never a wall', () => {
+      const save = {
+        party: [{ id: 'knight-shadow', name: 'Shadow', hp: 0, maxHp: 52 }],
+        stats: { totalBattles: 2, totalCorrect: 5, totalWrong: 1 },
+      };
+      applyBattleDefeat(save, {
+        correct: 1, wrong: 3,
+        party: [{ id: 'knight-shadow', name: 'Shadow', hp: 0, maxHp: 52 }],
+      });
+      assert.equal(save.party[0].hp, 26);
+      assert.equal(save.stats.totalBattles, 3);
+      assert.equal(save.stats.totalCorrect, 6);
+      assert.equal(save.stats.totalWrong, 4);
+    });
+
+    await tt.test('nobody ever revives on zero', () => {
+      const save = { party: [], stats: {} };
+      applyBattleDefeat(save, { party: [{ id: 'x', name: 'X', hp: 0, maxHp: 1 }] });
+      assert.ok(save.party[0].hp >= 1);
     });
   });
 

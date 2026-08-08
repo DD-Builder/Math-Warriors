@@ -42,7 +42,14 @@ import { hintDamageMult, retryDamageMult, applyHintMomentum } from './coach.js';
 import { generateRatedQuestion, recordAnswer } from './math.js';
 import { recordSkillAnswer, updateAdaptiveLevel } from './mastery.js';
 import { scheduleReview } from './review.js';
-import { FLOOR_OPERATORS } from '../data/enemies.js';
+import {
+  FLOOR_OPERATORS, BOSS_IDS, getEnemiesForFloor, getEnemyById, spawnEnemy,
+} from '../data/enemies.js';
+// The victory/defeat seam below writes the save file. These four modules are
+// leaves (none of them imports battleRules), so there is no cycle.
+import { markFloorComplete, unlockHeroesForFloor } from './save.js';
+import { computeLevel, levelBonuses, getAvailableSupers } from '../data/heroes.js';
+import { updateQuestProgress } from './dailyQuests.js';
 
 // ------------------------------------------------------------------
 // TUNING — every one of these was a bare literal inside BattleScene
@@ -150,6 +157,202 @@ export function weakestLivingHero(party) {
 export function battleRewards(floor, correctCount = 0) {
   const base = REWARD_BASE + Math.max(0, floor) * REWARD_PER_FLOOR;
   return { gold: base, xp: base + Math.max(0, correctCount) * XP_PER_CORRECT };
+}
+
+/** Which boss guards which floor. */
+export const FLOOR_BOSS = {
+  1: 'briarking', 2: 'pressure', 3: 'skywhale', 4: 'pyroclast',
+  5: 'absolutezero', 6: 'theprism', 7: 'counterfeiter',
+  8: 'theparadox', 9: 'theorem',
+};
+
+/** A pack of two or three splits one fight's worth of HP between them. */
+export const PACK_HP_SCALE = { 1: 1.0, 2: 0.75, 3: 0.5 };
+
+/** Bosses carry 10% more HP — a longer, more climactic final stand. */
+export const BOSS_HP_BONUS = 1.10;
+
+/**
+ * WHO YOU JUST WALKED INTO.
+ *
+ * Was inlined in BattleScene.init. The 3D battle stages whatever this returns,
+ * so a pack of three sproutlings has the same split HP in the world as it does
+ * in the maze, and a boss is +10% in both.
+ *
+ * @param {object} o
+ * @param {number} o.floor
+ * @param {number} o.grade
+ * @param {boolean} [o.isBoss]
+ * @param {string} [o.enemyId]   explicit id (a boss gate names its boss)
+ * @param {number} [o.count]     force a pack size (dev/tests)
+ * @param {() => number} [o.rng]
+ * @returns {object[]} combat-ready enemy records
+ */
+export function composeEncounter({
+  floor = 1, grade = 3, isBoss = false, enemyId = null, count = 0, rng = Math.random,
+} = {}) {
+  const pool = getEnemiesForFloor(floor).filter((e) => !BOSS_IDS.includes(e.id));
+  const safePick = () => (pool.length > 0
+    ? pool[Math.floor(rng() * pool.length)]
+    : getEnemiesForFloor(1)[0]);
+
+  if (isBoss) {
+    const bossId = enemyId || FLOOR_BOSS[floor] || 'briarking';
+    const def = getEnemyById(bossId) || safePick();
+    const boss = spawnEnemy(def.id, { grade, isBoss: true });
+    if (!boss) return [];
+    boss.maxHp = Math.max(1, Math.round(boss.maxHp * BOSS_HP_BONUS));
+    boss.hp = boss.maxHp;
+    return [boss];
+  }
+
+  if (enemyId) {
+    const one = spawnEnemy(enemyId, { grade, isBoss: false });
+    if (one) return [one];
+  }
+
+  const roll = rng();
+  const n = count || (roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3);
+  const hpScale = PACK_HP_SCALE[n] ?? 1;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const e = spawnEnemy(safePick().id, { grade, isBoss: false });
+    if (!e) continue;
+    if (n > 1) {
+      e.maxHp = Math.max(1, Math.round(e.maxHp * hpScale));
+      e.hp = e.maxHp;
+    }
+    out.push(e);
+  }
+  return out;
+}
+
+/**
+ * EVERYTHING A WIN OWES THE SAVE FILE.
+ *
+ * This was ~90 lines inlined in BattleScene.showVictory, sandwiched between
+ * confetti and tweens. The 3D battle needs the identical bookkeeping and must
+ * not re-derive it: a second copy of the XP curve is a second copy that drifts,
+ * and "my hero levelled up in the maze but not in the world" is the kind of bug
+ * a seven-year-old notices and an adult never reproduces.
+ *
+ * It writes gold, lifetime stats, party XP/levels/HP and (when the caller says
+ * this win advances progression) the floor record + its hero unlocks. It does
+ * NOT write the save to disk and it does NOT touch the registry — the callers
+ * differ there (Boss Rush, the Spire and the daily challenge all have their own
+ * post-processing, and only they know about it).
+ *
+ * @param {object} save                the save record, mutated in place
+ * @param {object} o
+ * @param {number} o.floor             floor this fight belongs to
+ * @param {number} o.correct           first-attempt correct answers
+ * @param {number} o.wrong             wrong answers
+ * @param {number} o.streak            best streak reached this fight
+ * @param {object[]} o.party           live hero records (hp carried forward)
+ * @param {boolean} o.damageTaken      false = a perfect battle
+ * @param {boolean} o.potionUsed
+ * @param {boolean} o.markFloor        this win completes the floor
+ * @returns {{rewards:object, gold:number, xp:number, leveledUp:string[],
+ *            newHeroes:string[], floorMarked:boolean}}
+ */
+export function applyBattleVictory(save, {
+  floor = 1,
+  correct = 0,
+  wrong = 0,
+  streak = 0,
+  party = [],
+  damageTaken = false,
+  potionUsed = false,
+  markFloor = false,
+} = {}) {
+  const rewards = battleRewards(floor, correct);
+  const leveledUp = [];
+  let newHeroes = [];
+
+  if (!save) return { rewards, gold: rewards.gold, xp: rewards.xp, leveledUp, newHeroes, floorMarked: false };
+
+  save.gold = (save.gold || 0) + rewards.gold;
+  if (!save.stats) save.stats = {};
+  save.stats.totalBattles = (save.stats.totalBattles || 0) + 1;
+  save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + correct;
+  save.stats.totalWrong = (save.stats.totalWrong ?? 0) + wrong;
+
+  if (!save.party) save.party = [];
+  for (let i = 0; i < party.length && i < 3; i++) {
+    if (!party[i]) continue;
+    if (!save.party[i]) save.party[i] = {};
+    save.party[i].id = party[i].id;
+    save.party[i].name = party[i].name;
+    save.party[i].hp = party[i].hp;
+    save.party[i].maxHp = party[i].maxHp;
+    const oldLevel = save.party[i].level || 1;
+    save.party[i].xp = (save.party[i].xp || 0) + rewards.xp;
+    const newLevel = computeLevel(save.party[i].xp);
+    if (newLevel > oldLevel) {
+      save.party[i].level = newLevel;
+      const bonus = levelBonuses(newLevel);
+      const oldBonus = levelBonuses(oldLevel);
+      const hpGain = bonus.maxHp - oldBonus.maxHp;
+      save.party[i].maxHp += hpGain;
+      save.party[i].hp = Math.min(save.party[i].hp + hpGain, save.party[i].maxHp);
+      leveledUp.push(save.party[i].name);
+      const oldSupers = getAvailableSupers(save.party[i].id, oldLevel);
+      const newSupers = getAvailableSupers(save.party[i].id, newLevel);
+      if (newSupers.length > oldSupers.length) {
+        const learned = newSupers[newSupers.length - 1];
+        leveledUp.push(`${save.party[i].name} learned ${learned.name}!`);
+      }
+    } else {
+      save.party[i].level = newLevel;
+    }
+  }
+
+  save.stats.totalGold = (save.stats.totalGold || 0) + rewards.gold;
+  if (streak > (save.stats.bestStreak || 0)) save.stats.bestStreak = streak;
+  if (!damageTaken) save.stats.perfectBattle = true;
+
+  let floorMarked = false;
+  if (markFloor) {
+    markFloorComplete(save, floor);
+    newHeroes = unlockHeroesForFloor(save, floor) || [];
+    floorMarked = true;
+  }
+
+  updateQuestProgress(save, 'wins');
+  updateQuestProgress(save, 'streak', streak);
+  updateQuestProgress(save, 'gold', rewards.gold);
+  if (!damageTaken) updateQuestProgress(save, 'perfect');
+  if (!potionUsed) updateQuestProgress(save, 'nopotion');
+
+  return { rewards, gold: rewards.gold, xp: rewards.xp, leveledUp, newHeroes, floorMarked };
+}
+
+/**
+ * A loss. Gentle by design (DESIGN-PRINCIPLES.md principle 8): the party comes
+ * back at half HP rather than dying, so a fight is never a wall — but potions
+ * keep a real job, which is topping them up again.
+ *
+ * Same seam, same reason as applyBattleVictory: the 3D battle must lose
+ * identically to the 2D one.
+ */
+export function applyBattleDefeat(save, { correct = 0, wrong = 0, party = [] } = {}) {
+  if (!save) return { revivedHp: [] };
+  if (!save.stats) save.stats = {};
+  save.stats.totalBattles = (save.stats.totalBattles || 0) + 1;
+  save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + correct;
+  save.stats.totalWrong = (save.stats.totalWrong ?? 0) + wrong;
+  if (!save.party) save.party = [];
+  const revivedHp = [];
+  for (let i = 0; i < party.length && i < 3; i++) {
+    if (!party[i]) continue;
+    if (!save.party[i]) save.party[i] = {};
+    save.party[i].id = party[i].id;
+    save.party[i].name = party[i].name;
+    save.party[i].hp = Math.max(1, Math.round(party[i].maxHp * 0.5));
+    save.party[i].maxHp = party[i].maxHp;
+    revivedHp.push(save.party[i].hp);
+  }
+  return { revivedHp };
 }
 
 // ------------------------------------------------------------------

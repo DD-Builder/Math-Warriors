@@ -256,7 +256,14 @@ function patchPlantWind(material, o) {
   } = o;
   const k = TAU / gustLen;
   const calm = 1 - gust;
-  material.onBeforeCompile = (shader) => {
+  // CHAIN. Every tree, plant and grass blade is born in toonMaterial(), which
+  // installs the aerial-fog uniforms and the teal shadow floor; assigning over
+  // the hook would drop both, and the canopies are the single biggest thing in
+  // the frame that both casts and receives a shadow.
+  const prevCompile = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevCompile) prevCompile.call(material, shader, renderer);
     shader.uniforms.uWindTime = WIND;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uWindTime;')
@@ -280,7 +287,8 @@ function patchPlantWind(material, o) {
   transformed.z += mwA * ${g(amp * lean)} * mwW;`);
   };
   material.customProgramCacheKey = () =>
-    `mw-wind2|${base}|${span}|${amp}|${lean}|${speed}|${flutter}|${flutterSpeed}|${gust}|${gustLen}|${gustSpeed}`;
+    `${prevKey ? prevKey.call(material) : ''}`
+    + `|mw-wind2|${base}|${span}|${amp}|${lean}|${speed}|${flutter}|${flutterSpeed}|${gust}|${gustLen}|${gustSpeed}`;
 }
 
 /**
@@ -299,7 +307,11 @@ function patchPlantWind(material, o) {
  * exactly reproducible on both.
  */
 function patchPetalFall(material, { top = 6, spread = 1.4, fall = 0.055, swirl = 1.3 }) {
-  material.onBeforeCompile = (shader) => {
+  // Chains, for the same reason patchPlantWind does.
+  const prevCompile = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevCompile) prevCompile.call(material, shader, renderer);
     shader.uniforms.uWindTime = WIND;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uWindTime;')
@@ -317,7 +329,8 @@ function patchPetalFall(material, { top = 6, spread = 1.4, fall = 0.055, swirl =
   transformed.xz += vec2( sin( mwSw ), cos( mwSw * 0.83 ) ) * ${g(spread)} * ( 1.0 - mwK );
   transformed.y += ${g(top)} * ( 1.0 - mwK );`);
   };
-  material.customProgramCacheKey = () => `mw-petalfall|${top}|${spread}|${fall}|${swirl}`;
+  material.customProgramCacheKey = () =>
+    `${prevKey ? prevKey.call(material) : ''}|mw-petalfall|${top}|${spread}|${fall}|${swirl}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

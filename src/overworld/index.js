@@ -37,7 +37,9 @@
 import * as THREE from 'three';
 import { createRenderer } from './renderer.js';
 import { paperColor, PAPER } from './materials/toon.js';
-import { applyAerialFogToTree, setAerialFrame, setAerialTime } from './materials/aerialFog.js';
+import {
+  applyAerialFogToTree, setAerialFrame, setAerialTime, setFogDomain,
+} from './materials/aerialFog.js';
 import { preloadPaperTextures, textureStats, disposePaperTextures } from './materials/textures.js';
 import { WORLD, SPAWN } from './worldSpec.js';
 import { createHeightfield } from './heightfield.js';
@@ -48,6 +50,7 @@ import { createSky } from './sky.js';
 import { createWater } from './water.js';
 import { createProps } from './props.js';
 import { createHeroRig } from './heroRig.js';
+import { createBattle3D } from './battle3d.js';
 import { buildLevel3D } from './level3d.js';
 import { TILE_M } from './level3dBuild.js';
 import { createAtmosphere } from './atmosphere.js';
@@ -174,8 +177,52 @@ const ELEV_MAX = 1.15;
 const TURN_RATE = 15;
 
 const SHADOW_ORTHO = 58;
+/**
+ * The same box, sized for a ROOM instead of for an island.
+ *
+ * A floor is 60–90 m across and the player sees maybe thirty of them from a
+ * boom six metres back; the island's 58 m half-extent spends the whole 2048
+ * map on ground the level does not even have. At 58 m a shadow texel is 5.7 cm
+ * and normalBias (which follows the texel — see fitShadow) has to run at
+ * 11 cm, which is what peter-panned the hero's shadow off his feet into the
+ * "detached ellipse floating to the right" the reviews measured on floors 4
+ * and 8. At 24 m the texel is 2.3 cm, the bias comes down to 4.7 cm, the
+ * shadow reattaches, and the PCF kernel — which is a fixed number of TEXELS —
+ * finally lands somewhere between "aliased staircase" and "soft".
+ */
+const FLOOR_SHADOW_ORTHO = 24;
 /** Elevation floor for the SHADOW camera only (~20°). See fitShadow(). */
 const SHADOW_MIN_Y = 0.34;
+
+/**
+ * What changes about the LIGHT when the player walks through a portal.
+ *
+ * Not a mood dial — two of these are outright bugs being fixed.
+ *
+ * `hemi.groundColor` and the bounce directional are the world's stand-in for
+ * global illumination: light that hit the ground, took its colour, and came
+ * back up. On the island that ground is meadow, so both are keyed to
+ * PAPER.sage. Inside a floor the rig never changed, which means the EMBER
+ * CAVES — a room whose floor is coral and orange — were being underlit in
+ * GREEN. That is not a subtle mistake; it is why every review of floor 4 read
+ * as "two games in one frame", teal-grey walls sitting on a hot orange plain
+ * with nothing tying them together. Bounce light is exactly the thing that
+ * ties a room together, and ours was importing the wrong room's floor.
+ *
+ * `bounceMul` is up because a room bounces and a meadow does not: on the
+ * island the key light that misses the ground is gone into the sky, while in
+ * an enclosure it hits the wall opposite and comes back. Raising the bounce —
+ * rather than the hemisphere — is deliberate. A hemisphere lifts every
+ * surface uniformly and erases form (see the ramp note in materials/toon.js);
+ * a directional bounce lifts undersides and shaded flanks WITH A DIRECTION,
+ * which is what puts a lit step under a hedge crown instead of a grey wash.
+ *
+ * `hemiMul` moves barely at all, and on purpose.
+ */
+const INTERIOR_LIGHT = {
+  hemiMul: 1.12,
+  bounceMul: 2.05,
+};
 const SUN_DIST = 150;
 // Ground-bounce fill: parked below the player and leaned toward the sun.
 const BOUNCE_DIST = 90;
@@ -421,14 +468,35 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   // speeding up coins, portal pulses and petals along with it.
   let windTime = 0;
 
+  /**
+   * The room the light is currently in, or null on the island.
+   *
+   * Read by applyLight and fitShadow, written by enterFloor/exitFloor. Held as
+   * one nullable record rather than as a scatter of flags so there is exactly
+   * one thing to clear on the way out and no way to leave half a floor's
+   * lighting behind on the island.
+   *
+   * @type {null | {ground:number}}
+   */
+  let interior = null;
+
   function applyLight(frame) {
     sun.color.setHex(frame.sunColor);
     sun.intensity = frame.sunIntensity;
     hemi.color.setHex(frame.hemiSky);
-    hemi.groundColor.setHex(frame.hemiGround);
     hemi.intensity = frame.hemiIntensity;
     bounce.color.setHex(frame.bounceColor);
     bounce.intensity = frame.bounceIntensity;
+    // Inside a floor the bounce comes off THAT floor's paper, not the island's
+    // meadow. See INTERIOR_LIGHT for why this is a bug fix and not a mood.
+    if (interior) {
+      hemi.groundColor.setHex(interior.ground);
+      hemi.intensity *= INTERIOR_LIGHT.hemiMul;
+      bounce.color.setHex(interior.ground);
+      bounce.intensity *= INTERIOR_LIGHT.bounceMul;
+    } else {
+      hemi.groundColor.setHex(frame.hemiGround);
+    }
     _fog.color.setHex(frame.fogColor);
     _bg.setHex(frame.fogColor);
     setAerialFrame(frame);
@@ -465,7 +533,8 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     _shadowProxy.target.matrixWorld.setPosition(player.pos.x, player.pos.y, player.pos.z);
 
     // Quantised so a slow sunrise cannot rebuild the projection every frame.
-    const wantRaw = SHADOW_ORTHO * Math.min(1, Math.max(0.52, up / 0.62));
+    const extent = interior ? FLOOR_SHADOW_ORTHO : SHADOW_ORTHO;
+    const wantRaw = extent * Math.min(1, Math.max(0.52, up / 0.62));
     const want = Math.round(wantRaw * 4) / 4;
     if (want !== shadowOrtho) {
       shadowOrtho = want;
@@ -783,6 +852,82 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   /** While true the stick is ignored and no trigger fires (a modal is up). */
   let inputLocked = false;
 
+  // ── THE FIGHT, IN THE WORLD ────────────────────────────────────────────
+  //
+  // There is no battle SCENE any more. overworld/battle3d.js stages the fight
+  // where the player is standing, borrows the camera for the duration and
+  // hands it straight back. Everything this assembly owes it is below:
+  //
+  //   · it is built LAZILY, on the first encounter, so a session that never
+  //     fights never pays for the hero rigs or the shard pools;
+  //   · while it is active it OWNS the camera — draw() skips updateCamera(),
+  //     because two writers on one transform is a fight the player watches;
+  //   · while it is active no proximity trigger fires, so a fight cannot start
+  //     inside a fight (setEncountersEnabled is the hook battle3d calls).
+  //
+  // The 2D maths overlay is installed by the Phaser scene through
+  // setBattleUi(); this module never draws a glyph of it.
+  /** @type {null | ReturnType<typeof createBattle3D>} */
+  let battle = null;
+  /** The overlay object OverworldScene installed, or null. */
+  let battleUi = null;
+  /** Cleared by battle3d for the duration of a fight. */
+  let encountersEnabled = true;
+
+  /** Method names battle3d may call on the overlay. */
+  const UI_KEYS = [
+    'onBattleBegin', 'showCommands', 'hideCommands', 'showQuestion', 'hideQuestion',
+    'markAnswer', 'showHint', 'onBossPhase', 'setHud', 'toast', 'flyReward', 'onBattleEnd',
+  ];
+
+  /**
+   * A forwarding view of the installed overlay that copies only the methods it
+   * actually has. battle3d treats a MISSING ui.showCommands as "this host has
+   * no command menu, pick FIGHT and carry on" — a blanket proxy would answer
+   * "yes I have one" for every key and hang the fight waiting for a tap that
+   * nothing can produce.
+   */
+  function uiView() {
+    const out = {};
+    if (!battleUi) return out;
+    for (const k of UI_KEYS) {
+      if (typeof battleUi[k] === 'function') out[k] = (...a) => battleUi[k](...a);
+    }
+    return out;
+  }
+
+  function ensureBattle() {
+    if (battle) return battle;
+    battle = createBattle3D({
+      scene,
+      camera,
+      getPlayer: () => player,
+      groundAt: (x, z) => groundAt(x, z),
+      setInputLocked: (v) => { world.setInputLocked(v); },
+      setEncountersEnabled: (v) => { encountersEnabled = !!v; },
+      playerRig: heroRig,
+      viewport: () => {
+        renderer.getSize(_size);
+        return { width: _size.x || 1440, height: _size.y || 1080 };
+      },
+      ui: uiView(),
+      audio: hooks.battleAudio || null,
+      save,
+      reducedMotion: !!save?.settings?.reducedMotion,
+      castShadow: true,
+      hooks: {
+        onBegin: (e) => hooks.onBattleBegin?.(e),
+        onVictory: (r) => hooks.onBattleVictory?.(r),
+        onDefeat: (r) => hooks.onBattleDefeat?.(r),
+        onEnd: (r) => hooks.onBattleEnd?.(r),
+      },
+    });
+    // A fresh material born after the boot-time sweep has to opt into the one
+    // atmosphere itself, exactly as battle3d's stage disc already does.
+    applyAerialFogToTree(battle.group);
+    return battle;
+  }
+
   function enterFloor(floorId) {
     if (floor) return null;
     const lvl = buildLevel3D(floorId, { castShadow: true });
@@ -815,6 +960,17 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     floor = { id: floorId, lvl, collision: fCollision, controller: fController };
     insideIds.clear();
 
+    // Relight for the room, then re-air it. `ground[0]` is the theme's primary
+    // ground paper — the surface the bounce light is bouncing OFF — and the
+    // fog domain is keyed to the theme so a corridor and a meadow get the
+    // atmosphere each one needs. syncLight(true) forces the recomposition
+    // through immediately: the day clock would not otherwise move for seconds,
+    // and the first frame inside a floor is the one the player judges it by.
+    interior = { ground: lvl.theme.ground[0] };
+    setFogDomain(lvl.theme.key);
+    syncLight(true);
+    shadowOrtho = 0;   // force fitShadow to rebuild the projection at room size
+
     player = fController.spawnState({ x: lvl.spawn.x, z: lvl.spawn.z, yaw: lvl.spawn.yaw });
     heroRig.reset();
     snapCamera();
@@ -839,6 +995,14 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     water.group.visible = true;
     props.group.visible = true;
     atmosphere.group.visible = true;
+
+    // Hand the light and the air back to the island. Both of these MUST be
+    // cleared here and not merely overwritten later: the island's own frame
+    // never mentions a room, so anything left set would simply persist.
+    interior = null;
+    setFogDomain(null);
+    syncLight(true);
+    shadowOrtho = 0;
 
     collisionWorld = islandCollision;
     controller = islandController;
@@ -948,6 +1112,9 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // step, so the fade-in takes the same wall time on any frame rate.
     const moving = player.vel.x !== 0 || player.vel.z !== 0 || !player.grounded;
     stillT = moving ? 0 : stillT + dt;
+    // A fight owns the world while it runs: no trigger may fire inside one,
+    // and no pickup may be hoovered up by a hero standing on the battle line.
+    if (!encountersEnabled) return;
     if (floor) {
       checkFloorTriggers();
     } else {
@@ -1014,7 +1181,14 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     player.groundY = groundAt(player.pos.x, player.pos.z);
     heroRig.update(heroDt, player);
 
-    updateCamera(animT);
+    // THE CAMERA HAS EXACTLY ONE WRITER PER FRAME. During a fight that writer
+    // is battle3d — its sweep, its push-ins and its shake all move the eye, and
+    // letting the follow boom lerp against them turns a staged shot into a
+    // wrestling match. battle3d hands the eye back on the way out through its
+    // own 'exit' pose, which is the follow boom's resting place, so the world
+    // resumes without a jump.
+    if (battle && battle.isActive()) battle.update(heroDt);
+    else updateCamera(animT);
     if (fovDirty) { fovDirty = false; projDirty = true; }
     if (projDirty) camera.updateProjectionMatrix();
 
@@ -1149,6 +1323,17 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
      */
     getFacing() { return world.getFacing(); },
     getCameraYaw() { return world.getCameraYaw(); },
+
+    /**
+     * The fight, for the harness. READ-ONLY — there is no api.startBattle,
+     * because an encounter must always come through the game's own trigger
+     * (a monster tile, a boss gate) or a screenshot would prove nothing about
+     * whether the player can actually reach a fight.
+     */
+    battleActive() { return world.battleActive(); },
+    battlePhase() { return world.battlePhase(); },
+    battleBossPhase() { return world.battleBossPhase(); },
+    battleState() { return world.battleState(); },
 
     /**
      * Where the island's gates stand. The harness uses this to WALK THE
@@ -1328,6 +1513,42 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       retract(floor.lvl.revealSecret().removed);
       return true;
     },
+    // ── The fight ────────────────────────────────────────────────────────
+
+    /**
+     * Install the 2D maths overlay (overworld/battleOverlay3d.js). Must be
+     * called before the first encounter; passing a different object rebuilds
+     * the battle runtime so a restarted Phaser scene never talks to a dead
+     * overlay.
+     */
+    setBattleUi(ui) {
+      if (battleUi === ui) return;
+      battleUi = ui || null;
+      if (battle) { battle.dispose(); battle = null; }
+    },
+
+    /**
+     * Stage a fight where the player is standing. The world stays exactly
+     * where it is — this is a camera move and two formations, not a scene.
+     *
+     * @param {object} encounter see battle3d.begin()
+     * @returns {boolean} false if a fight is already running
+     */
+    startBattle(encounter = {}) {
+      return ensureBattle().begin(encounter);
+    },
+
+    /** True while a fight owns the camera. */
+    battleActive() { return !!battle && battle.isActive(); },
+    /** battle3d's PHASE, or null when nothing is fighting. */
+    battlePhase() { return battle ? battle.getPhase() : null; },
+    /** Boss act 1..3 while a boss fight runs. */
+    battleBossPhase() { return battle ? battle.getBossPhase() : 1; },
+    /** Read-only HUD snapshot of the live fight, or null. */
+    battleState() { return battle ? battle.getState() : null; },
+    /** End a fight early (a retreat, a scene change, a context loss). */
+    endBattle(reason = 'fled') { return battle ? battle.end(reason) : null; },
+
     /** Freeze the stick and the triggers while a modal owns the screen. */
     setInputLocked(v) {
       inputLocked = !!v;
@@ -1340,6 +1561,11 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     setVisible(v) { rig.setVisible(v); },
     dispose() {
       rig.dispose();
+      if (battle) {
+        battle.dispose();
+        battle = null;
+        battleUi = null;
+      }
       if (floor) {
         scene.remove(floor.lvl.group);
         floor.lvl.dispose();

@@ -20,13 +20,16 @@ import {
   pickEnemyTarget,
 } from '../systems/combat.js';
 import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
-import { classAttackProfile, battleRewards, recordAnswerStats } from '../systems/battleRules.js';
+import {
+  classAttackProfile, recordAnswerStats,
+  applyBattleVictory, applyBattleDefeat, composeEncounter,
+} from '../systems/battleRules.js';
 import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
 import { speakQuestion } from '../systems/a11y.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
-import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
+import { FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
-import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor, consumePendingRescues, getActiveSlot } from '../systems/save.js';
+import { loadSave, writeSave, consumePendingRescues, getActiveSlot } from '../systems/save.js';
 import { getRescueDialogue } from '../data/dialogue.js';
 import { markDailyChallengeComplete, getDailyChallenge } from '../systems/dailyChallenge.js';
 import { invokeAbility } from '../systems/abilities.js';
@@ -58,7 +61,7 @@ import { createGeometryDiagram } from '../ui/geometryDiagram.js';
 import { playMonsterAttack } from '../systems/monsterAttackAnimations.js';
 import { heroFormation, monsterFormation, drawGroundPlane, drawGroundShadow, BATTLE_PERSPECTIVE } from '../systems/perspective.js';
 import { makeRng } from '../systems/rng.js';
-import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
+import { getPersonality } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
@@ -137,39 +140,20 @@ export class BattleScene extends Phaser.Scene {
     this.isBoss = !!data?.isBoss;
 
     // --- Multi-monster encounter setup ---
-    const FLOOR_BOSS = {
-      1: 'briarking', 2: 'pressure', 3: 'skywhale', 4: 'pyroclast',
-      5: 'absolutezero', 6: 'theprism', 7: 'counterfeiter',
-      8: 'theparadox', 9: 'theorem',
-    };
-    const bossIds = Object.values(FLOOR_BOSS);
-    const floorPool = getEnemiesForFloor(this.floor).filter(e => !bossIds.includes(e.id));
-    const safePick = () => floorPool.length > 0 ? floorPool[Math.floor(Math.random() * floorPool.length)] : getEnemiesForFloor(1)[0];
-
+    // battleRules.composeEncounter is the shared seam: the 3D battle stages
+    // exactly the same pack, with the same split HP and the same boss bonus.
     if (data?.enemy) {
       this.enemies = [{ ...data.enemy }];
-    } else if (this.isBoss) {
-      const bossId = data?.enemyId || FLOOR_BOSS[this.floor] || 'briarking';
-      const bossDef = getEnemyById(bossId) || safePick();
-      const boss = spawnEnemy(bossDef.id, { grade: this.grade, isBoss: true });
-      // Bosses carry 10% more HP — a longer, more climactic final stand.
-      boss.maxHp = Math.max(1, Math.round(boss.maxHp * 1.10));
-      boss.hp = boss.maxHp;
-      this.enemies = [boss];
+    } else if (Array.isArray(data?.enemies) && data.enemies.length) {
+      this.enemies = data.enemies.map((e) => ({ ...e }));
     } else {
-      const roll = Math.random();
-      const count = data?.devCount || (roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3);
-      const hpScale = count === 1 ? 1.0 : count === 2 ? 0.75 : 0.5;
-      this.enemies = [];
-      for (let i = 0; i < count; i++) {
-        const def = safePick();
-        const e = spawnEnemy(def.id, { grade: this.grade, isBoss: false });
-        if (count > 1) {
-          e.maxHp = Math.max(1, Math.round(e.maxHp * hpScale));
-          e.hp = e.maxHp;
-        }
-        this.enemies.push(e);
-      }
+      this.enemies = composeEncounter({
+        floor: this.floor,
+        grade: this.grade,
+        isBoss: this.isBoss,
+        enemyId: this.isBoss ? data?.enemyId : null,
+        count: data?.devCount || 0,
+      });
     }
 
     // Backward compatibility: this.enemy always points to first enemy
@@ -4088,68 +4072,36 @@ export class BattleScene extends Phaser.Scene {
     audio.stopMusic();
     audio.playStinger('victory');
 
-    // Compute rewards (shared curve — see systems/battleRules.js)
-    const rewards = battleRewards(this.floor, this.battleCorrect);
-    const goldEarned = rewards.gold;
-    const save = this.save;
-    save.gold += goldEarned;
-    save.stats.totalBattles++;
-    save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
-    save.stats.totalWrong = (save.stats.totalWrong ?? 0) + this.battleWrong;
-
-    // Award XP and check for level ups
-    const xpEarned = rewards.xp;
-    let leveledUp = [];
-    for (let i = 0; i < this.party.length && i < 3; i++) {
-      if (!save.party[i]) save.party[i] = {};
-      save.party[i].id = this.party[i].id;
-      save.party[i].name = this.party[i].name;
-      save.party[i].hp = this.party[i].hp;
-      save.party[i].maxHp = this.party[i].maxHp;
-      // XP + level
-      const oldLevel = save.party[i].level || 1;
-      save.party[i].xp = (save.party[i].xp || 0) + xpEarned;
-      const newLevel = computeLevel(save.party[i].xp);
-      if (newLevel > oldLevel) {
-        save.party[i].level = newLevel;
-        const bonus = levelBonuses(newLevel);
-        const oldBonus = levelBonuses(oldLevel);
-        const hpGain = bonus.maxHp - oldBonus.maxHp;
-        save.party[i].maxHp += hpGain;
-        save.party[i].hp = Math.min(save.party[i].hp + hpGain, save.party[i].maxHp);
-        leveledUp.push(save.party[i].name);
-        const oldSupers = getAvailableSupers(save.party[i].id, oldLevel);
-        const newSupers = getAvailableSupers(save.party[i].id, newLevel);
-        if (newSupers.length > oldSupers.length) {
-          const learned = newSupers[newSupers.length - 1];
-          leveledUp.push(`${save.party[i].name} learned ${learned.name}!`);
-        }
-      } else {
-        save.party[i].level = newLevel;
-      }
-    }
-
-    // Update achievement-relevant stats
-    save.stats.totalGold = (save.stats.totalGold || 0) + goldEarned;
-    if (this.streak > (save.stats.bestStreak || 0)) {
-      save.stats.bestStreak = this.streak;
-    }
-    if (!this.battleDamageTaken) {
-      save.stats.perfectBattle = true;
-    }
-
+    // Gold, lifetime stats, XP, level-ups, floor completion and the daily
+    // quest ticks are all one shared function now (battleRules.applyBattleVictory)
+    // — the 3D battle in overworld/battle3d.js wins through the same call, so
+    // the two fights cannot pay out differently.
+    //
     // Mark floor complete on boss defeat. If we came directly from the
     // world map (no maze wrapper), any win counts so the progression
     // still advances on the fast path. But Boss Rush and Spire fights must
     // NEVER flip real floor progression — a Spire boss (unlocked at Floor 3)
     // would otherwise complete unbeaten floors and unlock heroes early.
-    if ((this.isBoss && !this.bossRush && !this.spire) ||
-        (isHubScene(this.returnScene) && !this.fromFloor3d)) {
-      markFloorComplete(save, this.floor);
-      const newHeroes = unlockHeroesForFloor(save, this.floor);
-      if (newHeroes.length > 0) {
-        this.registry.set('newlyUnlockedHeroes', newHeroes);
-      }
+    const save = this.save;
+    const markFloor = (this.isBoss && !this.bossRush && !this.spire)
+      || (isHubScene(this.returnScene) && !this.fromFloor3d);
+    const won = applyBattleVictory(save, {
+      floor: this.floor,
+      correct: this.battleCorrect,
+      wrong: this.battleWrong,
+      streak: this.streak,
+      party: this.party,
+      damageTaken: this.battleDamageTaken,
+      potionUsed: this.potionUsedThisBattle,
+      markFloor,
+    });
+    const goldEarned = won.gold;
+    const xpEarned = won.xp;
+    const leveledUp = won.leveledUp;
+    if (won.newHeroes.length > 0) {
+      this.registry.set('newlyUnlockedHeroes', won.newHeroes);
+    }
+    if (won.floorMarked) {
       const mazeKey = mazeStateKey(this.floor);
       const mazeState = this.registry.get(mazeKey);
       if (mazeState) {
@@ -4158,12 +4110,6 @@ export class BattleScene extends Phaser.Scene {
         try { localStorage.setItem(`mw_maze_${this.floor}`, JSON.stringify(mazeState)); } catch (e) { /* ignore */ }
       }
     }
-
-    updateQuestProgress(save, 'wins');
-    updateQuestProgress(save, 'streak', this.streak);
-    updateQuestProgress(save, 'gold', goldEarned);
-    if (!this.battleDamageTaken) updateQuestProgress(save, 'perfect');
-    if (!this.potionUsedThisBattle) updateQuestProgress(save, 'nopotion');
 
     // Daily challenge rewards
     let dailyGold = 0;
@@ -4424,16 +4370,11 @@ export class BattleScene extends Phaser.Scene {
     // real job: topping the party back up. Failure stays gentle per
     // DESIGN-PRINCIPLES.md principle 8 without making items pointless.
     const save = this.save;
-    save.stats.totalBattles++;
-    save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
-    save.stats.totalWrong = (save.stats.totalWrong ?? 0) + this.battleWrong;
-    for (let i = 0; i < this.party.length && i < 3; i++) {
-      if (!save.party[i]) save.party[i] = {};
-      save.party[i].id = this.party[i].id;
-      save.party[i].name = this.party[i].name;
-      save.party[i].hp = Math.max(1, Math.round(this.party[i].maxHp * 0.5));
-      save.party[i].maxHp = this.party[i].maxHp;
-    }
+    applyBattleDefeat(save, {
+      correct: this.battleCorrect,
+      wrong: this.battleWrong,
+      party: this.party,
+    });
     writeSave(save, this.slot);
 
     // Boss Rush: mark defeated

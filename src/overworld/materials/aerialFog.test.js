@@ -1,7 +1,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { aerialFogFactor, applyAerialFog, FOG_UNIFORMS, setAerialFrame, setFogColor } from './aerialFog.js';
+import {
+  aerialFogFactor, applyAerialFog, FOG_UNIFORMS, setAerialFrame, setFogColor,
+  setFogDomain, fogDomainActive, levelAtmosphere, LEVEL_ATMOSPHERE,
+} from './aerialFog.js';
 import { createRenderFrame, applyWeather, weatherByName } from '../weather.js';
 import { timeOfDay } from '../timeOfDay.js';
 import { PAPER } from '../../config.js';
@@ -90,6 +93,72 @@ describe('setAerialFrame', () => {
     assert.ok(Math.abs(got.b - want.b) < 1e-6);
     // ...and it is NOT the linear value, or the mirror would be pointless.
     assert.ok(Math.abs(got.r - new THREE.Color(PAPER.cream).r) > 0.01);
+  });
+});
+
+describe('per-domain atmosphere', () => {
+  const frame = () => {
+    const out = createRenderFrame();
+    applyWeather(timeOfDay(0.42), weatherByName('clear'), out);
+    return out;
+  };
+
+  test('the island is untouched: far haze IS near haze', () => {
+    setFogDomain(null);
+    const f = frame();
+    setAerialFrame(f);
+    assert.equal(fogDomainActive(), false);
+    assert.equal(FOG_UNIFORMS.uFogDensity.value, f.fogDensity);
+    assert.equal(FOG_UNIFORMS.uFogStart.value, f.fogStart);
+    // uFogFar == uFogLow makes the whole near/far split an exact identity, so
+    // the reference vista renders byte-for-byte as it did before it existed.
+    assert.deepEqual(
+      FOG_UNIFORMS.uFogFar.value.toArray(),
+      FOG_UNIFORMS.uFogLow.value.toArray(),
+    );
+  });
+
+  test('a domain overrides the composed frame and survives recomposition', () => {
+    const f = frame();
+    setAerialFrame(f);
+    setFogDomain('library');
+    const lib = LEVEL_ATMOSPHERE.library;
+    assert.ok(Math.abs(FOG_UNIFORMS.uFogDensity.value - f.fogDensity * lib.density) < 1e-12);
+    assert.equal(FOG_UNIFORMS.uFogStart.value, lib.start);
+    assert.equal(FOG_UNIFORMS.uFogDesat.value, lib.desat);
+    // The day clock keeps recomposing frames; the room must not be lost.
+    setAerialFrame(frame());
+    assert.equal(FOG_UNIFORMS.uFogStart.value, lib.start);
+    setFogDomain(null);
+    assert.equal(FOG_UNIFORMS.uFogStart.value, f.fogStart);
+  });
+
+  test('the Library is the thin one and the Garden is the thick one', () => {
+    // The two reviews disagreed about the fog because the floors disagreed:
+    // "dissolves to grey-purple mush at mid-range" (library) and "effectively
+    // none" (garden) were both true under ONE set of island numbers.
+    assert.ok(LEVEL_ATMOSPHERE.library.density < 0.7, 'the library cut must be real');
+    assert.ok(LEVEL_ATMOSPHERE.garden.density > 1.2, 'the garden needs MORE air, not less');
+    assert.ok(LEVEL_ATMOSPHERE.library.density < LEVEL_ATMOSPHERE.garden.density * 0.5);
+  });
+
+  test('every domain keeps its near field clear and its far wall solid', () => {
+    for (const [key, a] of Object.entries(LEVEL_ATMOSPHERE)) {
+      // A room is 60-90 m across: haze on a wall two metres away is a bug.
+      assert.ok(a.start >= 6, `${key} starts hazing at ${a.start} m`);
+      // Indoors there is no sky behind the far wall, so full extinction would
+      // punch a hole in the room rather than reading as distance.
+      assert.ok(a.max <= 0.92, `${key} lets the far wall dissolve to ${a.max}`);
+      assert.ok(a.desat > 0 && a.desat <= 1, `${key} desat ${a.desat}`);
+      assert.ok(a.far === null || (a.far >= 0 && a.far <= 0xffffff), `${key} far`);
+    }
+  });
+
+  test('an unknown theme falls back to the island rather than throwing', () => {
+    assert.equal(levelAtmosphere('no-such-floor'), null);
+    setFogDomain('no-such-floor');
+    assert.equal(fogDomainActive(), false);
+    setFogDomain(null);
   });
 });
 

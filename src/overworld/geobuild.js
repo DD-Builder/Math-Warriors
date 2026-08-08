@@ -62,8 +62,19 @@ export function sink(withAlpha = false) {
 /**
  * Stamp a primitive into the sink. CONSUMES `geo` (disposes it) — every call
  * site constructs the primitive inline, so nothing leaks.
+ *
+ * `faceTone` is an optional (nx, ny, nz) -> multiplier applied to the vertex
+ * colour, evaluated on the WORLD normal (BufferGeometry.applyMatrix4 has
+ * already carried the normals through `matrix`). It exists because a toon ramp
+ * driven by one sun direction cannot tell a hedge's crown from its south face
+ * — at the sun elevations this world runs at, NdotL on the two is within a few
+ * per cent, and the measured result was a top plane DARKER than the front,
+ * which is the one thing that makes a volume stop reading as a volume. Baking
+ * the form into the albedo by face orientation costs nothing, is stable across
+ * time of day, and is literally what layered cut paper means: the cut edge
+ * facing the sky is the pale side of the sheet.
  */
-export function stamp(s, geo, matrix, rgb, a = 1) {
+export function stamp(s, geo, matrix, rgb, a = 1, faceTone = null) {
   const ni = geo.index ? geo.toNonIndexed() : geo;
   if (matrix) ni.applyMatrix4(matrix);
   const p = ni.attributes.position.array;
@@ -71,8 +82,9 @@ export function stamp(s, geo, matrix, rgb, a = 1) {
   for (let i = 0; i < p.length; i += 3) {
     s.pos.push(p[i], p[i + 1], p[i + 2]);
     s.nrm.push(n[i], n[i + 1], n[i + 2]);
-    if (s.alpha) s.col.push(rgb[0], rgb[1], rgb[2], a);
-    else s.col.push(rgb[0], rgb[1], rgb[2]);
+    const t = faceTone ? faceTone(n[i], n[i + 1], n[i + 2]) : 1;
+    if (s.alpha) s.col.push(rgb[0] * t, rgb[1] * t, rgb[2] * t, a);
+    else s.col.push(rgb[0] * t, rgb[1] * t, rgb[2] * t);
   }
   if (ni !== geo) ni.dispose();
   geo.dispose();

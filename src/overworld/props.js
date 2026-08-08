@@ -135,7 +135,14 @@ const WIND = { value: 0 };
  * costs one sine in the vertex shader and no extra draw state.
  */
 function patchPulse(material, { amp = 0.24, speed = 1.05 }) {
-  material.onBeforeCompile = (shader) => {
+  // CHAIN. toonMaterial() has already installed the aerial-fog uniforms and the
+  // teal shadow floor on this material; assigning over the hook would drop both
+  // and leave these props lit — and shadowed — differently from everything
+  // around them.
+  const prevCompile = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevCompile) prevCompile.call(material, shader, renderer);
     shader.uniforms.uWindTime = WIND;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uWindTime;')
@@ -149,7 +156,8 @@ function patchPulse(material, { amp = 0.24, speed = 1.05 }) {
   float mwP = sin( uWindTime * ${g(speed)} + mwPh ) * 0.5 + 0.5;
   vColor.a *= ${g(1 - amp)} + ${g(amp)} * mwP;`);
   };
-  material.customProgramCacheKey = () => `mw-pulse|${amp}|${speed}`;
+  material.customProgramCacheKey = () =>
+    `${prevKey ? prevKey.call(material) : ''}|mw-pulse|${amp}|${speed}`;
 }
 
 /**
@@ -158,7 +166,11 @@ function patchPulse(material, { amp = 0.24, speed = 1.05 }) {
  * call; without this each banner would need its own texture and its own call.
  */
 function patchBanner(material) {
-  material.onBeforeCompile = (shader) => {
+  // Chains, for the same reason patchPulse does.
+  const prevCompile = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevCompile) prevCompile.call(material, shader, renderer);
     shader.uniforms.uWindTime = WIND;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uWindTime;\nattribute vec2 aCell;')
@@ -176,7 +188,7 @@ function patchBanner(material) {
   transformed.y += sin( uWindTime * 0.7 + mwPh ) * 0.22;
   transformed.x += sin( uWindTime * 0.43 + mwPh * 1.3 ) * 0.10;`);
   };
-  material.customProgramCacheKey = () => 'mw-banner';
+  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|mw-banner`;
 }
 
 // ── Biome theming tables ────────────────────────────────────────────────

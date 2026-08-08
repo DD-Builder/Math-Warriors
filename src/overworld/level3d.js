@@ -12,44 +12,72 @@
  * is only the cutting: geometry, materials, instancing, animation, disposal.
  *
  * ── COMPOSITION: WHY THIS IS NOT AN EXTRUDED MAZE ──────────────────────────
- * Four things separate a place from a floor plan, and each costs almost
+ * Six things separate a place from a floor plan, and each costs almost
  * nothing:
  *
  *   TERRACES     the ground climbs in bands as you walk in, so the level has
  *                foreground/midground/background instead of one plane. The
- *                boss sits on the highest of them, visible from the entrance.
- *   SILHOUETTE   a wall run is never one extruded ribbon: every tile varies in
- *                height, yaw, in-tile offset and width, banded by value noise
- *                so the variation reads as growth rather than as shuffling,
- *                and each floor has its own构 archetype (hedgerow, ruin course,
- *                cloudbank, basalt column, ice slab, crystal, market stall,
- *                bookcase, manuscript screen).
- *   OPENNESS     there is no ceiling and walls top out at 3-7 m against a
- *                camera that sits above them, so landmarks stay in sightline
- *                across the whole floor. These are outdoor places.
+ *                boss sits on the highest of them, and the ENTRANCE sits on a
+ *                plateau of its own, so the opening shot looks DOWN across a
+ *                step instead of out across the flattest ground in the build.
+ *   LANDMARKS    one 14-18 m structure at the objective end plus up to three
+ *                6-9 m masts, hosted on wall tiles so they cost no collider
+ *                and no draw call. Odyssey and TotK both navigate by
+ *                silhouette — you see the thing, you walk to the thing — and
+ *                a floor whose tallest object is the same height as every
+ *                other object has no "over there" in it at all.
+ *   SILHOUETTE   a wall run is never one extruded ribbon. Every tile is a
+ *                STACK of cut-paper plies of different size, hue and yaw with
+ *                teal shadow slivers between them, wearing a crown that breaks
+ *                the skyline (lobes, broken merlons, faceted spikes, uneven
+ *                book rows) and caps at every end and corner. Roughly one
+ *                straight tile in four drops to a planter you can see over,
+ *                and no two neighbours share a top edge, a yaw or a seam
+ *                altitude. Nine floors, nine vocabularies — see
+ *                level3dBuild.wallProfile.
+ *   ENCLOSURE    the outermost ring of wall stands 4.8-6.4 m on a plinth of
+ *                stepped courses, so a floor reads as a place with a top edge
+ *                rather than as furniture on an endless lawn. It fades back
+ *                down within four tiles of the spawn — the establishing shot
+ *                must not open on a six-metre wall in the player's face.
+ *   VALUE        wall stacks cross paper families and reach a genuinely light
+ *                crown (2.6-4.8x base luma once the baked face tone is in),
+ *                because a solid whose top is no lighter than its side is a
+ *                flat shape however many plies it has.
  *   MATERIAL     everything is layered plies of PAPER stock with teal-tinted
  *                shade — the same toon ramp and the same procedural fibre the
  *                hub island uses, so walking through a portal is a change of
- *                place, not a change of engine.
+ *                place, not a change of engine. Nothing is ever darker than
+ *                PAPER.shadow; that is clamped in the albedo, before light.
  *
  * ── PERFORMANCE: WHERE THE DRAW CALLS GO ───────────────────────────────────
  * A floor is up to 42x36 tiles. Naively that is 1500 meshes. Instead:
  *
- *   ground      ONE merged geometry — every walkable tile, its raised path
- *               ribbons, and the skirts that bury its edges. 1 call.
- *   walls       3 InstancedMeshes (one per silhouette variant) + 1 crown.
- *               Interior walls — the ones buried in other walls — are culled
- *               entirely; on Crystal Caverns that is 831 tiles down to ~250.
+ *   ground      ONE welded, vertex-coloured lattice for the whole walkable
+ *               region — heights, paver ribbons, colour field and boundary
+ *               skirts all in a single geometry with no interior edges at all.
+ *               10-44 k triangles depending on the floor. 1 call.
+ *   walls       one MERGED geometry per 12x12 tile chunk (5-13 chunks on a
+ *               real floor), because instancing can only repeat one hedge and
+ *               the art direction forbids exactly that. Interior walls — the
+ *               ones buried in other walls — are culled entirely; on Crystal
+ *               Caverns that is 831 tiles down to ~250.
+ *   landmarks   0 calls. They stand on wall tiles, so their pieces merge into
+ *               the chunk that tile already belongs to.
  *   liquid      2 calls: the animated sheet and its foam rim.
- *   detail      1 InstancedMesh of ground scatter.
+ *   detail      one InstancedMesh per scatter archetype — 3 or 4 calls for
+ *               the ~1300 tufts, pebbles, petals and pages that dress a floor.
  *   objects     one InstancedMesh per furniture family, ~11 calls for the
  *               whole floor regardless of how many objects it holds.
  *   transform   1 call, hidden until the payoff.
  *
- * Measured worst case (floor 9, the largest): 24 colour + 9 shadow = 33 draw
- * calls, ~96 k triangles. Budget is 250 calls / 500 k tris shared across the
- * whole frame, so a level costs about 13% of the calls and 19% of the tris —
- * and while a level is loaded the hub's terrain and vegetation are not.
+ * Measured in the renderer (SwiftShader harness, camera in play): floor 1 is
+ * 25 draw calls / 42 k tris, floor 4 is 33 / 127 k, floor 8 is 30 / 120 k.
+ * Worst case over all nine floors is 58 calls / 184 k triangles counted at
+ * build time, before any culling. Budget is 250 calls / 500 k tris shared
+ * across the whole frame, so a level costs about 23% of the calls and 37% of
+ * the tris — and while a level is loaded the hub's terrain and vegetation are
+ * not. `level3dBuild.architecture.test.js` asserts both ceilings.
  *
  * TECH LAW honoured: three r170 only (no examples/ imports — merging is done
  * through ./geobuild.js's primitive sink, which is the same operation as
@@ -65,18 +93,14 @@ import { g, lin, shade, trs, sink, stamp, tri, bake } from './geobuild.js';
 import {
   TILE_M, LIQUID_DROP,
   readLevel, distanceField, heightField, makeHeightSampler,
-  wallTiles, liquidTiles, groundTiles, levelColliders, objectSpecs,
-  levelSpawn, levelBounds, themeForFloor, tileCenter,
+  wallTiles, wallProfile, liquidTiles, groundTiles, levelColliders, objectSpecs,
+  levelSpawn, levelBounds, themeForFloor,
+  buildGroundSurface, groundScatter,
+  landmarkSpecs, landmarkProfile, paperLinear,
 } from './level3dBuild.js';
 
 const TAU = Math.PI * 2;
 
-/** Footprint of one wall block. Slightly over a tile so a run joins solidly. */
-const WALL_W = 4.05;
-/** Path ribbons ride this far proud of the ground they cross. */
-const PATH_LIFT = 0.16;
-/** How far a ground edge is buried where it meets a wall or a basin. */
-const SKIRT_DEPTH = 2.8;
 /** Liquid surface relative to the land beside it. */
 const LIQUID_FREEBOARD = 0.9;
 /** Seconds the world-changing payoff takes to play out. */
@@ -165,230 +189,126 @@ function makeHandle(x, y, z, onVisible) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Wall archetypes — nine floors, nine silhouettes
+// Walls — merged cut paper, not instanced boxes
 //
-// Each builder returns THREE variant geometries, unit height (the instance
-// scales y to the tile's own height) and roughly WALL_W across. Colours are
-// RELATIVE ply shades; the floor's actual papers arrive per instance through
-// instanceColor, which is what lets one material carry a whole hedgerow.
+// The vocabulary itself (which plies, which crown, where the caps go) lives in
+// level3dBuild.wallProfile, which is pure data. All that is left here is
+// turning a tile's piece list into triangles.
+//
+// WHY MERGED AND NOT INSTANCED: an InstancedMesh can only repeat ONE geometry,
+// so every hedge on the floor has to be the same hedge — which is exactly the
+// "one extruded ribbon" the art direction forbids. Merging per chunk buys
+// genuinely per-tile silhouettes (different lobe count, different broken
+// merlon, different book heights) and per-vertex papers, and still costs only
+// one draw call per chunk.
 // ═══════════════════════════════════════════════════════════════════════
 
-/** Floor 1 — layered papercut hedgerow. Four plies, each yawed a little off
- *  the last, so the cut edges of the paper show along the whole run. */
-function buildHedge(v) {
-  const s = sink();
-  const w = WALL_W * (1 - v * 0.03);
-  plate(s, w, w * 0.86, 0.00, 0.24, shade(0.72));                     // leaf litter
-  plate(s, w * 0.96, w * 0.80, 0.20, 0.55, shade(0.86), { rot: 0.06 });
-  plate(s, w * 0.92, w * 0.74, 0.50, 0.80, shade(1.00), { rot: -0.09 });
-  plate(s, w * 0.84, w * 0.66, 0.76, 0.96, shade(1.12), { rot: 0.13 });
-  // Scalloped crest: three lobes so the top is never a straight line.
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * TAU + v * 0.8;
-    prism(s, w * 0.20, w * 0.15, 0.90, 1.00 + (i === v % 3 ? 0.10 : 0.02), 6, shade(1.18),
-      { ox: Math.cos(a) * w * 0.24, oz: Math.sin(a) * w * 0.24 });
-  }
-  return bake(s);
+/** Tiles per merged wall chunk. 12 keeps the largest floor (42x36) at twelve
+ *  chunks — twelve colour plus twelve shadow draws for every wall on the
+ *  floor — while still leaving the frustum something to reject. */
+const WALL_CHUNK = 12;
+
+/**
+ * FACE TONE — the fix for "the hedge top is darker than the hedge front".
+ *
+ * Measured on the build this replaces: a hedge's sun-facing crown came out at
+ * L=55 and its shaded front face at L=59. A ratio of 0.93, where Odyssey's
+ * Steam Gardens hedge runs about 2.0 the other way — and that ratio is the
+ * entire reason its hedges read as volumes instead of as dark shapes.
+ *
+ * The cause is architectural, not a bad number: the toon ramp only knows the
+ * SUN direction, and at the elevations this world's key light runs at, NdotL
+ * on a hedge crown and on its south face are within a few per cent. So form
+ * cannot come from the ramp. It has to be baked, and baking it is what layered
+ * cut paper means anyway — the cut edge facing the sky is the pale side of the
+ * sheet, at every hour of the day, which a sun-driven term can never be.
+ *
+ * +Y faces lift 28%, -Y faces drop 20%, sides unchanged, interpolated by ny so
+ * a tapered prism's raked flank grades between them instead of banding. The
+ * result is clamped to PAPER.shadow at stamp time (see `stampWallPieces`), so
+ * the downward faces cannot slide past the palette's floor into black.
+ */
+const FACE_LIFT = 0.28;
+const FACE_DROP = 0.20;
+function faceTone(nx, ny, nz) {
+  return ny >= 0 ? 1 + FACE_LIFT * ny : 1 - FACE_DROP * (-ny);
 }
 
-/** Floor 2 — weathered sunken-ruin wall. Three masonry courses, the top one
- *  broken away on one side; variant 2 is a stub pillar. */
-function buildMasonry(v) {
-  const s = sink();
-  const w = WALL_W;
-  plate(s, w, w * 0.9, 0.00, 0.30, shade(0.78));
-  plate(s, w * 0.97, w * 0.86, 0.26, 0.58, shade(0.94), { ox: 0.06 });
-  plate(s, w * 0.94, w * 0.84, 0.54, 0.84, shade(1.06), { ox: -0.08 });
-  if (v === 2) {
-    plate(s, w * 0.44, w * 0.80, 0.80, 1.00, shade(1.14), { ox: -w * 0.22 });
-  } else {
-    plate(s, w * 0.90, w * 0.80, 0.80, 0.94 + v * 0.06, shade(1.14));
-    plate(s, w * 0.34, w * 0.70, 0.92, 1.00, shade(1.20), { ox: w * (v ? 0.24 : -0.24) });
+/**
+ * The albedo floor for wall pieces, PRE-tone.
+ *
+ * PAPER.shadow is the deepest colour this world owns; nothing may go past it.
+ * The floor is divided by the steepest darkening `faceTone` can apply, so a
+ * fully downward face on an already-floored ply lands EXACTLY on PAPER.shadow
+ * rather than 20% under it. That makes the palette law a property of the
+ * arithmetic instead of a hope about which faces end up visible.
+ */
+const SHADOW_LIN = paperLinear(PAPER.shadow);
+const SHADOW_FLOOR = SHADOW_LIN.map((v) => v / (1 - FACE_DROP));
+
+/**
+ * Stamp one tile's piece list into a merged sink, in world space.
+ *
+ * Pieces arrive in TILE-LOCAL metres; the tile contributes its world centre,
+ * its ground height and a yaw. The yaw rotates the piece OFFSETS as well as
+ * each piece's own rotation, so a crown lobe stays over the ply it grew out of.
+ */
+function stampWallPieces(s, w, pieces) {
+  const cy = Math.cos(w.yaw), sy = Math.sin(w.yaw);
+  for (let i = 0; i < pieces.length; i++) {
+    const p = pieces[i];
+    const lx = p.ox + (w.ox || 0), lz = p.oz + (w.oz || 0);
+    const px = w.x + lx * cy + lz * sy;
+    const pz = w.z - lx * sy + lz * cy;
+    const hgt = Math.max(0.02, p.y1 - p.y0);
+    const m = trs(px, w.y + (p.y0 + p.y1) / 2, pz, p.tilt, w.yaw + p.rot, 0);
+    const c = lin(p.hex, p.tone);
+    // Clamp the ALBEDO to the palette floor before any light touches it, the
+    // same way the ground surface does. The ply seams used to land on #0e3423
+    // — 10% luma — and then get multiplied again by the ramp's shade texel,
+    // which is how a papercut world ended up with black slots cut into it.
+    const rgb = [
+      Math.max(c[0], SHADOW_FLOOR[0]),
+      Math.max(c[1], SHADOW_FLOOR[1]),
+      Math.max(c[2], SHADOW_FLOOR[2]),
+    ];
+    if (p.shape === 'box') stamp(s, new THREE.BoxGeometry(p.w, hgt, p.d), m, rgb, 1, faceTone);
+    else stamp(s, new THREE.CylinderGeometry(p.r1, p.r0, hgt, p.seg, 1, false), m, rgb, 1, faceTone);
   }
-  return bake(s);
 }
 
-/** Floor 3 — cloud bank, with a sky-stone pillar for variant 2. */
-function buildCloudbank(v) {
-  const s = sink();
-  const w = WALL_W;
-  if (v === 2) {
-    prism(s, w * 0.30, w * 0.22, 0.00, 0.70, 6, shade(0.88));
-    prism(s, w * 0.24, w * 0.28, 0.66, 1.00, 6, shade(1.06));
-    prism(s, w * 0.34, w * 0.30, 0.96, 1.06, 6, shade(1.16));
-    return bake(s);
-  }
-  const lobes = [
-    [-0.26, 0.00, 0.30, 0.34, 0.86],
-    [0.22, 0.10, 0.34, 0.58, 1.00],
-    [0.02, -0.22, 0.26, 0.74, 1.10],
-    [-0.16, 0.20, 0.22, 0.86, 1.18],
-  ];
-  for (let i = 0; i < lobes.length; i++) {
-    const [ox, oz, r, y0, sh] = lobes[i];
-    prism(s, w * r, w * r * 0.88, y0 * 1.0, (y0 + 0.30) * 1.0, 8, shade(sh + v * 0.02),
-      { ox: ox * w, oz: oz * w });
-  }
-  return bake(s);
-}
-
-/** Floor 4 — basalt columns. Hexagonal prisms clustered at three heights, so
- *  a wall run reads as a fractured colonnade, not a fence. */
-function buildColumn(v) {
-  const s = sink();
-  const w = WALL_W;
-  const cols = [
-    [-0.24, -0.18, 0.26, 1.00],
-    [0.22, -0.10, 0.22, 0.74],
-    [0.00, 0.26, 0.24, 0.88],
-  ];
-  for (let i = 0; i < cols.length; i++) {
-    const [ox, oz, r, top] = cols[i];
-    const h = top * (0.86 + ((i + v) % 3) * 0.09);
-    prism(s, w * r, w * r * 0.94, 0.00, h, 6, shade(0.82 + i * 0.13),
-      { ox: ox * w, oz: oz * w, rot: (i + v) * 0.4 });
-    prism(s, w * r * 0.98, w * r * 0.72, h - 0.06, h + 0.05, 6, shade(1.14),
-      { ox: ox * w, oz: oz * w, rot: (i + v) * 0.4 });
-  }
-  return bake(s);
-}
-
-/** Floor 5 — ice wall. Tilted slabs, bright plies, a cracked shoulder. */
-function buildSlab(v) {
-  const s = sink();
-  const w = WALL_W;
-  plate(s, w, w * 0.8, 0.00, 0.20, shade(0.80));
-  plate(s, w * 0.86, w * 0.52, 0.14, 0.92 - v * 0.06, shade(1.00), { tilt: 0.09, ox: -w * 0.12 });
-  plate(s, w * 0.64, w * 0.44, 0.20, 1.00, shade(1.14), { tilt: -0.12, ox: w * 0.18, rot: 0.22 });
-  plate(s, w * 0.40, w * 0.34, 0.60, 0.86, shade(1.22), { tilt: 0.18, oz: -w * 0.16 });
-  return bake(s);
-}
-
-/** Floor 6 — crystal formation. Tapered points at splayed angles. */
-function buildCrystal(v) {
-  const s = sink();
-  const w = WALL_W;
-  prism(s, w * 0.36, w * 0.30, 0.00, 0.22, 6, shade(0.78));
-  const pts = [
-    [-0.20, -0.12, 0.20, 0.96, 0.16],
-    [0.20, 0.06, 0.17, 0.78, -0.20],
-    [0.02, 0.24, 0.14, 1.00, 0.10],
-    [-0.06, -0.26, 0.12, 0.62, -0.14],
-  ];
-  for (let i = 0; i < pts.length; i++) {
-    const [ox, oz, r, top, tilt] = pts[i];
-    prism(s, w * r, w * r * 0.10, 0.16, top * (0.9 + ((i + v) % 3) * 0.07), 5,
-      shade(0.90 + i * 0.10), { ox: ox * w, oz: oz * w, tilt: tilt + v * 0.04, rot: i * 0.7 });
-  }
-  return bake(s);
-}
-
-/** Floor 7 — market stall. Counter, posts, striped awning. */
-function buildStall(v) {
-  const s = sink();
-  const w = WALL_W;
-  plate(s, w * 0.92, w * 0.54, 0.00, 0.52, shade(0.86), { oz: w * 0.12 });   // counter
-  plate(s, w * 0.96, w * 0.58, 0.50, 0.58, shade(1.02), { oz: w * 0.12 });   // counter top
-  for (const sx of [-1, 1]) {
-    plate(s, w * 0.07, w * 0.07, 0.00, 0.92, shade(0.78), { ox: sx * w * 0.40, oz: -w * 0.14 });
-  }
-  // Awning: alternating stripes as separate plies, tilted forward.
-  const stripes = 5;
-  for (let i = 0; i < stripes; i++) {
-    const x0 = (-0.44 + (i / stripes) * 0.88) * w;
-    plate(s, (w * 0.88) / stripes, w * 0.62, 0.88, 0.96,
-      shade(i % 2 ? 1.18 : 0.96), { ox: x0 + (w * 0.44) / stripes, oz: 0, tilt: -0.20 });
-  }
-  plate(s, w * 0.90, w * 0.10, 0.80, 0.90, shade(1.10), { oz: w * 0.26 });   // valance
-  if (v === 2) plate(s, w * 0.30, w * 0.30, 0.58, 0.80, shade(1.06), { oz: w * 0.10 }); // crate of goods
-  return bake(s);
-}
-
-/** Floor 8 — towering bookcase. Frame, shelves, and a run of spines whose
- *  varying heights are the whole silhouette. */
-function buildShelf(v) {
-  const s = sink();
-  const w = WALL_W;
-  plate(s, w * 0.96, w * 0.46, 0.00, 0.08, shade(0.76));
-  for (const sx of [-1, 1]) {
-    plate(s, w * 0.08, w * 0.46, 0.00, 1.00, shade(0.86), { ox: sx * w * 0.44 });
-  }
-  plate(s, w * 0.96, w * 0.46, 0.96, 1.04, shade(1.10));
-  for (let sh = 0; sh < 3; sh++) {
-    const y = 0.10 + sh * 0.30;
-    plate(s, w * 0.86, w * 0.44, y, y + 0.05, shade(0.94));
-    for (let b = 0; b < 6; b++) {
-      const bh = 0.14 + ((b * 7 + sh * 3 + v * 5) % 5) * 0.022;
-      plate(s, w * 0.10, w * 0.30, y + 0.05, y + 0.05 + bh,
-        shade(0.90 + ((b + sh + v) % 4) * 0.10),
-        { ox: (-0.36 + b * 0.145) * w, oz: -w * 0.03 });
-    }
-  }
-  return bake(s);
-}
-
-/** Floor 9 — manuscript screen. Framed paper panels, one leaf folded back. */
-function buildScreen(v) {
-  const s = sink();
-  const w = WALL_W;
-  plate(s, w * 0.92, w * 0.26, 0.00, 0.09, shade(0.80));
-  const leaves = v === 2 ? 2 : 3;
-  for (let i = 0; i < leaves; i++) {
-    const t = leaves === 1 ? 0 : i / (leaves - 1) - 0.5;
-    const rot = t * 0.55 + (v === 2 ? 0.3 : 0);
-    const ox = t * w * 0.32;
-    plate(s, w * 0.44, w * 0.06, 0.06, 1.00, shade(1.06), { ox, rot });         // panel
-    plate(s, w * 0.46, w * 0.09, 0.06, 0.14, shade(0.88), { ox, rot });         // foot rail
-    plate(s, w * 0.46, w * 0.09, 0.94, 1.02, shade(0.88), { ox, rot });         // head rail
-    plate(s, w * 0.30, w * 0.03, 0.40 + i * 0.06, 0.52 + i * 0.06, shade(1.18), { ox, rot }); // glyph band
-  }
-  return bake(s);
-}
-
-const WALL_BUILDERS = {
-  hedge: buildHedge, masonry: buildMasonry, cloudbank: buildCloudbank,
-  column: buildColumn, slab: buildSlab, crystal: buildCrystal,
-  stall: buildStall, shelf: buildShelf, screen: buildScreen,
-};
-
-/** What grows out of a wall top. Sits in its own InstancedMesh so it can carry
- *  the bright accent papers without dragging the wall body's hue with it. */
-function buildCrown(kind) {
-  const s = sink();
-  switch (kind) {
-    case 'flower':
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * TAU;
-        prism(s, 0.22, 0.20, 0.00, 0.10, 6, shade(1.0),
-          { ox: Math.cos(a) * 0.62, oz: Math.sin(a) * 0.62 });
-        prism(s, 0.09, 0.07, 0.08, 0.20, 5, shade(1.18),
-          { ox: Math.cos(a) * 0.62, oz: Math.sin(a) * 0.62 });
-      }
-      return bake(s);
-    case 'moss':
-      plate(s, 1.5, 1.2, 0.00, 0.10, shade(1.0));
-      plate(s, 0.9, 0.7, 0.08, 0.20, shade(1.14), { rot: 0.5 });
-      return bake(s);
-    case 'spike':
-      prism(s, 0.34, 0.02, 0.00, 1.10, 5, shade(1.0));
-      prism(s, 0.20, 0.02, 0.00, 0.70, 5, shade(1.16), { ox: 0.44, tilt: 0.28 });
-      return bake(s);
-    case 'glow':
-      prism(s, 0.46, 0.30, 0.00, 0.16, 6, shade(1.0));
-      prism(s, 0.24, 0.16, 0.12, 0.44, 6, shade(1.24));
-      return bake(s);
-    case 'lantern':
-      plate(s, 0.10, 0.10, 0.00, 0.42, shade(0.84));
-      plate(s, 0.38, 0.38, 0.40, 0.76, shade(1.22));
-      plate(s, 0.46, 0.46, 0.74, 0.82, shade(1.0));
-      return bake(s);
-    case 'glyph':
-      plate(s, 0.90, 0.06, 0.00, 0.60, shade(1.0));
-      plate(s, 0.44, 0.09, 0.20, 0.34, shade(1.24));
-      return bake(s);
-    default:
-      return null;
-  }
+/**
+ * Retraction for the wall chunks a transform or a secret opens.
+ *
+ * A merged chunk cannot be scaled per tile the way an instance could, so each
+ * vertex carries the ground height of the tile it belongs to (`aBaseY`) and
+ * the whole chunk folds down into its own footing as the uniform runs 0 -> 1.
+ * Chains onto any patch already installed, so applyPapercut may be applied
+ * before OR after this.
+ */
+function patchWallSink(material, uSink) {
+  const prevCompile = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey;
+  material.transparent = true;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevCompile) prevCompile.call(material, shader, renderer);
+    shader.uniforms.uSink = uSink;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uSink;\nattribute float aBaseY;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+  float mwS = clamp( uSink, 0.0, 1.0 );
+  transformed.y = mix( transformed.y, aBaseY - ${g(0.25)}, mwS );`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uSink;')
+      .replace('#include <opaque_fragment>', `#include <opaque_fragment>
+  gl_FragColor.a *= 1.0 - clamp( uSink, 0.0, 1.0 );`);
+  };
+  material.customProgramCacheKey = () => {
+    const prev = prevKey ? prevKey.call(material) : '';
+    return `${prev}|mw-wall-sink`;
+  };
+  material.needsUpdate = true;
+  return material;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -561,10 +481,57 @@ function buildExitArch() {
   return bake(s);
 }
 
-/** Ground scatter — one archetype per theme, six triangles each. */
+/**
+ * A fan of single-triangle blades — copied vertex for vertex from
+ * vegetation.buildBladeTuft, which is what the island's ground cover is made
+ * of. Using the island's own primitive here is the point: a floor and the
+ * island have to look cut from the same stock, and a triangle whose root ply
+ * is dark and whose tip runs over 1.0 is the whole papercut blade in one
+ * primitive. It also costs ONE triangle per blade, against thirty-six for the
+ * stack of prisms this replaced, which is what makes a thousand of them free.
+ */
+function bladeFan(s, { blades, h, hVar, w, lean, phase = 0.55, tip = shade(1.10) }) {
+  for (let k = 0; k < blades; k++) {
+    const a = (k / blades) * TAU + phase;
+    const ln = lean * (0.68 + (k % 3) * 0.24);
+    const hh = h * (1 + ((k % 3) - 1) * hVar);
+    const dx = Math.sin(a), dz = Math.cos(a);
+    const inv = 1 / Math.hypot(dx * 0.42, 0.9, dz * 0.42);
+    tri(s,
+      [-dz * w, 0, dx * w],
+      [dz * w, 0, -dx * w],
+      [dx * ln, hh, dz * ln],
+      [dx * 0.42 * inv, 0.9 * inv, dz * 0.42 * inv],
+      shade(0.56), shade(0.56), tip);
+  }
+}
+
+/**
+ * One ground-scatter archetype.
+ *
+ * The three added below (pebble, petal, leaf) are what the floors were missing
+ * against the island: a scatter of ONE shape reads as wallpaper no matter how
+ * well it is placed, and it takes a tall thing, a ground-hugging thing and a
+ * hard thing before ground stops looking swept. The soft ones are blade fans
+ * at three different heights and reaches — 0.6 m grass, a 0.12 m leaf lying
+ * almost flat, a 0.05 m petal — so the dressing has an interior instead of one
+ * horizon, which is the same note vegetation.js records about the island.
+ */
 function buildDetail(kind) {
   const s = sink();
   switch (kind) {
+    case 'pebble':
+      // The one hard archetype: a solid, so it holds a lit face and a shaded
+      // one instead of reading as another blade.
+      prism(s, 0.19, 0.15, 0.00, 0.10, 5, shade(0.90), { tilt: 0.05 });
+      prism(s, 0.12, 0.09, 0.08, 0.14, 5, shade(1.14));
+      break;
+    case 'petal':
+      bladeFan(s, { blades: 4, h: 0.055, hVar: 0.4, w: 0.055, lean: 0.10, phase: 0.9, tip: shade(1.30) });
+      break;
+    case 'leaf':
+      bladeFan(s, { blades: 3, h: 0.13, hVar: 0.3, w: 0.11, lean: 0.26, phase: 0.2, tip: shade(1.22) });
+      break;
     case 'shell':
       prism(s, 0.26, 0.10, 0.00, 0.16, 6, shade(1.0), { tilt: 0.3 });
       prism(s, 0.14, 0.06, 0.00, 0.10, 5, shade(1.18), { ox: 0.24 });
@@ -581,11 +548,8 @@ function buildDetail(kind) {
       plate(s, 0.44, 0.03, 0.00, 0.32, shade(1.0), { tilt: 0.22 });
       plate(s, 0.34, 0.03, 0.00, 0.22, shade(1.16), { ox: 0.16, rot: 0.7 });
       break;
-    default:  // tuft
-      for (let i = 0; i < 3; i++) {
-        prism(s, 0.07, 0.01, 0.00, 0.34 + i * 0.09, 3, shade(0.94 + i * 0.10),
-          { ox: (i - 1) * 0.16, tilt: (i - 1) * 0.24 });
-      }
+    default:  // tuft — the tall tier, at the island's own grass height
+      bladeFan(s, { blades: 7, h: 0.58, hVar: 0.26, w: 0.048, lean: 0.20 });
       break;
   }
   return bake(s);
@@ -601,7 +565,14 @@ function buildDetail(kind) {
 
 function patchLiquid(material, clock, xform, crestHex) {
   const crest = lin(crestHex);
-  material.onBeforeCompile = (shader) => {
+  // CHAIN, never assign. toonMaterial() has already installed the aerial-fog
+  // and teal-shadow-floor patches on this material; overwriting the hook drops
+  // both and leaves the floor's water as the one surface in the place with a
+  // different atmosphere and a different shadow.
+  const prevCompile = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevCompile) prevCompile.call(material, shader, renderer);
     shader.uniforms.uLiqTime = clock;
     shader.uniforms.uXform = xform;
     shader.uniforms.uCrest = { value: new THREE.Vector3(crest[0], crest[1], crest[2]) };
@@ -630,13 +601,17 @@ varying float vXf;`)
   gl_FragColor.rgb = mix( gl_FragColor.rgb, uCrest, vCrest * ${g(0.42)} );
   gl_FragColor.a *= 1.0 - vXf * uXform;`);
   };
-  material.customProgramCacheKey = () => 'mw-level-liquid';
+  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|mw-level-liquid`;
 }
 
 /** Grow-in patch for the transform ground: the bridge of flowers / thawed
  *  causeway rises out of the drained bed instead of popping into existence. */
 function patchGrow(material, grow) {
-  material.onBeforeCompile = (shader) => {
+  // Chains, for the same reason patchLiquid does.
+  const prevCompile = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prevCompile) prevCompile.call(material, shader, renderer);
     shader.uniforms.uGrow = grow;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uGrow;\nvarying float vGrow;')
@@ -648,7 +623,7 @@ function patchGrow(material, grow) {
       .replace('#include <opaque_fragment>', `#include <opaque_fragment>
   gl_FragColor.a *= clamp( uGrow, 0.0, 1.0 );`);
   };
-  material.customProgramCacheKey = () => 'mw-level-grow';
+  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|mw-level-grow`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -719,72 +694,32 @@ export function buildLevel3D(floorId, opts = {}) {
     toonMaterial(0xffffff, { vertexColors: true }), { ...paperOpts, space: 'local', scale: 1.1 }));
 
   // ── GROUND ────────────────────────────────────────────────────────────
-  // Every walkable tile, its raised path ribbons and the skirts that bury its
-  // edges, in ONE merged geometry. Transform/secret tiles go to a second sink
-  // so they can be grown in later without touching this one.
-  const gs = sink();
-  const xs = sink();
-  const cw = hf.cw;
-  const cornerAt = (i, j) => hf.cornerH[j * cw + i];
+  // ONE welded, vertex-coloured surface for the whole walkable region — see
+  // the long note over `buildGroundSurface` in ./level3dBuild.js for why it is
+  // a shared lattice and not a quad per tile. Nothing is decided here: the
+  // heights, the colour field, the paver ribbon and the boundary skirts all
+  // arrive as finished Float32Arrays, and this file only wraps them in a
+  // BufferGeometry. Transform/secret ground comes back as its own array so it
+  // can still be grown in later.
+  const surf = buildGroundSurface(level, hf, theme);
+
   const wx = (i) => (i - level.width / 2) * TILE_M;
   const wz = (j) => (j - level.height / 2) * TILE_M;
 
   const openSet = new Set();
   for (const t of groundTiles(level)) openSet.add(t.key);
 
-  const groundPly = (tx, ty, ch) => {
-    // Two-paper blend keyed to the same noise the shelf relief uses, plus an
-    // accent speckle, so the ground has pigment density instead of a flat fill.
-    const n = (Math.sin(tx * 12.9898 + ty * 78.233) * 43758.5453) % 1;
-    const t = (n < 0 ? n + 1 : n);
-    if (ch === 'P') return lin(theme.path, 0.98 + t * 0.08);
-    if (ch === 'S') return lin(theme.special, 0.94 + t * 0.12);
-    return t > 0.86 ? lin(theme.groundAccent, 0.96) : lin(theme.ground[t > 0.45 ? 0 : 1], 0.92 + t * 0.18);
+  const surfaceGeo = (a) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(a.position, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(a.normal, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(a.color, 3));
+    geo.computeBoundingSphere();
+    geo.computeBoundingBox();
+    return geo;
   };
 
-  for (const tile of groundTiles(level)) {
-    const s = tile.transient ? xs : gs;
-    const { tx, ty, ch } = tile;
-    const lift = ch === 'P' ? PATH_LIFT : 0;
-    const x0 = wx(tx), x1 = wx(tx + 1), z0 = wz(ty), z1 = wz(ty + 1);
-    const h00 = cornerAt(tx, ty) + lift, h10 = cornerAt(tx + 1, ty) + lift;
-    const h01 = cornerAt(tx, ty + 1) + lift, h11 = cornerAt(tx + 1, ty + 1) + lift;
-    const c = groundPly(tx, ty, ch);
-    const p00 = [x0, h00, z0], p10 = [x1, h10, z0], p01 = [x0, h01, z1], p11 = [x1, h11, z1];
-    triN(s, p00, p01, p11, c);
-    triN(s, p00, p11, p10, c);
-
-    // A path ribbon needs a visible border or it disappears at distance.
-    if (ch === 'P') {
-      const rim = lin(theme.pathRim, 0.92);
-      const edges = [[p00, p10], [p10, p11], [p11, p01], [p01, p00]];
-      for (const [a, b] of edges) {
-        const la = [a[0], a[1] - PATH_LIFT - 0.05, a[2]];
-        const lb = [b[0], b[1] - PATH_LIFT - 0.05, b[2]];
-        triN(s, a, la, lb, rim);
-        triN(s, a, lb, b, rim);
-      }
-    }
-
-    // Skirt every edge that faces something that is not ground, so no tile
-    // floats above the basin or the wall footing beside it.
-    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    for (const [dx, dy] of nb) {
-      const nk = (ty + dy) * level.width + (tx + dx);
-      const inBounds = tx + dx >= 0 && ty + dy >= 0 && tx + dx < level.width && ty + dy < level.height;
-      if (inBounds && openSet.has(nk)) continue;
-      let a, b;
-      if (dx === 1) { a = p10; b = p11; } else if (dx === -1) { a = p01; b = p00; }
-      else if (dy === 1) { a = p11; b = p01; } else { a = p00; b = p10; }
-      const la = [a[0], a[1] - SKIRT_DEPTH, a[2]];
-      const lb = [b[0], b[1] - SKIRT_DEPTH, b[2]];
-      const sc = lin(theme.ground[1], 0.66);
-      triN(s, a, la, lb, sc);
-      triN(s, a, lb, b, sc);
-    }
-  }
-
-  const groundGeo = track(countTris(bake(gs)));
+  const groundGeo = track(countTris(surfaceGeo(surf.solid)));
   const groundMesh = new THREE.Mesh(groundGeo, groundMat);
   groundMesh.name = 'level-ground';
   groundMesh.receiveShadow = true;
@@ -795,8 +730,8 @@ export function buildLevel3D(floorId, opts = {}) {
 
   // ── TRANSFORM GROUND ──────────────────────────────────────────────────
   let transformMesh = null;
-  if (xs.pos.length) {
-    const xgeo = track(countTris(bake(xs)));
+  if (surf.transient) {
+    const xgeo = track(countTris(surfaceGeo(surf.transient)));
     const xmat = trackMat(applyPapercut(
       toonMaterial(0xffffff, { vertexColors: true, transparent: true, opacity: 1 }), paperOpts));
     patchGrow(xmat, uGrow);
@@ -812,77 +747,90 @@ export function buildLevel3D(floorId, opts = {}) {
   }
 
   // ── WALLS ─────────────────────────────────────────────────────────────
+  // One merged geometry per WALL_CHUNK x WALL_CHUNK block of tiles. Tiles that
+  // a transform or a secret opens later go to their own merged mesh instead,
+  // so exactly those can fold away without touching the static chunks.
   const walls = wallTiles(level, hf);
-  const builder = WALL_BUILDERS[theme.wall] || buildHedge;
-  const wallGeos = [0, 1, 2].map((v) => track(builder(v)));
-  const buckets = [[], [], []];
-  for (const w of walls) buckets[w.variant % 3].push(w);
-
-  /** Retractable instances (transform / secret) keep their base transform so
-   *  update() can recompose them without allocating. */
-  const transientWalls = [];
   const wallMeshes = [];
+  const wallChunks = new Map();
+  const transientChunks = new Map();
+  const uSinkX = { value: 0 };
+  const uSinkS = { value: 0 };
+  let wallPieces = 0;
 
-  for (let v = 0; v < 3; v++) {
-    const list = buckets[v];
-    if (!list.length) continue;
-    const geo = wallGeos[v];
-    countTris(geo, list.length);
-    const im = new THREE.InstancedMesh(geo, wallMat, list.length);
-    im.name = `level-wall-${v}`;
-    im.castShadow = castShadow;
-    im.receiveShadow = true;
-    im.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-    for (let i = 0; i < list.length; i++) {
-      const w = list[i];
-      _v3.set(w.x + w.ox, w.y, w.z + w.oz);
-      _eu.set(0, w.yaw, 0);
-      _q4.setFromEuler(_eu);
-      _s3.set(w.sx, w.h, w.sx);
-      _m4.compose(_v3, _q4, _s3);
-      im.setMatrixAt(i, _m4);
-      // Hue jitter between two of the theme's three papers keeps a long run
-      // from reading as one printed colour.
-      const a = theme.wallPlies[0], b = theme.wallPlies[w.tint > 0.5 ? 1 : 2];
-      _col.setHex(a, THREE.SRGBColorSpace).lerp(_col.clone().setHex(b, THREE.SRGBColorSpace), w.tint);
-      im.setColorAt(i, _col);
-      if (w.transient) transientWalls.push({ mesh: im, i, w });
+  for (const w of walls) {
+    const pieces = wallProfile(w, theme);
+    wallPieces += pieces.length;
+    if (w.transient) {
+      let rec = transientChunks.get(w.transient);
+      if (!rec) { rec = { s: sink(), baseY: [] }; transientChunks.set(w.transient, rec); }
+      const before = rec.s.pos.length / 3;
+      stampWallPieces(rec.s, w, pieces);
+      for (let v = before; v < rec.s.pos.length / 3; v++) rec.baseY.push(w.y);
+    } else {
+      const ck = `${Math.floor(w.tx / WALL_CHUNK)}-${Math.floor(w.ty / WALL_CHUNK)}`;
+      let cs = wallChunks.get(ck);
+      if (!cs) { cs = sink(); wallChunks.set(ck, cs); }
+      stampWallPieces(cs, w, pieces);
     }
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-    wallMeshes.push(im);
-    group.add(im);
   }
-  _s3.set(1, 1, 1);
 
-  // ── WALL CROWNS ───────────────────────────────────────────────────────
-  let crownMesh = null;
-  const crownGeo = buildCrown(theme.crown);
-  if (crownGeo && walls.length) {
-    track(crownGeo);
-    // Every third wall wears a crown — a solid field of flowers reads as
-    // wallpaper; a scattered one reads as a hedge that is actually growing.
-    const crowned = walls.filter((w, i) => (i % 3) === (level.id % 3));
-    if (crowned.length) {
-      countTris(crownGeo, crowned.length);
-      crownMesh = new THREE.InstancedMesh(crownGeo, wallMat, crowned.length);
-      crownMesh.name = 'level-wall-crown';
-      crownMesh.castShadow = false;
-      crownMesh.receiveShadow = true;
-      for (let i = 0; i < crowned.length; i++) {
-        const w = crowned[i];
-        _v3.set(w.x + w.ox, w.y + w.h, w.z + w.oz);
-        _eu.set(0, w.yaw, 0);
-        _q4.setFromEuler(_eu);
-        _m4.compose(_v3, _q4, _s3);
-        crownMesh.setMatrixAt(i, _m4);
-        _col.setHex(theme.crownPapers[i % theme.crownPapers.length], THREE.SRGBColorSpace);
-        crownMesh.setColorAt(i, _col);
-      }
-      crownMesh.instanceMatrix.needsUpdate = true;
-      if (crownMesh.instanceColor) crownMesh.instanceColor.needsUpdate = true;
-      group.add(crownMesh);
-    }
+  // ── LANDMARKS ─────────────────────────────────────────────────────────
+  // One 13-17 m hero structure at the objective end plus up to three 6-9 m
+  // masts spread across the floor. They are hosted on wall tiles that already
+  // have colliders (see level3dBuild.landmarkSpecs), and their pieces are
+  // merged into the wall chunk that tile already belongs to — so the tallest
+  // thing on the floor costs zero extra draw calls and zero gameplay surface.
+  //
+  // This is the fix for the flattest defect in the build: nothing in any floor
+  // was taller than 2.9 m, so every horizon was a straight line and there was
+  // nothing to walk toward.
+  const landmarks = landmarkSpecs(level, hf, theme, dist);
+  let landmarkPieces = 0;
+  for (const lm of landmarks) {
+    const pieces = landmarkProfile(lm, theme);
+    landmarkPieces += pieces.length;
+    const ck = `${Math.floor(lm.tx / WALL_CHUNK)}-${Math.floor(lm.ty / WALL_CHUNK)}`;
+    let cs = wallChunks.get(ck);
+    if (!cs) { cs = sink(); wallChunks.set(ck, cs); }
+    stampWallPieces(cs, { x: lm.x, z: lm.z, y: lm.y, yaw: 0, ox: 0, oz: 0 }, pieces);
+  }
+
+  for (const [ck, cs] of wallChunks) {
+    if (!cs.pos.length) continue;
+    const geo = track(countTris(bake(cs)));
+    const mesh = new THREE.Mesh(geo, wallMat);
+    mesh.name = `level-wall-${ck}`;
+    mesh.castShadow = castShadow;
+    mesh.receiveShadow = true;
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    wallMeshes.push(mesh);
+    group.add(mesh);
+  }
+
+  /** { kind, mesh } for the runtime to fold away on its cue. */
+  const transientWalls = [];
+  for (const [kind, rec] of transientChunks) {
+    if (!rec.s.pos.length) continue;
+    const geo = track(countTris(bake(rec.s)));
+    geo.setAttribute('aBaseY', new THREE.BufferAttribute(new Float32Array(rec.baseY), 1));
+    const mat = trackMat(toonMaterial(0xffffff, { vertexColors: true }));
+    patchWallSink(mat, kind === 'transform' ? uSinkX : uSinkS);
+    applyPapercut(mat, { ...paperOpts, scale: 1.25 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.name = `level-wall-${kind}`;
+    mesh.castShadow = castShadow;
+    mesh.receiveShadow = true;
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    transientWalls.push({ kind, mesh });
+    wallMeshes.push(mesh);
+    group.add(mesh);
+  }
+
+  function hideTransientWalls(kind) {
+    for (const t of transientWalls) if (t.kind === kind) t.mesh.visible = false;
   }
 
   // ── LIQUID ────────────────────────────────────────────────────────────
@@ -969,42 +917,46 @@ export function buildLevel3D(floorId, opts = {}) {
   }
 
   // ── GROUND DETAIL SCATTER ─────────────────────────────────────────────
-  let detailMesh = null;
+  // Three or four archetypes per floor — grass tufts, pebbles, petals, fallen
+  // leaves or pages — clumped on noise, thickened along the verge of the paver
+  // ribbon and kept off the ribbon itself. Placement is decided in
+  // level3dBuild.groundScatter (pure, deterministic); all this loop does is
+  // pack each archetype into one InstancedMesh, so the whole dressing of a
+  // floor costs three or four draw calls no matter how many pieces it holds.
+  const detailMeshes = [];
   {
-    const spots = [];
-    const stride = Math.max(1, Math.round(3 / Math.max(0.15, detailDensity)));
-    let n = 0;
-    for (const t of groundTiles(level)) {
-      if (t.ch !== 'F' || t.transient) continue;
-      if ((n++ % stride) !== 0) continue;
-      const c = tileCenter(t.tx, t.ty, level.width, level.height);
-      const r0 = ((Math.sin(t.tx * 91.7 + t.ty * 47.3) * 9137.7) % 1 + 1) % 1;
-      const r1 = ((Math.sin(t.tx * 13.1 + t.ty * 71.9) * 3271.3) % 1 + 1) % 1;
-      const ox = (r0 - 0.5) * TILE_M * 0.7, oz = (r1 - 0.5) * TILE_M * 0.7;
-      spots.push({ x: c.x + ox, z: c.z + oz, s: 0.75 + r0 * 0.7, yaw: r1 * TAU, t: r0 });
+    const scatter = groundScatter(level, hf, theme, sampleHeight, {
+      density: Math.max(0.15, detailDensity),
+      cap: Math.round(1300 * Math.max(0.15, detailDensity)),
+    });
+    const byKind = new Map();
+    for (const sp of scatter) {
+      let rows = byKind.get(sp.kind);
+      if (!rows) { rows = []; byKind.set(sp.kind, rows); }
+      rows.push(sp);
     }
-    if (spots.length) {
-      const dgeo = track(countTris(buildDetail(theme.detail), spots.length));
-      detailMesh = new THREE.InstancedMesh(dgeo, propMat, spots.length);
-      detailMesh.name = 'level-detail';
-      detailMesh.castShadow = false;
-      detailMesh.receiveShadow = true;
-      for (let i = 0; i < spots.length; i++) {
-        const sp = spots[i];
-        _v3.set(sp.x, sampleHeight(sp.x, sp.z), sp.z);
+    for (const [kind, rows] of byKind) {
+      const dgeo = track(countTris(buildDetail(kind), rows.length));
+      const im = new THREE.InstancedMesh(dgeo, propMat, rows.length);
+      im.name = `level-detail-${kind}`;
+      im.castShadow = false;
+      im.receiveShadow = true;
+      for (let i = 0; i < rows.length; i++) {
+        const sp = rows[i];
+        _v3.set(sp.x, sp.y, sp.z);
         _eu.set(0, sp.yaw, 0);
         _q4.setFromEuler(_eu);
-        _s3.set(sp.s, sp.s, sp.s);
+        _s3.set(sp.scale, sp.scale, sp.scale);
         _m4.compose(_v3, _q4, _s3);
-        detailMesh.setMatrixAt(i, _m4);
-        _col.setHex(theme.groundAccent, THREE.SRGBColorSpace)
-          .lerp(_col.clone().setHex(theme.ground[0], THREE.SRGBColorSpace), sp.t);
-        detailMesh.setColorAt(i, _col);
+        im.setMatrixAt(i, _m4);
+        _col.setHex(sp.hex, THREE.SRGBColorSpace).multiplyScalar(sp.tone);
+        im.setColorAt(i, _col);
       }
       _s3.set(1, 1, 1);
-      detailMesh.instanceMatrix.needsUpdate = true;
-      if (detailMesh.instanceColor) detailMesh.instanceColor.needsUpdate = true;
-      group.add(detailMesh);
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      detailMeshes.push(im);
+      group.add(im);
     }
   }
 
@@ -1207,44 +1159,30 @@ export function buildLevel3D(floorId, opts = {}) {
     liqClock.value = simTime;
     uPulse.value = simTime;
 
+    // The wall chunks a transform or a secret opens fold into their own
+    // footings on a uniform — one number per chunk, no per-instance rewrite.
     if (transformT >= 0) {
       transformT = Math.min(TRANSFORM_SECS, transformT + 1 / 60);
       const t = transformT / TRANSFORM_SECS;
       const e = t * t * (3 - 2 * t);
       uXform.value = e;
       uGrow.value = e;
-      if (transformT >= TRANSFORM_SECS) transformT = -1;
+      uSinkX.value = e;
+      if (transformT >= TRANSFORM_SECS) {
+        transformT = -1;
+        uSinkX.value = 1;
+        hideTransientWalls('transform');
+      }
     }
     if (revealT >= 0) {
       revealT = Math.min(REVEAL_SECS, revealT + 1 / 60);
       const t = revealT / REVEAL_SECS;
-      for (const a of transientWalls) {
-        if (a.w.transient !== 'secret') continue;
-        const k = Math.max(0.001, 1 - t);
-        _v3.set(a.w.x + a.w.ox, a.w.y - (1 - k) * 0.6, a.w.z + a.w.oz);
-        _eu.set(0, a.w.yaw, 0);
-        _q4.setFromEuler(_eu);
-        _s3.set(a.w.sx, a.w.h * k, a.w.sx);
-        _m4.compose(_v3, _q4, _s3);
-        a.mesh.setMatrixAt(a.i, _m4);
-        a.mesh.instanceMatrix.needsUpdate = true;
+      uSinkS.value = t * t * (3 - 2 * t);
+      if (revealT >= REVEAL_SECS) {
+        revealT = -1;
+        uSinkS.value = 1;
+        hideTransientWalls('secret');
       }
-      _s3.set(1, 1, 1);
-      if (revealT >= REVEAL_SECS) revealT = -1;
-    }
-    if (transformDone && uXform.value < 1) {
-      for (const a of transientWalls) {
-        if (a.w.transient !== 'transform') continue;
-        const k = Math.max(0.001, 1 - uXform.value);
-        _v3.set(a.w.x + a.w.ox, a.w.y - (1 - k) * 0.6, a.w.z + a.w.oz);
-        _eu.set(0, a.w.yaw, 0);
-        _q4.setFromEuler(_eu);
-        _s3.set(a.w.sx, a.w.h * k, a.w.sx);
-        _m4.compose(_v3, _q4, _s3);
-        a.mesh.setMatrixAt(a.i, _m4);
-        a.mesh.instanceMatrix.needsUpdate = true;
-      }
-      _s3.set(1, 1, 1);
     }
 
     for (let gi = gateAnims.length - 1; gi >= 0; gi--) {
@@ -1297,7 +1235,17 @@ export function buildLevel3D(floorId, opts = {}) {
     theme: theme.key,
     tiles: level.width * level.height,
     metres: `${level.width * TILE_M}x${level.height * TILE_M}`,
-    wallInstances: walls.length,
+    wallTiles: walls.length,
+    wallChunks: wallMeshes.length,
+    wallPieces,
+    landmarks: landmarks.length,
+    landmarkPieces,
+    landmarkHeight: landmarks.reduce((a, l) => Math.max(a, l.h), 0),
+    planters: walls.reduce((a, w) => a + (w.planter ? 1 : 0), 0),
+    groundTriangles: surf.triangles,
+    groundVertices: surf.vertices,
+    detailMeshes: detailMeshes.length,
+    detailInstances: detailMeshes.reduce((a, m) => a + m.count, 0),
     liquidTiles: liquids.length,
     objects: objects.length,
     colliders: colliders.length,

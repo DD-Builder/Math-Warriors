@@ -38,7 +38,7 @@
 import * as THREE from 'three';
 import { PAPER } from '../config.js';
 import { papercutMaterial, paperColor } from './materials/toon.js';
-import { applyAerialFog } from './materials/aerialFog.js';
+import { applyAerialFog, applyAerialFogToTree } from './materials/aerialFog.js';
 import { deckleDisc } from './materials/textures.js';
 import { createHeroRig } from './heroRig.js';
 import {
@@ -52,6 +52,9 @@ import {
   allEnemiesDead, COMMANDS,
 } from '../systems/battleRules.js';
 import { createCoachQuestionState, takeHint } from '../systems/coach.js';
+import {
+  phaseForHp, phaseScale, getPhaseBeat, MAX_PHASE,
+} from '../systems/bossPhases.js';
 import { spawnEnemy } from '../data/enemies.js';
 
 const TAU = Math.PI * 2;
@@ -68,26 +71,37 @@ const TAU = Math.PI * 2;
  */
 export const STAGE = {
   /** Half the distance between the hero line and the enemy line. */
-  halfGap: 3.4,
+  halfGap: 2.8,
   /** Spacing between adjacent heroes across the battle line. */
-  heroSpread: 1.55,
+  heroSpread: 1.35,
   /** Spacing between adjacent enemies. */
-  enemySpread: 2.0,
+  enemySpread: 1.7,
   /** Heroes stand slightly staggered so nobody hides behind anybody. */
   heroStagger: 0.42,
-  /** Camera sits off to the side of the battle line, three-quarter on. */
-  camSide: 7.4,
-  camBack: 3.1,
-  camHeight: 3.5,
+  /**
+   * Camera sits off to the side of the battle line, three-quarter on.
+   *
+   * THESE THREE ARE A FRAMING BUDGET, not taste. The widest thing on stage is
+   * the enemy line at halfGap + enemySpread ≈ 4.5 m from the stage centre. At
+   * fov 50 on the design 4:3 frame the half-width available is 0.62 × distance,
+   * so the eye must stand at least 4.5 / 0.62 ≈ 7.3 m off the line, and it
+   * stands at 8.2 to leave a margin. `camBack` is small on purpose: every
+   * metre of it pulls the party nearer the lens than the creature, and the
+   * first cut of this rig had camBack 3.1, which put the outside hero past the
+   * right edge of the screen on a 3-hero party.
+   */
+  camSide: 8.6,
+  camBack: 0.8,
+  camHeight: 3.9,
   /** Everything is framed a little above the ground, at chest height. */
   lookHeight: 1.35,
   /** How far the camera pushes in for an attack beat. */
-  pushIn: 0.42,
+  pushIn: 0.30,
   /** Follow-cam pose used on the way out, so the handback is not a jump. */
   exitDist: 6.6,
   exitHeight: 3.2,
   /** The stage disc that frames the fight underfoot. */
-  discRadius: 6.2,
+  discRadius: 5.0,
 };
 
 /**
@@ -858,7 +872,7 @@ const _slotPos = { x: 0, z: 0 };
  *   save, grade, floor, reducedMotion, rng
  *
  * The 2D overlay adapter (`ui`) — the ONLY route to the math UI:
- *   ui.onBattleBegin({ party, enemies, floor, isBoss })
+ *   ui.onBattleBegin({ party, enemies, floor, grade, isBoss })
  *   ui.showCommands(commands, pick)         pick(cmd)
  *   ui.hideCommands()
  *   ui.showQuestion({ question, stars, hero, command, answer, hint })
@@ -866,6 +880,7 @@ const _slotPos = { x: 0, z: 0 };
  *   ui.hideQuestion()
  *   ui.markAnswer({ index, correct, correctIndex })
  *   ui.showHint({ tier, text })
+ *   ui.onBossPhase({ phase, beat, enemy }) a boss crossed an HP threshold
  *   ui.setHud(snapshot)                     momentum / streak / HP bars
  *   ui.toast(text, cssColor)
  *   ui.flyReward({ gold, xp, from:{x,y} })  from = screen px of the kill
@@ -1006,6 +1021,9 @@ export function createBattle3D(deps = {}) {
   let outcome = null;
   let shakeT = 999;
   let shakeAmp = 0;
+  /** Boss act, 1..3. Driven by systems/bossPhases.js — the same thresholds,
+   *  the same lines and the same swell the 2D fight uses. */
+  let bossPhase = 1;
   /** Impact times for the move in flight — precomputed so update() never allocates. */
   let attackImpacts = [];
 
@@ -1051,6 +1069,7 @@ export function createBattle3D(deps = {}) {
       enemies: state.enemies,
       floor: state.floor,
       isBoss: state.isBoss,
+      bossPhase: state.isBoss ? bossPhase : 0,
       phase,
     };
   }
@@ -1303,6 +1322,41 @@ export function createBattle3D(deps = {}) {
     pushHud();
   }
 
+  /**
+   * THE BOSS PATH. A boss is not a big slime: it crosses two visible HP
+   * thresholds and TRANSFORMS at each — bigger silhouette, a line of its own,
+   * a burst of paper and the music one notch up.
+   *
+   * The thresholds, the acts and the lines all come from systems/bossPhases.js,
+   * which is the same pure table the 2D BattleScene reads. Nothing about "when
+   * does he get serious" is decided in this file.
+   *
+   * @returns {boolean} true if a transformation just fired
+   */
+  function checkBossPhase() {
+    if (!state?.isBoss) return false;
+    const rec = state.enemies[0];
+    const fig = enemyFigures[0];
+    if (!rec || !fig || fig.dying || rec.hp <= 0) return false;
+    const want = phaseForHp(rec.hp, rec.maxHp);
+    if (want <= bossPhase) return false;
+
+    bossPhase = Math.min(MAX_PHASE, want);
+    const beat = getPhaseBeat(rec.id, bossPhase);
+    // The swell is the read: the same creature, MORE of it.
+    fig.phaseScale = phaseScale(bossPhase);
+    paperBurst(fig.x, stageY + fig.height * 0.6, fig.z, 1, beat.aura ?? fig.color);
+    shake(reducedMotion ? 0 : 0.18);
+    setShot('enemy', 0.45);
+    toast(beat.line, '#e8a030');
+    toast(beat.tell, '#f0c040');
+    play('battle/boss-phase');
+    try { audio?.setMusicIntensity?.(bossPhase); } catch { /* audio is a nicety */ }
+    try { ui.onBossPhase?.({ phase: bossPhase, beat, enemy: rec }); } catch { /* overlay optional */ }
+    pushHud();
+    return true;
+  }
+
   function finishHeroMove() {
     // Did the blow finish the creature? Dissolve it now, before the beat.
     for (let i = 0; i < enemyFigures.length; i++) {
@@ -1316,6 +1370,9 @@ export function createBattle3D(deps = {}) {
       }
     }
     if (allEnemiesDead(state)) return startVictory();
+    // A boss that just crossed a threshold transforms BEFORE the next turn
+    // opens, so the child sees the change and then faces it.
+    checkBossPhase();
     // Hand back to the TURN SEQUENCE rather than jumping straight into an
     // enemy round. buildTurnSequence already alternates hero/enemy, so
     // firing a round here as well gave every creature two swings per hero
@@ -1538,8 +1595,11 @@ export function createBattle3D(deps = {}) {
       fig.x = x; fig.z = z;
       mesh.position.set(x, stageY + lift, z);
       mesh.rotation.y = fig.yaw;
-      const sxz = 1 / Math.sqrt(Math.max(0.2, squash));
-      mesh.scale.set(sxz, squash, sxz);
+      // A boss's phase swell multiplies the squash rather than replacing it,
+      // so it keeps breathing while it grows.
+      const ps = fig.phaseScale || 1;
+      const sxz = ps / Math.sqrt(Math.max(0.2, squash));
+      mesh.scale.set(sxz, squash * ps, sxz);
       mesh.visible = true;
     }
   }
@@ -1664,6 +1724,7 @@ export function createBattle3D(deps = {}) {
     clock = 0;
     activeHero = -1;
     pendingResult = null;
+    bossPhase = 1;
 
     // ── Staging ──
     const p = getPlayer();
@@ -1727,6 +1788,7 @@ export function createBattle3D(deps = {}) {
         color: paletteForFloor(rec.floor || floor).cols[1],
         attacking: false, attackT: 0, hitT: null,
         dying: false, dieT: 0,
+        phaseScale: 1,
       });
     }
 
@@ -1734,6 +1796,11 @@ export function createBattle3D(deps = {}) {
     setInputLocked(true);
     setEncountersEnabled(false);
     if (playerRig?.group) playerRig.group.visible = false;
+    // The hero rigs and creature meshes staged above were BORN just now, long
+    // after index.js swept the scene at boot, so they have to opt into the
+    // world's one atmosphere themselves or the fight sits in front of the sky
+    // instead of inside it. Idempotent, and cheap: a dozen materials.
+    applyAerialFogToTree(group);
     group.visible = true;
 
     // The sweep starts from wherever the follow boom left the camera, so
@@ -1746,7 +1813,11 @@ export function createBattle3D(deps = {}) {
     setShot('wide', PHASE_TIME.sweepIn);
     goPhase(PHASE.SWEEP_IN);
 
-    try { ui.onBattleBegin?.({ party, enemies: enemyRecords, floor, isBoss: !!encounter.isBoss }); } catch { /* optional */ }
+    // `grade` rides along because the overlay sizes its digits by it — K-2 read
+    // numerals at a glance only at the larger face.
+    try {
+      ui.onBattleBegin?.({ party, enemies: enemyRecords, floor, grade, isBoss: !!encounter.isBoss });
+    } catch { /* optional */ }
     pushHud();
     play(encounter.isBoss ? 'battle/boss-start' : 'battle/start');
     try { hooks.onBegin?.(encounter); } catch { /* host hook */ }
@@ -1848,6 +1919,8 @@ export function createBattle3D(deps = {}) {
       floor: state?.floor ?? floor,
       correct: state?.correct ?? 0,
       wrong: state?.wrong ?? 0,
+      streak: state?.streak ?? 0,
+      bossPhase: state?.isBoss ? bossPhase : 0,
       damageTaken: state?.damageTaken ?? false,
       party: state?.party ?? party,
       enemies: state?.enemies ?? [],
@@ -1919,6 +1992,8 @@ export function createBattle3D(deps = {}) {
     // ── Extras the integrator will want ───────────────────────────────
     /** Current phase (see PHASE). */
     getPhase() { return phase; },
+    /** Boss act 1..3 (bossPhases.js), or 1 when this is not a boss fight. */
+    getBossPhase() { return bossPhase; },
     /** Read-only snapshot for the HUD; null when idle. */
     getState() { return hudSnapshot(); },
     /** The 2D overlay routes the child's tap here. Returns false if ignored. */

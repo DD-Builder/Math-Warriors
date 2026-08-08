@@ -1179,10 +1179,19 @@ export function createHeroRig(heroId, opts = {}) {
   // `space:'local'` pins the paper grain to the mesh so it cannot swim across
   // the hero as he runs — he is the closest thing to the camera and the one
   // surface where swimming grain would be obvious.
+  // `form` is the hero's answer to "a flat teal wedge with no read": the toon
+  // ramp puts a shoulder, a helmet crown and a chest plate on the SAME step
+  // (they are all within a few degrees of the sun's NdotL), so a figure cut
+  // from thirty plies of paper arrived as one silhouette-shaped fill. Lifting
+  // the sky-facing plies and dropping the tucked-under ones is baked value
+  // structure — it survives into shade, so the hero reads as a figure standing
+  // in a hedge's shadow rather than as a hole in it. Held at half strength: on
+  // a 1.7 m character at 6 m the plies are small and the full wall amount
+  // would read as speckle rather than as form.
   const skin = papercutMaterial(0xffffff, {
     vertexColors: true,
     grain: 0.075, normal: 0.10, roughnessLike: 0.17, scale: 0.42, space: 'local',
-    bleach: 0.26,
+    bleach: 0.26, form: 0.5,
   });
   // The hero is the one surface in the world that gets a rim: cream light on
   // the paper edge, additive after the toon ramp so it survives into shade —

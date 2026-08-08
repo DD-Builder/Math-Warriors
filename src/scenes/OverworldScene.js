@@ -18,6 +18,13 @@ import { spawnHero, levelBonuses } from '../data/heroes.js';
 import { generateRatedQuestion } from '../systems/math.js';
 import { getAdaptiveGrade } from '../systems/mastery.js';
 import {
+  composeEncounter, applyBattleVictory, applyBattleDefeat,
+} from '../systems/battleRules.js';
+import { recordBattle } from '../systems/bonds.js';
+import { checkAchievements } from '../systems/achievements.js';
+import { updateQuestProgress as questTick } from '../systems/dailyQuests.js';
+import { createBattleOverlay3D } from '../overworld/battleOverlay3d.js';
+import {
   initialProgress, isChallengeType, nextLockDoor, doorQuestionSpec, bossGate,
   goldenGate, exitGate, advanceChallenge, challengeGoal, grantChest, grantGold,
   grantPotion, useFountain, syncPartyToSave, objectiveText,
@@ -123,6 +130,12 @@ export class OverworldScene extends Phaser.Scene {
           onPortalLeave: () => this._hidePortalPrompt(),
           onCollect: (spec) => this._onCollect(spec),
           onFloorTrigger: (handle) => this._onFloorTrigger(handle),
+          // The fight happens in the world now — these three are its whole
+          // lifecycle. See the BATTLE SEAM block below.
+          battleAudio: audio,
+          onBattleVictory: (r) => this._onBattleVictory(r),
+          onBattleDefeat: (r) => this._onBattleDefeat(r),
+          onBattleEnd: (r) => this._onBattleEnd(r),
         },
       });
     } catch (err) {
@@ -134,6 +147,17 @@ export class OverworldScene extends Phaser.Scene {
     this._buildInput();
     this._buildHud();
     this.dialogue = new DialogueOverlay(this);
+
+    // The 2D maths overlay for the 3D fight. Built from the same Paper
+    // components the 2D BattleScene uses, and installed once — battle3d calls
+    // it directly, and it draws nothing until an encounter begins.
+    this._battleUi = createBattleOverlay3D(this, {
+      purseAt: () => ({ x: 130, y: 96 }),
+      onGold: () => this._pulseChip(this._goldChip, this.save.gold || 0),
+      onAnswer: (correct) => { if (correct) questTick(this.save, 'correct'); },
+    });
+    this.app.setBattleUi(this._battleUi);
+
     audio.playMusic('music/map');
 
     // Returning from a battle fought inside a floor: rebuild that floor and
@@ -432,6 +456,11 @@ export class OverworldScene extends Phaser.Scene {
       id: h.data.id ?? `${h.data.type}-${h.data.x}-${h.data.y}`,
       consumed: false,
       handle: h.id,
+      // Where this thing actually STANDS, in metres. The 3D battle draws its
+      // battle line from the player through here, so a fight stages itself
+      // along the direction the encounter already had.
+      worldX: h.x,
+      worldZ: h.z,
       // level3d keys gates and their colliders on the RAW id with a tile
       // fallback (`o.data.id ?? "x-y"`), which is not the same string as the
       // rule id above when a door carries no id of its own. Keep both.
@@ -590,6 +619,7 @@ export class OverworldScene extends Phaser.Scene {
   _onFloorTrigger(handle) {
     if (!this.floorId || !this._handleToObj) return;
     if (this.dialogue?.active || this._mathPrompt) return;
+    if (this.app?.battleActive?.()) return;
     const obj = this._handleToObj.get(handle.id);
     if (!obj || obj.consumed) return;
     if (obj.type === 'mathdoor' && obj.open) return;
@@ -693,7 +723,7 @@ export class OverworldScene extends Phaser.Scene {
       case 'encounter': {
         this._consume(obj);
         audio.play('world/encounter');
-        this._startBattle(false);
+        this._startBattle(false, undefined, obj);
         return;
       }
       case 'boss': {
@@ -703,7 +733,7 @@ export class OverworldScene extends Phaser.Scene {
         // The boss is NOT consumed before the fight — a loss has to leave it
         // standing so the retry has something to walk back into.
         audio.play('world/encounter');
-        this._startBattle(true, obj.enemyId);
+        this._startBattle(true, obj.enemyId, obj);
         return;
       }
       case 'exit': {
@@ -811,15 +841,119 @@ export class OverworldScene extends Phaser.Scene {
     this._saveFloorState();
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // THE BATTLE SEAM
+  //
+  // Walking into a monster no longer leaves the world. overworld/battle3d.js
+  // sweeps the camera into a battle framing WHERE THE PLAYER IS STANDING, the
+  // party takes formation, the creature squares up, and the floor they were
+  // walking through stays right there behind them. The maths is still 2D — the
+  // question band, the four answers, the hint chip and the numpad are Phaser,
+  // drawn by overworld/battleOverlay3d.js on top of the live 3D frame.
+  //
+  // The RULES are unchanged and unshared-by-copy: composeEncounter picks the
+  // pack, battle3d resolves every swing through systems/battleRules.js, and
+  // applyBattleVictory / applyBattleDefeat write the save — the same three
+  // functions the 2D BattleScene calls.
+  //
+  // THE 2D FALLBACK survives for exactly two cases (see _startBattle):
+  // no WebGL battle runtime, and a party that could not be staged. Both route
+  // through _startBattle2D, which is the old code verbatim.
+  // ══════════════════════════════════════════════════════════════════════
+
   /**
-   * BATTLE SEAM — battle3d.js does not exist yet, so encounters and bosses
-   * still hand off to the 2D BattleScene. This is the ONE place that leaves
-   * the 3D world during play, and it is deliberately a single call: when the
-   * 3D battle lands, replace the body of this method and nothing else in the
-   * floor pipeline has to change. `resumeFloor` is what brings the player back
-   * INTO the floor (not the island) whichever way the fight goes.
+   * The walking HUD steps aside for the fight. The joystick, the JUMP/ACTION
+   * buttons, the objective plate, the LEAVE/MAP button and the purse chips all
+   * belong to WALKING — leaving them up during a battle both crowds the frame
+   * and offers a child taps that do nothing.
    */
-  _startBattle(isBoss, enemyId) {
+  _setWorldHudVisible(v) {
+    this._controls?.setVisible(v);
+    this._realmTitle?.setVisible(v && !this.floorId);
+    this._title?.setVisible(v && !!this.floorId);
+    this._setMapBtnVisible(v && !this.floorId);
+    for (const chip of [this._goldChip, this._potionChip]) {
+      chip?.plate.setVisible(v);
+      chip?.label.setVisible(v);
+    }
+    const h = this._floorHud;
+    if (h) {
+      h.objPlate.setVisible(v);
+      h.objText.setVisible(v);
+      for (const o of [h.leaveBtn.bg, h.leaveBtn.shadow, h.leaveBtn.label, h.leaveBtn.zone]) {
+        o?.setVisible(v);
+      }
+      if (h.leaveBtn.zone) {
+        if (v) h.leaveBtn.zone.setInteractive(); else h.leaveBtn.zone.disableInteractive();
+      }
+    }
+  }
+
+  /**
+   * @param {boolean} isBoss
+   * @param {string} [enemyId]  the boss the gate names
+   * @param {object} [obj]      the rule object walked into — its world
+   *                            position is where the battle line is drawn
+   */
+  _startBattle(isBoss, enemyId, obj = null) {
+    if (this.app?.battleActive?.()) return;
+
+    const party = (this.party || []).filter((h) => h && h.hp > 0);
+    const enemies = composeEncounter({
+      floor: this.floorId || 1,
+      grade: this.save.grade,
+      isBoss: !!isBoss,
+      enemyId: isBoss ? enemyId : null,
+    });
+
+    // The two genuine fallbacks. A fight with nobody in it, or with nothing to
+    // fight, is not a fight — and neither is one the 3D world refuses to stage.
+    if (!this.app?.startBattle || party.length === 0 || enemies.length === 0) {
+      this._startBattle2D(isBoss, enemyId);
+      return;
+    }
+
+    const begin = () => {
+      const ok = this.app.startBattle({
+        enemies,
+        party,
+        isBoss: !!isBoss,
+        floor: this.floorId || 1,
+        grade: this.save.grade,
+        worldPos: obj && Number.isFinite(obj.worldX)
+          ? { x: obj.worldX, y: 0, z: obj.worldZ }
+          : undefined,
+      });
+      if (!ok) { this._startBattle2D(isBoss, enemyId); return; }
+      this._battleBoss = !!isBoss;
+      this._battleObj = obj;
+      this._destroyPrompt();
+      this._setWorldHudVisible(false);
+      audio.playMusic(isBoss ? `music/boss-${this.floorId}` : 'music/battle');
+    };
+
+    // A boss still gets its entrance — played IN PLACE over the 3D world
+    // rather than as a CutsceneScene, because tearing the world down is the
+    // exact thing this change exists to stop.
+    const bossKey = `floor${this.floorId}_boss`;
+    if (isBoss && DIALOGUE[bossKey]?.length) {
+      this.app?.setInputLocked(true);
+      this.dialogue.show(DIALOGUE[bossKey]).then(() => {
+        this.app?.setInputLocked(false);
+        begin();
+      });
+      return;
+    }
+    begin();
+  }
+
+  /**
+   * THE FALLBACK — the old seam, verbatim. Reached only when the 3D battle
+   * runtime is unavailable or the encounter could not be staged. `resumeFloor`
+   * is what brings the player back INTO the floor (not the island) whichever
+   * way the fight goes.
+   */
+  _startBattle2D(isBoss, enemyId) {
     this._pendingBoss = !!isBoss;
     this._saveFloorState();
     this.saveMazeState();
@@ -851,6 +985,81 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
     transitionTo(this, SCENES.BATTLE, battleData, 300);
+  }
+
+  /**
+   * VICTORY. Rewards, XP, level-ups and floor progression all flow through
+   * battleRules.applyBattleVictory — the same call BattleScene.showVictory
+   * makes, so a win in the world and a win in the maze pay identically.
+   */
+  _onBattleVictory(result) {
+    const save = this.save;
+    // Inside a floor only a BOSS completes the floor; a wandering creature is
+    // worth gold and XP and nothing else. That is the same rule the 2D battle
+    // applies when it came from a floor (`fromFloor3d`).
+    const won = applyBattleVictory(save, {
+      floor: result.floor ?? this.floorId ?? 1,
+      correct: result.correct,
+      wrong: result.wrong,
+      streak: result.streak ?? 0,
+      party: result.party,
+      damageTaken: result.damageTaken,
+      potionUsed: false,
+      markFloor: !!result.isBoss,
+    });
+    recordBattle(save, (result.party || []).filter(Boolean).map((h) => h.id));
+    const achievements = checkAchievements(save);
+    writeSave(save, this.slot);
+
+    if (result.isBoss) {
+      this.bossDefeated = true;
+      const boss = this._battleObj
+        || (this.objects || []).find((o) => o.type === 'boss' && !o.consumed);
+      if (boss && !boss.consumed) this._consume(boss);
+    }
+
+    this._pulseChip(this._goldChip, save.gold || 0);
+    const lines = [`+${won.gold} GOLD   +${won.xp} XP`];
+    if (won.leveledUp.length) lines.push(`LEVEL UP: ${won.leveledUp.join(' & ')}`);
+    if (won.newHeroes.length) lines.push(`${won.newHeroes.join(' & ')} JOINS YOU!`);
+    for (const a of achievements || []) lines.push(`${a.name || a} UNLOCKED!`);
+    this._battleUi?.banner?.('VICTORY!', lines, PAPER_CSS.gold);
+
+    this._saveFloorState();
+    this._refreshFloorHud();
+  }
+
+  /**
+   * DEFEAT. Gentle, exactly as the 2D battle is: the party comes back at half
+   * HP and the creature is still standing, so the retry is a walk away.
+   */
+  _onBattleDefeat(result) {
+    applyBattleDefeat(this.save, {
+      correct: result.correct,
+      wrong: result.wrong,
+      party: result.party,
+    });
+    writeSave(this.save, this.slot);
+    this.party = this._hydrateParty();
+    this._battleUi?.banner?.('THE PARTY FALLS BACK', ['Your heroes rest, and rise again.'],
+      PAPER_CSS.cream);
+    this._saveFloorState();
+    this._refreshFloorHud();
+  }
+
+  /** Whatever the outcome: the world takes the stick and the music back. */
+  _onBattleEnd() {
+    this._battleBoss = false;
+    this._battleObj = null;
+    if (this._destroyed) return;
+    this._setWorldHudVisible(true);
+    this.app?.clearFloorTriggerLatch();
+    // battle3d parks the eye on its 'exit' pose, which is the follow boom's
+    // resting place BEHIND THE HERO. Snap the input layer's orbit to the same
+    // heading or the boom immediately swings back to wherever the orbit was
+    // left before the fight.
+    this._controls?.snapTo(this.app?.getFacing?.() ?? 0);
+    audio.playMusic(this.floorId ? 'music/maze' : 'music/map');
   }
 
   /** The exit arch, with the key in hand. */
@@ -979,7 +1188,10 @@ export class OverworldScene extends Phaser.Scene {
     // A modal (dialogue, math door) owns the screen: neutralise the stick and
     // freeze the orbit rather than letting a stray drag spin the world behind
     // the panel.
-    const locked = !!(this.dialogue?.active || this._mathPrompt || this._entering);
+    // A fight owns the screen the same way a modal does: the stick is dead and
+    // the orbit is frozen, because battle3d is writing the camera itself.
+    const locked = !!(this.dialogue?.active || this._mathPrompt || this._entering
+      || this.app.battleActive?.());
 
     const f = this._controls.poll({
       dt,
@@ -1054,6 +1266,11 @@ export class OverworldScene extends Phaser.Scene {
     this._controls = null;
     this._destroyPrompt();
     this._mathPrompt?.kill();
+    // A fight in flight must not survive the scene: end it before the world
+    // goes, so the save is written and the overlay is not left orphaned.
+    try { this.app?.endBattle?.('fled'); } catch { /* the world may be half-gone */ }
+    this._battleUi?.destroy();
+    this._battleUi = null;
     // A floor in progress must survive the scene going away (a battle, a tab
     // close): the snapshot is what _restoreFloorState replays on the way back.
     if (this.floorId) this._saveFloorState();
