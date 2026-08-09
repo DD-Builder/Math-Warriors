@@ -73,8 +73,9 @@ export function makeDefaultSave() {
     pendingRescueDialogue: [],
     // 3D overworld snapshot (v6+): pos null means "spawn fresh at the
     // island spawn point"; collected holds overworld pickup ids so loot
-    // never respawns across sessions.
-    overworld: { pos: null, yaw: 0, portalId: null, collected: [] },
+    // never respawns across sessions, and seen holds the ids of cinematics
+    // that have already played (overworld/cinematics.js).
+    overworld: { pos: null, yaw: 0, portalId: null, collected: [], seen: [] },
     settings: {
       musicVolume: 0.8,
       sfxVolume: 1.0,
@@ -181,7 +182,7 @@ const MIGRATIONS = [
     // simply never visited the overworld, so defaults are always correct.
     migrate: (s) => ({
       ...s,
-      overworld: s.overworld || { pos: null, yaw: 0, portalId: null, collected: [] },
+      overworld: s.overworld || { pos: null, yaw: 0, portalId: null, collected: [], seen: [] },
       settings: { ...s.settings, overworldEnabled: s.settings?.overworldEnabled ?? true },
     }),
   },
@@ -331,6 +332,15 @@ function normalize(save) {
     portalId: typeof rawOverworld.portalId === 'string' ? rawOverworld.portalId : null,
     collected: Array.isArray(rawOverworld.collected)
       ? rawOverworld.collected.filter((id) => typeof id === 'string')
+      : [],
+    // Cinematics already played. ADDITIVE, and deliberately NOT a version
+    // bump: an absent list means "nothing has played yet", which is the
+    // correct reading of every save written before cinematics existed, so
+    // there is nothing for a migration to do. Deduped and string-only for
+    // the same reason `collected` is — this list is written from gameplay
+    // and read as a gate, and a duplicate would grow it without bound.
+    seen: Array.isArray(rawOverworld.seen)
+      ? [...new Set(rawOverworld.seen.filter((id) => typeof id === 'string'))]
       : [],
   };
   out.settings.overworldEnabled = typeof out.settings.overworldEnabled === 'boolean'

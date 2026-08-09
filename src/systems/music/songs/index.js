@@ -12,10 +12,16 @@ import { WORLD_SONG } from './world.js';
 import { BATTLE_SONG, VICTORY_STINGER, DEFEAT_STINGER } from './battle.js';
 import { FLOOR_SONGS } from './floors.js';
 import { BOSS_SONGS } from './bosses.js';
+import { OVERWORLD_SONG, OVERWORLD_CALM_SONG } from './overworld.js';
 
 const SONGS = {
   'music/title': TITLE_SONG,
   'music/map': WORLD_SONG,
+  // The main theme. 'music/overworld' is the adaptive cut (day/night
+  // voicings + alert/combat/boss layers); the calm cut is the same tune
+  // with the fight stems removed, for menus and the world map.
+  'music/overworld': OVERWORLD_SONG,
+  'music/overworld-calm': OVERWORLD_CALM_SONG,
   'music/battle': BATTLE_SONG,
   'stinger/victory': VICTORY_STINGER,
   'stinger/defeat': DEFEAT_STINGER,

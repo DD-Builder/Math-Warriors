@@ -26,15 +26,15 @@
  *        │                                                      v
  *   ┌────┴────┐  jump mid-air, high enough   ┌───────┐      ┌───────┐
  *   │  WALK   │─────────────────────────────>│ GLIDE │      │ CLIMB │
- *   │ (base)  │<─────────────────────────────│       │      │       │
+ *   │ (base)  │<─────────────────────────────│       │      │ shimmy│
  *   └─┬─────▲─┘   land / jump folds it away  └───┬───┘      └───┬───┘
  *     │     │                                    │              │
  *     │     │  ground rises past the exit depth  │ splashdown   │ top of the
  *     │     │  ┌───────┐                         │ in deep      │ face reached
- *     │     └──│ SWIM  │<────────────────────────┘ water        v
- *     │        │       │                                    ┌────────┐
- *     └───────>│       │  deep water under the body         │ MANTLE │
- *  wade out    └───────┘                                    │(timed) │
+ *     │     └──│ SWIM  │<────────────────────────┘ water        v  (or the
+ *     │        │ +dive │                                    ┌────────┐ "so
+ *     └───────>│       │  deep water under the body         │ MANTLE │ close"
+ *  wade out    └───────┘                                    │(timed) │ grace)
  *  past the depth threshold                                 └───┬────┘
  *                                                               │ pops onto
  *   CLIMB also leaves to WALK on: jump off the wall (outward     │ the ledge
@@ -44,8 +44,28 @@
  * Stamina is one shared pool: climbing and sprinting spend it, standing still
  * refills it fast. There is NO drowning, no fall damage and no death state
  * anywhere in this file — running dry in deep water only starts a gentle drift
- * toward the nearest shore, which is the water-facing echo of the walk
- * controller's "water slows you down, it never punishes you" rule.
+ * toward the nearest shore, and running dry on a wall within arm's reach of the
+ * top hands you the top anyway (the "so close" grace). This is a game for
+ * five-year-olds: every failure state in here is a soft landing.
+ *
+ * ── The three kindnesses ───────────────────────────────────────────────────
+ *
+ *   1. SO-CLOSE GRACE.  Empty pool on a wall whose lip is within graceRise
+ *      metres = a free mantle, once per latch. A child who almost made it
+ *      made it.
+ *   2. AUTO-CANOPY.     Fall for glideAutoFallT seconds with glideAutoHeight
+ *      metres of air still below you and the glider opens ITSELF. Walking off
+ *      the palace can never be a plummet, even if nobody presses anything.
+ *   3. SHORE TOW.       Empty pool in deep water is not a timer, it is a tow
+ *      rope toward the nearest shallows, and the pool refills while it tows.
+ *
+ * ── The one-shot `event` field ─────────────────────────────────────────────
+ * Every frame the state carries `event`: null, or the name of the single
+ * notable thing that happened on THAT step ('grab', 'mantle', 'canopy',
+ * 'touchdown', 'splash', 'submerge', 'surface', 'shimmy', 'thermal',
+ * 'spent', 'rescue'). The rig, the audio bus and the FX layer read it and
+ * nothing has to diff two states to notice a landing. It is part of the pure
+ * output, so a replay reproduces every sound effect exactly.
  */
 import { createController, DEFAULT_TUNING, PLAYER_RADIUS } from './controller.js';
 import { WATER_Y } from './collision.js';
@@ -59,6 +79,24 @@ export const MODES = Object.freeze({
   SWIM: 'swim',
 });
 
+/** Every one-shot `event` name the machine can emit. Frozen so a typo in a
+ *  consumer's switch is a lookup miss here rather than a silent dead branch. */
+export const EVENTS = Object.freeze({
+  GRAB: 'grab',            // latched onto a face
+  SHIMMY: 'shimmy',        // started moving sideways on a face
+  MANTLE: 'mantle',        // ledge pop began
+  RESCUE: 'rescue',        // ...and it began because of the so-close grace
+  SPENT: 'spent',          // pool hit zero and the hands opened
+  CANOPY: 'canopy',        // glider deployed
+  AUTOCANOPY: 'autocanopy',// ...and it deployed itself
+  THERMAL: 'thermal',      // caught a rising column
+  TOUCHDOWN: 'touchdown',  // glider landing, feet down
+  SPLASH: 'splash',        // entered deep water
+  SUBMERGE: 'submerge',    // head went under
+  SURFACE: 'surface',      // head came back up
+  SHORE: 'shore',          // stood up out of the water
+});
+
 /**
  * Traversal tuning. Merged over (and alongside) controller.js DEFAULT_TUNING,
  * so one object configures the whole character.
@@ -69,9 +107,10 @@ export const MODES = Object.freeze({
  */
 export const DEFAULT_TRAVERSAL_TUNING = {
   // ── Climb ────────────────────────────────────────────────────────────────
-  climbUpSpeed: 2.4,      // m/s up the face — slower than a walk, reads as effort
-  climbDownSpeed: 3.2,    // coming down is always quicker than going up
-  climbSideSpeed: 2.0,
+  climbUpSpeed: 2.8,      // m/s up the face — slower than a walk, reads as effort
+  climbDownSpeed: 3.6,    // coming down is always quicker than going up
+  climbSideSpeed: 2.4,    // the shimmy. Nearly a walk: sliding along a ledge
+                          // hunting for the next hold should never feel slow.
   climbReach: 0.95,       // PLAYER_RADIUS + a forearm: how far ahead a wall is felt
   climbMinRise: 0.9,      // a face must out-top the head, else it is just a bump
   climbFacing: 0.3,       // stick must push into the face (dot < -0.3, ~72 deg cone)
@@ -88,16 +127,42 @@ export const DEFAULT_TRAVERSAL_TUNING = {
   mantleTol: 0.25,        // body this far off the face = the face ended
   mantleForward: 1.1,     // how far onto the ledge the pop lands
   mantleRise: 0.6,        // target ground above this is not a top, keep climbing
+  // ── The "so close" grace ─────────────────────────────────────────────────
+  graceRise: 4.0,         // m of face left when the pool empties that still
+                          // counts as "you made it". Four metres is about a
+                          // second and a half of climbing: comfortably more
+                          // than the distance a child notices losing.
+  graceProbe: 1.15,       // how far INTO the face the lip is looked for. Roughly
+                          // mantleForward, so "the probe found the top" and "the
+                          // pop can reach the top" are the same question.
+  mantleSlack: 12,        // degrees past the walk limit a mantle target may be.
+                          // A mantle must land somewhere a child can STAND — the
+                          // slack only covers a top whose sampled normal is a
+                          // hair over the limit, never a rescue onto a cliff.
   // ── Glide ────────────────────────────────────────────────────────────────
   glideMinHeight: 2.5,    // m of air below you before the glider will open
   glideDeployVy: 2.0,     // must be past the top of the jump arc
-  glideFall: -2.2,        // m/s terminal descent under canopy
-  glideDiveFall: -4.6,    // …with the run button held
+  glideFall: -2.2,        // m/s terminal descent under canopy  (4.5 : 1 glide)
+  glideDiveFall: -4.6,    // …with the run button held           (2.7 : 1)
   glideSpeed: 10.0,       // faster than a sprint: the reward for the climb
   glideDiveSpeed: 12.5,
-  glideAccel: 14,         // m/s^2 toward the steering target — deliberately snappy
+  glideAccel: 24,         // m/s^2 toward the steering target. Sized so a FULL
+                          // reversal (+glideSpeed to -glideSpeed) takes ~0.85 s:
+                          // any slower and a child steering away from a cliff
+                          // arrives after the cliff does.
   glideVyAccel: 9,        // m/s^2 toward the descent rate (the canopy "catching")
   glideDeployPop: -0.8,   // vy is lifted to at least this on deploy — a visible catch
+  glideAutoFallT: 0.85,   // s of unbroken falling after which the canopy opens
+  glideAutoHeight: 9.0,   // …provided this much air is still under the feet
+  glideFlareSpeed: 0.55,  // horizontal speed kept on touchdown — the flourish is
+                          // a run-out, not a stop
+  glideFlareHeight: 1.6,  // m above ground where the canopy flares (vy eased to
+                          // a third) so nobody ever slams into the deck
+  // ── Thermals ─────────────────────────────────────────────────────────────
+  thermalGain: 1.0,       // multiplier on whatever the field reports
+  thermalMax: 6.5,        // m/s hard ceiling on lift, so a vent cannot fling
+  thermalAccel: 5.0,      // m/s^2 the canopy accepts lift at — a swell, not a kick
+  thermalNoticeAt: 1.2,   // m/s of lift that fires the 'thermal' event once
   // ── Swim ─────────────────────────────────────────────────────────────────
   swimDepth: 1.4,         // water deeper than this swims…
   swimExitDepth: 0.9,     // …and shallower than this walks. The gap is hysteresis:
@@ -112,12 +177,16 @@ export const DEFAULT_TRAVERSAL_TUNING = {
   riseSpeed: 1.6,         // released, you always float back up
   diveMax: 3.0,
   diveClearance: 0.5,     // never dive into the seabed
+  submergeAt: 0.55,       // dive depth at which the head is under and the world
+                          // goes green — the caustic view's one threshold
   shoreAssist: 1.6,       // m/s of free help when the pool runs dry in deep water
   shoreProbe: 3.0,        // gradient probe arm used to find which way is shallow
   // ── Stamina (one shared pool) ────────────────────────────────────────────
   staminaMax: 100,
-  staminaClimbMove: 6,    // /s — ~16 s of continuous climbing, ~40 m of face
-  staminaClimbHold: 2.5,  // /s — hanging still is cheap, panic is free
+  staminaClimbMove: 5,    // /s — 20 s of continuous climbing, ~56 m of face.
+                          // The tallest authored face on the island is 42 m.
+  staminaClimbSide: 3,    // /s — a shimmy is cheaper than a haul
+  staminaClimbHold: 2,    // /s — hanging still is cheap, panic is free
   staminaClimbJump: 8,
   staminaMantle: 4,
   staminaSprint: 9,
@@ -125,7 +194,9 @@ export const DEFAULT_TRAVERSAL_TUNING = {
   staminaRegenIdle: 34,   // /s — a full refill in ~3 s of standing still
   staminaRegenMove: 16,
   staminaRegenSwim: 6,    // floating recovers too, so nobody can get stuck offshore
+  staminaRegenGlide: 12,  // the canopy is a rest: you land ready to climb again
   staminaRecover: 22,     // exhausted -> must reach this before climbing/sprinting
+  staminaLowAt: 0.28,     // fraction below which the gauge should start shouting
 };
 
 const TAU = Math.PI * 2;
@@ -158,19 +229,58 @@ function smoothstep(p) {
 /** 0..1 stamina, for a meter. Safe on any state (including a raw base state). */
 export function staminaFraction(state, tuning = DEFAULT_TRAVERSAL_TUNING) {
   const max = tuning.staminaMax || DEFAULT_TRAVERSAL_TUNING.staminaMax;
-  const s = typeof state?.stamina === 'number' ? state.stamina : max;
+  // Number.isFinite, not typeof: a NaN that reached a save (or a half-written
+  // state) must read as a FULL pool, never as a NaN that poisons the HUD's
+  // arc geometry and draws nothing at all.
+  const s = Number.isFinite(state?.stamina) ? state.stamina : max;
   return clamp(s / max, 0, 1);
+}
+
+/**
+ * Should the stamina gauge be on screen at all? A ring that is always visible
+ * is HUD clutter; a ring that appears the moment the pool is being spent and
+ * fades once it is full again is feedback. Pure, so the HUD test can pin it.
+ */
+export function staminaVisible(state, tuning = DEFAULT_TRAVERSAL_TUNING) {
+  if (!state) return false;
+  if (state.mode === MODES.CLIMB || state.mode === MODES.MANTLE) return true;
+  if (state.tired) return true;
+  return staminaFraction(state, tuning) < 0.999;
+}
+
+/** True while the head is under water — the cue the caustic view keys off. */
+export function isUnderwater(state, tuning = DEFAULT_TRAVERSAL_TUNING) {
+  return state?.mode === MODES.SWIM && (state.dive || 0) >= tuning.submergeAt;
+}
+
+/**
+ * Traversal-mode flags for heroRig.update(). Kept here rather than in the rig
+ * so exactly one file knows what MODES mean.
+ */
+export function rigFlags(state, out = {}) {
+  out.climbing = state?.mode === MODES.CLIMB || state?.mode === MODES.MANTLE;
+  out.gliding = state?.mode === MODES.GLIDE;
+  out.swimming = state?.mode === MODES.SWIM;
+  return out;
 }
 
 /**
  * @param {ReturnType<import('./collision.js').createCollisionWorld>} collisionWorld
  * @param {Partial<typeof DEFAULT_TUNING & typeof DEFAULT_TRAVERSAL_TUNING>} [tuning]
+ * @param {{thermalAt?: (x:number,y:number,z:number,t:number)=>number}} [field]
+ *        Optional environment sampler. `thermalAt` returns metres per second of
+ *        rising air at a point — Ember vents, sun-warmed rock. It MUST be a
+ *        pure function of its four arguments (the fourth is the sim clock,
+ *        which lives in the state) or replays stop matching.
  */
-export function createTraversalController(collisionWorld, tuning = {}) {
+export function createTraversalController(collisionWorld, tuning = {}, field = {}) {
   const t = { ...DEFAULT_TUNING, ...DEFAULT_TRAVERSAL_TUNING, ...tuning };
   // The base controller filters this down to its own seven keys itself.
   const base = createController(collisionWorld, t);
   const slopeCos = Math.cos((t.slopeLimitDeg * Math.PI) / 180);
+  // Mantles are judged against a slightly relaxed limit — see mantleSlack.
+  const mantleCos = Math.cos(((t.slopeLimitDeg + t.mantleSlack) * Math.PI) / 180);
+  const thermalAt = typeof field.thermalAt === 'function' ? field.thermalAt : null;
 
   const groundY = (x, z) => collisionWorld.groundHeight(x, z);
 
@@ -181,35 +291,56 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     return WATER_Y - groundY(x, z);
   }
 
+  /** Rising air at a point, clamped. 0 when no field is wired. */
+  function liftAt(x, y, z, simT) {
+    if (!thermalAt) return 0;
+    const v = thermalAt(x, y, z, simT);
+    if (!Number.isFinite(v) || v <= 0) return 0;
+    return Math.min(v * t.thermalGain, t.thermalMax);
+  }
+
   /**
-   * Fold the traversal fields onto a base-controller result. Every exit path
-   * goes through here, so no branch can forget a field and no state object
-   * can ever be missing one (the save writer and the view both index them).
+   * THE ONE STATE BUILDER. Every return in this file goes through here, which
+   * is the only reason a fourteen-field record with five modes stays honest:
+   * a new field is added once, defaults once, and no branch can forget it.
+   * `b` supplies pos/vel/yaw/grounded/wading (a base-controller result or a
+   * traversal state); `extra` overrides anything.
    */
-  function pack(b, extra) {
-    return {
+  function mk(b, extra) {
+    const s = {
       pos: b.pos,
       vel: b.vel,
       yaw: b.yaw,
-      grounded: b.grounded,
-      wading: b.wading,
+      grounded: !!b.grounded,
+      wading: !!b.wading,
       mode: MODES.WALK,
-      stamina: t.staminaMax,
-      tired: false,
+      stamina: typeof b.stamina === 'number' ? b.stamina : t.staminaMax,
+      tired: !!b.tired,
       wall: null,
       mantle: null,
       swimT: 0,
       dive: 0,
       airTime: 0,
       latchLock: 0,
+      simT: typeof b.simT === 'number' ? b.simT : 0,
+      climbT: 0,
+      shimmy: 0,
+      grace: false,
+      autoOff: false,
+      towing: false,
+      lift: 0,
+      underwater: false,
+      event: null,
       ...extra,
     };
+    return s;
   }
 
   /** Accept a bare base state (or a half-written save) as a traversal state. */
   function normalize(state) {
-    if (state && typeof state.mode === 'string') return state;
-    return pack(state, {});
+    if (state && typeof state.mode === 'string' && typeof state.simT === 'number') return state;
+    if (state && typeof state.mode === 'string') return { ...mk(state, {}), ...state, simT: 0 };
+    return mk(state || { pos: { x: 0, y: 0, z: 0 }, vel: { x: 0, y: 0, z: 0 }, yaw: 0 }, {});
   }
 
   /**
@@ -294,7 +425,7 @@ export function createTraversalController(collisionWorld, tuning = {}) {
   }
 
   /** Latch onto the face found by findWall(). */
-  function enterClimb(s, wall, dt) {
+  function enterClimb(s, wall) {
     const moved = collisionWorld.resolveMove(
       s.pos,
       { x: wall.nx * -wall.reach, z: wall.nz * -wall.reach },
@@ -304,42 +435,70 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     const z = moved.pos.z;
     const g = groundY(x, z);
     const y = g > s.pos.y ? g : s.pos.y;
-    return {
+    return mk(s, {
       pos: { x, y, z },
       vel: { x: 0, y: 0, z: 0 },
       yaw: Math.atan2(-wall.nx, -wall.nz), // face the rock
       grounded: false,
       wading: false,
       mode: MODES.CLIMB,
-      stamina: s.stamina,
-      tired: s.tired,
       wall: { x: wall.nx, z: wall.nz },
-      mantle: null,
-      swimT: 0,
-      dive: 0,
-      airTime: 0,
-      latchLock: 0,
-    };
+      event: EVENTS.GRAB,
+    });
+  }
+
+  /**
+   * How much face is left above the body, in metres, capped at `cap`. Used by
+   * the so-close grace: the question "would one more second have done it?"
+   * answered by sampling the ground one graceProbe INTO the face — if that is
+   * the plateau, this is exactly the height of the remaining lip; if it is
+   * still wall, the number comes out bigger than the cap and the grace does
+   * not fire.
+   *
+   * The bias is deliberate and correct: the steeper the face, the more of it
+   * the probe forgives (a sheer wall gets the full graceRise, a 76-degree
+   * slab gets about half of it). Scary walls are the ones a child needs the
+   * help on. beginMantle() then has the final say — a rescue that cannot land
+   * somewhere standable is not a rescue.
+   *
+   * Returns Infinity when the face runs past the cap — i.e. not close at all.
+   */
+  function faceLeft(s, nx, nz, cap) {
+    const px = s.pos.x - nx * t.graceProbe;
+    const pz = s.pos.z - nz * t.graceProbe;
+    const top = groundY(px, pz);
+    const left = top - s.pos.y;
+    if (left <= 0) return 0;
+    return left <= cap ? left : Infinity;
   }
 
   /**
    * Start the ledge pop. Returns null when the "top" turns out to still be
    * wall — the climb then simply continues, which is what keeps a bumpy face
    * from firing a mantle every few metres.
+   *
+   * `rise` lifts the launch point before the arc is built, which is what makes
+   * the so-close grace possible: the pop starts from where the child ALMOST
+   * got to, not from where their hands actually gave out.
    */
-  function beginMantle(s, nx, nz) {
+  function beginMantle(s, nx, nz, { rise = 0, free = false } = {}) {
+    const fromY = s.pos.y + rise;
     const fx = -nx * t.mantleForward;
     const fz = -nz * t.mantleForward;
     const moved = collisionWorld.resolveMove(s.pos, { x: fx, z: fz }, PLAYER_RADIUS);
     const tx = moved.pos.x;
     const tz = moved.pos.z;
     const ty = groundY(tx, tz);
-    if (ty > s.pos.y + t.mantleRise) return null; // not a top after all
-    const st = settleStamina(s.stamina - t.staminaMantle, s.tired);
-    return {
-      pos: { x: s.pos.x, y: s.pos.y, z: s.pos.z },
+    if (ty > fromY + t.mantleRise) return null; // not a top after all
+    // ...and the top must be somewhere you can stand. Without this a rescue on
+    // a moderate slope pops the player half a face up onto more cliff.
+    if (collisionWorld.groundNormal(tx, tz)[1] < mantleCos) return null;
+    const st = free
+      ? { stamina: s.stamina, tired: s.tired }
+      : settleStamina(s.stamina - t.staminaMantle, s.tired);
+    return mk(s, {
+      pos: { x: s.pos.x, y: fromY, z: s.pos.z },
       vel: { x: 0, y: 0, z: 0 },
-      yaw: s.yaw,
       grounded: false,
       wading: false,
       mode: MODES.MANTLE,
@@ -348,57 +507,60 @@ export function createTraversalController(collisionWorld, tuning = {}) {
       wall: s.wall,
       mantle: {
         t: 0,
-        from: { x: s.pos.x, y: s.pos.y, z: s.pos.z },
+        from: { x: s.pos.x, y: fromY, z: s.pos.z },
         to: { x: tx, y: ty, z: tz },
       },
-      swimT: 0,
-      dive: 0,
-      airTime: 0,
-      latchLock: 0,
-    };
+      grace: s.grace || free,
+      event: free ? EVENTS.RESCUE : EVENTS.MANTLE,
+    });
   }
 
   /** Let go of the wall: a short outward hop so the player clears the face. */
-  function releaseClimb(s, push, up, staminaAfter) {
+  function releaseClimb(s, push, up, staminaAfter, event) {
     const st = settleStamina(staminaAfter, s.tired);
     const nx = s.wall ? s.wall.x : 0;
     const nz = s.wall ? s.wall.z : 0;
-    return {
+    return mk(s, {
       pos: { x: s.pos.x, y: s.pos.y, z: s.pos.z },
       vel: { x: nx * push, y: up, z: nz * push },
-      yaw: s.yaw,
       grounded: false,
       wading: false,
       mode: MODES.WALK,
       stamina: st.stamina,
       tired: st.tired,
-      wall: null,
-      mantle: null,
-      swimT: 0,
-      dive: 0,
-      airTime: 0,
       latchLock: t.climbLatchLock,
-    };
+      event: event || null,
+    });
   }
 
   /** Drop into surface swimming at the body's current column. */
   function enterSwim(s, stamina, tired) {
-    return {
+    return mk(s, {
       pos: { x: s.pos.x, y: WATER_Y - t.swimSink, z: s.pos.z },
       vel: { x: s.vel.x, y: 0, z: s.vel.z },
-      yaw: s.yaw,
       grounded: false,
       wading: false,
       mode: MODES.SWIM,
       stamina,
       tired,
-      wall: null,
-      mantle: null,
-      swimT: 0,
-      dive: 0,
-      airTime: 0,
-      latchLock: 0,
-    };
+      event: EVENTS.SPLASH,
+    });
+  }
+
+  /** Open the canopy on a body that is already in the air. */
+  function deployGlide(b, s, stamina, tired, airTime, auto) {
+    return mk(s, {
+      pos: b.pos,
+      vel: { x: b.vel.x, y: Math.max(b.vel.y, t.glideDeployPop), z: b.vel.z },
+      yaw: b.yaw,
+      grounded: false,
+      wading: false,
+      mode: MODES.GLIDE,
+      stamina,
+      tired,
+      airTime,
+      event: auto ? EVENTS.AUTOCANOPY : EVENTS.CANOPY,
+    });
   }
 
   // ── WALK ───────────────────────────────────────────────────────────────
@@ -422,47 +584,47 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     const st = settleStamina(pool, s.tired);
     const latchLock = s.latchLock > 0 ? Math.max(0, s.latchLock - dt) : 0;
     const airTime = b.grounded ? 0 : s.airTime + dt;
+    const carry = s; // simT was advanced once in step(); nothing else survives a mode change
 
     // 1. Water wins: you cannot climb or open a glider once you are in the sea.
     if (depthAt(b.pos.x, b.pos.z) >= t.swimDepth && b.pos.y <= WATER_Y + t.swimEntryAbove) {
-      return enterSwim(b, st.stamina, st.tired);
+      return enterSwim({ ...carry, ...b }, st.stamina, st.tired);
     }
 
     // 2. Climb latch — grounded OR airborne, so a jump can catch a face.
     if (mag > 0.3 && latchLock <= 0 && !st.tired && st.stamina >= t.climbLatchStamina) {
       const wall = findWall(b.pos.x, b.pos.y, b.pos.z, ix / mag, iz / mag);
-      if (wall) {
-        return enterClimb({ ...b, stamina: st.stamina, tired: st.tired }, wall, dt);
-      }
+      // st.stamina / st.tired, not s.stamina: a latch is paid for out of what
+      // is left AFTER this frame's regen, so the climb starts from the number
+      // the gauge is about to draw.
+      if (wall) return enterClimb({ ...carry, ...b, stamina: st.stamina, tired: st.tired }, wall);
     }
 
-    // 3. Glider. `s.grounded` (not b.grounded) gates it: on the frame a jump
-    //    fires, the body is already airborne but the button was spent on the
-    //    jump, and opening the canopy at ankle height is not a glide.
+    // 3. Glider, deployed on purpose. `s.grounded` (not b.grounded) gates it:
+    //    on the frame a jump fires, the body is already airborne but the button
+    //    was spent on the jump, and opening the canopy at ankle height is not a
+    //    glide.
+    const airBelow = b.pos.y - groundY(b.pos.x, b.pos.z);
     if (
       input.jump && !b.grounded && !s.grounded
       && b.vel.y <= t.glideDeployVy
-      && b.pos.y - groundY(b.pos.x, b.pos.z) >= t.glideMinHeight
+      && airBelow >= t.glideMinHeight
     ) {
-      return {
-        pos: b.pos,
-        vel: { x: b.vel.x, y: Math.max(b.vel.y, t.glideDeployPop), z: b.vel.z },
-        yaw: b.yaw,
-        grounded: false,
-        wading: false,
-        mode: MODES.GLIDE,
-        stamina: st.stamina,
-        tired: st.tired,
-        wall: null,
-        mantle: null,
-        swimT: 0,
-        dive: 0,
-        airTime,
-        latchLock: 0,
-      };
+      return deployGlide(b, carry, st.stamina, st.tired, airTime, false);
     }
 
-    return {
+    // 4. AUTO-CANOPY. Nobody pressed anything, the ground is a long way down
+    //    and the fall has gone on long enough to be frightening. The glider
+    //    opens itself. This is the single kindest line in the movement code:
+    //    a five-year-old who walks off the palace flies instead of falling.
+    if (
+      !b.grounded && !s.autoOff && b.vel.y < 0
+      && airTime >= t.glideAutoFallT && airBelow >= t.glideAutoHeight
+    ) {
+      return deployGlide(b, carry, st.stamina, st.tired, airTime, true);
+    }
+
+    return mk(carry, {
       pos: b.pos,
       vel: b.vel,
       yaw: b.yaw,
@@ -471,13 +633,13 @@ export function createTraversalController(collisionWorld, tuning = {}) {
       mode: MODES.WALK,
       stamina: st.stamina,
       tired: st.tired,
-      wall: null,
-      mantle: null,
-      swimT: 0,
-      dive: 0,
       airTime,
       latchLock,
-    };
+      // A deliberately folded canopy stays folded until the feet touch down.
+      // Without this the auto-canopy re-opens what the player just closed and
+      // the fold button does nothing.
+      autoOff: b.grounded ? false : s.autoOff,
+    });
   }
 
   // ── CLIMB ──────────────────────────────────────────────────────────────
@@ -485,6 +647,7 @@ export function createTraversalController(collisionWorld, tuning = {}) {
   function stepClimb(s, input, dt) {
     const wallX = s.wall ? s.wall.x : 0;
     const wallZ = s.wall ? s.wall.z : 0;
+    const carry = s; // see stepWalk: the sim clock is advanced once, in step()
 
     // Re-read the face every frame so a curving cliff steers the climber.
     const n = faceNormal(s.pos.x, s.pos.z, wallX, wallZ);
@@ -493,50 +656,67 @@ export function createTraversalController(collisionWorld, tuning = {}) {
 
     // Stick input, resolved into the wall's own frame:
     //   up   = pushing INTO the face (the inward horizontal direction)
-    //   lat  = sliding along it
+    //   lat  = sliding along it (the shimmy)
     const ix = input.x || 0;
     const iz = input.y || 0;
     const up = ix * -wallX + iz * -wallZ;
     const lat = ix * -wallZ + iz * wallX;
     const active = Math.abs(up) + Math.abs(lat) > 0.05;
+    // A shimmy is any frame where the sideways intent dominates. It is cheaper
+    // than hauling, and it is its own animation, so the rig needs to know.
+    const shimmying = Math.abs(lat) > 0.25 && Math.abs(lat) > Math.abs(up);
 
     // Jump off: a real hop away from the rock, and the lock stops the still-held
     // stick from re-latching on the very next frame.
     if (input.jump) {
-      return releaseClimb(s, t.wallJumpOut, t.jumpV * t.wallJumpUp, s.stamina - t.staminaClimbJump);
+      return releaseClimb(
+        carry, t.wallJumpOut, t.jumpV * t.wallJumpUp,
+        s.stamina - t.staminaClimbJump, null,
+      );
     }
 
-    const pool = s.stamina - (active ? t.staminaClimbMove : t.staminaClimbHold) * dt;
+    let cost = t.staminaClimbHold;
+    if (active) cost = shimmying ? t.staminaClimbSide : t.staminaClimbMove;
+    const pool = s.stamina - cost * dt;
     if (pool <= 0) {
-      // Out of puff: peel off gently. A small push, no launch — the fall is the
-      // consequence, and the walk controller lands it.
-      return releaseClimb(s, t.wallJumpOut * 0.35, 0, 0);
+      // THE SO-CLOSE GRACE. Out of puff — but if the lip of this face is within
+      // arm's reach, the child made it. One free mantle per latch (`grace`),
+      // launched from the top of the remaining face rather than from here, so
+      // the pop lands on the ledge and not halfway up the wall.
+      if (!s.grace) {
+        const left = faceLeft(s, wallX, wallZ, t.graceRise);
+        if (left < Infinity) {
+          const m = beginMantle(
+            { ...carry, stamina: 0, tired: true },
+            wallX, wallZ, { rise: left, free: true },
+          );
+          if (m) return m;
+        }
+      }
+      // No lip in reach: peel off gently. A small push, no launch — the fall is
+      // the consequence, and the walk controller (or the auto-canopy) lands it.
+      return releaseClimb(carry, t.wallJumpOut * 0.35, 0, 0, EVENTS.SPENT);
     }
     const st = settleStamina(pool, s.tired);
+    const climbT = s.climbT + dt;
+    const shimmyEvent = shimmying && Math.abs(s.shimmy) <= 0.25 ? EVENTS.SHIMMY : null;
 
     // Already standing on ground the walk controller can hold? Only true at the
     // bottom of a face (the top is handled after the move, as a mantle).
     if (walkable && up <= 0) {
       const g = groundY(s.pos.x, s.pos.z);
-      return {
+      return mk(carry, {
         pos: { x: s.pos.x, y: g, z: s.pos.z },
         vel: { x: 0, y: 0, z: 0 },
-        yaw: s.yaw,
         grounded: true,
         wading: collisionWorld.isWater(s.pos.x, s.pos.z),
         mode: MODES.WALK,
         stamina: st.stamina,
         tired: st.tired,
-        wall: null,
-        mantle: null,
-        swimT: 0,
-        dive: 0,
-        airTime: 0,
-        latchLock: 0,
-      };
+      });
     }
     if (walkable && up > 0) {
-      const m = beginMantle({ ...s, stamina: st.stamina, tired: st.tired }, wallX, wallZ);
+      const m = beginMantle({ ...carry, stamina: st.stamina, tired: st.tired }, wallX, wallZ);
       if (m) return m;
     }
 
@@ -560,7 +740,7 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     // above us — that is a ledge, and a ledge is a mantle.
     if (y2 - g2 > t.mantleTol) {
       const m = beginMantle(
-        { ...s, pos: { x: nx2, y: y2, z: nz2 }, stamina: st.stamina, tired: st.tired },
+        { ...carry, pos: { x: nx2, y: y2, z: nz2 }, stamina: st.stamina, tired: st.tired },
         wallX, wallZ,
       );
       if (m) return m;
@@ -576,7 +756,7 @@ export function createTraversalController(collisionWorld, tuning = {}) {
       outZ = n2[2] / hl2;
     }
 
-    return {
+    return mk(carry, {
       pos: { x: nx2, y: y2, z: nz2 },
       vel: { x: (nx2 - s.pos.x) / dt, y: (y2 - s.pos.y) / dt, z: (nz2 - s.pos.z) / dt },
       yaw: Math.atan2(-outX, -outZ),
@@ -586,12 +766,11 @@ export function createTraversalController(collisionWorld, tuning = {}) {
       stamina: st.stamina,
       tired: st.tired,
       wall: { x: outX, z: outZ },
-      mantle: null,
-      swimT: 0,
-      dive: 0,
-      airTime: 0,
-      latchLock: 0,
-    };
+      climbT,
+      shimmy: shimmying ? clamp(lat, -1, 1) : 0,
+      grace: s.grace,   // one so-close rescue per latch, and enterClimb clears it
+      event: shimmyEvent,
+    });
   }
 
   // ── MANTLE ─────────────────────────────────────────────────────────────
@@ -603,73 +782,54 @@ export function createTraversalController(collisionWorld, tuning = {}) {
    * what makes it read as climbing over an edge rather than sliding through it.
    */
   function stepMantle(s, input, dt) {
+    const carry = s; // see stepWalk: the sim clock is advanced once, in step()
     const m = s.mantle;
     const nt = m.t + dt;
     const p = clamp(nt / t.mantleTime, 0, 1);
     if (p >= 1) {
       const g = groundY(m.to.x, m.to.z);
-      return {
+      return mk(carry, {
         pos: { x: m.to.x, y: g, z: m.to.z },
         vel: { x: 0, y: 0, z: 0 },
-        yaw: s.yaw,
         grounded: true,
         wading: collisionWorld.isWater(m.to.x, m.to.z),
         mode: MODES.WALK,
-        stamina: s.stamina,
-        tired: s.tired,
-        wall: null,
-        mantle: null,
-        swimT: 0,
-        dive: 0,
-        airTime: 0,
-        latchLock: 0,
-      };
+      });
     }
     const eh = smoothstep(p);
     const ev = smoothstep(p / 0.6);
     const x = m.from.x + (m.to.x - m.from.x) * eh;
     const z = m.from.z + (m.to.z - m.from.z) * eh;
     const y = m.from.y + (m.to.y - m.from.y) * ev;
-    return {
+    return mk(carry, {
       pos: { x, y, z },
       vel: { x: (x - s.pos.x) / dt, y: (y - s.pos.y) / dt, z: (z - s.pos.z) / dt },
-      yaw: s.yaw,
       grounded: false,
       wading: false,
       mode: MODES.MANTLE,
-      stamina: s.stamina,
-      tired: s.tired,
       wall: s.wall,
       mantle: { t: nt, from: m.from, to: m.to },
-      swimT: 0,
-      dive: 0,
-      airTime: 0,
-      latchLock: 0,
-    };
+      grace: s.grace,
+    });
   }
 
   // ── GLIDE ──────────────────────────────────────────────────────────────
 
   function stepGlide(s, input, dt) {
+    const carry = s; // see stepWalk: the sim clock is advanced once, in step()
     // Tap jump again to fold the canopy — the only way to cancel a glide short
     // of landing, and it hands the body straight back to gravity.
     if (input.jump) {
-      return {
+      return mk(carry, {
         pos: { x: s.pos.x, y: s.pos.y, z: s.pos.z },
         vel: { x: s.vel.x, y: s.vel.y, z: s.vel.z },
-        yaw: s.yaw,
         grounded: false,
         wading: false,
         mode: MODES.WALK,
-        stamina: s.stamina,
-        tired: s.tired,
-        wall: null,
-        mantle: null,
-        swimT: 0,
-        dive: 0,
         airTime: s.airTime + dt,
         latchLock: t.climbLatchLock,
-      };
+        autoOff: true,
+      });
     }
 
     const diving = !!input.run;
@@ -693,7 +853,14 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     const acc = t.glideAccel * dt;
     const vx = approach(s.vel.x, tx, acc);
     const vz = approach(s.vel.z, tz, acc);
-    const vy = approach(s.vel.y, diving ? t.glideDiveFall : t.glideFall, t.glideVyAccel * dt);
+
+    // THERMALS. A rising column simply raises the descent rate the canopy is
+    // easing toward; strong enough lift makes that target positive and the
+    // glider CLIMBS. Ember's vents are how you cross the island without ever
+    // touching the ground, which is the whole reward this ability exists for.
+    const lift = liftAt(s.pos.x, s.pos.y, s.pos.z, s.simT);
+    const sinkTarget = (diving ? t.glideDiveFall : t.glideFall) + lift;
+    let vy = approach(s.vel.y, sinkTarget, (lift > 0 ? t.thermalAccel : t.glideVyAccel) * dt);
 
     let yaw = s.yaw;
     const hs = Math.hypot(vx, vz);
@@ -704,6 +871,13 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     let pz = moved.pos.z;
     let hvx = vx;
     let hvz = vz;
+
+    // THE FLARE. Inside the last glideFlareHeight metres the sink rate is eased
+    // to a third, so every landing is a soft settle with the canopy billowing
+    // — the flourish. Nobody ever hits the deck at full descent.
+    const gNow = groundY(s.pos.x, s.pos.z);
+    if (s.pos.y - gNow < t.glideFlareHeight && vy < 0) vy *= 0.34;
+
     const y = s.pos.y + vy * dt;
     // Same airborne wall rule the walk controller uses: never clip sideways
     // into a hillside just because you are flying.
@@ -714,55 +888,54 @@ export function createTraversalController(collisionWorld, tuning = {}) {
       hvz = 0;
     }
 
+    // The canopy is a rest: the pool refills while you fly, so a long glide
+    // pays for the next climb.
+    const st = settleStamina(s.stamina + t.staminaRegenGlide * dt, s.tired);
+
     const g = groundY(px, pz);
     // Splashdown: deep water catches you, the canopy folds, you are swimming.
     if (depthAt(px, pz) >= t.swimDepth && y <= WATER_Y + t.swimEntryAbove) {
       return enterSwim(
-        { pos: { x: px, y, z: pz }, vel: { x: hvx, y: 0, z: hvz }, yaw },
-        s.stamina, s.tired,
+        { ...carry, pos: { x: px, y, z: pz }, vel: { x: hvx, y: 0, z: hvz }, yaw },
+        st.stamina, st.tired,
       );
     }
     if (y <= g) {
-      // Touchdown folds the glider away. No fall damage: this is a landing.
-      return {
+      // Touchdown folds the glider away. No fall damage: this is a landing, and
+      // the flare above means it is a landing with speed still on — the hero
+      // runs it out rather than stopping dead.
+      return mk(carry, {
         pos: { x: px, y: g, z: pz },
-        vel: { x: hvx, y: 0, z: hvz },
+        vel: { x: hvx * t.glideFlareSpeed, y: 0, z: hvz * t.glideFlareSpeed },
         yaw,
         grounded: true,
         wading: collisionWorld.isWater(px, pz),
         mode: MODES.WALK,
-        stamina: s.stamina,
-        tired: s.tired,
-        wall: null,
-        mantle: null,
-        swimT: 0,
-        dive: 0,
-        airTime: 0,
-        latchLock: 0,
-      };
+        stamina: st.stamina,
+        tired: st.tired,
+        event: EVENTS.TOUCHDOWN,
+      });
     }
 
-    return {
+    return mk(carry, {
       pos: { x: px, y, z: pz },
       vel: { x: hvx, y: vy, z: hvz },
       yaw,
       grounded: false,
       wading: false,
       mode: MODES.GLIDE,
-      stamina: s.stamina,
-      tired: s.tired,
-      wall: null,
-      mantle: null,
-      swimT: 0,
-      dive: 0,
+      stamina: st.stamina,
+      tired: st.tired,
       airTime: s.airTime + dt,
-      latchLock: 0,
-    };
+      lift,
+      event: lift >= t.thermalNoticeAt && s.lift < t.thermalNoticeAt ? EVENTS.THERMAL : null,
+    });
   }
 
   // ── SWIM ───────────────────────────────────────────────────────────────
 
   function stepSwim(s, input, dt) {
+    const carry = s; // see stepWalk: the sim clock is advanced once, in step()
     const ix = input.x || 0;
     const iz = input.y || 0;
     const mag = Math.hypot(ix, iz);
@@ -781,7 +954,14 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     // THE NO-DROWNING RULE. An empty pool in deep water is not a death timer,
     // it is a tow rope: the current takes you toward the nearest shallows and
     // the pool refills while it does.
-    if (s.stamina <= 0) {
+    //
+    // `towing` LATCHES. Tying the tow to `stamina <= 0` instead was a bug with
+    // a very quiet failure mode: the pool refills at staminaRegenSwim, so the
+    // condition was false again one frame later and the help lasted 16 ms. The
+    // latch only clears when the feet are back on the seabed, which is the
+    // actual promise — running out of puff offshore ALWAYS ends on a beach.
+    const towing = s.towing || s.stamina <= 0;
+    if (towing) {
       shoreDir(s.pos.x, s.pos.z);
       vx += _shoreX * t.shoreAssist;
       vz += _shoreZ * t.shoreAssist;
@@ -802,7 +982,7 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     // back to the walk controller standing up. Hysteresis against swimDepth
     // means the transition cannot chatter in the surf.
     if (g >= WATER_Y - t.swimExitDepth) {
-      return {
+      return mk(carry, {
         pos: { x: px, y: g, z: pz },
         vel: { x: vx, y: 0, z: vz },
         yaw,
@@ -811,17 +991,13 @@ export function createTraversalController(collisionWorld, tuning = {}) {
         mode: MODES.WALK,
         stamina: st.stamina,
         tired: st.tired,
-        wall: null,
-        mantle: null,
-        swimT: 0,
-        dive: 0,
-        airTime: 0,
-        latchLock: 0,
-      };
+        event: EVENTS.SHORE,
+      });
     }
 
     // Diving is optional and always reversible: let go (or tap jump) and you
-    // float back to the surface on your own.
+    // float back to the surface on your own. There is no breath meter, because
+    // a breath meter is a death timer with a friendly hat on.
     const maxDive = Math.max(0, Math.min(t.diveMax, (WATER_Y - g) - t.diveClearance));
     const wantDown = !!input.dive && !input.jump;
     const dive = clamp(
@@ -833,7 +1009,12 @@ export function createTraversalController(collisionWorld, tuning = {}) {
     const y = WATER_Y - t.swimSink - dive
       + Math.sin(swimT * t.swimBobRate) * t.swimBobAmp * bobFade;
 
-    return {
+    const under = dive >= t.submergeAt;
+    let event = null;
+    if (under && !s.underwater) event = EVENTS.SUBMERGE;
+    else if (!under && s.underwater) event = EVENTS.SURFACE;
+
+    return mk(carry, {
       pos: { x: px, y, z: pz },
       vel: { x: vx, y: dt > 1e-9 ? (y - s.pos.y) / dt : 0, z: vz },
       yaw,
@@ -842,13 +1023,12 @@ export function createTraversalController(collisionWorld, tuning = {}) {
       mode: MODES.SWIM,
       stamina: st.stamina,
       tired: st.tired,
-      wall: null,
-      mantle: null,
       swimT,
       dive,
-      airTime: 0,
-      latchLock: 0,
-    };
+      towing,
+      underwater: under,
+      event,
+    });
   }
 
   // ── Public surface (drop-in for createController) ──────────────────────
@@ -856,9 +1036,9 @@ export function createTraversalController(collisionWorld, tuning = {}) {
   /** Fresh state with feet on the ground — or afloat, if that is deep water. */
   function spawnState(opts = {}) {
     const b = base.spawnState(opts);
-    const s = pack(b, {});
+    const s = mk(b, {});
     if (depthAt(b.pos.x, b.pos.z) >= t.swimDepth) {
-      return enterSwim(s, t.staminaMax, false);
+      return { ...enterSwim(s, t.staminaMax, false), event: null };
     }
     return s;
   }
@@ -868,7 +1048,12 @@ export function createTraversalController(collisionWorld, tuning = {}) {
    * input: { x, y (world-space move vector, y maps to z), jump, run, dive }.
    */
   function step(state, input, dt) {
-    const s = normalize(state);
+    const n = normalize(state);
+    // ONE clock advance for the whole step. Every branch below then reads
+    // `s.simT` as "now", and no branch has to remember to tick it — which is
+    // what keeps a thermal sampled during a glide and a bob sampled during a
+    // swim on the same timeline across a mode change.
+    const s = { ...n, simT: n.simT + dt };
     switch (s.mode) {
       case MODES.CLIMB: return stepClimb(s, input, dt);
       case MODES.MANTLE: return stepMantle(s, input, dt);

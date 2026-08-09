@@ -73,13 +73,16 @@ const SOUNDS = {
 // via `scene.game.registry.get('audio')` or via the convenience
 // `audio` export that's lazy-initialized.
 
-import { playSynth, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic } from './synthAudio.js';
+import {
+  playSynth, unlockAudio, playSynthMusic, stopSynthMusic, hasSynthMusic, hasSfx,
+} from './synthAudio.js';
 import {
   setMusicVolume as setMusicBusVolume,
   setSfxVolume as setSfxBusVolume,
   setMuted as setBusMuted,
 } from './music/audioGraph.js';
 import { playSong, stopSong, playStinger, musicHasSong, setSongIntensity } from './music/director.js';
+import { score } from './music/score.js';
 
 class AudioManager {
   constructor() {
@@ -142,7 +145,18 @@ class AudioManager {
   play(key, opts = {}) {
     if (this.muted) return;
     const entry = SOUNDS[key];
-    if (!entry) return;
+    // The SFX library (systems/sfxLibrary.js) owns far more keys than this
+    // table ever will — every surface's footstep, every class's attack, the
+    // glider, the ratchet, the streak. Anything it knows about plays without
+    // needing a row here; the table below stays for keys that might one day
+    // get a real audio FILE, plus per-key mix volumes.
+    if (!entry) {
+      if (this.sfxVolume > 0 && hasSfx(key)) {
+        unlockAudio();
+        playSynth(key, opts);
+      }
+      return;
+    }
 
     // If a real file is loaded, use Phaser's audio
     if (entry.file && this.game?.sound) {
@@ -157,7 +171,7 @@ class AudioManager {
     // Fall back to procedural synthesized SFX
     if (entry.category !== 'music' && this.sfxVolume > 0) {
       unlockAudio();
-      playSynth(key);
+      playSynth(key, opts);
     }
   }
 
@@ -239,6 +253,50 @@ class AudioManager {
     if (this.muted || this.musicVolume <= 0) return;
     try { setSongIntensity(level); } catch { /* no context yet */ }
   }
+
+  // ----------------------------------------------------------------
+  // ADAPTIVE SCORE (v3)
+  // ----------------------------------------------------------------
+  // Thin delegates onto systems/music/score.js so a scene that only has
+  // `audio` in scope can still drive the adaptive score. Anything doing
+  // real work with the music (the overworld, which feeds it a threat
+  // count and a world clock every frame) should import { score } from
+  // 'systems/music/score.js' directly instead.
+
+  /**
+   * Walk into a new realm. Crossfades on the bar with the two keys'
+   * shared tones held under the join, so the score MODULATES instead of
+   * restarting — see music/director.js → crossfadeToSong.
+   */
+  crossfadeMusic(key, opts) {
+    if (this.muted || this.musicVolume <= 0) return null;
+    if (!musicHasSong(key)) { this.playMusic(key); return null; }
+    unlockAudio();
+    const plan = score.enterBiome(key, opts);
+    this.currentMusic = key;
+    return plan;
+  }
+
+  /** 'day' | 'dusk' | 'night' — swaps the overworld theme's voicing. */
+  setMusicDaypart(daypart, opts) { try { return score.setDaypart(daypart, opts); } catch { return null; } }
+
+  /** World clock 0..1 (0 = midnight). Safe to call every frame. */
+  setMusicClock(t01) { try { return score.setClock(t01); } catch { return null; } }
+
+  /** Situational phrases: 'discovery' | 'victory' | 'floorComplete'. */
+  musicMoment(name) {
+    if (this.muted || this.musicVolume <= 0) return null;
+    try { return typeof score[name] === 'function' ? score[name]() : null; } catch { return null; }
+  }
+
+  /** Feed the answer stream — three misses in a row earns a warm phrase. */
+  musicAnswered(correct) {
+    if (this.muted || this.musicVolume <= 0) return null;
+    try { return score.answered(correct); } catch { return null; }
+  }
+
+  /** The whole adaptive facade, for scenes that want threat/combat/boss. */
+  get score() { return score; }
 
   /** Duck the score and play a one-shot musical phrase over it. */
   playStinger(name) {

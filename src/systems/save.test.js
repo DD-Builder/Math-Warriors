@@ -570,7 +570,7 @@ describe('save v6 overworld', () => {
 
   test('default save has overworld state and overworldEnabled setting', () => {
     const save = makeDefaultSave();
-    assert.deepEqual(save.overworld, { pos: null, yaw: 0, portalId: null, collected: [] });
+    assert.deepEqual(save.overworld, { pos: null, yaw: 0, portalId: null, collected: [], seen: [] });
     assert.equal(save.settings.overworldEnabled, true);
   });
 
@@ -587,7 +587,7 @@ describe('save v6 overworld', () => {
     storage.setItem(STORAGE_KEY, JSON.stringify(v5));
     const loaded = loadSave();
     assert.equal(loaded.version, 6);
-    assert.deepEqual(loaded.overworld, { pos: null, yaw: 0, portalId: null, collected: [] });
+    assert.deepEqual(loaded.overworld, { pos: null, yaw: 0, portalId: null, collected: [], seen: [] });
     assert.equal(loaded.settings.overworldEnabled, true);
     assert.equal(loaded.gold, 250);                    // migration preserves data
     assert.equal(loaded.settings.musicVolume, 0.5);
@@ -626,6 +626,7 @@ describe('save v6 overworld', () => {
       yaw: Math.PI,
       portalId: 'portal-f1',
       collected: ['ow-garden-1'],
+      seen: ['arrival'],
     };
     writeSave(save);
     const loaded = loadSave();
@@ -634,7 +635,27 @@ describe('save v6 overworld', () => {
       yaw: Math.PI,
       portalId: 'portal-f1',
       collected: ['ow-garden-1'],
+      seen: ['arrival'],
     });
+  });
+
+  // Cinematics remember themselves under save.overworld with NO version bump,
+  // so the two things that must be true are: an old save reads as "nothing has
+  // played", and a written list survives the round trip intact.
+  test('cinematic seen-list defaults empty and survives write/load', () => {
+    const loaded = loadSave();
+    assert.deepEqual(loaded.overworld.seen, []);
+    loaded.overworld.seen.push('arrival', 'landmark:3', 'rescue:marina');
+    writeSave(loaded);
+    assert.deepEqual(loadSave().overworld.seen,
+      ['arrival', 'landmark:3', 'rescue:marina']);
+  });
+
+  test('a junk seen-list normalizes to strings, deduped', () => {
+    const save = makeDefaultSave();
+    save.overworld.seen = ['arrival', 7, null, 'arrival', {}, 'finale'];
+    writeSave(save);
+    assert.deepEqual(loadSave().overworld.seen, ['arrival', 'finale']);
   });
 
   test('overworldEnabled false round-trips', () => {
