@@ -561,6 +561,13 @@ describe('hero unlock system', () => {
 // v6: OVERWORLD STATE
 // ------------------------------------------------------------------
 
+/**
+ * The empty discovery container. Spelled out here rather than imported so this
+ * suite asserts the SHAPE save.js promises, independently of the module that
+ * consumes it.
+ */
+const EMPTY_DISCOVERY = { found: [], solved: [], buffs: [], cosmetics: [], claimed: [] };
+
 describe('save v6 overworld', () => {
   let storage;
   beforeEach(() => {
@@ -570,7 +577,7 @@ describe('save v6 overworld', () => {
 
   test('default save has overworld state and overworldEnabled setting', () => {
     const save = makeDefaultSave();
-    assert.deepEqual(save.overworld, { pos: null, yaw: 0, portalId: null, collected: [], seen: [] });
+    assert.deepEqual(save.overworld, { pos: null, yaw: 0, portalId: null, collected: [], seen: [], discovery: EMPTY_DISCOVERY });
     assert.equal(save.settings.overworldEnabled, true);
   });
 
@@ -587,7 +594,7 @@ describe('save v6 overworld', () => {
     storage.setItem(STORAGE_KEY, JSON.stringify(v5));
     const loaded = loadSave();
     assert.equal(loaded.version, 6);
-    assert.deepEqual(loaded.overworld, { pos: null, yaw: 0, portalId: null, collected: [], seen: [] });
+    assert.deepEqual(loaded.overworld, { pos: null, yaw: 0, portalId: null, collected: [], seen: [], discovery: EMPTY_DISCOVERY });
     assert.equal(loaded.settings.overworldEnabled, true);
     assert.equal(loaded.gold, 250);                    // migration preserves data
     assert.equal(loaded.settings.musicVolume, 0.5);
@@ -636,6 +643,7 @@ describe('save v6 overworld', () => {
       portalId: 'portal-f1',
       collected: ['ow-garden-1'],
       seen: ['arrival'],
+      discovery: EMPTY_DISCOVERY,
     });
   });
 
@@ -664,5 +672,128 @@ describe('save v6 overworld', () => {
     writeSave(save);
     const loaded = loadSave();
     assert.equal(loaded.settings.overworldEnabled, false);
+  });
+});
+
+/**
+ * Discovery persistence.
+ *
+ * The discovery ledgers live under save.overworld.discovery and were added
+ * WITHOUT a version bump, exactly like `seen` before them: an absent container
+ * reads correctly as "nothing discovered yet" on every older save, so there is
+ * nothing for a migration to do.
+ *
+ * The reason this block exists at all is that normalize() rebuilds
+ * save.overworld from a WHITELIST. A key that is not named there is silently
+ * dropped on the next write — which is how a discovery system can look wired,
+ * pass every unit test, and still lose the player's entire collection the first
+ * time the game saves.
+ */
+describe('save v6 overworld discovery', () => {
+  let storage;
+  beforeEach(() => {
+    storage = makeMockStorage();
+    __setStorage(storage);
+  });
+
+  test('adding discovery did NOT bump the save version', () => {
+    assert.equal(CURRENT_VERSION, 6, 'discovery is additive — it must not force a migration');
+  });
+
+  test('a default save carries an empty discovery container', () => {
+    assert.deepEqual(makeDefaultSave().overworld.discovery, EMPTY_DISCOVERY);
+  });
+
+  test('discovery ledgers survive a write/load round trip', () => {
+    const save = makeDefaultSave();
+    save.overworld.discovery = {
+      found: ['grotto-tide-falls', 'page-1', 'shrine-garden'],
+      solved: ['shrine-garden'],
+      buffs: ['buff-sure-step'],
+      cosmetics: ['cos-tidecrown'],
+      claimed: ['find:grotto-tide-falls', 'ms-25'],
+    };
+    writeSave(save);
+    const loaded = loadSave();
+    assert.deepEqual(loaded.overworld.discovery, {
+      found: ['grotto-tide-falls', 'page-1', 'shrine-garden'],
+      solved: ['shrine-garden'],
+      buffs: ['buff-sure-step'],
+      cosmetics: ['cos-tidecrown'],
+      claimed: ['find:grotto-tide-falls', 'ms-25'],
+    });
+  });
+
+  test('a pre-discovery v6 save loads as "nothing discovered yet"', () => {
+    const older = {
+      version: 6,
+      grade: 3, party: [], gold: 10, stats: {}, floors: [],
+      settings: {},
+      overworld: { pos: null, yaw: 0, portalId: null, collected: ['ow-garden-1'], seen: ['arrival'] },
+    };
+    storage.setItem(STORAGE_KEY, JSON.stringify(older));
+    const loaded = loadSave();
+    assert.equal(loaded.version, 6, 'no migration should have been needed');
+    assert.deepEqual(loaded.overworld.discovery, EMPTY_DISCOVERY);
+    assert.deepEqual(loaded.overworld.collected, ['ow-garden-1'], 'existing fields untouched');
+    assert.deepEqual(loaded.overworld.seen, ['arrival']);
+  });
+
+  test('hand-edited discovery junk normalizes clean instead of throwing', () => {
+    const save = makeDefaultSave();
+    save.overworld.discovery = {
+      found: ['a', 'a', 7, null, 'b'],
+      solved: 'not an array',
+      buffs: [{ nope: true }],
+      extraKey: 'should vanish',
+    };
+    writeSave(save);
+    const loaded = loadSave();
+    assert.deepEqual(loaded.overworld.discovery.found, ['a', 'b'], 'deduped, strings only');
+    assert.deepEqual(loaded.overworld.discovery.solved, []);
+    assert.deepEqual(loaded.overworld.discovery.buffs, []);
+    assert.equal(loaded.overworld.discovery.extraKey, undefined, 'unknown keys are dropped');
+  });
+
+  test('a discovery container that is an array or null does not break the save', () => {
+    for (const junk of [[], null, 'nope', 42]) {
+      const save = makeDefaultSave();
+      save.overworld.discovery = junk;
+      writeSave(save);
+      const loaded = loadSave();
+      assert.deepEqual(loaded.overworld.discovery, EMPTY_DISCOVERY, `junk: ${JSON.stringify(junk)}`);
+    }
+  });
+
+  test('the whitelist matches the container discovery.js actually writes', async () => {
+    // Drift guard. save.js spells the key list inline (it ships in the 2D
+    // fallback bundle and must not import the 3D island's content spec), so
+    // this asserts the two lists are still the same list.
+    const { ensureDiscovery } = await import('../overworld/discovery.js');
+    const probe = makeDefaultSave();
+    const container = ensureDiscovery(probe);
+    assert.deepEqual(
+      Object.keys(container).sort(),
+      Object.keys(EMPTY_DISCOVERY).sort(),
+      'discovery.js and save.js disagree about the container shape — a ledger would be dropped on write',
+    );
+  });
+
+  test('a real discovery survives being saved and reloaded', async () => {
+    const { discover, isFound, hasCosmetic } = await import('../overworld/discovery.js');
+    const save = makeDefaultSave();
+    discover(save, 'grotto-hollow-oak');
+    const goldAfterFind = save.gold;
+    writeSave(save);
+
+    const loaded = loadSave();
+    assert.equal(isFound(loaded, 'grotto-hollow-oak'), true, 'the grotto was forgotten across a save');
+    assert.equal(hasCosmetic(loaded, 'cos-leafcloak'), true, 'the trophy was lost across a save');
+    assert.equal(loaded.gold, goldAfterFind);
+
+    // And re-entering it on the reloaded save must not pay again.
+    const again = discover(loaded, 'grotto-hollow-oak');
+    assert.equal(again.granted, false);
+    assert.equal(loaded.gold, goldAfterFind, 'a reload re-armed a grotto payout');
   });
 });

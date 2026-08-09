@@ -1327,6 +1327,32 @@ export const SFX_ALIASES = {
   'battle/level_up': 'combat/level-up',
   'battle/level-up': 'combat/level-up',
   'battle/critical': 'combat/critical',
+  // ── The 3D fight's remaining cues ────────────────────────────────────────
+  // overworld/battle3d.js plays these by name through the audio manager, which
+  // falls through to this library for anything its own table does not own.
+  // Without a row here a guarded hit, a defeated creature, a boss changing act
+  // and the fight starting at all were all completely silent.
+  'battle/guard': 'combat/impact-light',
+  'battle/enemy-defeat': 'combat/enemy-defeat',
+  'battle/boss-phase': 'combat/boss-phase',
+  'battle/start': 'world/encounter',
+  'battle/boss-start': 'combat/boss-phase',
+  'ui/tap': 'ui/press',
+  // ── Traversal event names ────────────────────────────────────────────────
+  // overworld/traversalWiring.js maps every traversal EVENT to a bare recipe
+  // name ('climb', 'mantle', 'gliderOpen', …) and documents that this library
+  // "already ships a synthesised cue for every one of them". It ships the
+  // sounds, but under namespaced keys, so the bare names resolved to nothing
+  // and the whole climb/glide/swim layer was silent. These are the missing
+  // half of that contract.
+  climb: 'move/climb',
+  mantle: 'move/mantle',
+  gliderOpen: 'move/glider-open',
+  gust: 'move/gust',
+  splash: 'move/splash',
+  swim: 'move/swim',
+  land: 'move/land',
+  rescue: 'world/rescue',
 };
 
 /** Attack sound per hero class. Unknown classes get the knight's swing. */

@@ -24,6 +24,15 @@ import { recordBattle } from '../systems/bonds.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { updateQuestProgress as questTick } from '../systems/dailyQuests.js';
 import { createBattleOverlay3D } from '../overworld/battleOverlay3d.js';
+import { createStaminaGauge } from '../overworld/traversalHud.js';
+import {
+  createCinematicDirector, islandArrival, heroFreed, challengeComplete,
+  bossLairApproach, finale, floorTitleCard, floorCompleteCard,
+} from '../overworld/cinematics.js';
+import {
+  getFloorBeat, pickBanter, pickHeroLine, getArcBeat, getProofFragment,
+} from '../data/story.js';
+import { playSfx } from '../systems/synthAudio.js';
 import {
   initialProgress, isChallengeType, nextLockDoor, doorQuestionSpec, bossGate,
   goldenGate, exitGate, advanceChallenge, challengeGoal, grantChest, grantGold,
@@ -82,7 +91,30 @@ export class OverworldScene extends Phaser.Scene {
     this._pendingBoss = false;
     /** A floor to re-open as soon as the world is up (battle return). */
     this._resumeFloor = data?.resumeFloor ?? null;
+
+    // ── Story clocks ──
+    /** Seconds of uninterrupted walking since the last party banter. */
+    this._banterT = 0;
+    /** Banter ids already heard this session — nobody repeats themselves. */
+    this._banterHeard = new Set();
+    /** Set once a floor's midpoint beat has played, so it plays once. */
+    this._midpointDone = false;
+    /**
+     * Bumped on every floor entry and exit. Anything queued against the floor
+     * you were standing in checks this before it fires — see _waitThenSay.
+     */
+    this._floorEpoch = 0;
   }
+
+  /**
+   * How long a child walks before the party says something unprompted.
+   *
+   * Long enough that banter is a surprise and not a nag, short enough that a
+   * session of exploring is never silent. The clock only runs while the player
+   * is actually MOVING and nothing else owns the screen (see update()), so
+   * standing still to read a sign does not burn the timer.
+   */
+  static get BANTER_PERIOD() { return 52; }
 
   create() {
     // Opaque cover while the 3D world boots — prevents a transparent-canvas
@@ -133,6 +165,15 @@ export class OverworldScene extends Phaser.Scene {
           // The fight happens in the world now — these three are its whole
           // lifecycle. See the BATTLE SEAM block below.
           battleAudio: audio,
+          // The debug/screenshot API takes the world over (freeze, pose,
+          // teleport). A director still ticking on the Phaser side would
+          // refill the cinematic camera slot on the very next frame, so it
+          // gets stopped from in there rather than only cleared.
+          stopCinematics: () => this._cine?.stop(),
+          // The world hard-placed the camera on its own (a debug teleport).
+          // The orbit integrator lives here and would otherwise re-push its
+          // stale yaw on the very next frame.
+          onCameraSnap: () => this._resyncCamera(),
           onBattleVictory: (r) => this._onBattleVictory(r),
           onBattleDefeat: (r) => this._onBattleDefeat(r),
           onBattleEnd: (r) => this._onBattleEnd(r),
@@ -147,6 +188,7 @@ export class OverworldScene extends Phaser.Scene {
     this._buildInput();
     this._buildHud();
     this.dialogue = new DialogueOverlay(this);
+    this._buildCinematics();
 
     // The 2D maths overlay for the 3D fight. Built from the same Paper
     // components the 2D BattleScene uses, and installed once — battle3d calls
@@ -169,6 +211,114 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * THE DIRECTOR. cinematics.js owns the letterbox, the title cards, the fade
+   * and the shot list; this is the eight wires it needs into a live game.
+   *
+   * WHO WRITES THE CAMERA: nobody here. The director computes an ABSOLUTE shot
+   * and hands it to app.setCinematicCamera(), which is a slot the 3D rig reads
+   * once a frame — the same discipline battle3d follows, for the same reason.
+   */
+  _buildCinematics() {
+    this._cine = createCinematicDirector({
+      scene: this,
+      save: this.save,
+      persist: () => writeSave(this.save, this.slot),
+      dialogue: this.dialogue,
+      audio,
+      setCamera: (s) => this.app?.setCinematicCamera?.(s),
+      setInputLocked: (v) => this.app?.setInputLocked?.(v),
+      resolve: (name) => this._cineAnchor(name),
+      hero: (a) => this.app?.setHeroAction?.(a),
+      reducedMotion: !!this.save?.settings?.reducedMotion,
+      onPlay: () => { this._cineStartedAt = this.time.now; },
+      onEnd: () => {
+        // A cinematic ends on a cut back to the follow boom; the input layer's
+        // orbit has to be told where the eye actually landed or it swings.
+        this._resyncCamera();
+        this.app?.clearFloorTriggerLatch?.();
+      },
+    });
+
+    // ── ANY KEY, ANY TAP ─────────────────────────────────────────────────
+    // The SKIP chip is a 170 px target in one corner. A child who has decided
+    // they are done watching does not go looking for it — they mash. So every
+    // key and every touch skips, after a short grace so that the very tap that
+    // opened the world cannot eat the cinematic it just started.
+    //
+    // This is also the reason a cinematic can never trap anyone: there is no
+    // input that leaves you watching.
+    this._cineSkipGuard = () => {
+      if (!this._cine?.active) return;
+      if (this.time.now - (this._cineStartedAt || 0) < OverworldScene.CINE_SKIP_GRACE) return;
+      this._cine.skip();
+      this._resyncCamera();
+    };
+    this.input.keyboard?.on('keydown', this._cineSkipGuard);
+    this.input.on('pointerdown', this._cineSkipGuard);
+  }
+
+  /** Milliseconds a cinematic is protected from the mash-to-skip listener. */
+  static get CINE_SKIP_GRACE() { return 900; }
+  /** Seconds of sustained "I am trying to walk" that also skips a cinematic. */
+  static get CINE_SKIP_HOLD() { return 0.45; }
+
+  /**
+   * Is this save standing on the island for the FIRST TIME?
+   *
+   * The arrival cinematic is an establishing shot, and an establishing shot
+   * shown to somebody who already lives here is an interruption. Three
+   * independent proofs of "we have been here before", any one of which is
+   * enough: a stored island position, a cleared floor, a fought battle. The
+   * director's own `once` flag is belt to this braces — it stops a REPLAY,
+   * while this stops the first play landing on the wrong player.
+   */
+  _isFirstArrival() {
+    const s = this.save;
+    if (s?.overworld?.pos) return false;
+    if ((s?.floors || []).some((f) => f && f.complete)) return false;
+    if ((s?.stats?.totalBattles || 0) > 0) return false;
+    return true;
+  }
+
+  /**
+   * A player leaning on the stick is telling you they are done watching.
+   *
+   * The tap/key listener catches a mash, but a HELD key fires one keydown and
+   * then nothing, so a child who simply starts walking during the intro would
+   * be ignored for the rest of it. This reads the raw controls — before the
+   * cinematic lock zeroes them — and skips once the intent has been sustained
+   * long enough to be an intent and not a twitch.
+   */
+  _cineSkipOnMove(dt) {
+    if (!this._cine?.active) { this._moveHoldT = 0; return; }
+    const k = this.wasd;
+    const c = this.cursors;
+    const pressed = !!(k?.W?.isDown || k?.A?.isDown || k?.S?.isDown || k?.D?.isDown
+      || c?.up?.isDown || c?.down?.isDown || c?.left?.isDown || c?.right?.isDown
+      || this._controls?.stick?.active);
+    if (!pressed) { this._moveHoldT = 0; return; }
+    this._moveHoldT = (this._moveHoldT || 0) + dt;
+    if (this._moveHoldT < OverworldScene.CINE_SKIP_HOLD) return;
+    this._moveHoldT = 0;
+    this._cine.skip();
+    this._resyncCamera();
+  }
+
+  /**
+   * Where a cinematic's named anchors are, in world metres.
+   *
+   * 'hero' is the only anchor every authored sequence uses; 'palace' is the
+   * island's landmark and 'target' is filled in by the sequence itself as
+   * literal coordinates, so it never reaches here.
+   */
+  _cineAnchor(name) {
+    if (name === 'palace') return { x: 0, y: 58, z: 0, yaw: 0 };
+    const st = this.app?.getTraversalState?.();
+    if (!st) return { x: 0, y: 0, z: 0, yaw: 0 };
+    return { x: st.pos.x, y: st.pos.y, z: st.pos.z, yaw: st.yaw };
+  }
+
   /** First 3D frame is on screen — fade the opaque boot cover away. */
   _revealWorld() {
     if (!this._cover) return;
@@ -176,7 +326,15 @@ export class OverworldScene extends Phaser.Scene {
       targets: [this._cover, this._coverText],
       alpha: 0,
       duration: 350,
-      onComplete: () => { this._cover?.destroy(); this._coverText?.destroy(); this._cover = null; },
+      onComplete: () => {
+        this._cover?.destroy(); this._coverText?.destroy(); this._cover = null;
+        // ARRIVAL. Played the first time a save ever sees the island and never
+        // again — the director checks save.overworld.seen itself, so this can
+        // fire unconditionally on every boot. Skippable, like all of them.
+        if (!this.floorId && !this._resumeFloor && this._isFirstArrival()) {
+          this._cine?.play(islandArrival({ palace: { x: 0, y: 58, z: 0 } }));
+        }
+      },
     });
   }
 
@@ -255,6 +413,14 @@ export class OverworldScene extends Phaser.Scene {
     });
     this._mapBtn = mapBtn;
     [mapBtn.bg, mapBtn.shadow, mapBtn.label, mapBtn.zone].forEach((o) => o?.setDepth(95).setScrollFactor(0));
+
+    // ── THE STAMINA RING ──────────────────────────────────────────────────
+    // A papercut arc drawn AROUND THE HERO rather than parked in a corner,
+    // because the thing it is about — can I keep climbing? — is happening at
+    // the hero and a child's eyes are already there. It fades itself in the
+    // moment the pool is spent and out again once it is full, so a walk across
+    // the island never shows it at all.
+    this._stamina = createStaminaGauge(this, { depth: 93 });
   }
 
   _setMapBtnVisible(v) {
@@ -346,6 +512,8 @@ export class OverworldScene extends Phaser.Scene {
     const res = collectItem(this.save, spec);
     if (!res.granted) return;
     writeSave(this.save, this.slot);
+    // The pickup's own chime already played positionally, from the 3D side,
+    // where the coin was. This is the purse acknowledging it.
     audio.play('world/gold');
     if (spec.kind === 'gold') this._pulseChip(this._goldChip, this.save.gold || 0);
     else this._pulseChip(this._potionChip, this.save.potions || 0);
@@ -409,6 +577,11 @@ export class OverworldScene extends Phaser.Scene {
 
     this._entering = true;
     audio.play('ui/confirm');
+    // The arch itself, not a menu blip: a warp has a sound and it plays where
+    // the arch is standing, so the last thing a child hears on the island is
+    // the gate they walked through.
+    playSfx('world/portal');
+    this.app?.emitSoundAtPlayer?.('warp', 0.9);
     this.app?.notePortalUsed(portal.id);
     this.saveMazeState();
     this._destroyPrompt();
@@ -441,6 +614,7 @@ export class OverworldScene extends Phaser.Scene {
     if (!this.app || this.floorId) return false;
     const built = this.app.enterFloor(floorId);
     if (!built) { this._entering = false; return false; }
+    this._floorEpoch++;
 
     this.floorId = floorId;
     this.floor = { ...getFloor(floorId), challenge: getFloor(floorId).challenge };
@@ -478,7 +652,65 @@ export class OverworldScene extends Phaser.Scene {
     this._refreshFloorHud();
     this._saveFloorState();
     audio.playMusic('music/maze');
+
+    // ── THE FLOOR'S OPENING ──────────────────────────────────────────────
+    // A title card first (a two-second papercut plate that names the place),
+    // then the arc's ARRIVAL beat — Elara counting roses, the fisherman's tide
+    // chart, whoever this floor belongs to. Both are once-per-save and both
+    // are skippable; a returning player walks straight in.
+    this._midpointDone = false;
+    this._banterT = 0;
+    this._cine?.play(floorTitleCard(floorId));
+    this._playFloorBeat('arrival');
     return true;
+  }
+
+  /**
+   * Play one beat of the story arc for the open floor.
+   *
+   * Beats are queued BEHIND whatever the director is doing rather than
+   * competing with it: a title card and an arrival speech in the same frame
+   * would talk over each other, so the beat waits for the card to clear.
+   * Returns false when this floor has no such beat, which is not an error —
+   * FLOOR_BEATS is authored per floor and a floor may simply be quiet.
+   */
+  _playFloorBeat(phase) {
+    const lines = getFloorBeat(this.floorId, phase);
+    if (!lines.length) return false;
+    const key = `floor${this.floorId}_${phase}`;
+    if (this.save.seenBeats?.[key]) return false;
+    this.save.seenBeats = this.save.seenBeats || {};
+    this.save.seenBeats[key] = true;
+    writeSave(this.save, this.slot);
+    this._waitThenSay(() => this._say(lines), 400);
+    return true;
+  }
+
+  /**
+   * Run `fn` once nothing else owns the screen.
+   *
+   * EPOCH-GUARDED, and that guard is the whole point of the function. A queued
+   * beat is a timer with the player's attention attached to it, and the player
+   * can walk out of the floor it belongs to while it is still waiting. Firing
+   * it then puts a full-screen dialogue over the ISLAND — one that swallows the
+   * next tap, which is exactly how a queued line ends up eating the press of
+   * the ENTER button on the very next gate. `_floorEpoch` moves on every floor
+   * entry and exit, so a stale beat quietly dies instead of ambushing anyone.
+   *
+   * It also waits behind a dialogue and a math prompt, not just a cinematic:
+   * two overlays on screen at once is how a five-year-old loses the plot.
+   */
+  _waitThenSay(fn, delayMs = 300) {
+    const epoch = this._floorEpoch;
+    const poll = () => {
+      if (this._destroyed || epoch !== this._floorEpoch) return;
+      if (this._cine?.active || this.dialogue?.active || this._mathPrompt) {
+        this.time.delayedCall(300, poll);
+        return;
+      }
+      fn();
+    };
+    this.time.delayedCall(delayMs, poll);
   }
 
   /** Leave the floor and step back onto the island at the portal. */
@@ -486,6 +718,14 @@ export class OverworldScene extends Phaser.Scene {
     if (!this.floorId) return;
     if (!complete) this._saveFloorState();
     else this._clearFloorState(this.floorId);
+    // Nothing this floor was saying follows the player out of it. The epoch
+    // kills anything still QUEUED (see _waitThenSay); finish() closes anything
+    // already on screen — and it must be finish(), not hide(), because hide()
+    // leaves show()'s promise pending and the input lock with it.
+    this._floorEpoch++;
+    this._cine?.stop();
+    if (this.dialogue?.active) this.dialogue.finish();
+    this._midpointDone = false;
     this.floorId = null;
     this.floor = null;
     this.level = null;
@@ -671,6 +911,7 @@ export class OverworldScene extends Phaser.Scene {
         writeSave(this.save, this.slot);
         this._consume(obj);
         audio.play('world/chest');
+        playSfx('world/chest-open');
         this._flash(`+${gold} GOLD`);
         this._pulseChip(this._goldChip, this.save.gold || 0);
         break;
@@ -680,6 +921,7 @@ export class OverworldScene extends Phaser.Scene {
         writeSave(this.save, this.slot);
         this._consume(obj);
         audio.play('world/gold');
+        playSfx('world/coin');
         this._flash(`+${g} GOLD`);
         this._pulseChip(this._goldChip, this.save.gold || 0);
         break;
@@ -688,7 +930,7 @@ export class OverworldScene extends Phaser.Scene {
         grantPotion(this.save);
         writeSave(this.save, this.slot);
         this._consume(obj);
-        audio.play('world/gold');
+        playSfx('world/potion');
         this._flash('+1 POTION');
         this._pulseChip(this._potionChip, this.save.potions || 0);
         break;
@@ -696,7 +938,7 @@ export class OverworldScene extends Phaser.Scene {
       case 'fountain': {
         const drink = useFountain(this.party, obj);
         this._flash(drink.message);
-        if (drink.healed > 0) audio.play('world/chest');
+        if (drink.healed > 0) playSfx('world/fountain');
         if (!drink.ok) return;
         syncPartyToSave(this.save, this.party);
         writeSave(this.save, this.slot);
@@ -716,13 +958,13 @@ export class OverworldScene extends Phaser.Scene {
         if (!gate.ok) { this._flash(gate.message); return; }
         this._consume(obj);
         this.hasKey = true;
-        audio.play('world/chest');
+        playSfx('world/chest-open');
         this._flash('GOLDEN KEY OBTAINED!');
         break;
       }
       case 'encounter': {
         this._consume(obj);
-        audio.play('world/encounter');
+        playSfx('world/encounter');
         this._startBattle(false, undefined, obj);
         return;
       }
@@ -733,6 +975,19 @@ export class OverworldScene extends Phaser.Scene {
         // The boss is NOT consumed before the fight — a loss has to leave it
         // standing so the retry has something to walk back into.
         audio.play('world/encounter');
+        // THE LAIR. A once-per-save approach shot — the letterbox crops harder
+        // than the house crop and the eye rises over the arena — played BEFORE
+        // the fight is staged. Skipped on a retry, because a child who just
+        // lost wants to swing again, not watch the doors open twice.
+        const lair = this._cine?.play(bossLairApproach({
+          floorId: this.floorId,
+          at: { x: obj.worldX ?? 0, y: 0, z: obj.worldZ ?? 0 },
+          bossName: obj.enemyId,
+        }));
+        if (lair) {
+          this._waitThenSay(() => this._startBattle(true, obj.enemyId, obj));
+          return;
+        }
         this._startBattle(true, obj.enemyId, obj);
         return;
       }
@@ -758,6 +1013,7 @@ export class OverworldScene extends Phaser.Scene {
   _challengeItem(obj) {
     const step = advanceChallenge(this, this.floor, obj);
     audio.play('world/chest');
+    playSfx('world/pickup');
     if (step.phase2) {
       obj.activated = true;
       this._consume(obj);
@@ -765,16 +1021,31 @@ export class OverworldScene extends Phaser.Scene {
       this._consume(obj);
     }
     this._flash(step.message);
+    this._maybeMidpoint();
 
     if (!step.phase2 && step.done) {
       this.mazeTransformed = true;
-      this.app.applyFloorTransform();
-      audio.play('world/floor-complete');
       const p1Key = `floor${this.floorId}_phase1_done`;
       const ch = challengeGoal(this.floor);
       if (ch.phase2 && !this.phase2Active) this.phase2Active = true;
       const lines = DIALOGUE[p1Key] || DIALOGUE.all_fairies_freed;
-      if (lines && lines.length) this._say(lines);
+      // THE PAYOFF, STAGED. The bridge growing / the tide draining is the best
+      // thing that happens on a floor and it used to fire off-screen while the
+      // child was looking at a toast. The cinematic pushes in on the thing that
+      // is about to change and CALLS applyFloorTransform at the beat where it
+      // changes — so the transform is the shot, not a side effect of it.
+      const played = this._cine?.play(challengeComplete({
+        floorId: this.floorId,
+        at: { x: obj.worldX ?? 0, y: 0, z: obj.worldZ ?? 0 },
+        lines,
+        onTransform: () => this.app?.applyFloorTransform(),
+      }));
+      if (!played) {
+        // Already seen, or no director: the world still has to change.
+        this.app.applyFloorTransform();
+        if (lines && lines.length) this._say(lines);
+      }
+      audio.play('world/floor-complete');
     } else if (step.phase2 && step.done) {
       const p2Key = `floor${this.floorId}_phase2_done`;
       if (DIALOGUE[p2Key]) this._say(DIALOGUE[p2Key]);
@@ -786,18 +1057,44 @@ export class OverworldScene extends Phaser.Scene {
   _rescueHero(obj) {
     this._consume(obj);
     this.app.openFloorCage(obj.x, obj.y);
-    if (isHeroUnlocked(this.save, obj.heroId)) { this._saveFloorState(); return; }
+    if (isHeroUnlocked(this.save, obj.heroId)) {
+      // Already one of ours — no cinematic, but they still say something.
+      this._heroLine(obj.heroId, 'idle');
+      this._saveFloorState();
+      return;
+    }
     const heroDef = spawnHero(obj.heroId);
     if (!heroDef) { this._saveFloorState(); return; }
     audio.play('world/fairy');
-    unlockHero(this.save, obj.heroId);
-    writeSave(this.save, this.slot);
+    playSfx('world/rescue');
     this._saveFloorState();
-    const lines = getRescueDialogue(this.floorId, [obj.heroId]);
-    this._say(lines.length ? lines : [
-      { speaker: heroDef.name, text: 'You... you found me! I am free!' },
-      { speaker: heroDef.name, text: 'My strength is yours. Let me fight beside you!' },
-    ]);
+
+    // The rescue is the emotional beat of a floor: the cage opens, the camera
+    // comes round to the freed hero and they get their OWN words (story.js's
+    // HERO_VOICES) before the scripted rescue lines. The unlock happens on the
+    // director's beat so a child who skips still gets the hero.
+    const rescueLine = pickHeroLine(obj.heroId, 'rescue');
+    const scripted = getRescueDialogue(this.floorId, [obj.heroId]);
+    const lines = [
+      ...(rescueLine ? [{ speaker: heroDef.name, text: rescueLine }] : []),
+      ...(scripted.length ? scripted : [
+        { speaker: heroDef.name, text: 'You... you found me! I am free!' },
+        { speaker: heroDef.name, text: 'My strength is yours. Let me fight beside you!' },
+      ]),
+    ];
+    const grant = () => {
+      unlockHero(this.save, obj.heroId);
+      writeSave(this.save, this.slot);
+      this._saveFloorState();
+    };
+    const played = this._cine?.play(heroFreed({
+      heroId: obj.heroId,
+      name: heroDef.name,
+      at: { x: obj.worldX ?? 0, y: 0, z: obj.worldZ ?? 0 },
+      lines,
+      onFreed: grant,
+    }));
+    if (!played) { grant(); this._say(lines); }
   }
 
   /** The signature secret's ordered/any markers. */
@@ -812,7 +1109,7 @@ export class OverworldScene extends Phaser.Scene {
     if (sec.order === 'any') {
       if (obj.activated) return;
       obj.activated = true;
-      audio.play('world/fairy');
+      playSfx('world/fairy');
       const lit = marks.filter((o) => o.activated).length;
       this._flash(`${lit} / ${marks.length}`);
       if (lit >= marks.length) this._completeSecret();
@@ -821,7 +1118,7 @@ export class OverworldScene extends Phaser.Scene {
     if (obj.seqIdx === this.secretSeq) {
       this.secretSeq++;
       obj.activated = true;
-      audio.play('world/fairy');
+      playSfx('world/fairy');
       this._flash(`${this.secretSeq} / ${marks.length}`);
       if (this.secretSeq >= marks.length) this._completeSecret();
     } else if (obj.seqIdx !== undefined && this.secretSeq > 0) {
@@ -836,7 +1133,7 @@ export class OverworldScene extends Phaser.Scene {
     if (this.secretDone) return;
     this.secretDone = true;
     this.app.revealFloorSecret();
-    audio.play('world/floor-complete');
+    playSfx('world/secret');
     this._flash('A HIDDEN WAY OPENS!');
     this._saveFloorState();
   }
@@ -869,6 +1166,9 @@ export class OverworldScene extends Phaser.Scene {
    */
   _setWorldHudVisible(v) {
     this._controls?.setVisible(v);
+    // The ring belongs to WALKING. A fight has its own HP bars and a stamina
+    // arc floating over a battle formation is noise.
+    this._stamina?.setVisible(v);
     this._realmTitle?.setVisible(v && !this.floorId);
     this._title?.setVisible(v && !!this.floorId);
     this._setMapBtnVisible(v && !this.floorId);
@@ -1062,24 +1362,60 @@ export class OverworldScene extends Phaser.Scene {
     audio.playMusic(this.floorId ? 'music/maze' : 'music/map');
   }
 
+  /**
+   * THE MIDPOINT.
+   *
+   * Halfway through a floor's challenge the arc stops the child and shows them
+   * the page of the theorem scratched into the world — the thread that ties
+   * nine unrelated puzzle rooms into one story. It fires exactly once per
+   * floor per save (see _playFloorBeat) and only when nothing else is talking.
+   */
+  _maybeMidpoint() {
+    if (this._midpointDone || !this.floorId) return;
+    const goal = challengeGoal(this.floor);
+    const need = Math.max(1, goal?.count || goal?.total || 0);
+    if ((this.challengeProgress || 0) * 2 < need) return;
+    this._midpointDone = true;
+    this._waitThenSay(() => this._playFloorBeat('midpoint'));
+  }
+
   /** The exit arch, with the key in hand. */
   _finishFloor() {
     const floorId = this.floorId;
     audio.play('world/floor-complete');
+    playSfx('world/secret');
     updateQuestProgress(this.save, 'floor');
     writeSave(this.save, this.slot);
+    // The DEPARTURE beat is read while the floor is still open — getFloorBeat
+    // and getProofFragment are keyed on this.floorId, and _leaveFloor clears it.
+    const departure = getFloorBeat(floorId, 'departure');
+    const arc = getArcBeat(floorId);
     this._clearFloorState(floorId);
     this._leaveFloor({ complete: true });
 
-    const victKey = `floor${floorId}_victory`;
     if (floorId === 9) {
-      transitionTo(this, SCENES.ENDING, undefined, 400);
+      // THE FINALE. The camera climbs the palace one last time and the ending
+      // scene is the cinematic's own onDone, so the transition happens after
+      // the shot instead of cutting through it.
+      const played = this._cine?.play(finale({
+        palace: { x: 0, y: 58, z: 0 },
+        onDone: () => transitionTo(this, SCENES.ENDING, undefined, 400),
+      }));
+      if (!played) transitionTo(this, SCENES.ENDING, undefined, 400);
       return;
     }
-    if (DIALOGUE[victKey]?.length) {
-      this.app?.setInputLocked(true);
-      this.dialogue.show(DIALOGUE[victKey]).then(() => this.app?.setInputLocked(false));
-    }
+
+    // A papercut plate that says the floor is done, then the arc's parting
+    // words with the proof fragment this floor earned.
+    this._cine?.play(floorCompleteCard(floorId));
+    const victKey = `floor${floorId}_victory`;
+    const lines = [];
+    if (DIALOGUE[victKey]?.length) lines.push(...DIALOGUE[victKey]);
+    if (departure.length) lines.push(...departure);
+    const frag = getProofFragment(floorId);
+    if (frag) lines.push({ speaker: frag.title, text: frag.text, wide: true });
+    else if (arc?.turn) lines.push({ speaker: 'Narrator', text: arc.turn, wide: true });
+    if (lines.length) this._waitThenSay(() => this._say(lines));
   }
 
   /** Dialogue over the live 3D world — the world keeps rendering behind it. */
@@ -1145,14 +1481,18 @@ export class OverworldScene extends Phaser.Scene {
         if (correct) {
           door.open = true;
           this.app?.openFloorGate(door.gateId ?? door.id);
-          audio.play('world/chest');
+          // Two cues, and they are different things: 'ui/correct' is the answer
+          // being right (and it climbs a pentatonic degree per streak), while
+          // 'world/door-unlock' is the door in the world actually opening.
+          playSfx('ui/correct');
+          playSfx('world/door-unlock');
           kill();
           this._flash('Door opened!');
           this._saveFloorState();
           this._refreshFloorHud();
           onOpen?.();
         } else {
-          audio.play('ui/back');
+          playSfx('ui/wrong');
           kill();
           this._flash('Try again!');
           this.time.delayedCall(600, () => {
@@ -1185,13 +1525,20 @@ export class OverworldScene extends Phaser.Scene {
     const dt = this._lastInputT ? Math.min(0.05, (now - this._lastInputT) / 1000) : 1 / 60;
     this._lastInputT = now;
 
+    // The director runs FIRST: a beat that ends this frame must have released
+    // the camera before the follow boom is asked what it wants.
+    this._cine?.tick(dt * 1000);
+    this._cineSkipOnMove(dt);
+
     // A modal (dialogue, math door) owns the screen: neutralise the stick and
     // freeze the orbit rather than letting a stray drag spin the world behind
     // the panel.
     // A fight owns the screen the same way a modal does: the stick is dead and
     // the orbit is frozen, because battle3d is writing the camera itself.
+    // A cinematic owns the screen the same way: it is writing the camera and
+    // the hero is acting, so the stick must not fight either of them.
     const locked = !!(this.dialogue?.active || this._mathPrompt || this._entering
-      || this.app.battleActive?.());
+      || this.app.battleActive?.() || this._cine?.active);
 
     const f = this._controls.poll({
       dt,
@@ -1205,8 +1552,18 @@ export class OverworldScene extends Phaser.Scene {
 
     // `world: true` — controls3d already resolved the stick against the
     // camera's yaw, so index.js must NOT rotate it a second time.
-    this.app.setInput({ x: f.x, y: f.z, jump: f.jump, run: f.run, world: true });
+    //
+    // `jumpHeld` and `dive` are LEVELS, and both are load-bearing: the first is
+    // the whole of variable jump height (gameFeel cuts the rise the frame it
+    // goes false), the second is what takes a swimmer under.
+    this.app.setInput({
+      x: f.x, y: f.z, jump: f.jump, jumpHeld: f.jumpHeld, dive: f.dive,
+      run: f.run, world: true,
+    });
     this.app.setCameraOrbit?.({ yaw: f.yaw, pitch: f.pitch, zoom: f.zoom });
+
+    this._updateStamina(dt);
+    this._updateBanter(dt, locked, f);
 
     // ACTION — the one context verb. The on-screen button, E/Enter and the
     // gamepad's X all land here, and the label above them already said which
@@ -1222,6 +1579,66 @@ export class OverworldScene extends Phaser.Scene {
         this._enterPortal();
       }
     }
+  }
+
+  /**
+   * Draw the stamina ring around the hero.
+   *
+   * The 3D side hands back the hero's position as FRACTIONS of the viewport
+   * rather than pixels, because the 3D canvas and the Phaser canvas are not the
+   * same size — multiplying by this scene's design resolution here is what
+   * keeps the ring on the hero at every aspect ratio. A null means the hero is
+   * behind the eye (a hard orbit, a cinematic), and the ring simply holds its
+   * last place while the widget's own fade takes it away.
+   */
+  _updateStamina(dt) {
+    const gauge = this._stamina;
+    if (!gauge) return;
+    const st = this.app?.getTraversalState?.();
+    if (!st) return;
+    const p = this.app.heroScreenPos?.();
+    if (p) {
+      this._heroSX = p.x * GAME_WIDTH;
+      this._heroSY = p.y * GAME_HEIGHT;
+    }
+    gauge.update(st, dt, this._heroSX ?? GAME_WIDTH / 2, this._heroSY ?? GAME_HEIGHT * 0.62);
+  }
+
+  /**
+   * PARTY BANTER — the cheapest storytelling there is.
+   *
+   * Two heroes riffing about the biome they are standing in, unprompted, while
+   * the child walks. It only fires when the world is genuinely idle (no modal,
+   * no fight, no cinematic, nothing to press) and only while the player is
+   * MOVING, so it reads as the party filling a quiet moment rather than as an
+   * interruption. Every exchange is heard at most once per session.
+   */
+  _updateBanter(dt, locked, frame) {
+    if (locked || !this.dialogue || this.dialogue.active) { this._banterT = 0; return; }
+    const moving = Math.hypot(frame?.x || 0, frame?.z || 0) > 0.2;
+    if (!moving) return;
+    this._banterT += dt;
+    if (this._banterT < OverworldScene.BANTER_PERIOD) return;
+    this._banterT = 0;
+
+    const partyIds = (this.save.party || []).map((s) => s?.id).filter(Boolean);
+    if (partyIds.length === 0) return;
+    const biome = this.app?.getBiome?.() || 'garden';
+    const pick = pickBanter(partyIds, biome, { exclude: this._banterHeard });
+    if (!pick || !pick.lines.length) return;
+    this._banterHeard.add(pick.id);
+    this._say(pick.lines);
+  }
+
+  /**
+   * A hero's own voice, as a one-line toast. Used where a full dialogue panel
+   * would be too much furniture for the moment — a rescue that the child has
+   * already seen the cinematic for, a level's opening breath.
+   */
+  _heroLine(heroId, category) {
+    const line = pickHeroLine(heroId, category);
+    if (line) this._flash(line);
+    return !!line;
   }
 
   /**
@@ -1264,6 +1681,17 @@ export class OverworldScene extends Phaser.Scene {
     this._destroyed = true;
     this._controls?.destroy();
     this._controls = null;
+    // The director owns a letterbox, a fade and a SKIP chip. Stopping it first
+    // releases the cinematic camera slot before the world below is disposed.
+    if (this._cineSkipGuard) {
+      this.input.keyboard?.off('keydown', this._cineSkipGuard);
+      this.input.off('pointerdown', this._cineSkipGuard);
+      this._cineSkipGuard = null;
+    }
+    this._cine?.destroy();
+    this._cine = null;
+    this._stamina?.destroy();
+    this._stamina = null;
     this._destroyPrompt();
     this._mathPrompt?.kill();
     // A fight in flight must not survive the scene: end it before the world

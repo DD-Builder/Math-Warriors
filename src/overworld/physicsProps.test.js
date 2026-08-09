@@ -4,8 +4,12 @@ import {
   PROP_KINDS, PROP_ORDER, SANDBOX, PUZZLES, PUZZLE_HOLD,
   kindFloats, kindVolume, kindMass, bodySpecFor, layQuat, spawnLift,
   bodyInZone, countInZone, evaluatePuzzle, createPuzzleTracker,
+  windResponse, LEASH, leashRadius, recallReason,
 } from './physicsProps.js';
 import { PHYS, buoyShareSum, shapeVolume } from './physics.js';
+import { createHeightfield } from './heightfield.js';
+import { resolvePonds } from './water.js';
+import { WORLD, PADS } from './worldSpec.js';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} !~= ${b}`);
 
@@ -142,7 +146,7 @@ describe('body specs', () => {
 
 describe('the sandbox', () => {
   test('is about forty objects', () => {
-    assert.ok(SANDBOX.length >= 38 && SANDBOX.length <= 48, `${SANDBOX.length} objects`);
+    assert.ok(SANDBOX.length >= 38 && SANDBOX.length <= 54, `${SANDBOX.length} objects`);
   });
 
   test('fits inside the body cap with headroom for play', () => {
@@ -336,30 +340,32 @@ describe('the authored puzzles', () => {
 });
 
 describe('puzzle evaluation', () => {
-  const stack = PUZZLES.find((p) => p.id === 'phz-garden-steps');
-  const crates = (n) => Array.from({ length: n }, (_, i) => ({
-    kind: 'crate', x: stack.zones[0].x, y: 0.5 + i, z: stack.zones[0].z, wet: 0,
+  const rack = PUZZLES.find((p) => p.id === 'phz-garden-logs');
+  // Laid where a pushed log actually comes to rest: on the ground, inside the
+  // zone's window. Spread a little in x so they are not co-located.
+  const logs = (n) => Array.from({ length: n }, (_, i) => ({
+    kind: 'log', x: rack.zones[0].x + (i - 1) * 0.7, y: 0.34, z: rack.zones[0].z, wet: 0,
   }));
 
   test('EXACT count — one too few and one too many both fail', () => {
     // "At least N" teaches "pile everything on". Exact-N means taking one back
     // off, and taking one back off is subtraction happening in their hands.
-    assert.equal(evaluatePuzzle(stack, crates(2)).solved, false);
-    assert.equal(evaluatePuzzle(stack, crates(3)).solved, true);
-    assert.equal(evaluatePuzzle(stack, crates(4)).solved, false);
+    assert.equal(evaluatePuzzle(rack, logs(2)).solved, false);
+    assert.equal(evaluatePuzzle(rack, logs(3)).solved, true);
+    assert.equal(evaluatePuzzle(rack, logs(4)).solved, false);
   });
 
   test('the wrong kind does not count', () => {
-    const wrong = crates(3).map((c) => ({ ...c, kind: 'ball' }));
-    assert.equal(evaluatePuzzle(stack, wrong).solved, false);
-    assert.equal(evaluatePuzzle(stack, wrong).total, 0);
+    const wrong = logs(3).map((c) => ({ ...c, kind: 'ball' }));
+    assert.equal(evaluatePuzzle(rack, wrong).solved, false);
+    assert.equal(evaluatePuzzle(rack, wrong).total, 0);
   });
 
-  test('a see-saw needs the SAME number on each end, not just the right total', () => {
+  test('a paired puzzle needs the SAME number on each side, not just the right total', () => {
     const seesaw = PUZZLES.find((p) => p.zones.some((z) => z.pair));
     const [l, r] = seesaw.zones;
     const at = (zone, n) => Array.from({ length: n }, () => ({
-      kind: 'crate', x: zone.x, y: (zone.y0 + zone.y1) / 2, z: zone.z, wet: 0,
+      kind: zone.kind || 'crate', x: zone.x, y: (zone.y0 + zone.y1) / 2, z: zone.z, wet: 0,
     }));
     // Six in total, all on one end: that is a see-saw on the floor.
     assert.equal(evaluatePuzzle(seesaw, at(l, 6)).solved, false);
@@ -369,14 +375,14 @@ describe('puzzle evaluation', () => {
 
   test('the ground sampler is consulted per zone', () => {
     const seen = [];
-    evaluatePuzzle(stack, crates(3), (x, z) => { seen.push([x, z]); return 0; });
-    assert.equal(seen.length, stack.zones.length);
+    evaluatePuzzle(rack, logs(3), (x, z) => { seen.push([x, z]); return 0; });
+    assert.equal(seen.length, rack.zones.length);
   });
 
   test('writing into an `out` object gives the same answer as allocating one', () => {
     const out = { solved: false, total: 0, need: 0, counts: [] };
-    const a = evaluatePuzzle(stack, crates(3));
-    const b = evaluatePuzzle(stack, crates(3), null, 3, out);
+    const a = evaluatePuzzle(rack, logs(3));
+    const b = evaluatePuzzle(rack, logs(3), null, 3, out);
     assert.equal(b, out);
     assert.equal(a.solved, b.solved);
     assert.equal(a.total, b.total);
@@ -388,7 +394,7 @@ describe('puzzle tracker', () => {
   const one = [PUZZLES[0]];
   const zone = one[0].zones[0];
   const right = Array.from({ length: one[0].need }, (_, i) => ({
-    kind: zone.kind, x: zone.x, y: 0.5 + i, z: zone.z, wet: 0,
+    kind: zone.kind, x: zone.x + (i - 1) * 0.7, y: (zone.y0 + zone.y1) / 2, z: zone.z, wet: 0,
   }));
 
   test('a correct arrangement must be HELD before it latches', () => {
@@ -461,5 +467,265 @@ describe('puzzle tracker', () => {
     assert.equal(s.total, 2);
     assert.equal(s.need, one[0].need);
     assert.equal(s.solved, false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// The layout, checked against the REAL island
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * WHY THIS SUITE EXISTS.
+ *
+ * Every test above this line asks whether the numbers in the tables are
+ * self-consistent, and every one of them passed while the sandbox was
+ * unplayable. The coordinates had been authored against a mental picture of the
+ * island rather than the island, and the heightfield disagreed: six placements
+ * were on 35-40 degree slopes, so within twelve seconds of calm the crates had
+ * slid off the knoll, three logs had rolled 23-44 m and four balls were in the
+ * sea. Three planks and both kerbstones spawned inside puzzle zones and
+ * pre-solved two puzzles before the player arrived.
+ *
+ * A table of coordinates is a claim about terrain. This suite is where that
+ * claim is checked, against `createHeightfield(WORLD.SEED)` — the same pure,
+ * deterministic function the game builds the world from, which is why it can be
+ * done here in milliseconds instead of in a screenshot.
+ */
+describe('the sandbox, measured against the real heightfield', () => {
+  const hf = createHeightfield(WORLD.SEED);
+  const H = (x, z) => hf.sampleHeight(x, z);
+
+  /** Gradient magnitude, rise over run. */
+  const slopeAt = (x, z, d = 1.2) => Math.hypot(
+    (H(x + d, z) - H(x - d, z)) / (2 * d),
+    (H(x, z + d) - H(x, z - d)) / (2 * d),
+  );
+  /** Worst gradient anywhere under a body's footprint, not just at its centre. */
+  const footSlope = (x, z, r) => {
+    let m = slopeAt(x, z);
+    for (let a = 0; a < 8; a++) {
+      const t = (a / 8) * Math.PI * 2;
+      m = Math.max(m, slopeAt(x + Math.cos(t) * r, z + Math.sin(t) * r));
+    }
+    return m;
+  };
+  /** How far downhill a body could get within R metres if it started rolling. */
+  const runaway = (x, z, R = 10) => {
+    const h0 = H(x, z);
+    let d = 0;
+    for (let r = 2; r <= R; r += 2) {
+      for (let a = 0; a < 24; a++) {
+        const t = (a / 24) * Math.PI * 2;
+        d = Math.max(d, h0 - H(x + Math.cos(t) * r, z + Math.sin(t) * r));
+      }
+    }
+    return d;
+  };
+
+  // Slope a kind can be set down on and still be there a minute later. Derived
+  // by simulation, not taste: these are the values at which a 15 s settle in
+  // dead calm leaves the object within a couple of metres of where it started.
+  const SLOPE_BUDGET = { ball: 0.05, log: 0.09, crate: 0.13, plank: 0.13, leaf: 0.17, stone: 0.17 };
+  // Footprint radius the budget is measured over — roughly the object's own size.
+  const FOOTPRINT = { ball: 0.9, log: 1.6, crate: 1.1, plank: 1.7, leaf: 0.6, stone: 0.7 };
+
+  test('every placement is on ground its own kind can actually sit on', () => {
+    for (const p of SANDBOX) {
+      const s = footSlope(p.x, p.z, FOOTPRINT[p.kind]);
+      assert.ok(s <= SLOPE_BUDGET[p.kind],
+        `${p.id} (${p.kind}) is on a ${s.toFixed(3)} slope at (${p.x}, ${p.z}); ` +
+        `budget for a ${p.kind} is ${SLOPE_BUDGET[p.kind]}`);
+    }
+  });
+
+  test('nothing that ROLLS is parked at the top of a long fall', () => {
+    // A ball needs more than a flat square metre — it needs nowhere to go. This
+    // is the check that a low local slope is not hiding a hill just off the
+    // edge of the footprint, which is exactly how three balls reached the sea.
+    // 1.5 m is where simulation puts the line, not where it looks tidy: at or
+    // under it a 15 s settle in dead calm leaves the object put, and the
+    // placements this rejected when it was written were sitting above 2.5 m
+    // (one ball had 3.55 m of fall within 10 m and used the whole of it).
+    for (const p of SANDBOX) {
+      if (p.kind !== 'ball' && p.kind !== 'log') continue;
+      const d = runaway(p.x, p.z, 10);
+      assert.ok(d <= 1.5, `${p.id} (${p.kind}) has ${d.toFixed(2)} m of downhill within 10 m`);
+    }
+  });
+
+  test('nothing is born in the water except the one tutorial leaf', () => {
+    // A body that starts afloat is a body the player never saw float. The leaf
+    // is the deliberate exception: it is the free demonstration.
+    const ponds = resolvePonds(hf);
+    for (const p of SANDBOX) {
+      const wet = ponds.some((q) => Math.hypot(p.x - q.x, p.z - q.z) <= q.radius * 1.25 && q.level > H(p.x, p.z));
+      if (p.id === 'phx-g-leaf-5') { assert.ok(wet, 'the tutorial leaf must start ON the pool'); continue; }
+      assert.equal(wet, false, `${p.id} spawns in water`);
+    }
+  });
+
+  test('no placement pre-solves a puzzle it could be counted for', () => {
+    // Both kerbstones used to spawn ON the market pressure plate, so the Heavy
+    // Door began at 2 of 6 and the child was solving someone else's puzzle.
+    for (const p of SANDBOX) {
+      for (const puz of PUZZLES) {
+        for (const z of puz.zones) {
+          if (z.kind && z.kind !== p.kind) continue;   // this zone would ignore it
+          const d = Math.hypot(p.x - z.x, p.z - z.z);
+          assert.ok(d > z.r, `${p.id} starts inside ${puz.id}/${z.id} (${d.toFixed(2)} m < r ${z.r})`);
+        }
+      }
+    }
+  });
+
+  test('no placement is born inside a levelled monument pad', () => {
+    for (const p of SANDBOX) {
+      for (const pad of PADS) {
+        const d = Math.hypot(p.x - pad.x, p.z - pad.z);
+        assert.ok(d >= pad.r, `${p.id} is inside ${pad.id} (${d.toFixed(2)} m < r ${pad.r})`);
+      }
+    }
+  });
+
+  test('every puzzle has its answer in stock nearby, plus room to be wrong', () => {
+    // Exact-N only teaches subtraction if there is a surplus to subtract FROM.
+    for (const p of PUZZLES) {
+      const z = p.zones[0];
+      const stock = SANDBOX.filter((s) => (z.kind ? s.kind === z.kind : PROP_KINDS[s.kind].density > 0.4)
+        && Math.hypot(s.x - z.x, s.z - z.z) < 60).length;
+      assert.ok(stock >= p.need, `${p.id} needs ${p.need}, only ${stock} in reach`);
+      assert.ok(stock > p.need, `${p.id} has exactly ${stock} candidates for a need of ${p.need} — ` +
+        'with no spare, "put them all in" is always right and nothing is learned');
+    }
+  });
+});
+
+describe('every puzzle is solvable with the verbs the hero HAS', () => {
+  // controls3d.js gives move, run, jump, action and dive. There is no carry.
+  // A puzzle that needs a crate placed on top of another crate cannot be
+  // finished, however good the arithmetic is — and one was shipped in this
+  // file, on a slope, for a whole round. See the PUZZLES header.
+  const CRATE = 0.9;                       // a crate is 0.9 m on a side
+
+  test('no zone counts higher than a pushed object can reach', () => {
+    for (const p of PUZZLES) {
+      for (const z of p.zones) {
+        assert.ok(z.y1 <= CRATE * 3,
+          `${p.id}/${z.id} counts up to ${z.y1} m. Nothing above ${(CRATE * 2).toFixed(1)} m ` +
+          'can get there by pushing, so this zone is asking for a carry verb.');
+      }
+    }
+  });
+
+  test('the zone floor is below the ground, so a resting body always counts', () => {
+    // The physics terrain is a 5 m grid and the render heightfield is not, so a
+    // body at rest can sit up to ~1 m below the height an author sampled. A y0
+    // of -0.6 was tight enough that crates resting on the ground scored zero.
+    for (const p of PUZZLES) {
+      for (const z of p.zones) {
+        assert.ok(z.y0 <= -0.85,
+          `${p.id}/${z.id} has y0 ${z.y0}; the coarse physics grid can rest a body ` +
+          'up to 1 m below the sampled ground and it would not be counted');
+      }
+    }
+  });
+
+  test('every puzzle renders a plate a child can aim at', () => {
+    for (const p of PUZZLES) {
+      if (p.zones[0].check === 'float') continue;   // the pond IS the target
+      assert.ok(Array.isArray(p.plates) && p.plates.length === p.zones.length,
+        `${p.id} has ${p.plates ? p.plates.length : 0} plates for ${p.zones.length} zones`);
+      for (let i = 0; i < p.zones.length; i++) {
+        // The dais a child sees and the cylinder the puzzle counts must be the
+        // same circle, or the puzzle is lying about where to put things.
+        assert.equal(p.plates[i].x, p.zones[i].x, `${p.id} plate ${i} x`);
+        assert.equal(p.plates[i].z, p.zones[i].z, `${p.id} plate ${i} z`);
+        assert.equal(p.plates[i].r, p.zones[i].r, `${p.id} plate ${i} r`);
+      }
+    }
+  });
+});
+
+describe('the leash', () => {
+  const home = { x: 100, z: 200 };
+
+  test('a body floating in the sea is drowned, whatever its distance', () => {
+    assert.equal(recallReason('crate', home, 100, PHYS.waterY + 0.5, 200), 'drowned');
+    assert.equal(recallReason('crate', home, 100, PHYS.waterY + 1.59, 200), 'drowned');
+    assert.equal(recallReason('crate', home, 100, PHYS.waterY + 1.61, 200), '');
+  });
+
+  test('a body past its kind radius has strayed', () => {
+    const r = leashRadius('leaf');
+    assert.equal(recallReason('leaf', home, 100 + r - 0.1, 30, 200), '');
+    assert.equal(recallReason('leaf', home, 100 + r + 0.1, 30, 200), 'strayed');
+  });
+
+  test('a body inside its radius and above water is left alone', () => {
+    // The leash must never take a crate a child is still pushing.
+    assert.equal(recallReason('crate', home, 120, 30, 220), '');
+  });
+
+  test('the radii are generous enough to push something a long way', () => {
+    // A leash a child can hit by playing normally reads as the game undoing
+    // their work. Every radius is well past a shove.
+    for (const kind of PROP_ORDER) {
+      assert.ok(leashRadius(kind) >= 26, `${kind} is on a ${leashRadius(kind)} m leash`);
+    }
+  });
+
+  test('an unknown kind still gets a leash rather than none', () => {
+    assert.equal(leashRadius('barrel'), LEASH.defaultRadius);
+  });
+});
+
+describe('gust wake-up is for leaves and nothing else', () => {
+  test('only the leaf clears PHYS.windWakeRatio', () => {
+    // Sleep is what makes a hundred bodies affordable. The gate used to be
+    // "has a sail", which every kind but the kerbstone does, so the whole
+    // toybox was woken on every gust and 2 of 49 bodies slept. See
+    // PHYS.windWakeRatio for the measured separation this threshold sits in.
+    for (const kind of PROP_ORDER) {
+      const ratio = PROP_KINDS[kind].sail / kindMass(kind);
+      const wakes = ratio >= PHYS.windWakeRatio;
+      assert.equal(wakes, kind === 'leaf',
+        `${kind} sail/mass ${ratio.toExponential(2)} vs ratio ${PHYS.windWakeRatio}`);
+    }
+  });
+
+  test('a leaf is the only thing the wind can actually move', () => {
+    // Against gravity's 22 m/s^2, anything under ~1 is scenery.
+    assert.ok(windResponse('leaf') > 3, `leaf ${windResponse('leaf')}`);
+    for (const kind of ['crate', 'log', 'plank', 'ball', 'stone']) {
+      assert.ok(windResponse(kind) < 1, `${kind} ${windResponse(kind)}`);
+    }
+  });
+});
+
+describe('a kindless zone still refuses litter', () => {
+  const plate = PUZZLES.find((p) => p.id === 'phz-market-plate');
+  const zone = plate.zones[0];
+  const at = (kind) => bodyInZone(zone, { kind, x: zone.x, y: 0.4, z: zone.z, wet: 0 });
+
+  test('the Heavy Door takes anything solid', () => {
+    for (const kind of ['crate', 'ball', 'log', 'plank', 'stone']) {
+      assert.equal(at(kind), true, `${kind} should press the plate`);
+    }
+  });
+
+  test('but a leaf blown onto it does NOT count', () => {
+    // Found by simulation: 60 s of storm put a leaf on the plate, so a correct
+    // six-crate solution counted seven and the door silently refused to open.
+    assert.equal(at('leaf'), false);
+  });
+
+  test('every kindless zone has a density floor', () => {
+    for (const p of PUZZLES) {
+      for (const z of p.zones) {
+        if (z.kind) continue;
+        assert.ok(z.minDensity > PROP_KINDS.leaf.density,
+          `${p.id}/${z.id} counts anything, including litter`);
+      }
+    }
   });
 });

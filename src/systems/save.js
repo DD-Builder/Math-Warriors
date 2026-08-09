@@ -75,7 +75,11 @@ export function makeDefaultSave() {
     // island spawn point"; collected holds overworld pickup ids so loot
     // never respawns across sessions, and seen holds the ids of cinematics
     // that have already played (overworld/cinematics.js).
-    overworld: { pos: null, yaw: 0, portalId: null, collected: [], seen: [] },
+    overworld: {
+      pos: null, yaw: 0, portalId: null, collected: [], seen: [],
+      // Discovery ledgers (overworld/discovery.js). Additive, no version bump.
+      discovery: { found: [], solved: [], buffs: [], cosmetics: [], claimed: [] },
+    },
     settings: {
       musicVolume: 0.8,
       sfxVolume: 1.0,
@@ -226,6 +230,24 @@ function toNumber(value, fallback) {
   return fallback;
 }
 
+/**
+ * The discovery container's persistable shape: five string-id ledgers, deduped.
+ * Keep DISCOVERY_KEYS in step with overworld/discovery.js — save.test.js fails
+ * if they drift.
+ */
+const DISCOVERY_KEYS = ['found', 'solved', 'buffs', 'cosmetics', 'claimed'];
+
+function normalizeDiscovery(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const out = {};
+  for (const key of DISCOVERY_KEYS) {
+    out[key] = Array.isArray(src[key])
+      ? [...new Set(src[key].filter((id) => typeof id === 'string'))]
+      : [];
+  }
+  return out;
+}
+
 function normalize(save) {
   const def = makeDefaultSave();
   const out = { ...def, ...save };
@@ -342,6 +364,19 @@ function normalize(save) {
     seen: Array.isArray(rawOverworld.seen)
       ? [...new Set(rawOverworld.seen.filter((id) => typeof id === 'string'))]
       : [],
+    // Discovery: shrines, grottos, landmark puzzles and story pages
+    // (overworld/discovery.js). ADDITIVE and deliberately NOT a version bump,
+    // for exactly the reason `seen` documents above — an absent container reads
+    // correctly as "nothing discovered yet" on every older save, so there is
+    // nothing for a migration to do.
+    //
+    // This block is a WHITELIST and it is the reason discovery state survives a
+    // write at all: everything not named here is dropped. It is spelled out
+    // inline rather than imported from overworld/discovery.js on purpose —
+    // save.js is in the 2D fallback bundle, which must not pull in the 3D
+    // island's content spec. save.test.js asserts these keys stay in step with
+    // discovery.js's own container, so the duplication cannot drift silently.
+    discovery: normalizeDiscovery(rawOverworld.discovery),
   };
   out.settings.overworldEnabled = typeof out.settings.overworldEnabled === 'boolean'
     ? out.settings.overworldEnabled

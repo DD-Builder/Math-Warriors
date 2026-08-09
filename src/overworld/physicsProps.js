@@ -123,6 +123,10 @@ export const PROP_KINDS = {
     shape: 'ball', r: 0.44,
     density: 0.30,                    // rides high and bobs
     friction: 0.42, restitution: 0.48, // the only bouncy thing in the world
+    // GRASS. Without this a ball never stops — see the damping note in
+    // physics.js addBody. 0.85 lets a good shove carry it a satisfying 8-12 m
+    // and then bleeds the spin so it settles instead of finding the sea.
+    angDamp: 0.85, linDamp: 0.20,
     sail: sailOf(Math.PI * 0.44 * 0.44, 0.47),   // a sphere is a slippery shape
     flutter: 0,
     buoys: [[0, 0, 0, 1]],            // exact spherical cap; see physics.js
@@ -134,6 +138,10 @@ export const PROP_KINDS = {
     shape: 'cylinder', r: 0.34, halfHeight: 0.95,
     density: 0.62,                    // oak: floats low, rolls well
     friction: 0.62, restitution: 0.05,
+    // Same reason as the ball, a little heavier-handed: a log rolls on ONE
+    // axis, so once it finds the fall line nothing turns it off again. Measured
+    // before this: four logs rolled 23-37 m in fifteen seconds of calm.
+    angDamp: 1.05, linDamp: 0.22,
     sail: sailOf(1.9 * 0.68, 0.82),   // side-on cylinder
     flutter: 0,
     // One at each end, so a log lying in water rocks along its length instead
@@ -163,6 +171,13 @@ export const PROP_KINDS = {
     // sail/mass assertions in physicsProps.test.js.
     sail: sailOf(0.6 * 0.4, 1.20),
     flutter: 0.30,
+    // A leaf with air damping alone reaches the wind's own speed and STAYS
+    // there: measured, 30 s of storm carried the drift 200-430 m, off the
+    // island and out of the world. Real leaves skitter and snag. This damping
+    // is that snag — it caps the drift at a few metres per gust, which is the
+    // motion that makes the weather visible, without the leaf ever leaving the
+    // meadow it decorates.
+    angDamp: 1.60, linDamp: 1.35,
     buoys: [[0, 0, 0, 1, 0.036]],
   },
   // A sixth entry that is not a toy: the market's kerbstones. They exist for
@@ -237,6 +252,10 @@ export function bodySpecFor(place, y) {
     restitution: k.restitution,
     sail: k.sail,
     flutter: k.flutter || 0,
+    // Undefined for the kinds that are happy with plain air damping; physics.js
+    // falls back to PHYS.airLinearDrag / airAngularDrag for those.
+    linDamp: k.linDamp,
+    angDamp: k.angDamp,
     buoys: k.buoys,
     x: place.x, y, z: place.z,
     pinned: place.pinned !== false,   // sandbox furniture is pinned by default
@@ -288,85 +307,124 @@ export function spawnLift(kind) {
  * put roughly two in shouting distance of anywhere, which is indistinguishable
  * from none.
  *
- * WHY they are in clusters and not spread: one crate is scenery. Five crates
- * beside a ledge is a QUESTION. Every cluster below is placed to suggest its
- * verb — logs sit at the tops of the garden's knolls where the slope will take
- * them, planks lie beside the pond where the gap is, balls sit on the market's
- * flat paving where they will run.
+ * WHY they are in clusters and not spread: one crate is scenery. Six crates
+ * beside two plates is a QUESTION. Every cluster below is placed to suggest its
+ * verb, and every cluster sits next to the puzzle that consumes it.
+ *
+ * ── EVERY COORDINATE HERE IS MEASURED, NOT IMAGINED ───────────────────────
+ * The first version of this table was authored against a mental picture of the
+ * island and it did not survive contact with the heightfield. Six placements
+ * were on 35-40 degree slopes; within twelve seconds of calm the crates had
+ * slid off the knoll, three logs had rolled 23-44 m, and four balls were in the
+ * sea. Three planks and both kerbstones spawned INSIDE puzzle zones, which
+ * pre-solved two puzzles before the player arrived.
+ *
+ * So each kind now has a slope budget it is placed within, and
+ * `physicsProps.test.js` re-derives every one of these coordinates against the
+ * real `createHeightfield(WORLD.SEED)` on every run:
+ *
+ *   ball 0.05   it rolls on anything; it needs a bowl, not a flat
+ *   log  0.09   rolls on one axis, so it tolerates a little more
+ *   crate/plank 0.13   flat faces and high friction hold a slight tilt
+ *   leaf/stone  0.17   too light or too heavy to care
+ *
+ * A slope budget is not a substitute for a backstop — a child can still shove a
+ * ball down a hill — so LEASH below brings home anything that leaves. But the
+ * budget is what stops the world from emptying itself while nobody is playing.
  *
  * Coordinates avoid the levelled pads under portals, buildings and pickups
- * (see worldSpec.PADS) so nothing is born inside a monument.
+ * (see worldSpec.PADS) so nothing is born inside a monument, and avoid every
+ * puzzle zone so nothing is born pre-solving one.
  */
 export const SANDBOX = [
   // ── Sprout Garden: the meadow round the spawn at (6, 158) ────────────────
-  // Push pile, twenty metres from where the player lands. First thing you see.
-  { id: 'phx-g-crate-1', kind: 'crate', x: 17.5, z: 149.0, yaw: 0.3 },
-  { id: 'phx-g-crate-2', kind: 'crate', x: 19.2, z: 147.2, yaw: 1.1 },
-  { id: 'phx-g-crate-3', kind: 'crate', x: 16.2, z: 146.6, yaw: 2.4 },
-  { id: 'phx-g-crate-4', kind: 'crate', x: 18.0, z: 145.0, yaw: 0.8 },
-  // Stack puzzle stock, at the foot of the garden's south-west knoll.
-  { id: 'phx-g-crate-5', kind: 'crate', x: -22.0, z: 140.5, yaw: 0.2 },
-  { id: 'phx-g-crate-6', kind: 'crate', x: -23.6, z: 138.8, yaw: 1.7 },
-  { id: 'phx-g-crate-7', kind: 'crate', x: -20.6, z: 138.2, yaw: 2.9 },
-  { id: 'phx-g-crate-8', kind: 'crate', x: -24.4, z: 141.9, yaw: 0.6 },
-  // Logs on the knoll crowns — they are already pointing across the fall line,
-  // so the first nudge sends them down.
-  { id: 'phx-g-log-1', kind: 'log', x: 32.5, z: 167.0, yaw: 1.35 },
-  { id: 'phx-g-log-2', kind: 'log', x: 29.5, z: 170.0, yaw: 0.55 },
-  // A third log with the timber by the pool, where the planks are — the two
-  // long objects belong together, and a log is the fulcrum a child needs if
-  // they want to make a second see-saw of their own.
-  { id: 'phx-g-log-3', kind: 'log', x: -19.5, z: 148.0, yaw: 2.15 },
-  // Planks beside the garden pool at (-8, 154), r 7.5.
-  { id: 'phx-g-plank-1', kind: 'plank', x: -16.5, z: 151.0, yaw: 0.9 },
-  { id: 'phx-g-plank-2', kind: 'plank', x: -15.0, z: 158.5, yaw: 2.2 },
-  { id: 'phx-g-plank-3', kind: 'plank', x: -1.0, z: 150.5, yaw: 1.4 },
-  { id: 'phx-g-plank-4', kind: 'plank', x: -0.5, z: 157.0, yaw: 0.2 },
-  { id: 'phx-g-plank-5', kind: 'plank', x: -17.5, z: 145.5, yaw: 2.7 },
-  // See-saw kit: a log for the fulcrum and a plank across it, pre-assembled so
-  // the toy is legible from the path rather than being a pile of parts.
-  { id: 'phx-g-log-4', kind: 'log', x: 31.0, z: 152.0, yaw: 0 },
-  { id: 'phx-g-plank-6', kind: 'plank', x: 31.0, z: 152.0, yaw: Math.PI / 2, lift: 0.78 },
-  // Balls where the ground already tilts.
-  { id: 'phx-g-ball-1', kind: 'ball', x: 28.5, z: 149.0 },
-  { id: 'phx-g-ball-2', kind: 'ball', x: 34.0, z: 172.5 },
-  { id: 'phx-g-ball-3', kind: 'ball', x: 11.0, z: 176.0 },
+  // Share-it-Fair stock: six crates on the flat between the spawn and the two
+  // plates, close enough that the plates are visible from the pile.
+  { id: 'phx-g-crate-1', kind: 'crate', x: 9.3, z: 154.9, yaw: 0.3 },
+  { id: 'phx-g-crate-2', kind: 'crate', x: 11.2, z: 154.9, yaw: 1.1 },
+  { id: 'phx-g-crate-3', kind: 'crate', x: 13.1, z: 155.9, yaw: 2.4 },
+  { id: 'phx-g-crate-4', kind: 'crate', x: 10.7, z: 157.3, yaw: 0.8 },
+  { id: 'phx-g-crate-5', kind: 'crate', x: 12.7, z: 158.5, yaw: 1.9 },
+  { id: 'phx-g-crate-6', kind: 'crate', x: 12.3, z: 160.3, yaw: 2.7 },
+  // Two SPARE crates, deliberately off to one side. Six is the answer and eight
+  // are in reach, so "put them all on" is a wrong answer a child can make and
+  // undo — which is the whole point of an exact count.
+  { id: 'phx-g-crate-7', kind: 'crate', x: 24.3, z: 164.9, yaw: 0.6 },
+  { id: 'phx-g-crate-8', kind: 'crate', x: 25.8, z: 162.9, yaw: 2.2 },
+  // Timber for the rack, lying a few metres east of it.
+  { id: 'phx-g-log-1', kind: 'log', x: 13.8, z: 162.5, yaw: 1.35 },
+  { id: 'phx-g-log-2', kind: 'log', x: 23.5, z: 162.6, yaw: 0.55 },
+  { id: 'phx-g-log-3', kind: 'log', x: 10.5, z: 164.4, yaw: 2.15 },
+  // A fourth log, so the rack's "three" is a choice and not just "all of them".
+  { id: 'phx-g-log-5', kind: 'log', x: 9.4, z: 162.5, yaw: 0.9 },
+  // Planks on the BANK of the garden pool at (-8, 154), r 7.5 — dry, every one
+  // of them. Floating a plank has to be something the player DID; a plank that
+  // was already afloat at load teaches nothing and silently pre-solves the
+  // bridge. (It did exactly that: three of the five used to spawn in the water.)
+  { id: 'phx-g-plank-1', kind: 'plank', x: 1.1, z: 157.3, yaw: 0.9 },
+  { id: 'phx-g-plank-2', kind: 'plank', x: 1.4, z: 160.6, yaw: 2.2 },
+  { id: 'phx-g-plank-3', kind: 'plank', x: 3.3, z: 163.5, yaw: 1.4 },
+  { id: 'phx-g-plank-4', kind: 'plank', x: -1.7, z: 161.4, yaw: 0.2 },
+  { id: 'phx-g-plank-5', kind: 'plank', x: 2.0, z: 154.0, yaw: 2.7 },
+  // See-saw kit: a log for the fulcrum and a plank laid across it, on its own
+  // flat shelf south of the meadow. Not a puzzle — a TOY, and the one place the
+  // multi-point buoyancy's sibling behaviour (a beam that tips about a contact)
+  // is on show without any counting attached.
+  { id: 'phx-g-log-4', kind: 'log', x: 16.0, z: 140.0, yaw: 0 },
+  { id: 'phx-g-plank-6', kind: 'plank', x: 16.0, z: 140.0, yaw: Math.PI / 2, lift: 0.78 },
+  // Two crates beside it. A see-saw with nothing to put on it is half a toy —
+  // these are the weights, and they are what makes the beam tip.
+  { id: 'phx-g-crate-9', kind: 'crate', x: 18.2, z: 140.0, yaw: 1.3 },
+  { id: 'phx-g-crate-10', kind: 'crate', x: 17.1, z: 141.9, yaw: 0.4 },
+  // Balls, in the flattest bowls the meadow has. A ball on any real gradient
+  // leaves and does not come back; see LEASH for the backstop, and see the
+  // per-kind slope budget in physicsProps.test.js for why these are where
+  // they are rather than anywhere prettier.
+  { id: 'phx-g-ball-1', kind: 'ball', x: 9.1, z: 160.4 },
+  { id: 'phx-g-ball-2', kind: 'ball', x: 0.0, z: 159.0 },
+  { id: 'phx-g-ball-3', kind: 'ball', x: 10.8, z: 159.0 },
   // Drift of leaves across the open meadow, where the wind has the fetch.
   { id: 'phx-g-leaf-1', kind: 'leaf', x: 4.0, z: 168.0, yaw: 0.4 },
   { id: 'phx-g-leaf-2', kind: 'leaf', x: 7.2, z: 170.5, yaw: 1.9 },
-  { id: 'phx-g-leaf-3', kind: 'leaf', x: 1.5, z: 172.0, yaw: 3.1 },
-  { id: 'phx-g-leaf-4', kind: 'leaf', x: 10.5, z: 166.0, yaw: 2.4 },
+  { id: 'phx-g-leaf-3', kind: 'leaf', x: 2.3, z: 169.6, yaw: 3.1 },
+  { id: 'phx-g-leaf-4', kind: 'leaf', x: 9.1, z: 167.4, yaw: 2.4 },
   // This one starts ON the garden pool. It is the cheapest possible tutorial:
   // the first floating object a child sees is already floating, before they
-  // have pushed anything in.
-  { id: 'phx-g-leaf-5', kind: 'leaf', x: -2.0, z: 154.0, yaw: 0.9 },
-  { id: 'phx-g-leaf-6', kind: 'leaf', x: 13.5, z: 172.5, yaw: 1.2 },
+  // have pushed anything in. It is a LEAF and the bridge counts PLANKS, so it
+  // decorates the puzzle without pre-loading it.
+  { id: 'phx-g-leaf-5', kind: 'leaf', x: -6.0, z: 154.0, yaw: 0.9 },
+  { id: 'phx-g-leaf-6', kind: 'leaf', x: 10.3, z: 171.0, yaw: 1.2 },
 
   // ── Market: the plaza and the main street ────────────────────────────────
-  // Stall goods. The street runs [-106,34] -> [-178,-34]; the plaza is ~[-155,3].
-  { id: 'phx-m-crate-1', kind: 'crate', x: -149.0, z: 8.5, yaw: 0.5 },
-  { id: 'phx-m-crate-2', kind: 'crate', x: -151.5, z: -1.5, yaw: 1.6 },
-  { id: 'phx-m-crate-3', kind: 'crate', x: -157.5, z: 6.0, yaw: 2.8 },
-  { id: 'phx-m-crate-4', kind: 'crate', x: -148.5, z: -3.5, yaw: 0.1 },
-  { id: 'phx-m-crate-5', kind: 'crate', x: -159.5, z: -3.0, yaw: 2.0 },
-  { id: 'phx-m-crate-6', kind: 'crate', x: -166.0, z: -18.0, yaw: 1.1 },
-  // Loose balls on the paving — the flattest ground in the world, so they run.
-  { id: 'phx-m-ball-1', kind: 'ball', x: -139.0, z: 4.5 },
-  { id: 'phx-m-ball-2', kind: 'ball', x: -164.0, z: 9.0 },
-  // Sitting just outside the ball pen, which is the whole hint the puzzle needs.
-  { id: 'phx-m-ball-3', kind: 'ball', x: -170.0, z: -13.0 },
+  // Stall goods on the paving, six of them — exactly the Heavy Door's answer,
+  // with the two kerbstones as the alternative sixth and seventh so "anything
+  // heavy will do" is literally true.
+  { id: 'phx-m-crate-1', kind: 'crate', x: -150.8, z: 4.7, yaw: 0.5 },
+  { id: 'phx-m-crate-2', kind: 'crate', x: -147.8, z: 4.0, yaw: 1.6 },
+  { id: 'phx-m-crate-3', kind: 'crate', x: -144.8, z: 4.7, yaw: 2.8 },
+  { id: 'phx-m-crate-4', kind: 'crate', x: -149.5, z: 3.6, yaw: 0.1 },
+  { id: 'phx-m-crate-5', kind: 'crate', x: -147.1, z: 2.3, yaw: 2.0 },
+  { id: 'phx-m-crate-6', kind: 'crate', x: -143.0, z: 5.1, yaw: 1.1 },
+  // Kerbstones — the sinkers. See PROP_KINDS.stone. Clear of the pressure
+  // plate: they used to spawn ON it and started the Heavy Door at 2 of 6.
+  { id: 'phx-m-stone-1', kind: 'stone', x: -159.0, z: 8.0, yaw: 0.3 },
+  { id: 'phx-m-stone-2', kind: 'stone', x: -161.0, z: 10.0, yaw: 1.2 },
+  // FIVE balls, because the pen's sign says five and a sign that lies is worse
+  // than no sign. Three sit near the pen, two are a walk away.
+  { id: 'phx-m-ball-1', kind: 'ball', x: -164.8, z: -7.7 },
+  { id: 'phx-m-ball-2', kind: 'ball', x: -168.9, z: -18.0 },
+  { id: 'phx-m-ball-3', kind: 'ball', x: -166.5, z: -19.0 },
+  { id: 'phx-m-ball-4', kind: 'ball', x: -152.5, z: 5.9 },
+  { id: 'phx-m-ball-5', kind: 'ball', x: -162.5, z: -3.2 },
   // Timber leaning by the shop.
-  { id: 'phx-m-plank-1', kind: 'plank', x: -147.5, z: 20.0, yaw: 1.0 },
+  { id: 'phx-m-plank-1', kind: 'plank', x: -152.9, z: 18.3, yaw: 1.0 },
   { id: 'phx-m-plank-2', kind: 'plank', x: -169.5, z: -21.5, yaw: 2.5 },
-  { id: 'phx-m-log-1', kind: 'log', x: -132.0, z: 16.5, yaw: 0.7 },
+  { id: 'phx-m-log-1', kind: 'log', x: -128.5, z: 16.5, yaw: 0.7 },
   { id: 'phx-m-log-2', kind: 'log', x: -173.0, z: -26.0, yaw: 1.8 },
-  // Kerbstones — the sinkers. See PROP_KINDS.stone.
-  { id: 'phx-m-stone-1', kind: 'stone', x: -153.0, z: 12.0, yaw: 0.3 },
-  { id: 'phx-m-stone-2', kind: 'stone', x: -156.5, z: 13.5, yaw: 1.2 },
   // Leaves blowing up the street.
   { id: 'phx-m-leaf-1', kind: 'leaf', x: -128.0, z: 22.0, yaw: 0.6 },
-  { id: 'phx-m-leaf-2', kind: 'leaf', x: -134.0, z: 17.0, yaw: 2.1 },
-  { id: 'phx-m-leaf-3', kind: 'leaf', x: -142.0, z: 11.5, yaw: 1.5 },
+  { id: 'phx-m-leaf-2', kind: 'leaf', x: -131.5, z: 17.0, yaw: 2.1 },
+  { id: 'phx-m-leaf-3', kind: 'leaf', x: -142.0, z: 10.5, yaw: 1.5 },
   { id: 'phx-m-leaf-4', kind: 'leaf', x: -176.0, z: -30.0, yaw: 0.2 },
 ];
 
@@ -386,6 +444,30 @@ export const SANDBOX = [
  * is what 2 + 2 IS. The arithmetic is the shortcut, not the toll gate. That is
  * the difference between a game that teaches and a worksheet with a hero on it.
  *
+ * ── EVERY PUZZLE HERE IS SOLVABLE BY PUSHING, AND THAT IS A HARD CONSTRAINT ─
+ * The hero has no carry verb. controls3d.js publishes move, run, jump, action
+ * and dive, and the hero meets this world as a KINEMATIC CAPSULE (see
+ * physics.js): it shoves dynamic bodies and is never shoved back. It cannot
+ * pick a crate up, so it cannot put one down on top of another.
+ *
+ * The brief for this module asked for "stack exactly N crates to reach a
+ * ledge". It is a lovely puzzle and it is unplayable here: with push as the
+ * only verb, a second crate can never get on top of a first. It was authored
+ * anyway, on a 40-degree slope where the crates slid away before the player
+ * arrived, and it passed its unit tests the whole time because they only ever
+ * asked whether the numbers added up. So the rule this list now obeys:
+ *
+ *     A puzzle may only require verbs the hero actually has.
+ *
+ * Which leaves push, roll and float — and they are enough. Pushing N crates
+ * onto a plate is the same arithmetic as stacking N crates, and a five-year-old
+ * can actually do it. Height stays in the world as the see-saw TOY, which needs
+ * no counting and so needs no lifting.
+ *
+ * If a carry verb ever lands, the stacking puzzle should come back; it wants a
+ * hold/drop button in controls3d.js, a carried-body slot on the controller, and
+ * a zone whose y window runs to 6 m. Until then it is not in this list.
+ *
  * ── AND WHY THE COUNT MUST BE EXACT ───────────────────────────────────────
  * "At least N" is the forgiving choice and it is the wrong one: it teaches
  * "pile everything on", which is not a number fact. Exact-N means the child has
@@ -401,6 +483,8 @@ export const SANDBOX = [
  * retuned.
  *
  *   kind      body kind the zone counts, or null for anything
+ *   minDensity  with a null kind, the lightest thing that still counts. Without
+ *             it "anything" includes a leaf the wind put there.
  *   check     'in'    body centre inside the cylinder and the height window
  *             'float' as 'in', and the body is floating (partly wet, not sunk)
  *   need      exact count required
@@ -408,16 +492,36 @@ export const SANDBOX = [
  */
 export const PUZZLES = [
   {
-    id: 'phz-garden-steps',
+    id: 'phz-garden-logs',
     place: 'garden',
-    name: 'Steps Up',
+    name: 'Roll the Timber',
     prompt: '1 + 2',
     answer: 3,
-    hint: 'Stack that many crates to reach the ledge.',
-    sign: { x: -25.5, z: 144.0, yaw: 0.5 },
-    reward: 'ledge-coin',
-    zones: [{ id: 'stack', kind: 'crate', check: 'in', x: -26.0, z: 142.0, r: 2.3, y0: -0.6, y1: 6.0 }],
+    hint: 'Roll that many logs onto the rack.',
+    sign: { x: 3.0, z: 161.6, yaw: 0.6 },
+    reward: 'timber-coin',
+    plates: [{ x: 6.1, z: 164.6, r: 2.6 }],
+    zones: [{ id: 'rack', kind: 'log', check: 'in', x: 6.1, z: 164.6, r: 2.6, y0: -0.9, y1: 2.0 }],
     need: 3,
+  },
+  {
+    id: 'phz-garden-share',
+    place: 'garden',
+    name: 'Share it Fair',
+    prompt: '3 + 3',
+    answer: 6,
+    hint: 'Six crates, the same number on each plate.',
+    sign: { x: 19.0, z: 156.2, yaw: 2.4 },
+    reward: 'share-chime',
+    plates: [{ x: 16.3, z: 159.9, r: 2.2 }, { x: 21.7, z: 159.9, r: 2.2 }],
+    // The two plates are 5.4 m apart, so a crate is unambiguously on one or the
+    // other. `pair` makes 5-and-1 fail: six crates split evenly is the lesson,
+    // and six crates in a heap on one plate is not it.
+    zones: [
+      { id: 'left', kind: 'crate', check: 'in', x: 16.3, z: 159.9, r: 2.2, y0: -0.9, y1: 2.4, pair: 'right' },
+      { id: 'right', kind: 'crate', check: 'in', x: 21.7, z: 159.9, r: 2.2, y0: -0.9, y1: 2.4, pair: 'left' },
+    ],
+    need: 6,
   },
   {
     id: 'phz-garden-bridge',
@@ -426,27 +530,11 @@ export const PUZZLES = [
     prompt: '2 + 2',
     answer: 4,
     hint: 'Float that many planks to walk across.',
-    sign: { x: -14.0, z: 147.0, yaw: 2.2 },
+    sign: { x: -1.1, z: 159.8, yaw: 2.2 },
     reward: 'pool-island',
-    // The garden pool is at (-8, 154) with radius 7.5.
+    // The garden pool is at (-8, 154) with radius 7.5, surface at 11.45.
     zones: [{ id: 'pool', kind: 'plank', check: 'float', x: -8.0, z: 154.0, r: 8.4, y0: -1.2, y1: 1.6 }],
     need: 4,
-  },
-  {
-    id: 'phz-garden-seesaw',
-    place: 'garden',
-    name: 'Balance the Beam',
-    prompt: '3 + 3',
-    answer: 6,
-    hint: 'Same number on each end — three and three.',
-    sign: { x: 34.5, z: 149.5, yaw: -0.7 },
-    reward: 'seesaw-chime',
-    // Two ends of the plank at (31, 152), which lies along +X.
-    zones: [
-      { id: 'left', kind: null, check: 'in', x: 29.4, z: 152.0, r: 1.5, y0: 0.4, y1: 3.2, pair: 'right' },
-      { id: 'right', kind: null, check: 'in', x: 32.6, z: 152.0, r: 1.5, y0: 0.4, y1: 3.2, pair: 'left' },
-    ],
-    need: 6,
   },
   {
     id: 'phz-market-plate',
@@ -455,10 +543,10 @@ export const PUZZLES = [
     prompt: '2 x 3',
     answer: 6,
     hint: 'Two rows of three — anything heavy will do.',
-    sign: { x: -152.0, z: 17.5, yaw: 1.4 },
+    sign: { x: -151.2, z: 16.4, yaw: 1.4 },
     reward: 'market-gate',
-    plate: { x: -154.0, z: 14.0, r: 2.7 },
-    zones: [{ id: 'plate', kind: null, check: 'in', x: -154.0, z: 14.0, r: 2.7, y0: -0.2, y1: 2.4 }],
+    plates: [{ x: -154.0, z: 14.0, r: 2.7 }],
+    zones: [{ id: 'plate', kind: null, minDensity: 0.25, check: 'in', x: -154.0, z: 14.0, r: 2.7, y0: -0.9, y1: 2.4 }],
     need: 6,
   },
   {
@@ -468,16 +556,88 @@ export const PUZZLES = [
     prompt: '5 - 3',
     answer: 2,
     hint: 'Five balls, take three away. Roll the rest in.',
-    sign: { x: -165.0, z: -11.0, yaw: 2.6 },
+    sign: { x: -165.2, z: -12.4, yaw: 2.6 },
     reward: 'pen-prize',
-    plate: { x: -168.0, z: -14.5, r: 2.4 },
-    zones: [{ id: 'pen', kind: 'ball', check: 'in', x: -168.0, z: -14.5, r: 2.4, y0: -0.3, y1: 1.8 }],
+    plates: [{ x: -168.0, z: -14.5, r: 2.4 }],
+    zones: [{ id: 'pen', kind: 'ball', check: 'in', x: -168.0, z: -14.5, r: 2.4, y0: -0.9, y1: 1.8 }],
     need: 2,
   },
 ];
 
 /** Seconds a puzzle's condition must hold before it latches as solved. */
 export const PUZZLE_HOLD = 0.7;
+
+// ────────────────────────────────────────────────────────────────────────
+// The leash
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * A TOYBOX THAT EMPTIES ITSELF IS NOT A TOYBOX.
+ *
+ * Slope budgets (see SANDBOX) stop the world running away on its own, but they
+ * cannot stop a player, and they cannot stop the wind. Measured on the shipped
+ * island before this existed: 30 s of breezy weather put seven of the ten
+ * leaves in the sea, and 30 s of storm carried two of them clean off the world
+ * to x = -437. Balls shoved downhill went the same way. Come back after five
+ * minutes and the garden is bare — the objects are all still simulated, still
+ * eating the body cap, just sitting on the seabed where nobody will ever find
+ * them.
+ *
+ * So every sandbox body remembers where it was born, and comes home when it is
+ * either DROWNED (below the sea surface, where nothing is recoverable) or has
+ * STRAYED past a per-kind radius. Homing is a teleport with the velocity
+ * zeroed, polled at 2 Hz.
+ *
+ * WHY a leash and not a wall: a wall round the garden is visible, and the thing
+ * a toybox must never say is "you may not". The leash only fires where a body
+ * is already lost — in the sea, or far enough away that the player who pushed
+ * it there has long since walked off. Inside the radius a child may shove a
+ * crate as far as they like.
+ *
+ * WHY the radii differ: they are roughly "how far could the player plausibly
+ * still care about this object". A leaf is scenery and 34 m is well past the
+ * end of its meadow; a crate may be a puzzle piece halfway to a plate, so it
+ * gets more rope. Balls get the most, because rolling one a long way IS the toy.
+ */
+export const LEASH = {
+  /** Metres from home a body of each kind may wander before it is brought back. */
+  radius: { crate: 40, ball: 30, log: 30, plank: 40, leaf: 34, stone: 26 },
+  /** Fallback for a kind not listed. */
+  defaultRadius: 40,
+  /**
+   * Height above the ocean below which a body counts as drowned. The sea is at
+   * PHYS.waterY; 1.6 m is high enough to catch a body that is sinking and low
+   * enough that nothing on the island's lowest beach trips it.
+   */
+  drownY: 1.6,
+};
+
+/** Leash radius for a kind. */
+export function leashRadius(kind) {
+  return LEASH.radius[kind] ?? LEASH.defaultRadius;
+}
+
+/**
+ * Should this body be brought home?
+ *
+ * Pure, so the test suite can pin the boundary without a physics world: the
+ * exact metre at which a leaf is recalled is a design number, and a design
+ * number that only exists inside a frame loop is a design number nobody can
+ * check.
+ *
+ * @param {string} kind
+ * @param {{x:number,z:number}} home  where the placement put it
+ * @param {number} x @param {number} y @param {number} z  where it is now
+ * @param {number} [oceanY]
+ * @returns {''|'drowned'|'strayed'}  falsy when the body is fine
+ */
+export function recallReason(kind, home, x, y, z, oceanY = PHYS.waterY) {
+  if (y < oceanY + LEASH.drownY) return 'drowned';
+  const r = leashRadius(kind);
+  const dx = x - home.x;
+  const dz = z - home.z;
+  return dx * dx + dz * dz > r * r ? 'strayed' : '';
+}
 
 /**
  * Is one body inside one zone?
@@ -487,6 +647,17 @@ export const PUZZLE_HOLD = 0.7;
  */
 export function bodyInZone(zone, body, groundY = 0) {
   if (zone.kind && body.kind !== zone.kind) return false;
+  // ── WHY A KINDLESS ZONE STILL HAS A FLOOR ────────────────────────────────
+  // "The Heavy Door" takes anything heavy, so its zone names no kind. Without
+  // a density floor that means anything AT ALL, and the wind has opinions: a
+  // 60 s storm blew a leaf onto the plate and a correct six-crate solution
+  // counted seven, so the door refused to open and the child had no way to see
+  // why. `minDensity` is the sign's own word "heavy", made checkable — 0.25
+  // passes every solid in the toybox and stops the 0.10 leaf.
+  if (zone.minDensity) {
+    const k = PROP_KINDS[body.kind];
+    if (!k || k.density < zone.minDensity) return false;
+  }
   const dx = body.x - zone.x;
   const dz = body.z - zone.z;
   if (dx * dx + dz * dz > zone.r * zone.r) return false;
@@ -931,7 +1102,15 @@ export function createPhysicsProps({
   }
 
   // ── Plates and signs ────────────────────────────────────────────────────
-  const plateSites = puzzles.filter((p) => p.plate);
+  // Flattened across puzzles: "Share it Fair" needs TWO daises, one per zone,
+  // and a child has to see two circles to believe in two shares. So the render
+  // list is one entry per plate, each carrying the puzzle it belongs to so the
+  // solved-gold pass can find it again.
+  const plateSites = [];
+  for (const p of puzzles) {
+    if (!p.plates) continue;
+    for (const site of p.plates) plateSites.push({ puzzle: p, site });
+  }
   let plates = null;
   if (plateSites.length) {
     const geo = buildPlate();
@@ -941,7 +1120,7 @@ export function createPhysicsProps({
     plates.receiveShadow = true;
     plates.castShadow = false;   // a 20 cm dais casting a shadow reads as a hole
     for (let i = 0; i < plateSites.length; i++) {
-      const site = plateSites[i].plate;
+      const site = plateSites[i].site;
       const y = heightfield.sampleHeight(site.x, site.z);
       _m.compose(
         _v.set(site.x, y, site.z),
@@ -980,7 +1159,7 @@ export function createPhysicsProps({
   }
 
   // ── Bodies ──────────────────────────────────────────────────────────────
-  /** body id -> { kind, slot } */
+  /** body id -> { kind, slot, home } — `home` is what the leash brings it back to. */
   const placed = new Map();
   function spawn(place) {
     const bank = banks.get(place.kind);
@@ -993,7 +1172,7 @@ export function createPhysicsProps({
     if (!rec) return null;
     const slot = bank.used++;
     bank.ids[slot] = place.id;
-    placed.set(place.id, { kind: place.kind, slot });
+    placed.set(place.id, { kind: place.kind, slot, home: { x: place.x, y, z: place.z } });
     return rec;
   }
   for (const p of placements) spawn(p);
@@ -1009,6 +1188,33 @@ export function createPhysicsProps({
   // is the one place a fixed-rate poll buys more than it costs.
   const PUZZLE_HZ = 6;
   let puzzleAcc = 0;
+  // The leash runs slower still — nothing is ever urgent about a body that has
+  // already left the world, and half a second of extra sinking costs nothing.
+  const LEASH_HZ = 2;
+  let leashAcc = 0;
+  let recalls = 0;
+  const oceanY = PHYS.waterY;
+
+  /**
+   * Bring home anything drowned or strayed. See LEASH.
+   *
+   * Skipped for sleeping bodies: a body at rest is by definition not running
+   * away, and this is the difference between two Rapier reads per body per poll
+   * and none at all once the garden has settled.
+   */
+  function runLeash() {
+    const buf = physics.xforms;
+    const stride = physics.XFORM_STRIDE;
+    for (const [id, info] of placed) {
+      const slot = physics.slotOf(id);
+      if (slot < 0) continue;                    // recycled; not ours any more
+      const o = slot * stride;
+      const why = recallReason(info.kind, info.home, buf[o], buf[o + 1], buf[o + 2], oceanY);
+      if (!why) continue;
+      physics.teleport(id, info.home.x, info.home.y, info.home.z);
+      recalls++;
+    }
+  }
   const solvedColour = new THREE.Color(PAPER.gold);
   // Reused result object — nearestPuzzle is polled every frame by the HUD.
   const _near = { puzzle: null, state: null, distance: 0 };
@@ -1082,6 +1288,9 @@ export function createPhysicsProps({
      */
     update(dt) {
       syncMeshes();
+      leashAcc += dt;
+      const leashTick = 1 / LEASH_HZ;
+      while (leashAcc >= leashTick) { leashAcc -= leashTick; runLeash(); }
       puzzleAcc += dt;
       const tick = 1 / PUZZLE_HZ;
       let fired = null;
@@ -1093,7 +1302,7 @@ export function createPhysicsProps({
       }
       if (fired && plates) {
         for (let i = 0; i < plateSites.length; i++) {
-          const st = tracker.get(plateSites[i].id);
+          const st = tracker.get(plateSites[i].puzzle.id);
           if (!st || !st.solved) continue;
           plates.setColorAt(i, solvedColour);
           plates.instanceColor.needsUpdate = true;
@@ -1110,7 +1319,7 @@ export function createPhysicsProps({
       let best = null, bestD2 = maxDist * maxDist;
       for (let i = 0; i < puzzles.length; i++) {
         const p = puzzles[i];
-        const a = p.sign || p.plate || p.zones[0];
+        const a = p.sign || (p.plates && p.plates[0]) || p.zones[0];
         const dx = x - a.x, dz = z - a.z;
         const d2 = dx * dx + dz * dz;
         if (d2 < bestD2) { bestD2 = d2; best = p; }
@@ -1128,7 +1337,10 @@ export function createPhysicsProps({
         drawCalls: banks.size + (plates ? 1 : 0) + (signSites.length ? 1 : 0),
         bodies: placed.size,
         perKind,
+        plates: plateSites.length,
         puzzlesSolved: tracker.solvedCount(),
+        /** Bodies the leash has brought home. A rising count means bad placement. */
+        recalls,
       };
     },
     dispose() {

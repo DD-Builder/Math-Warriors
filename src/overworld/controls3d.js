@@ -507,6 +507,7 @@ const PAD_OUT = { x: 0, y: 0, camX: 0, camY: 0, run: false, jumpPressed: false, 
 export function readGamepad(pad, prev = null, out = PAD_OUT) {
   out.x = 0; out.y = 0; out.camX = 0; out.camY = 0;
   out.run = false; out.jumpPressed = false; out.actionPressed = false;
+  out.jumpDown = false; out.dive = false;
   if (!pad) return out;
   const ax = pad.axes || [];
   const b = pad.buttons || [];
@@ -524,6 +525,10 @@ export function readGamepad(pad, prev = null, out = PAD_OUT) {
   if (down(13)) out.y += 1;
   out.run = down(5) || down(7) || down(10);   // R-shoulder / R-trigger / L3
   out.jumpPressed = edge(0);                   // A
+  // HELD A is variable jump height; HELD B is "go under" while swimming. Both
+  // are levels, not edges — see the touch pad's jumpDown for the same reason.
+  out.jumpDown = down(0);
+  out.dive = down(1);                          // B
   out.actionPressed = edge(2) || edge(1);      // X or B
   return out;
 }
@@ -600,8 +605,17 @@ export function createTouchControls(scene, { tuning = CONTROLS, onJump, onAction
   actBg.disableInteractive();
 
   let jumpEdge = false;
+  let jumpDown = false;
   let actionEdge = false;
-  jumpBg.on('pointerdown', () => { jumpEdge = true; onJump?.(); });
+  jumpBg.on('pointerdown', () => { jumpEdge = true; jumpDown = true; onJump?.(); });
+  // HELD, not just pressed. gameFeel.js cuts a jump short the moment the button
+  // comes up — that is the whole of variable jump height — so the touch pad has
+  // to report a sustained press and not only its leading edge. `pointerout`
+  // matters as much as `pointerup`: a thumb that slides off the disc has let go
+  // as far as the player is concerned.
+  for (const ev of ['pointerup', 'pointerout', 'pointerupoutside']) {
+    jumpBg.on(ev, () => { jumpDown = false; });
+  }
   actBg.on('pointerdown', () => { actionEdge = true; onAction?.(); });
 
   /** Is this pointer inside the stick's (generous) capture disc? */
@@ -647,6 +661,8 @@ export function createTouchControls(scene, { tuning = CONTROLS, onJump, onAction
     state,
     /** True once per press, then cleared — the caller owns the edge. */
     consumeJump() { const v = jumpEdge; jumpEdge = false; return v; },
+    /** Is the JUMP pad still held? Drives variable jump height. */
+    get jumpDown() { return jumpDown; },
     consumeAction() { const v = actionEdge; actionEdge = false; return v; },
     /** null hides the button; any string shows it. */
     setActionLabel(label) {
@@ -801,12 +817,18 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
 
   const kb = scene.input?.keyboard;
   const keyDefs = kb ? kb.addKeys('W,A,S,D,UP,LEFT,DOWN,RIGHT,SPACE,SHIFT,E,ENTER') : null;
-  const keys = { left: false, right: false, up: false, down: false, run: false, jumpPressed: false, actionPressed: false };
+  const keys = {
+    left: false, right: false, up: false, down: false, run: false,
+    jumpPressed: false, actionPressed: false, jumpDown: false, dive: false,
+  };
   let prevSpace = false;
   let prevAct = false;
 
   let padBits = [];
-  const padFrag = { x: 0, y: 0, camX: 0, camY: 0, run: false, jumpPressed: false, actionPressed: false };
+  const padFrag = {
+    x: 0, y: 0, camX: 0, camY: 0, run: false,
+    jumpPressed: false, actionPressed: false, jumpDown: false, dive: false,
+  };
 
   const orbit = createOrbitState(startYaw);
   const raw = {
@@ -822,7 +844,14 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
   const res = { moveX: 0, moveZ: 0, run: false, jump: false, action: false, camYawDelta: 0, camPitchDelta: 0 };
   const drive = { yawDelta: 0, pitchDelta: 0, zoomWant: 1, touched: false, moveN: 0, playerYaw: 0 };
   const ctrl = { x: 0, z: 0, run: false };
-  const outFrame = { x: 0, z: 0, run: false, jump: false, action: false, yaw: 0, pitch: 0, zoom: 1 };
+  const outFrame = {
+    x: 0, z: 0, run: false, jump: false, action: false, yaw: 0, pitch: 0, zoom: 1,
+    // Two LEVELS alongside the edges above. `jumpHeld` is what makes a jump
+    // variable-height (gameFeel.js cuts the rise the frame it goes false);
+    // `dive` is what takes a swimmer under (traversal.js). Both are false in
+    // every locked frame, exactly like the stick.
+    jumpHeld: false, dive: false,
+  };
 
   const down = (k) => !!(k && k.isDown);
 
@@ -848,6 +877,11 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
     keys.run = down(k?.SHIFT);
     const spaceNow = down(k?.SPACE);
     keys.jumpPressed = spaceNow && !prevSpace;
+    keys.jumpDown = spaceNow;
+    // C (or CTRL, if the host registered it) takes a swimmer under. Held, not
+    // tapped: releasing floats you straight back up, which is the only dive
+    // control a five-year-old can be trusted with.
+    keys.dive = down(k?.C) || down(k?.CTRL);
     prevSpace = spaceNow;
     const actNow = down(k?.E) || down(k?.ENTER);
     keys.actionPressed = actNow && !prevAct;
@@ -884,6 +918,7 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
       touch.setActionLabel(null);
       outFrame.x = 0; outFrame.z = 0; outFrame.run = false;
       outFrame.jump = false; outFrame.action = false;
+      outFrame.jumpHeld = false; outFrame.dive = false;
       outFrame.yaw = orbit.yaw; outFrame.pitch = orbit.pitch; outFrame.zoom = orbit.zoom;
       return outFrame;
     }
@@ -910,6 +945,8 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
     outFrame.run = ctrl.run;
     outFrame.jump = res.jump;
     outFrame.action = res.action;
+    outFrame.jumpHeld = touch.jumpDown || keys.jumpDown || padFrag.jumpDown;
+    outFrame.dive = keys.dive || padFrag.dive;
     outFrame.yaw = orbit.yaw;
     outFrame.pitch = orbit.pitch;
     outFrame.zoom = orbit.zoom;

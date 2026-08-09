@@ -43,7 +43,13 @@ import {
  * @param {object} [collisionWorld] the island's collision world. Omit and one
  *        is built — but index.js already has one with every prop collider in
  *        it, so pass that.
- * @param {{tuning?:object, spec?:object, floatables?:boolean, thermals?:boolean}} [opts]
+ * @param {{tuning?:object, spec?:object, floatables?:boolean, thermals?:boolean,
+ *          base?:object|Function}} [opts]
+ *        `base` is the WALK controller the traversal machine delegates to. Pass
+ *        a factory `(collisionWorld, tuning) => controller` — the collision
+ *        world the base must be built over is the raft-aware one assembled
+ *        here, which does not exist until step 1 below has run. See
+ *        traversal.js's opts.base for why the feel controller has to be inside.
  */
 export function createIslandTraversal(heightfield, collisionWorld = null, opts = {}) {
   const base = collisionWorld || createCollisionWorld(heightfield);
@@ -67,7 +73,9 @@ export function createIslandTraversal(heightfield, collisionWorld = null, opts =
 
   // 3. Then the controller. TURN_RATE and friends arrive through `tuning`,
   //    exactly as they do for createController today.
-  const controller = createTraversalController(world, opts.tuning || {}, field);
+  const controller = createTraversalController(
+    world, opts.tuning || {}, field, { base: opts.base },
+  );
 
   /**
    * Advance the world's own moving parts. Call this from the fixed step BEFORE
@@ -111,7 +119,9 @@ export function createIslandTraversal(heightfield, collisionWorld = null, opts =
  * in, no vents and no boats, so those are simply absent.
  */
 export function createFloorTraversal(collisionWorld, opts = {}) {
-  return createTraversalController(collisionWorld, opts.tuning || {}, {});
+  return createTraversalController(
+    collisionWorld, opts.tuning || {}, {}, { base: opts.base },
+  );
 }
 
 /**

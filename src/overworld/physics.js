@@ -211,6 +211,32 @@ export const PHYS = {
    * lifts at once, which is a nicer thing to watch than constant jitter.
    */
   windWakeGust: 0.68,
+  /**
+   * sail/mass above which a gust is allowed to WAKE a sleeping body.
+   *
+   * The gust-wake above was written as "any body with a sail", and every kind
+   * except the kerbstone has a sail, so in practice it woke the entire toybox
+   * on every gust and NOTHING in the garden ever slept — 2 of 49 bodies asleep
+   * after fifteen seconds of calm, where the honest number is most of them.
+   * Sleep is the thing that makes a hundred bodies affordable, so defeating it
+   * by accident is expensive.
+   *
+   * The separation is not close, which is why a plain threshold is the right
+   * tool. Measured sail/mass, in the units this file uses:
+   *
+   *     leaf  2.0e-1      <- the only body the wind can actually move
+   *     plank 9.4e-3
+   *     ball  1.6e-3
+   *     log   1.5e-3
+   *     crate 1.3e-3
+   *     stone 0
+   *
+   * 5e-2 sits in the twenty-fold gap between the leaf and the plank. A body
+   * under it is one the wind cannot shift against friction anyway (a crate's
+   * wind acceleration is 0.04 m/s^2 against gravity's 22), so leaving it asleep
+   * costs nothing visible and saves the solver the whole garden.
+   */
+  windWakeRatio: 5e-2,
 };
 
 /** Seconds per substep. Derived once so no call site can disagree. */
@@ -824,10 +850,23 @@ export async function createPhysicsWorld({
     const slot = freeSlots.pop();
     if (slot === undefined) { pool.release(spec.id); return null; }
 
+    // ── Per-kind damping, and why it is not a global ────────────────────
+    // PHYS.airLinearDrag/airAngularDrag are what AIR does to a body. They are
+    // not what GRASS does to a ball, and a ball is the body that exposes the
+    // difference: with air damping alone a beach ball set down on the meadow's
+    // 2 % gradient accelerates for as long as the gradient lasts, and measured
+    // on the shipped island three of them had rolled 20-49 m into the sea
+    // inside fifteen seconds of dead calm. Rapier has no rolling-resistance
+    // term, but angular damping is exactly the right shape for one: it bleeds
+    // the spin that a roll is made of, so a ball still rolls beautifully when
+    // shoved and still comes to rest on its own, which is what a lawn does.
+    // Only the kinds that need it override; see PROP_KINDS in physicsProps.js.
+    const linDamp = spec.linDamp ?? PHYS.airLinearDrag;
+    const angDamp = spec.angDamp ?? PHYS.airAngularDrag;
     const desc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(spec.x, spec.y, spec.z)
-      .setLinearDamping(PHYS.airLinearDrag)
-      .setAngularDamping(PHYS.airAngularDrag)
+      .setLinearDamping(linDamp)
+      .setAngularDamping(angDamp)
       .setCanSleep(true);
     if (spec.rot) {
       // Full quaternion — how a log is laid on its side, since a Rapier
@@ -866,12 +905,21 @@ export async function createPhysicsWorld({
       // A single-point ball uses the exact cap formula instead of a slab.
       sphereR: (spec.shape === 'ball' && buoys.length === 1) ? spec.r : 0,
       sail: spec.sail || 0,
+      // May a gust wake this body out of sleep? Only for bodies the wind can
+      // genuinely move — see PHYS.windWakeRatio.
+      windWake: (spec.sail || 0) / (shapeVolume(spec) * spec.density) >= PHYS.windWakeRatio,
       // Lever arm, in metres, for the tumble torque the wind applies. A flat
       // thing in a breeze does not slide, it cartwheels; a crate does not.
       flutter: spec.flutter || 0,
       // Impulse ceiling for the fields — see PHYS.maxFieldDV.
       maxImpulse: shapeVolume(spec) * spec.density * PHYS.maxFieldDV,
       density: spec.density,
+      // Kept so the fluid pass can restore a body's OWN dry damping when it
+      // leaves the water, rather than flattening it back to the air defaults
+      // and quietly turning every ball into a bowling ball the first time one
+      // gets wet.
+      linDamp,
+      angDamp,
       pinned: !!spec.pinned,
       wet: 0,
       wasWet: false,
@@ -952,7 +1000,7 @@ export async function createPhysicsWorld({
 
       // A gust lifts the drift of leaves that had settled. Only sailed bodies,
       // only on a real gust — see PHYS.windWakeGust.
-      if (sleeping && !(gusting && rec.sail > 0)) continue;
+      if (sleeping && !(gusting && rec.windWake)) continue;
       if (sleeping) body.wakeUp();
 
       const t = body.translation();
@@ -991,11 +1039,11 @@ export async function createPhysicsWorld({
       // force big enough to settle a bobbing plank in one second is big enough
       // to overshoot and oscillate if integrated explicitly.
       if (wet > 0) {
-        body.setLinearDamping(PHYS.airLinearDrag + PHYS.waterLinearDrag * wet);
-        body.setAngularDamping(PHYS.airAngularDrag + PHYS.waterAngularDrag * wet);
+        body.setLinearDamping(rec.linDamp + PHYS.waterLinearDrag * wet);
+        body.setAngularDamping(rec.angDamp + PHYS.waterAngularDrag * wet);
       } else if (rec.wasWet) {
-        body.setLinearDamping(PHYS.airLinearDrag);
-        body.setAngularDamping(PHYS.airAngularDrag);
+        body.setLinearDamping(rec.linDamp);
+        body.setAngularDamping(rec.angDamp);
       }
       rec.wasWet = wet > 0;
 

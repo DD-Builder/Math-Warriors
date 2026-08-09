@@ -44,7 +44,34 @@ import { preloadPaperTextures, textureStats, disposePaperTextures } from './mate
 import { WORLD, SPAWN } from './worldSpec.js';
 import { createHeightfield } from './heightfield.js';
 import { createCollisionWorld } from './collision.js';
-import { createController, DEFAULT_TUNING } from './controller.js';
+import { DEFAULT_TUNING } from './controller.js';
+// ── THE CHARACTER, IN THREE LAYERS ───────────────────────────────────────────
+// createController alone is a body that translates. What actually moves in this
+// world is a sandwich, and the ORDER is load-bearing:
+//
+//   traversal   (outer)  owns climb / mantle / glide / swim, and is the ONLY
+//                        layer that knows how to leave walking. Wrap anything
+//                        outside it and those four transitions are unreachable.
+//   gameFeel    (inner)  owns the ground game: apex hang, variable height,
+//                        coyote + buffer, skid turns, landing squash, dust,
+//                        FOV kick, ledge-grab forgiveness.
+//   controller  (base)   still there, inside gameFeel's spawn contract.
+//
+// traversal.js grew an injectable walk base for exactly this; see the note on
+// createTraversalController's `opts.base`.
+import { createGameFeel, createFeelFx, rigScale, fovOffsetDeg } from './gameFeel.js';
+import {
+  createIslandTraversal, createFloorTraversal, dispatchTraversalEvent,
+  applyRigFlags, jumpLabel,
+} from './traversalWiring.js';
+import { MODES, staminaFraction, isUnderwater } from './traversal.js';
+import { createTraversalFx, applyFogToTraversalFx } from './traversalFx.js';
+import { createAudio3D } from './audio3d.js';
+import {
+  footstep as sfxFootstep, land as sfxLand, playSfx,
+  startGlideWind, setGlideWindIntensity, stopGlideWind,
+} from '../systems/synthAudio.js';
+import { resolveSurface } from '../systems/sfxLibrary.js';
 import { createTerrain } from './terrainMesh.js';
 import { createSky } from './sky.js';
 import { createWater } from './water.js';
@@ -58,6 +85,19 @@ import { timeOfDay, applyFloorSky, levelSky } from './timeOfDay.js';
 import { WEATHER_NAMES, createWeatherBlender, createRenderFrame, applyWeather } from './weather.js';
 import { fromSave } from './state.js';
 import { POSES, poseByName } from './poses.js';
+// ── The three late systems, wired here ─────────────────────────────────────
+// abilityWiring / discoveryWiring are ASSEMBLIES: each one owns the four-to-six
+// module stack behind it (abilities+abilityFx+progression+rewardCadence, and
+// discovery+discoverySpec+puzzles+shrines+storyPages respectively) so this file
+// carries one import and one tick per feature rather than four paragraphs of
+// assembly. physicsProps is the toybox's content layer; it pulls physics.js,
+// which is the only module in the tree that touches Rapier and does so through
+// a lazy import() so the solver stays out of the boot bundle.
+import { createAbilityFx } from './abilityFx.js';
+import { createAbilityRuntime } from './abilityWiring.js';
+import { createDiscoveryRuntime } from './discoveryWiring.js';
+import { createPhysicsWorld } from './physics.js';
+import { createPhysicsProps, SANDBOX, PUZZLES } from './physicsProps.js';
 
 // Bright late morning: the world's default first impression.
 const DEFAULT_TOD = 0.28;
@@ -361,8 +401,24 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   // island's pair is never torn down, so returning is instant.
   const heightfield = createHeightfield(WORLD.SEED);
   const islandCollision = createCollisionWorld(heightfield);
-  const islandController = createController(islandCollision, { ...DEFAULT_TUNING, turnRate: TURN_RATE });
-  let collisionWorld = islandCollision;
+  /** Shared tuning for every controller in the world — one character, one feel. */
+  const MOVE_TUNING = { ...DEFAULT_TUNING, turnRate: TURN_RATE };
+  /**
+   * The walk base traversal delegates to. A FACTORY, not an instance: the
+   * collision world gameFeel must be built over is the raft-aware wrapper
+   * createIslandTraversal assembles internally, and it does not exist yet at
+   * this call site.
+   */
+  const feelBase = (world, tuning) => createGameFeel(world, tuning);
+  const islandTraversal = createIslandTraversal(heightfield, islandCollision, {
+    tuning: MOVE_TUNING,
+    base: feelBase,
+  });
+  const islandController = islandTraversal.controller;
+  // The raft-aware view. addCollider/removeCollider pass straight through to
+  // islandCollision, so the prop colliders below still land where they always
+  // did — a boat only edits ground height and the water test.
+  let collisionWorld = islandTraversal.collisionWorld;
   let controller = islandController;
   /** Ground sampler for whichever place is active — camera + shadow read this. */
   let groundAt = (x, z) => heightfield.sampleHeight(x, z);
@@ -484,6 +540,84 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   const atmosphere = createAtmosphere(heightfield, { seed: WORLD.SEED });
   scene.add(atmosphere.group);
 
+  // ── Movement FX ────────────────────────────────────────────────────────
+  //
+  // feelFx  dust puffs under a landing or a skid, paper scraps shed at a
+  //         sprint, and a ring of speed slivers parented to the CAMERA.
+  //         Three draw calls, no allocation per frame.
+  // travFx  the chalk climb routes, wind-socks over the launch pads, thermal
+  //         ribbons, the canopy and the underwater veil. Seven draw calls.
+  //
+  // Both are added to the scene BEFORE the boot-time applyAerialFogToTree
+  // sweep, so their materials pick up the one atmosphere like everything else.
+  // The veil is deliberately exempt (see applyFogToTraversalFx).
+  const feelFx = createFeelFx({ parent: scene });
+  camera.add(feelFx.lineGroup);
+  // The camera is not in the graph — nothing renders a child of an unparented
+  // camera — so it goes in as well. It carries no geometry of its own.
+  scene.add(camera);
+
+  const travFx = createTraversalFx({
+    groundAt: (x, z) => heightfield.sampleHeight(x, z),
+    routes: islandTraversal.spec.routes,
+    pads: islandTraversal.spec.pads,
+    thermals: islandTraversal.spec.thermals,
+    floatables: islandTraversal.floatables,
+  });
+  scene.add(travFx.group);
+  applyFogToTraversalFx(travFx);
+
+  /**
+   * Half of traversalFx is ISLAND FURNITURE and half of it is the PLAYER.
+   *
+   * The chalk routes, the wind-socks, the thermal ribbons and the raft decks
+   * live at island coordinates and would be scattered nonsense inside a 70 m
+   * room. The canopy over a gliding hero and the green veil over a submerged
+   * one belong to the hero and follow them anywhere. Parking the whole group
+   * on a floor entry would take the glider's canopy away the moment a floor
+   * had a drop worth gliding down, so only the furniture is parked.
+   */
+  function setTravFxFurniture(on) {
+    for (const child of travFx.group.children) {
+      if (child === travFx.veil || child === travFx.canopy) continue;
+      child.visible = on;
+    }
+  }
+
+  // ── The world's ears ───────────────────────────────────────────────────
+  //
+  // The listener rides the camera, the biome beds cross-fade under the feet
+  // and the fountains/portals/collectibles hold their own positional loops.
+  // Nothing here creates an AudioContext — audio3d polls audioState() and stays
+  // completely inert until the first real gesture has unlocked the graph, which
+  // is why it is safe to build during boot.
+  const audio3d = createAudio3D({
+    camera,
+    heightfield,
+    quality: save?.settings?.lowPower ? 'low' : 'high',
+  });
+
+  /**
+   * Hang a positional loop on everything in the world that should be audible
+   * before it is visible. Voices are BUDGETED (audio3d plans the nearest N
+   * every twelfth of a second), so attaching every arch and every coin costs
+   * one Map entry each and nothing at all in the mixer until the player is
+   * close enough for it to matter.
+   */
+  function attachIslandEmitters() {
+    for (const p of props.portals) {
+      audio3d.attach(`portal-${p.id}`, { x: p.x, y: p.y + 1.6, z: p.z }, {
+        sound: 'hum', volume: 0.55, priority: 2,
+      });
+    }
+    for (const c of props.collectibles) {
+      if (collectedIds.has(c.id)) continue;
+      audio3d.attach(`pickup-${c.id}`, c.mesh, {
+        sound: 'chime', volume: 0.4, refDistance: 5, maxDistance: 48,
+      });
+    }
+  }
+
   // ── Prop colliders ─────────────────────────────────────────────────────
   // Circles only, all forgiving: an arch is two pillars (you walk THROUGH the
   // opening — that is the whole point of a gate), a building is one disc well
@@ -515,18 +649,164 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   // the same character the child picked in Party Select — not a stand-in. A
   // corrupt or empty save resolves to that class's flagship rather than
   // throwing (see resolveHeroId), so the avatar can never be lost.
-  const heroRig = createHeroRig(save?.party?.[0] ?? null, { height: HERO_HEIGHT });
-  const hero = heroRig.group;
+  // `let`, not `const`: the party ring can swap the active hero in the field
+  // (see swapHeroRig below), and the figure on screen has to become whoever
+  // the child just switched to.
+  let heroRig = createHeroRig(save?.party?.[0] ?? null, { height: HERO_HEIGHT });
+  let hero = heroRig.group;
   scene.add(hero);
+
+  /**
+   * Put a different party member in the world.
+   *
+   * heroRig.js refcounts its traced builds, so swapping back to a hero you
+   * have already been is a cache hit: this costs a group swap, not a re-trace.
+   * The new rig is fogged on the way in because the boot-time
+   * applyAerialFogToTree(scene) sweep has long since run by the time anyone
+   * presses Q.
+   */
+  function swapHeroRig(heroId) {
+    const old = heroRig;
+    heroRig = createHeroRig(heroId, { height: HERO_HEIGHT });
+    scene.remove(old.group);
+    hero = heroRig.group;
+    scene.add(hero);
+    applyAerialFogToTree(hero);
+    old.dispose();
+    heroRig.reset();
+  }
+
+  // ── Abilities, party ring, growth beats and the reward cadence ─────────
+  //
+  // One import, one tick. abilityWiring.js assembles abilities.js (the verbs),
+  // abilityFx.js (the visible half), progression.js (the moments) and
+  // rewardCadence.js (the fills) and hands back a runtime whose whole contract
+  // with this file is update / draw / jump / dispose plus the forwards on
+  // `world` below.
+  //
+  // The toybox is NOT passed here: Rapier is a 2.2 MB lazy chunk and blocking
+  // the first frame of the world on it would be paying the boot cost of a
+  // solver for a child who may never shove a crate. It attaches itself the
+  // moment it is ready (see the physics block further down), and until then
+  // the two verbs that need bodies simply report "nothing here" — which is the
+  // right answer in an empty field anyway.
+  const abilities = createAbilityRuntime({
+    save,
+    heightfield,
+    fx: createAbilityFx,
+    gate: () => !inputLocked && !cineCam && !(battle && battle.isActive()),
+    hooks: {
+      // The recipe is the sound; audio3d adds a positional companion voice
+      // ONLY for the two verbs that happen away from the hero's own body, so
+      // a shove across the plaza is heard over there and a level-up is heard
+      // here.
+      onSound: (key, at) => {
+        playSfx(key);
+        if (at && (key === 'combat/impact-heavy' || key === 'world/coin')) {
+          audio3d.emit({
+            sound: key === 'world/coin' ? 'coin' : 'thud',
+            x: at.x, y: (at.y || 0) + 1, z: at.z, volume: 0.85,
+          });
+        }
+      },
+      onCameraBeat: (beat) => { camBeat = beat; camBeatT = beat.hold; },
+      onSwap: (e) => { swapHeroRig(e.to.id); hooks.onHeroSwap?.(e); },
+      onPrompt: (p) => hooks.onAbilityPrompt?.(p),
+      onBlocked: (r, hint) => hooks.onAbilityBlocked?.(r, hint),
+      onGate: (g, canOpen, who) => hooks.onAbilityGate?.(g, canOpen, who),
+      onMoment: (m, s) => hooks.onMoment?.(m, s),
+      onStaged: (m) => hooks.onStagedMoment?.(m) === true,
+      onVista: (f, p) => hooks.onVista?.(f, p),
+      onBanter: (f, t) => hooks.onBanter?.(f, t),
+      onPing: (f, p) => hooks.onPing?.(f, p),
+      onCoin: (c) => hooks.onCollect?.({ id: c.id, kind: c.kind, amount: c.amount }),
+    },
+  });
+  if (abilities.group) scene.add(abilities.group);
+
+  // ── Discovery: 39 records, the compass, the shrines and the journal ────
+  //
+  // Two lines, exactly as discoveryWiring.js asks for. This owns TRUTH (what
+  // has been found, what a shrine has paid out) and never presentation: the
+  // arrival beat comes back up through onDiscovery and the scene decides what
+  // a child sees.
+  const discovery = createDiscoveryRuntime({
+    save,
+    hooks: {
+      onDiscovery: (e) => hooks.onDiscovery?.(e),
+      onCompass: (h) => hooks.onCompass?.(h),
+      onProgress: (p) => hooks.onDiscoveryProgress?.(p),
+    },
+  });
+
+  // ── The physics toybox ─────────────────────────────────────────────────
+  //
+  // Crates that stack, logs that roll, planks that see-saw, leaves that blow.
+  // physics.js is the engine (Rapier, behind a lazy import) and
+  // physicsProps.js is the content — five papercut objects, forty-odd of them
+  // scattered across the Garden and the Market, and the puzzles that turn
+  // shoving them about into arithmetic.
+  //
+  // WHY THIS IS NOT AWAITED. The `-compat` Rapier build inlines its WebAssembly
+  // as base64 inside a 2.2 MB JavaScript file. Awaiting that here would put it
+  // in front of the world's FIRST FRAME for every child, including the ones
+  // who never touch a crate. So the build runs in the background and attaches
+  // itself when it lands; the world is fully playable the whole time, and a
+  // load that fails costs a warning and a toyboxless island rather than a
+  // black screen. It is also why `createOverworld` still resolves in the same
+  // time it did before the toybox existed.
+  /** @type {null | object} the live rigid-body world, once Rapier has loaded */
+  let physicsWorld = null;
+  /** @type {null | object} the instanced papercut props riding on it */
+  let toybox = null;
+  /** Set on dispose so a build still in flight throws its result away. */
+  let toyboxAbandoned = false;
+  const toyboxReady = (async () => {
+    const merged = abilities.mergeToybox(SANDBOX, PUZZLES);
+    const world = await createPhysicsWorld({
+      heightfield,
+      ponds: water.ponds,
+      oceanY: WORLD.WATER_Y,
+    });
+    if (toyboxAbandoned) { world.dispose(); return false; }
+    const props3d = createPhysicsProps({
+      physics: world,
+      heightfield,
+      placements: merged.placements,
+      puzzles: merged.puzzles,
+    });
+    physicsWorld = world;
+    toybox = props3d;
+    scene.add(toybox.group);
+    // The boot-time sweep ran long before this landed, so the toybox fogs
+    // itself in. Idempotent, and it must happen before the group's first draw.
+    applyAerialFogToTree(toybox.group);
+    abilities.attachToybox(physicsWorld, toybox);
+    hooks.onToybox?.(toybox.stats());
+    return true;
+  })().catch((err) => {
+    // A missing solver is a missing TOY, not a missing game.
+    console.warn('[overworld] physics toybox unavailable:', err);
+    return false;
+  });
 
   // ── Player state ───────────────────────────────────────────────────────
   const restored = fromSave(save?.overworld);
+  // Where the rafts had drifted to. Restored BEFORE the spawn, because the
+  // spawn's ground sample may be a deck.
+  islandTraversal.fromSave(save?.overworld);
   let player = restored.pos
     ? controller.spawnState({ x: restored.pos.x, z: restored.pos.z, yaw: restored.yaw })
     : controller.spawnState(SPAWN);
   let lastPortalId = restored.portalId;
 
-  const input = { x: 0, y: 0, jump: false, run: false, world: false };
+  // `jumpHeld` and `dive` are LEVELS, not edges: the first is what makes a jump
+  // variable-height (gameFeel cuts the rise the frame it goes false), the
+  // second is what takes a swimmer under. `jump` alone stays latched.
+  const input = {
+    x: 0, y: 0, jump: false, jumpHeld: false, dive: false,
+    run: false, world: false,
+  };
   let jumpLatch = false;
 
   // ── Collectibles: hide what the save already granted ───────────────────
@@ -536,6 +816,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     if (collectedIds.has(c.id)) c.mesh.visible = false;
     else pending.push(c);
   }
+  attachIslandEmitters();
 
   // ── Time of day + weather ──────────────────────────────────────────────
   //
@@ -690,6 +971,26 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   const _probeB = new THREE.Vector3();
   /** @type {{pos:THREE.Vector3, look:THREE.Vector3}|null} */
   let poseCam = null;
+  /**
+   * THE CINEMATIC SLOT. cinematics.js computes an ABSOLUTE shot per frame and
+   * pushes it here through setCinematicCamera(); this file only copies it onto
+   * the eye. That keeps the "one writer per frame" rule intact — a director
+   * that lerped a three.js camera against the follow boom would be the same
+   * wrestling match battle3d is carefully kept out of.
+   * @type {{pos:{x,y,z}, look:{x,y,z}, fov?:number}|null}
+   */
+  let cineCam = null;
+  /**
+   * THE GROWTH BEAT. progression.js hands the ability runtime a `{punch, hold,
+   * fovKick}` when something worth feeling happens (a level-up, a gate that
+   * finally opened, an evolution) and updateCamera spends it as a short push
+   * toward the look point plus a lens kick. It is deliberately NOT a shake:
+   * a shake says "you were hit", a push in says "look at this".
+   * @type {{punch:number, hold:number, fovKick?:number}|null}
+   */
+  let camBeat = null;
+  /** Seconds left of the beat above. Counted down on the fixed camera step. */
+  let camBeatT = 0;
   // Smoothed rig state. Scalars, not vectors: every one of these is a damped
   // 1-D quantity and keeping them unboxed is what makes updateCamera allocate
   // nothing at all.
@@ -981,6 +1282,15 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   }
 
   function updateCamera(animT) {
+    // A cinematic outranks everything, including the eye-floor lift: a staged
+    // shot may deliberately skim the ground or sit inside a hill's silhouette,
+    // and a rig that "corrects" an authored frame is a rig that ruins it.
+    if (cineCam) {
+      camera.position.set(cineCam.pos.x, cineCam.pos.y, cineCam.pos.z);
+      camera.lookAt(cineCam.look.x, cineCam.look.y, cineCam.look.z);
+      if (Number.isFinite(cineCam.fov)) updateFov(cineCam.fov);
+      return;
+    }
     if (poseCam) {
       updateFov(shot.fov);
       camera.position.copy(poseCam.pos);
@@ -990,7 +1300,11 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     }
     peelDrift();
     computeBoom();
-    updateFov(camera.fov + (shotFov + CAM.fovRun * speedN - camera.fov) * CAM.fovLerp);
+    // The lens carries THREE terms now: the shot's own focal length, the speed
+    // opening, and gameFeel's sprint kick — the one that makes a run read as a
+    // run rather than as the same walk played faster.
+    const feelFov = fovOffsetDeg(player);
+    updateFov(camera.fov + (shotFov + CAM.fovRun * speedN + feelFov - camera.fov) * CAM.fovLerp);
 
     // Horizontal tracks; vertical is damped and dead-banded (see CAM header).
     camera.position.x += (_camWant.x - camera.position.x) * CAM.lerp;
@@ -1000,6 +1314,30 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     else if (dy < -CAM.yDead) camera.position.y += (dy + CAM.yDead) * CAM.lerpY;
 
     addDrift(animT);
+    // ── THE LANDING DIP ──────────────────────────────────────────────────
+    // gameFeel runs a little spring on `camDip` — metres the eye should drop
+    // when the feet hit. Applied to BOTH the eye and the look point, so it is
+    // a dip and not a pitch: tilting the camera down on every landing would
+    // read as a flinch, while dropping the whole rig reads as weight.
+    const dip = player.camDip || 0;
+    if (dip !== 0) {
+      camera.position.y -= dip;
+      _camLook.y -= dip;
+    }
+    // ── THE GROWTH BEAT ──────────────────────────────────────────────────
+    // A level-up is FELT here, not only read off a card: the eye leans in
+    // toward the look point and the lens tightens, both on a sin² in-and-out
+    // so the move has no edges. `_camLook` is the target because pushing
+    // toward what the camera is already looking at is a push IN; pushing
+    // toward the eye's own boom target would just shorten the boom.
+    if (camBeatT > 0 && camBeat) {
+      camBeatT = Math.max(0, camBeatT - 1 / 60);
+      const u = camBeat.hold > 0 ? camBeatT / camBeat.hold : 0;
+      const k = Math.sin(u * Math.PI) ** 2;             // in and out
+      camera.position.lerp(_camLook, k * camBeat.punch * 0.1);
+      if (camBeat.fovKick) updateFov(camera.fov - camBeat.fovKick * k);
+      if (camBeatT === 0) camBeat = null;
+    }
     // The floor check gets the LAST word, after the drift: a 10 cm decorative
     // dip must never be what puts the eye inside a hillside.
     liftAboveGround(camera.position);
@@ -1077,6 +1415,10 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       pending.splice(i, 1);
       collectedIds.add(c.id);
       c.mesh.visible = false;
+      audio3d.detach(`pickup-${c.id}`);
+      // The chime plays WHERE THE COIN WAS, not in the middle of the head.
+      audio3d.emit({ sound: 'coin', x: c.x, y: player.pos.y + 1, z: c.z, volume: 0.9 });
+      playSfx(c.kind === 'gold' ? 'world/coin' : 'world/potion');
       hooks.onCollect?.({ id: c.id, kind: c.kind, amount: c.amount });
     }
   }
@@ -1095,6 +1437,40 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   let parkedIsland = null;
   /** Object ids the player is currently standing inside — edge-triggered. */
   const insideIds = new Set();
+  /** Emitter ids the ACTIVE floor owns, so leaving takes them all down. */
+  const floorEmitterIds = [];
+
+  /** What each kind of floor furniture sounds like when you walk near it. */
+  const FLOOR_VOICE = {
+    fountain: { sound: 'burble', volume: 0.8, refDistance: 6, maxDistance: 60 },
+    exit: { sound: 'hum', volume: 0.5 },
+    golden: { sound: 'chime', volume: 0.5, refDistance: 5, maxDistance: 44 },
+    chest: { sound: 'chime', volume: 0.28, refDistance: 4, maxDistance: 32 },
+    gearkit: { sound: 'chime', volume: 0.28, refDistance: 4, maxDistance: 32 },
+    boss: { sound: 'crackle', volume: 0.6 },
+    zerodoor: { sound: 'bell', volume: 0.34, refDistance: 5, maxDistance: 40 },
+  };
+
+  /**
+   * Give the room its voices. A fountain you can HEAR from around the corner
+   * is the cheapest wayfinding a level has, and it is the whole reason the
+   * emitters are attached to floor objects and not only to island props.
+   */
+  function attachFloorEmitters(lvl) {
+    for (const o of lvl.objects) {
+      const kind = (o.data && o.data.type) || o.type;
+      const voice = FLOOR_VOICE[kind];
+      if (!voice) continue;
+      const id = `floor-${o.id}`;
+      floorEmitterIds.push(id);
+      audio3d.attach(id, o.mesh || { x: o.x, y: 1, z: o.z }, voice);
+    }
+  }
+
+  function detachFloorEmitters() {
+    for (const id of floorEmitterIds) audio3d.detach(id);
+    floorEmitterIds.length = 0;
+  }
   /**
    * The nearest interactable's type, or null. Label fuel for the context
    * ACTION button (controls3d.actionLabel maps it to ENTER / OPEN / TALK) and
@@ -1188,7 +1564,14 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       sampleNormal: lvl.sampleNormal,
     });
     for (const c of lvl.colliders) fCollision.addCollider(c);
-    const fController = createController(fCollision, { ...DEFAULT_TUNING, turnRate: TURN_RATE });
+    // A floor is a 3D place with walls and drops, so climbing and the glider
+    // come along. What it has not got is an ocean, vents or boats, so the
+    // thermal field and the floatables are simply absent — swim mode can still
+    // fire if a floor ever holds deep water, and does nothing until one does.
+    const fController = createFloorTraversal(fCollision, {
+      tuning: MOVE_TUNING,
+      base: feelBase,
+    });
 
     // Park the island: state kept, meshes hidden, nothing disposed.
     parkedIsland = { player, camPos: camera.position.clone() };
@@ -1196,6 +1579,11 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     water.group.visible = false;
     props.group.visible = false;
     atmosphere.group.visible = false;
+    // The chalk routes, wind-socks and thermal ribbons are ISLAND furniture —
+    // their coordinates are island coordinates. Park them with the island; the
+    // canopy and the veil stay, because they belong to the hero.
+    setTravFxFurniture(false);
+    feelFx.reset();
     clearNearPortal();
 
     scene.add(lvl.group);
@@ -1211,6 +1599,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     waterLevel = -1e4;
     floor = { id: floorId, lvl, collision: fCollision, controller: fController };
     insideIds.clear();
+    attachFloorEmitters(lvl);
 
     // Relight for the room, then re-air it. `ground[0]` is the theme's primary
     // ground paper — the surface the bounce light is bouncing OFF — and the
@@ -1248,6 +1637,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
 
   function exitFloor() {
     if (!floor) return false;
+    detachFloorEmitters();
     scene.remove(floor.lvl.group);
     floor.lvl.dispose();
     floor = null;
@@ -1257,6 +1647,8 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     water.group.visible = true;
     props.group.visible = true;
     atmosphere.group.visible = true;
+    setTravFxFurniture(true);
+    feelFx.reset();
 
     // Hand the light and the air back to the island. Both of these MUST be
     // cleared here and not merely overwritten later: the island's own frame
@@ -1266,7 +1658,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     syncLight(true);
     shadowOrtho = 0;
 
-    collisionWorld = islandCollision;
+    collisionWorld = islandTraversal.collisionWorld;
     controller = islandController;
     groundAt = (x, z) => heightfield.sampleHeight(x, z);
     waterLevel = WORLD.WATER_Y;
@@ -1337,12 +1729,19 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   // space or a camera swing would fight the hero's momentum) sets
   // `input.world` and the rotation below is skipped. Rotating twice would
   // double every camera turn into the movement — a spin, not a walk.
-  const _worldInput = { x: 0, y: 0, jump: false, run: false };
+  const _worldInput = {
+    x: 0, y: 0, z: 0, jump: false, jumpHeld: false, dive: false, run: false,
+  };
 
   function toWorldInput() {
+    // Held buttons are never rotated and never latched; they are just gated by
+    // the modal lock like everything else.
+    _worldInput.jumpHeld = !inputLocked && input.jumpHeld;
+    _worldInput.dive = !inputLocked && input.dive;
     if (input.world) {
       _worldInput.x = inputLocked ? 0 : input.x;
       _worldInput.y = inputLocked ? 0 : input.y;
+      _worldInput.z = _worldInput.y;
       _worldInput.run = !inputLocked && input.run;
       _worldInput.jump = !inputLocked && input.jump;
       return _worldInput;
@@ -1357,14 +1756,133 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // forward = (sin, cos), right = (cos, -sin)
     _worldInput.x = c * sx + s * sy;
     _worldInput.y = -s * sx + c * sy;
+    _worldInput.z = _worldInput.y;
     _worldInput.run = !inputLocked && input.run;
     _worldInput.jump = !inputLocked && input.jump;
     return _worldInput;
   }
 
+  // ── THE CUE BUS ────────────────────────────────────────────────────────
+  //
+  // Everything a step SOUNDS like and everything it THROWS lives here, driven
+  // off the one-frame records the two controllers already publish:
+  //   player.ev     gameFeel's { jump, airJump, land, dust, skid, mantle }
+  //   player.event  traversal's single named transition ('grab', 'canopy', …)
+  // Both are part of the pure step output, so a replay reproduces every sound
+  // and every puff of dust exactly.
+
+  /** Metres of ground covered per footfall. Two per stride at heroRig's rate. */
+  const STRIDE_M = 0.98;
+  /** Distance banked since the last footstep. */
+  let strideAcc = 0;
+  /** Was the glide wind bed open last frame? */
+  let windOpen = false;
+
+  /**
+   * What the ground under the hero is MADE OF, as an sfxLibrary surface.
+   * Water and rafts win over the terrain, because that is what the foot is
+   * actually hitting.
+   */
+  function currentSurface() {
+    if (player.mode === MODES.SWIM || player.wading) return 'water';
+    if (floor) return resolveSurface(floor.lvl.theme.key);
+    // A deck is planks, whatever the sea underneath it is.
+    if (islandTraversal.floatables.deckAt?.(player.pos.x, player.pos.z) != null) return 'wood';
+    return resolveSurface(heightfield.biomeAt(player.pos.x, player.pos.z));
+  }
+
+  /**
+   * Route ONE traversal event to its cue. dispatchTraversalEvent handles the
+   * FX pop and the sound name; the positional emit is ours because only this
+   * file knows where the player is standing in world space.
+   */
+  function playTraversalSound(key) {
+    playSfx(key);
+    if (key === 'splash') {
+      audio3d.emit({
+        sound: 'splash', x: player.pos.x, y: player.pos.y, z: player.pos.z, volume: 0.9,
+      });
+    }
+  }
+
+  function emitMovementCues(dt) {
+    const ev = player.ev;
+    const surf = currentSurface();
+    // Dust is thrown at the GROUND, not at the hips. draw() writes this too,
+    // but a landing happens on the sim step and the puff has to know where the
+    // floor is on the frame it is spawned.
+    player.groundY = groundAt(player.pos.x, player.pos.z);
+
+    // ── gameFeel: the ground game ────────────────────────────────────────
+    feelFx.emit(player);
+    if (ev) {
+      if (ev.jump > 0 || ev.airJump > 0) playSfx('move/jump', { surface: surf });
+      if (ev.land > 0) {
+        // ev.land is 0..1 impact strength; land() wants a weight where >=1.4
+        // is the heavy variant, so a real drop gets the heavy thud.
+        sfxLand(surf, 0.8 + ev.land * 1.1);
+        audio3d.emit({
+          sound: 'thud', x: player.pos.x, y: player.pos.y, z: player.pos.z,
+          volume: 0.35 + 0.5 * ev.land,
+        });
+      }
+      // A skid scrubs; that is a long footstep, not a step.
+      if (ev.skid > 0) sfxFootstep(surf, { run: true, effort: 1.3 });
+    }
+
+    // ── Footsteps, paced by DISTANCE ─────────────────────────────────────
+    // Not by a timer: a wade and a sprint must land the same number of
+    // footfalls per metre or the feet audibly skate. Same rule heroRig's
+    // stride phase uses, so the sound lands with the visible foot.
+    if (player.grounded && player.mode === MODES.WALK) {
+      strideAcc += Math.hypot(player.vel.x, player.vel.z) * dt;
+      if (strideAcc >= STRIDE_M) {
+        strideAcc %= STRIDE_M;
+        sfxFootstep(surf, { run: !!input.run });
+      }
+    } else {
+      // Land mid-stride and the next step is a fresh one.
+      strideAcc = STRIDE_M * 0.5;
+    }
+
+    // ── traversal: climb, glide, swim ────────────────────────────────────
+    dispatchTraversalEvent(player, travFx, playTraversalSound);
+
+    // The glider's wind bed is the only sustained SFX voice in the game.
+    const gliding = player.mode === MODES.GLIDE;
+    if (gliding) {
+      const speed = Math.hypot(player.vel.x, player.vel.z);
+      const inten = Math.max(0.25, Math.min(1, speed / 12.5));
+      if (!windOpen) { startGlideWind(inten); windOpen = true; }
+      else setGlideWindIntensity(inten);
+    } else if (windOpen) {
+      stopGlideWind();
+      windOpen = false;
+    }
+  }
+
   function step(dt) {
-    if (jumpLatch) { input.jump = true; jumpLatch = false; }
+    if (jumpLatch) {
+      jumpLatch = false;
+      // The bunny's second hop is an ABILITY, not a controller feature: it
+      // writes the rise straight onto the state and must NOT also raise
+      // input.jump, or the controller's own grounded check eats the frame.
+      const hop = abilities.jump(player);
+      if (hop > 0) player.vel.y = hop;
+      else input.jump = true;               // everyone else, unchanged
+    }
+    // The rafts move BEFORE the controller runs, so the deck a foot lands on
+    // this frame is this frame's deck and not last frame's.
+    if (!floor) islandTraversal.stepWorld(dt, player);
     player = controller.step(player, toWorldInput(), dt);
+    // `climbing` / `gliding` / `swimming` for heroRig, written onto the live
+    // state exactly as `groundY` is (see draw()).
+    applyRigFlags(player);
+    // The verbs act from THIS frame's position, so this sits after the
+    // controller and not before it. Passing `toybox` to the runtime means this
+    // one call also drives the physics props and routes their solved puzzles.
+    abilities.update(dt, player);
+    emitMovementCues(dt);
     input.jump = false;
     if (!todFrozen) {
       todT += dt / DAY_SECONDS;
@@ -1384,10 +1902,35 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     } else {
       checkPortals();
       checkCollectibles();
+      // Discovery is an ISLAND system — every one of its 39 records is placed
+      // in the open world — so it ticks beside the collectibles and not inside
+      // a floor. Proximity is a squared-distance compare per record and the
+      // compass re-aims on a 6 Hz timer, not per frame.
+      discovery.update(player.pos.x, player.pos.z, dt);
     }
   }
 
   // ── Draw ───────────────────────────────────────────────────────────────
+  /** Scratch for gameFeel's whole-body squash. Written every frame, never new. */
+  const _rigS = { sx: 1, sy: 1, sz: 1 };
+  /** Scratch for audio3d.update()'s frame record. Rewritten in place. */
+  const _audioFrame = {
+    dt: 1 / 60, playerPos: null, indoors: false,
+    biome: undefined, shoreDist: undefined, underwater: false,
+  };
+  /**
+   * A floor's THEME key is not an island biome id, and audio3d's bed table is
+   * keyed on the latter. Four of the nine already agree; the rest are matched
+   * by what the room actually sounds like — Ebbport is a tidepool, the Crystal
+   * Caverns are crystal, the Mending Room is the palace.
+   */
+  const FLOOR_BIOME = {
+    garden: 'garden', ebbport: 'tidepool', sky: 'sky', ember: 'ember',
+    frost: 'frost', prism: 'crystal', market: 'market', library: 'library',
+    mending: 'palace',
+  };
+  const floorBiome = (f) => FLOOR_BIOME[f.lvl.theme.key] || 'garden';
+
   let firstFrame = false;
   /** Sim clock at the previous draw — the rig integrates on the delta. A
    *  frozen pose advances neither, so dt is 0 and the pose holds exactly. */
@@ -1444,6 +1987,12 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     lastDrawSim = simTime;
     player.groundY = groundAt(player.pos.x, player.pos.z);
     heroRig.update(heroDt, player);
+    // SQUASH AND STRETCH, on the outer group. heroRig already runs its own
+    // landing squash on the inner `rig` node; this is gameFeel's whole-body
+    // channel multiplied over it, which is what makes a hard landing read as a
+    // hard landing instead of the same little bob every time.
+    rigScale(player, _rigS);
+    hero.scale.set(_rigS.sx, _rigS.sy, _rigS.sz);
 
     // THE CAMERA HAS EXACTLY ONE WRITER PER FRAME. During a fight that writer
     // is battle3d — its sweep, its push-ins and its shake all move the eye, and
@@ -1451,7 +2000,10 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // wrestling match. battle3d hands the eye back on the way out through its
     // own 'exit' pose, which is the follow boom's resting place, so the world
     // resumes without a jump.
-    if (battle && battle.isActive()) battle.update(heroDt);
+    // A cinematic outranks a fight for the same reason a fight outranks the
+    // follow boom: whoever is telling the story owns the eye.
+    if (cineCam) updateCamera(animT);
+    else if (battle && battle.isActive()) battle.update(heroDt);
     else updateCamera(animT);
     if (fovDirty) { fovDirty = false; projDirty = true; }
     if (projDirty) camera.updateProjectionMatrix();
@@ -1471,6 +2023,30 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       atmosphere.update(lightFrame, animT, player.pos, camera);
     }
 
+    // ── The two movement FX rigs ─────────────────────────────────────────
+    // Both integrate on the DRAW delta and read only continuous channels off
+    // the state; their one-shot spawns already happened in step(). The speed
+    // lines need the camera's yaw so the ring stays square to the lens.
+    feelFx.update(heroDt, player, camera.rotation.y);
+    // Always: the canopy and the underwater veil are the hero's, and a floor
+    // with a drop in it must still put a glider over their head.
+    travFx.update(heroDt, player, animT);
+    // The ability layer's own FX — bursts, the carry ribbon, the coin motes.
+    // Camera yaw so its billboards face the eye.
+    abilities.draw(heroDt, camera.rotation.y);
+
+    // ── The world's ears ─────────────────────────────────────────────────
+    // The listener rides the CAMERA (that is where the player's head is), the
+    // beds cross-fade off the ground the FEET are on, and a floor is "indoors"
+    // so the reverb wets up and the outdoor beds duck.
+    _audioFrame.dt = heroDt;
+    _audioFrame.playerPos = player.pos;
+    _audioFrame.indoors = !!floor;
+    _audioFrame.biome = floor ? floorBiome(floor) : undefined;
+    _audioFrame.shoreDist = floor ? Infinity : undefined;
+    _audioFrame.underwater = isUnderwater(player);
+    audio3d.update(camera.position, camera.quaternion, _audioFrame);
+
     renderer.render(scene, camera);
     if (!firstFrame) {
       firstFrame = true;
@@ -1483,13 +2059,29 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   // ── Debug / determinism API — the screenshot critique loop drives this ──
   const api = {
     ready: false,
-    freeze(on = true) { rig.setFrozen(on); },
+    freeze(on = true) {
+      // A frozen world is a world nobody is directing. Stopping the host's
+      // cinematic here is what stops it re-pushing a shot into the slot on the
+      // next Phaser tick — the sim loop is frozen but the SCENE's update is not.
+      if (on) hooks.stopCinematics?.();
+      rig.setFrozen(on);
+    },
     teleport(x, z, yaw = 0) {
+      hooks.stopCinematics?.();
       poseCam = null;
+      cineCam = null;
+      feelFx.reset();
       player = controller.spawnState({ x, z, yaw });
       clearNearPortal();
       heroRig.reset();
       snapCamera();
+      // snapCamera re-anchors the boom BEHIND the new facing, but the input
+      // layer owns the orbit and re-pushes it every frame — without telling the
+      // host, the eye swings straight back to wherever it was looking before
+      // the teleport, and "forward" then means the old direction. Every other
+      // hard place (enterFloor, exitFloor) is followed by the scene's own
+      // resync; this one had nobody to do it.
+      hooks.onCameraSnap?.();
       api.renderOnce();
     },
     renderOnce() { rig.renderOnce(); },
@@ -1586,6 +2178,12 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       const pose = poseByName(name);
       if (!pose) return null;
       currentPose = pose.name;
+      // A pose is a determinism contract: no cinematic may be holding the eye
+      // and no dust from a previous run may still be in the air. The DIRECTOR
+      // has to be stopped, not just the slot cleared — it would refill it.
+      hooks.stopCinematics?.();
+      cineCam = null;
+      feelFx.reset();
       player = controller.spawnState({ x: pose.playerPos.x, z: pose.playerPos.z, yaw: pose.yaw });
       clearNearPortal();
       todT = pose.tod;
@@ -1660,6 +2258,28 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       }));
     },
 
+    /**
+     * Where the island's CLIMBABLE FACES and LAUNCH PADS are.
+     *
+     * Same contract as portals() above and for the same reason: a spec that
+     * hardcoded a cliff's coordinates would silently stop testing climbing the
+     * day the spec moved. The harness teleports to a real route and pushes the
+     * stick into it, which is exactly what a child does.
+     */
+    climbRoutes() {
+      return islandTraversal.spec.routes.map((r) => ({
+        id: r.id, grade: r.grade,
+        // `base` is the foot of the face and `dir` points INTO it, which is
+        // both what the spec needs to stand in the right place and what it
+        // needs to push the stick at.
+        x: r.base.x, z: r.base.z, dx: r.dir.x, dz: r.dir.z,
+        gain: r.gain, topY: r.topY,
+      }));
+    },
+    launchPads() {
+      return islandTraversal.spec.pads.map((p) => ({ id: p.id, x: p.x, z: p.z }));
+    },
+
     // Floor entry, drivable from the harness without walking into an arch.
     enterFloor(floorId) {
       const r = enterFloor(floorId);
@@ -1674,6 +2294,38 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     activeFloor() { return floor ? floor.id : null; },
     floorStats() { return floor ? floor.lvl.stats : null; },
 
+    /**
+     * TRAVERSAL AND SOUND, FOR THE HARNESS. Read-only, like everything else on
+     * this object: an e2e spec proves climb/glide/swim by DRIVING the stick
+     * into a face and watching the mode change, never by setting it.
+     */
+    traversal() {
+      return {
+        mode: player.mode || MODES.WALK,
+        stamina: staminaFraction(player, controller.tuning),
+        tired: !!player.tired,
+        underwater: isUnderwater(player),
+        jumpLabel: jumpLabel(player),
+        event: player.event || null,
+      };
+    },
+    /** gameFeel's live presentation channels — the "is it juicy" probe. */
+    feel() {
+      return {
+        speed: player.speed || 0,
+        surface: player.surface || 'ground',
+        squash: player.squash || 0,
+        stretch: player.stretch || 0,
+        camDip: player.camDip || 0,
+        fovKick: player.fovKick || 0,
+        speedLines: player.speedLines || 0,
+        sliding: !!player.sliding,
+        skidding: (player.skidT || 0) > 0,
+      };
+    },
+    audio() { return audio3d.stats(); },
+    cinematicActive() { return world.cinematicActive(); },
+
     worldStats() {
       return {
         terrain: { chunks: terrain.chunkCount, triangles: terrain.triangleCount },
@@ -1681,6 +2333,10 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
         props: props.stats,
         hero: heroRig.stats,
         colliders: props.trees.length + props.buildings.length + props.portals.length * 2,
+        // The two movement FX rigs, so the draw-call budget test can see them.
+        feelFx: feelFx.stats,
+        traversalFx: { drawCalls: travFx.drawCalls },
+        audio: audio3d.stats(),
         // Live, not the boot snapshot: a critique run wants to know what is
         // actually resident, including anything generated after boot.
         textures: textureStats(),
@@ -1720,11 +2376,19 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
      *   run    select the controller's run speed for this frame
      *   jump   latched, so a jump asked between fixed steps is never dropped
      */
-    setInput({ x = 0, y = 0, jump = false, run = false, world = false }) {
+    setInput({
+      x = 0, y = 0, jump = false, jumpHeld = false, dive = false,
+      run = false, world = false,
+    }) {
       input.x = x;
       input.y = y;
       input.run = !!run;
       input.world = !!world;
+      // LEVELS, not edges — see the `input` declaration. `jumpHeld` is what
+      // makes the jump variable-height; a caller that never sends it gets a
+      // full-height jump, which is what gameFeel does with an absent flag.
+      input.jumpHeld = !!jumpHeld;
+      input.dive = !!dive;
       if (jump) jumpLatch = true;
     },
     /**
@@ -1759,8 +2423,83 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
         yaw: player.yaw,
         portalId: lastPortalId,
         collected: [...collectedIds],
+        // Where the rafts drifted to. Ignored by an older reader.
+        ...islandTraversal.toSave(),
       };
     },
+
+    // ── TRAVERSAL, FOR THE HUD ───────────────────────────────────────────
+    // The stamina ring is drawn by the Phaser scene (traversalHud.js) and it
+    // needs the live state and a screen point. The state is handed out BY
+    // REFERENCE and is replaced every step — read it, never keep it.
+
+    /** The live traversal/feel state. Read-only by contract. */
+    getTraversalState() { return player; },
+    /** 'walk' | 'climb' | 'mantle' | 'glide' | 'swim'. */
+    getTraversalMode() { return player.mode || MODES.WALK; },
+    /** 0..1 of the stamina pool — for a HUD that wants only the number. */
+    getStamina() { return staminaFraction(player, controller.tuning); },
+    /** What the JUMP button should currently SAY (LET GO / GLIDE / FOLD / UP). */
+    getJumpLabel() { return jumpLabel(player); },
+    /**
+     * The hero's position as FRACTIONS of the viewport (0..1, y down), so the
+     * caller can multiply by its own design resolution. Null when the hero is
+     * behind the eye — the ring must not be drawn mirrored across the frame.
+     */
+    heroScreenPos(out = {}) {
+      camera.updateMatrixWorld();
+      _probeA.set(player.pos.x, player.pos.y, player.pos.z).project(camera);
+      if (_probeA.z > 1) return null;
+      out.x = (_probeA.x + 1) * 0.5;
+      out.y = (1 - _probeA.y) * 0.5;
+      return out;
+    },
+    /** The biome under the feet — the story layer picks banter with it. */
+    getBiome() {
+      return floor ? floorBiome(floor) : heightfield.biomeAt(player.pos.x, player.pos.z);
+    },
+
+    // ── CINEMATICS ───────────────────────────────────────────────────────
+    /**
+     * Hand the eye to a director. `shot` is ABSOLUTE — { pos, look, fov? } in
+     * world space — and null gives the follow boom its eye back with a snap so
+     * the cut out of a cinematic is a cut and not a two-second swing.
+     */
+    setCinematicCamera(shot) {
+      const had = !!cineCam;
+      cineCam = shot || null;
+      if (had && !cineCam) snapCamera();
+    },
+    cinematicActive() { return !!cineCam; },
+    /**
+     * A cinematic asks the hero to ACT. Sequences are authored in DIRECTION
+     * words ('cheer', 'greet', 'look') and heroRig speaks ANIMATION states, so
+     * the translation lives here — the one place that knows both vocabularies.
+     * An unknown pose is a no-op, never a throw: a new beat must be able to ask
+     * for something the rig has not learned yet without breaking the scene.
+     */
+    setHeroAction(action) {
+      if (!action) { heroRig.setState(null); return; }
+      const POSE = {
+        cheer: 'victory', greet: 'victory', look: 'idle',
+        idle: 'idle', land: 'land', stagger: 'stagger', climb: 'climb',
+      };
+      const st = POSE[action.pose] || null;
+      if (st) heroRig.setState(st);
+      if (Number.isFinite(action.yaw)) player.yaw = action.yaw;
+    },
+    // ── SOUND ────────────────────────────────────────────────────────────
+    /** Fire a positional one-shot at a world point (audio3d's own voices). */
+    emitSound(spec) { return audio3d.emit(spec); },
+    /** Fire one at the hero — a pickup, a door, a chest the scene resolved. */
+    emitSoundAtPlayer(sound, volume = 1) {
+      return audio3d.emit({
+        sound, x: player.pos.x, y: player.pos.y + 1, z: player.pos.z, volume,
+      });
+    },
+    /** Settings' "no ambience" switch, and the low-power tier. */
+    setAmbienceEnabled(on) { audio3d.setEnabled(on); },
+    audioStats() { return audio3d.stats(); },
     /** Scene records which gate the player last stepped through. */
     notePortalUsed(id) { lastPortalId = id || null; },
     /** The portal the player is standing in, or null. */
@@ -1797,6 +2536,8 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       o.consumed = true;
       if (o.mesh) o.mesh.visible = false;
       insideIds.delete(id);
+      // A drained fountain does not burble. Silence it with its mesh.
+      audio3d.detach(`floor-${id}`);
       return true;
     },
     /** A math door was answered: swing it open and unbar its tile. */
@@ -1873,6 +2614,11 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     setVisible(v) { rig.setVisible(v); },
     dispose() {
       rig.dispose();
+      // The only sustained SFX voice in the game. A world torn down mid-glide
+      // must not leave a wind bed howling behind the title screen.
+      try { stopGlideWind(); } catch { /* audio graph already gone */ }
+      windOpen = false;
+      audio3d.dispose();
       if (battle) {
         battle.dispose();
         battle = null;
@@ -1885,13 +2631,16 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       }
       scene.remove(
         terrain.group, sky.group, water.group, props.group, atmosphere.group,
-        hero,
+        travFx.group, camera, hero,
       );
+      camera.remove(feelFx.lineGroup);
       terrain.dispose();
       sky.dispose();
       water.dispose();
       props.dispose();
       atmosphere.dispose();
+      feelFx.dispose();
+      travFx.dispose();
       heroRig.dispose();
       // Shared textures are owned here, not by the subsystems that borrow
       // them, so they are released exactly once — after every material that

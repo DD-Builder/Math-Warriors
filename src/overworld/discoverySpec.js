@@ -265,7 +265,9 @@ export const SHRINES = [
   },
   {
     id: 'shrine-palace', name: 'Shrine of the Last Line', biome: 'palace', floorId: 9,
-    at: { x: -28.5, z: 7.6 }, approach: { x: -28.5, z: 13.1 }, gate: 'climb',
+    // Approach measured on the roof terrace itself: the point 5.5 m due south
+    // of the door is the 66-degree parapet face, which is not standable.
+    at: { x: -28.5, z: 7.6 }, approach: { x: -26.3, z: 9.6 }, gate: 'climb',
     tint: PAPER.gold, doorGlyph: 'crown',
     line: 'Nine folded birds on a sill, and one of them was folded by a stranger.',
     trial: {
@@ -339,7 +341,7 @@ export const GROTTOS = [
   },
   {
     id: 'grotto-stack-nine', name: 'Stack Nine', biome: 'library',
-    at: { x: -68.2, z: 144.3 }, conceal: 'niche', depth: 6.0, tint: PAPER.sand,
+    at: { x: -82.8, z: 130.9 }, conceal: 'niche', depth: 6.0, tint: PAPER.sand,
     line: 'The shelves stop at eight. There is an eighth-and-a-half.',
     reward: { gold: 70, cosmetic: 'cos-inkfeather' },
   },
@@ -374,7 +376,7 @@ export const GROTTOS = [
 export const LANDMARK_PUZZLES = [
   {
     id: 'puz-garden-plates', name: 'The Counting Ring', biome: 'garden',
-    at: { x: -59.1, z: 153.9 }, spread: 11, tint: PAPER.sage,
+    at: { x: -51.7, z: 147.2 }, spread: 11, tint: PAPER.sage,
     line: 'Four dots on the stone. Stand on what makes four.',
     puzzle: {
       kind: 'sum', target: 8,
@@ -489,7 +491,7 @@ export const STORY_PAGES = [
     fallback: 'Take away one. And one. And one.', margin: false },
   { id: 'page-3', order: 3, floorId: 3, biome: 'sky', at: { x: 135.2, z: -6.6 }, hard: true,
     fallback: 'Repeat until nothing remains.', margin: false },
-  { id: 'page-4', order: 4, floorId: 4, biome: 'ember', at: { x: 146.2, z: -62.5 }, hard: false,
+  { id: 'page-4', order: 4, floorId: 4, biome: 'ember', at: { x: 142.4, z: -67.8 }, hard: false,
     fallback: 'Divide what is left. It gets smaller.', margin: false },
   { id: 'page-5', order: 5, floorId: 5, biome: 'frost', at: { x: 31.4, z: -105.6 }, hard: false,
     fallback: 'Therefore the world runs out.', margin: false },
@@ -503,7 +505,7 @@ export const STORY_PAGES = [
     fallback: 'Nothing was ever counted alone. + everyone.', margin: false },
 
   // The margin notes. Same handwriting, much smaller, and not part of the proof.
-  { id: 'page-m1', order: 10, floorId: null, biome: 'meadow', at: { x: -101.4, z: 146.2 }, hard: false,
+  { id: 'page-m1', order: 10, floorId: null, biome: 'meadow', at: { x: -98.5, z: 147.1 }, hard: false,
     margin: true, fallback: 'I have checked step four eleven times.' },
   { id: 'page-m2', order: 11, floorId: null, biome: 'tidepool', at: { x: 152.0, z: 147.0 }, hard: true,
     margin: true, fallback: 'If I am wrong about this I am not anything.' },

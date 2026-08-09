@@ -273,10 +273,28 @@ export function rigFlags(state, out = {}) {
  *        pure function of its four arguments (the fourth is the sim clock,
  *        which lives in the state) or replays stop matching.
  */
-export function createTraversalController(collisionWorld, tuning = {}, field = {}) {
+export function createTraversalController(collisionWorld, tuning = {}, field = {}, opts = {}) {
   const t = { ...DEFAULT_TUNING, ...DEFAULT_TRAVERSAL_TUNING, ...tuning };
-  // The base controller filters this down to its own seven keys itself.
-  const base = createController(collisionWorld, t);
+  // ── THE WALK BASE, INJECTABLE ────────────────────────────────────────────
+  // This machine owns climb / mantle / glide / swim and delegates WALKING to a
+  // base controller. By default that is controller.js — the plain mover this
+  // module was written against.
+  //
+  // A host may hand in something richer (gameFeel.js: apex hang, variable
+  // height, skid turns, landing squash) either as an instance or as a factory
+  // `(collisionWorld, mergedTuning) => controller`. The factory form exists
+  // because createIslandTraversal builds its OWN collision world (rafts have to
+  // be inside it before the controller is made), so the caller cannot construct
+  // the base itself without duplicating that assembly.
+  //
+  // WHY THE BASE MUST BE THE INNER LAYER: only stepWalk() knows how to leave
+  // walking — a face latched, a canopy opened, a foot off the beach into deep
+  // water. A feel controller wrapped OUTSIDE this one would answer every walk
+  // frame itself and those four transitions would never be reached, which is
+  // exactly how traversal ended up shipped and unreachable once already.
+  const base = typeof opts.base === 'function'
+    ? opts.base(collisionWorld, t)
+    : (opts.base || createController(collisionWorld, t));
   const slopeCos = Math.cos((t.slopeLimitDeg * Math.PI) / 180);
   // Mantles are judged against a slightly relaxed limit — see mantleSlack.
   const mantleCos = Math.cos(((t.slopeLimitDeg + t.mantleSlack) * Math.PI) / 180);
@@ -297,6 +315,23 @@ export function createTraversalController(collisionWorld, tuning = {}, field = {
     const v = thermalAt(x, y, z, simT);
     if (!Number.isFinite(v) || v <= 0) return 0;
     return Math.min(v * t.thermalGain, t.thermalMax);
+  }
+
+  /**
+   * Carry a richer base controller's OWN fields under a traversal state.
+   *
+   * mk() deliberately enumerates every field it knows, which is what keeps the
+   * five-mode record honest — but it also means a base whose state is a strict
+   * SUPERSET of controller.js's (gameFeel's momentum, timers, squash channels
+   * and one-frame event record) would have that superset erased on every walk
+   * frame, and the feel controller would re-derive itself from pos/vel forever.
+   *
+   * Only WALK goes through here. Entering climb/glide/swim intentionally drops
+   * the ground game's state: the base rebuilds it from pos/vel on the frame the
+   * feet come back down, which is exactly what should happen.
+   */
+  function withBase(b, s) {
+    return b === s ? s : { ...b, ...s };
   }
 
   /**
@@ -340,7 +375,8 @@ export function createTraversalController(collisionWorld, tuning = {}, field = {
   function normalize(state) {
     if (state && typeof state.mode === 'string' && typeof state.simT === 'number') return state;
     if (state && typeof state.mode === 'string') return { ...mk(state, {}), ...state, simT: 0 };
-    return mk(state || { pos: { x: 0, y: 0, z: 0 }, vel: { x: 0, y: 0, z: 0 }, yaw: 0 }, {});
+    const b = state || { pos: { x: 0, y: 0, z: 0 }, vel: { x: 0, y: 0, z: 0 }, yaw: 0 };
+    return withBase(b, mk(b, {}));
   }
 
   /**
@@ -572,7 +608,20 @@ export function createTraversalController(collisionWorld, tuning = {}, field = {
     // Sprinting is the pool's other customer. Out of stamina, the run button
     // is simply ignored — never a stumble, never a stagger.
     const canRun = !!input.run && !s.tired && s.stamina > 0;
-    const b = base.step(s, { x: ix, y: iz, jump: !!input.jump, run: canRun }, dt);
+    // `z` and `jumpHeld`/`fastFall` are forwarded blind: controller.js ignores
+    // keys it does not know, and gameFeel.js needs all three (z is its own
+    // spelling of y, jumpHeld is what makes a jump variable-height, fastFall is
+    // the stick-down drop). Passing them unconditionally keeps this call site
+    // from having to know which base it got.
+    const b = base.step(s, {
+      x: ix,
+      y: iz,
+      z: iz,
+      jump: !!input.jump,
+      jumpHeld: input.jumpHeld,
+      fastFall: !!input.fastFall,
+      run: canRun,
+    }, dt);
 
     // Stamina bookkeeping first: every transition below wants the post-frame
     // pool (a latch must be paid for out of what is left this frame).
@@ -624,7 +673,11 @@ export function createTraversalController(collisionWorld, tuning = {}, field = {
       return deployGlide(b, carry, st.stamina, st.tired, airTime, true);
     }
 
-    return mk(carry, {
+    // The base's OWN fields ride underneath: a richer walk controller keeps its
+    // momentum, its timers and its one-frame event record across the frame,
+    // and mk()'s traversal fields still win every key they name. With the
+    // default controller.js base this spread is a no-op.
+    return withBase(b, mk(carry, {
       pos: b.pos,
       vel: b.vel,
       yaw: b.yaw,
@@ -639,7 +692,7 @@ export function createTraversalController(collisionWorld, tuning = {}, field = {
       // Without this the auto-canopy re-opens what the player just closed and
       // the fold button does nothing.
       autoOff: b.grounded ? false : s.autoOff,
-    });
+    }));
   }
 
   // ── CLIMB ──────────────────────────────────────────────────────────────
@@ -1036,7 +1089,7 @@ export function createTraversalController(collisionWorld, tuning = {}, field = {
   /** Fresh state with feet on the ground — or afloat, if that is deep water. */
   function spawnState(opts = {}) {
     const b = base.spawnState(opts);
-    const s = mk(b, {});
+    const s = withBase(b, mk(b, {}));
     if (depthAt(b.pos.x, b.pos.z) >= t.swimDepth) {
       return { ...enterSwim(s, t.staminaMax, false), event: null };
     }

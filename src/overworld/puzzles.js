@@ -121,7 +121,11 @@ export function validatePuzzle(spec) {
     if (typeof s.target !== 'number' || s.target <= 0) problems.push('sum needs a positive target');
     const vals = s.plates.map((p) => p.value);
     if (vals.some((v) => typeof v !== 'number' || v <= 0)) problems.push('sum plates need positive values');
-    if (!subsetReaches(vals, s.target)) problems.push(`sum target ${s.target} is unreachable from the plates`);
+    // Same BigInt guard as `balance` below: only ask subsetReaches about whole
+    // positive numbers, or the authoring check throws instead of reporting.
+    if (Number.isInteger(s.target) && s.target > 0 && vals.every((v) => Number.isInteger(v) && v > 0)) {
+      if (!subsetReaches(vals, s.target)) problems.push(`sum target ${s.target} is unreachable from the plates`);
+    }
   }
   if (s.kind === 'oddOne') {
     if (!s.items.some((i) => i.id === s.oddId)) problems.push('oddOne has no odd item');
@@ -134,8 +138,15 @@ export function validatePuzzle(spec) {
     const vals = s.weights.map((w) => w.value);
     if (vals.some((v) => typeof v !== 'number' || v <= 0)) problems.push('balance weights must be positive');
     const total = vals.reduce((a, b) => a + b, 0);
-    if (total % 2 !== 0) problems.push('balance total is odd — the pans can never level');
-    if (!subsetReaches(vals, total / 2)) problems.push('balance cannot be split into two equal pans');
+    const halvable = total % 2 === 0;
+    if (!halvable) problems.push('balance total is odd — the pans can never level');
+    // Only ask the subset solver a question it can answer. subsetReaches works
+    // in BigInt shifts, so a half-integer target (odd total) or a fractional
+    // weight makes it THROW — and an authoring guard that crashes on bad data
+    // instead of reporting it is worse than no guard at all.
+    if (halvable && vals.every((v) => Number.isInteger(v) && v > 0)) {
+      if (!subsetReaches(vals, total / 2)) problems.push('balance cannot be split into two equal pans');
+    }
   }
   if (s.kind === 'mirror') {
     for (const m of s.mirrors) {
@@ -148,6 +159,56 @@ export function validatePuzzle(spec) {
     }
   }
   return problems;
+}
+
+/**
+ * A subset of `items` summing to exactly `target`, chosen to AGREE as much as
+ * possible with where the pieces already are.
+ *
+ * `inSet` are ids currently in the subset's position (pressed plates, crates in
+ * the left pan); `outSet` are ids currently in the complement's position
+ * (crates in the right pan). A piece that is in neither — an unpressed plate, a
+ * crate still on the ground — agrees with nothing and will always be asked to
+ * move, which is correct.
+ *
+ * Scoring agreement over BOTH sides is what makes the hint sequence terminate.
+ * Each hint moves one disagreeing piece into agreement, so the best achievable
+ * agreement rises by at least one every step and is bounded by the piece count;
+ * scoring only one side lets the chosen subset flip between two equally good
+ * partitions and the player is sent back and forth forever.
+ *
+ * Exhaustive over subsets, which is correct and instant at authored sizes: the
+ * largest puzzle here has six pieces, so 64 combinations.
+ *
+ * @returns {?Set<string>} ids in the subset, or null when target is unreachable
+ */
+function bestSubset(items, target, inSet = [], outSet = []) {
+  const inS = inSet instanceof Set ? inSet : new Set(inSet);
+  const outS = outSet instanceof Set ? outSet : new Set(outSet);
+  const n = items.length;
+  if (n > 20) return null; // guard: this is not a solver for arbitrary data
+  let best = null;
+  let bestScore = -Infinity;
+  for (let mask = 0; mask < (1 << n); mask++) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) if (mask & (1 << i)) sum += items[i].value;
+    if (sum !== target) continue;
+    let agree = 0;
+    let size = 0;
+    for (let i = 0; i < n; i++) {
+      const id = items[i].id;
+      if (mask & (1 << i)) { size++; if (inS.has(id)) agree++; }
+      else if (outS.has(id)) agree++;
+    }
+    // Agreement dominates; a short route is only the tie-break, because fewer
+    // stones to run between is kinder but never worth undoing correct work.
+    const score = agree * 100 - size;
+    if (score > bestScore) { bestScore = score; best = mask; }
+  }
+  if (best === null) return null;
+  const out = new Set();
+  for (let i = 0; i < n; i++) if (best & (1 << i)) out.add(items[i].id);
+  return out;
 }
 
 /** Subset-sum over small positive integer sets. Authoring guard, not hot. */
@@ -433,38 +494,53 @@ export function hintFor(spec, state) {
       return { id: want.id, move: { type: 'activate', id: want.id }, why: 'lowest-unlit' };
     }
     case 'sum': {
-      const need = s.target - state.sum;
-      if (need === 0) return null;
-      if (need > 0) {
-        const off = s.plates.filter((p) => !state.on.includes(p.id) && p.value <= need);
-        if (off.length) {
-          const best = off.reduce((a, b) => (b.value > a.value ? b : a));
-          return { id: best.id, move: { type: 'press', id: best.id }, why: 'step-on' };
-        }
+      if (state.sum === s.target) return null;
+      // Aim at a REAL solution rather than greedily grabbing the biggest plate
+      // that fits. Greedy livelocks: with plates 1,3,5,6 and a target of 8 it
+      // presses 6, presses 1, releases 6, presses 6 ... forever, and a child
+      // following the glow never gets there. `bestSubset` picks an actual
+      // subset that sums to the target and overlaps what is already pressed as
+      // much as possible, so every hint strictly reduces the number of plates
+      // in the wrong position and the sequence always terminates.
+      const off = s.plates.filter((p) => !state.on.includes(p.id)).map((p) => p.id);
+      const goal = bestSubset(s.plates, s.target, state.on, off);
+      if (!goal) return null;
+      // Step OFF wrong plates first: it is the move that can never overshoot,
+      // and standing on a plate you must leave is the commonest way to be stuck.
+      for (const id of state.on) {
+        if (!goal.has(id)) return { id, move: { type: 'release', id }, why: 'step-off' };
       }
-      const on = s.plates.filter((p) => state.on.includes(p.id));
-      if (on.length) {
-        const worst = on.reduce((a, b) => (b.value > a.value ? b : a));
-        return { id: worst.id, move: { type: 'release', id: worst.id }, why: 'step-off' };
+      for (const p of s.plates) {
+        if (goal.has(p.id) && !state.on.includes(p.id)) {
+          return { id: p.id, move: { type: 'press', id: p.id }, why: 'step-on' };
+        }
       }
       return null;
     }
     case 'oddOne':
       return { id: s.oddId, move: { type: 'pick', id: s.oddId }, why: 'the-odd-one' };
     case 'balance': {
-      const target = s.weights.reduce((a, w) => a + w.value, 0) / 2;
-      const reading = balanceReading(s, state);
-      const unplaced = s.weights.filter((w) => !state.left.includes(w.id) && !state.right.includes(w.id));
-      if (unplaced.length) {
-        // Fill the lighter pan first, largest crate that still fits under half.
-        const lighter = reading.left <= reading.right ? 'left' : 'right';
-        const room = target - (lighter === 'left' ? reading.left : reading.right);
-        const fits = unplaced.filter((w) => w.value <= room);
-        const pick = (fits.length ? fits : unplaced).reduce((a, b) => (b.value > a.value ? b : a));
-        return { id: pick.id, move: { type: 'place', id: pick.id, pan: lighter }, why: 'load-the-light-pan' };
+      const total = s.weights.reduce((a, w) => a + w.value, 0);
+      if (total % 2 !== 0) return null;
+      // Aim at a REAL partition, for the same reason `sum` does. Filling the
+      // lighter pan with the biggest crate that fits is greedy and livelocks:
+      // with crates 2,3,4,5,6 it loads to 9 v 9 with the 2 left over, then
+      // lifts it, then loads it again, forever. `bestSubset` names one pan's
+      // exact contents up front and every hint moves one crate to the side it
+      // finally belongs on, so the number of misplaced crates strictly falls.
+      const goal = bestSubset(s.weights, total / 2, state.left, state.right);
+      if (!goal) return null;
+      for (const w of s.weights) {
+        const wantLeft = goal.has(w.id);
+        const onLeft = state.left.includes(w.id);
+        const onRight = state.right.includes(w.id);
+        if (wantLeft && !onLeft) {
+          return { id: w.id, move: { type: 'place', id: w.id, pan: 'left' }, why: 'belongs-left' };
+        }
+        if (!wantLeft && !onRight) {
+          return { id: w.id, move: { type: 'place', id: w.id, pan: 'right' }, why: 'belongs-right' };
+        }
       }
-      const heavy = reading.left > reading.right ? state.left : state.right;
-      if (heavy.length) return { id: heavy[heavy.length - 1], move: { type: 'lift', id: heavy[heavy.length - 1] }, why: 'lighten-the-heavy-pan' };
       return null;
     }
     case 'mirror': {
