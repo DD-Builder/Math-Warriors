@@ -35,7 +35,7 @@
  * voice still routes through the song gain → music bus → master limiter.
  */
 
-import { getCtx, getMusicBus, unlockAudio, isMuted } from './audioGraph.js';
+import { getCtx, getMusicBus, unlockAudio, isMuted, MAX_FEEDBACK } from './audioGraph.js';
 import { createInstrument } from './instruments.js';
 import { buildTimeline, beatsToSec, secToBeats } from './songCursor.js';
 import { createScheduler } from './scheduler.js';
@@ -77,7 +77,10 @@ function buildSongGraph(song) {
   const delay = ctx.createDelay(2);
   delay.delayTime.value = beatsToSec(fx.delayBeats ?? 0.75, song.bpm);
   const fbGain = ctx.createGain();
-  fbGain.gain.value = fx.delayFb ?? 0.3;
+  // Song data cannot ask for an unstable loop: hard-clamped at the global
+  // stability bound. This loop has no filter inside it, so its round-trip
+  // gain is exactly this value.
+  fbGain.gain.value = Math.min(MAX_FEEDBACK, Math.max(0, fx.delayFb ?? 0.3));
   const wet = ctx.createGain();
   wet.gain.value = fx.delayWet ?? 0.25;
   delay.connect(fbGain); fbGain.connect(delay);

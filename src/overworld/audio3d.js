@@ -350,6 +350,20 @@ export function wetTarget({ indoors = false, enclosure = null } = {}) {
 export const LOOP_VOICES = ['hum', 'burble', 'waterfall', 'chime', 'crackle', 'bell'];
 export const ONESHOT_VOICES = ['coin', 'chime', 'sparkle', 'splash', 'thud', 'step', 'whoosh', 'warp'];
 
+/**
+ * Reverb-lite feedback gain — the ONE feedback path in this module, a stereo
+ * ping-pong ring (see buildReverb). Exported so audioStability.test.js can
+ * assert it stays below the global stability bound (0.6). The old topology
+ * was a cross-coupled delay pair whose worst-case loop gain (including the
+ * damping lowpasses' default +1 dB resonant peaks) reached ~0.63; after the
+ * harp runaway the rule is: no loop whose gain anyone has to *estimate*.
+ */
+export const REVERB_FB = 0.45;
+/** Damping lowpass inside the loop. Q is in dB — held BELOW 0 so the filter
+ *  can never add gain at any frequency inside the feedback ring. */
+export const REVERB_DAMP_HZ = 2200;
+export const REVERB_DAMP_Q_DB = -6;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RUNTIME  (touches WebAudio — only ever from inside createAudio3D)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -437,43 +451,46 @@ export function createAudio3D(opts = {}) {
   // ── Graph construction ─────────────────────────────────────────────────
 
   /**
-   * Reverb-lite: a cross-coupled feedback delay pair.
+   * Reverb-lite: a stereo PING-PONG delay — one ring, one feedback gain.
    *
    * A real ConvolverNode wants an impulse response, i.e. a FILE, and this game
-   * has none. Two short delays feeding each other through a damping lowpass,
-   * spread hard left and right, give roughly 0.9 s of diffuse tail for ten
-   * nodes and no assets. It is not a concert hall. It is exactly enough to
-   * make a cave sound like a cave and a meadow sound like open air, which is
-   * the only distinction the game needs.
+   * has none. The ring is
    *
-   * Loop gain is fb1*fb2 = 0.50 per ~90 ms round trip. Well short of unity, so
-   * it cannot run away — and even if it somehow did, the master limiter is
-   * still downstream.
+   *     in ── d1 ── d2 ── damp(lowpass, Q<0 dB) ── fb(REVERB_FB) ──▶ d1
+   *           │      │
+   *          panL   panR ──▶ wetOut
+   *
+   * ~90 ms round trip, taps spread hard left/right so the tail is WIDE. It is
+   * not a concert hall; it is exactly enough to make a cave sound like a cave.
+   *
+   * STABILITY BY CONSTRUCTION: exactly one feedback gain (REVERB_FB = 0.45)
+   * and the damping filter's Q is pinned below 0 dB, so the round-trip gain is
+   * < 0.45 at every frequency — no cross-terms, nothing to estimate. The old
+   * cross-coupled pair (fb 0.72 × 0.70 plus two default-Q resonant peaks) had
+   * a worst case of ~0.63 and, like any feedback delay, would have latched a
+   * NaN forever. The stability test pins REVERB_FB under the 0.6 bound.
    */
   function buildReverb(out) {
     const inGain = ctx.createGain();
     inGain.gain.value = 1;
     const d1 = ctx.createDelay(0.2); d1.delayTime.value = 0.0371;
     const d2 = ctx.createDelay(0.2); d2.delayTime.value = 0.0533;
-    const damp1 = ctx.createBiquadFilter();
-    damp1.type = 'lowpass'; damp1.frequency.value = 2400;
-    const damp2 = ctx.createBiquadFilter();
-    damp2.type = 'lowpass'; damp2.frequency.value = 2000;
-    const fb1 = ctx.createGain(); fb1.gain.value = 0.72;
-    const fb2 = ctx.createGain(); fb2.gain.value = 0.70;
-    inGain.connect(d1); inGain.connect(d2);
-    d1.connect(damp1); damp1.connect(fb1); fb1.connect(d2);
-    d2.connect(damp2); damp2.connect(fb2); fb2.connect(d1);
+    const damp = ctx.createBiquadFilter();
+    damp.type = 'lowpass';
+    damp.frequency.value = REVERB_DAMP_HZ;
+    damp.Q.value = REVERB_DAMP_Q_DB;
+    const fb = ctx.createGain(); fb.gain.value = REVERB_FB;
+    inGain.connect(d1);
+    d1.connect(d2);
+    d2.connect(damp); damp.connect(fb); fb.connect(d1);
     const wetOut = ctx.createGain();
     wetOut.gain.value = 0.85;
-    // Spread the two taps so the tail is WIDE. A mono reverb just sounds like
-    // the dry signal got muddy; a wide one sounds like a room.
     const p1 = makePanner2D(-0.65);
     const p2 = makePanner2D(0.65);
     d1.connect(p1); p1.connect(wetOut);
     d2.connect(p2); p2.connect(wetOut);
     wetOut.connect(out);
-    return { inGain, nodes: [inGain, d1, d2, damp1, damp2, fb1, fb2, wetOut, p1, p2] };
+    return { inGain, nodes: [inGain, d1, d2, damp, fb, wetOut, p1, p2] };
   }
 
   /** StereoPanner where available; a plain gain passthrough where not. */

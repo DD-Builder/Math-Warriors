@@ -48,6 +48,15 @@
 /** Peak summed gain any single instant of a plan is allowed to reach. */
 export const GAIN_CAP = 0.55;
 
+/**
+ * Feedback gain of the shared shimmer/echo send that synthAudio builds — the
+ * ONE feedback path this library's sounds ever touch. Lives here (with the
+ * sound data) so audioStability.test.js can assert it stays below the global
+ * stability bound of 0.6: a feedback loop above that is how the harp runaway
+ * turned a children's game into a machine scream, and it never happens again.
+ */
+export const SEND_FB = 0.3;
+
 const TONE_DEFAULTS = {
   kind: 'tone',
   t: 0,            // start offset from the trigger, seconds

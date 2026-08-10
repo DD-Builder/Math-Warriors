@@ -92,15 +92,22 @@ export const CONTROLS = {
                         // runAt), because keyboards have a Shift for the rest
   padDead: 0.22,        // gamepad sticks rest noisier than a touchscreen
 
-  // ── MOVEMENT: mass ────────────────────────────────────────────────────
-  // Fractions of run speed per second. The hero is a kid in a cape, not a
-  // crate: quick off the mark, quicker to stop.
-  accel: 6.5,           // 0 -> full in ~155 ms. Any slower reads as ice.
-  decel: 9.0,           // full -> 0 in ~110 ms. Any slower overshoots ledges.
+  // ── MOVEMENT: input shaping ───────────────────────────────────────────
+  // Fractions of run speed per second. IMPORTANT: the sim (gameFeel.js) runs
+  // the ONE real momentum model — accel 55, brake 70, drag 68 on ground. This
+  // filter therefore only takes the digital edge off the stick; it must be
+  // FAST, because two stacked inertia filters is exactly the floaty, sliding,
+  // overshooting hero a playtest called "abysmal" (measured: 1.57 m of coast
+  // where the tables promised 0.47 m).
+  accel: 11,            // 0 -> full in ~90 ms — a shaping ramp, not a mass
+  decel: 26,            // full -> 0 in ~38 ms: release means STOP ASKING;
+                        // the visible coast is gameFeel's drag, and only its
   airAccel: 2.4,        // mid-air steering is a nudge, not a rethink
   airDecel: 1.6,        // and you keep your momentum across a gap
-  turnRate: 9.5,        // rad/s of heading change at full tilt — responsive,
-                        // but with enough arc that a run has weight
+  turnRate: 14,         // rad/s of heading change at full tilt. gameFeel arcs
+                        // the BODY; this only aims the request, so it must
+                        // never be the slower of the two (that is how an
+                        // optimal-path walk overshoots a portal twice)
   turnBoostStill: 2.4,  // multiplier as speed -> 0: pivoting on the spot is
                         // instant, so nudging a direction never feels laggy
   reverseAngle: 2.36,   // rad (135 deg): past this a flick is a REVERSAL...
@@ -114,30 +121,38 @@ export const CONTROLS = {
                         // on touchdown — makes bunny-hopping actually work
 
   // ── CAMERA ORBIT ──────────────────────────────────────────────────────
-  lookScaleX: 0.0062,   // rad per px of drag: a half-screen swipe (~700 px)
-                        // is a bit over a quarter turn. Slower feels stuck.
-  lookScaleY: 0.0040,   // pitch is deliberately SLOWER than yaw — vertical
+  lookScaleX: 0.0023,   // rad per px of drag: a half-screen swipe (~700 px)
+                        // is a bit over a quarter turn (700 x 0.0023 = 92°).
+                        // The old 0.0062 measured 179° for a 400 px drag —
+                        // two casual swipes and a child has no idea which way
+                        // they face. THIS NUMBER IS THE "abysmal" FIX.
+  lookScaleY: 0.0015,   // pitch is deliberately SLOWER than yaw — vertical
                         // overshoot is what makes players seasick
   lookInvertY: false,   // finger direction == view direction by default
   lookDeadPx: 6,        // px of slop before a tap becomes a drag, so tapping
                         // the ACTION button never jogs the camera
   padLookX: 2.8,        // rad/s at full right-stick deflection
   padLookY: 1.7,
-  mouseScaleX: 0.0032,  // pointer-lock mouse look, a touch finer than a thumb
-  mouseScaleY: 0.0024,
+  mouseScaleX: 0.0016,  // pointer-lock mouse look, a touch finer than a thumb
+  mouseScaleY: 0.0011,
   pitchMin: -0.35,      // rad BELOW the rig's base elevation: a low, heroic
                         // up-angle at the hero's shoulders
   pitchMax: 0.80,       // rad above: near top-down, for reading a platform gap
-  orbitDamp: 6.8,       // 1/s decay of flick inertia — the orbit coasts about
-                        // a third of a second after the thumb lifts
-  orbitFlickMax: 6.0,   // rad/s cap on that coast, so a frantic swipe on a
-                        // dropped frame cannot spin the world
-  recentreDelay: 1.15,  // s of untouched camera before it starts drifting back
+  orbitDamp: 12,        // 1/s decay of flick inertia — the coast is a soft
+                        // landing (~80 ms), never a spin that keeps going
+                        // after the finger has stopped
+  orbitFlickMax: 1.2,   // rad/s cap on that coast. Measured on the old 6.0:
+                        // up to ~0.9 rad of uncommanded swing per flick — the
+                        // camera was "almost never where the player put it"
+  recentreDelay: 2.2,   // s of untouched camera before it starts drifting back
                         // behind the hero. Long enough that deliberately
                         // looking sideways while walking is not fought.
   recentreEase: 0.9,    // s to ramp the recentre up to full rate: it arrives
                         // as a drift, never as a yank
-  recentreRate: 1.9,    // rad/s max recentre speed while running
+  recentreRate: 0.85,   // rad/s max recentre speed while running — an assist,
+                        // never an author. A recentre a child can feel fight
+                        // their thumb changes what "up on the stick" means
+                        // mid-walk, which is the worst bug a camera can have.
   recentrePitch: 1.1,   // 1/s ease of pitch back to the base framing
   zoomMin: 0.62,        // boom multipliers. In tight for a close-up...
   zoomMax: 1.85,        // ...out for "where am I", never far enough to lose
@@ -153,6 +168,15 @@ export const CONTROLS = {
   actionX: GAME_WIDTH - 380,
   actionY: GAME_HEIGHT - 330,
   actionR: 76,          // up-left of jump, thumb-reachable without covering it
+  abilityX: GAME_WIDTH - 380,   // the party verb (SHOVE / LIFT / DROP) —
+  abilityY: GAME_HEIGHT - 150,  // below ACTION, left of JUMP, its own colour
+  abilityR: 64,
+  swapX: 610,           // the party ring: outside the stick capture disc but
+  swapY: GAME_HEIGHT - 140,     // still on the movement thumb's side
+  swapR: 56,
+  diveX: GAME_WIDTH - 570,      // shown ONLY while swimming: hold to go under
+  diveY: GAME_HEIGHT - 150,
+  diveR: 64,
   buttonPad: 26,        // px of extra no-camera-drag margin around a button,
                         // so a fat-fingered tap never also spins the view
 };
@@ -497,7 +521,10 @@ export function actionLabel(near) {
 
 // ── PURE: gamepad ───────────────────────────────────────────────────────
 
-const PAD_OUT = { x: 0, y: 0, camX: 0, camY: 0, run: false, jumpPressed: false, actionPressed: false };
+const PAD_OUT = {
+  x: 0, y: 0, camX: 0, camY: 0, run: false, jumpPressed: false, actionPressed: false,
+  jumpDown: false, dive: false, abilityPressed: false, abilityDown: false, swapPressed: false,
+};
 
 /**
  * Standard-mapping gamepad -> the `pad` fragment resolveInput wants.
@@ -508,6 +535,7 @@ export function readGamepad(pad, prev = null, out = PAD_OUT) {
   out.x = 0; out.y = 0; out.camX = 0; out.camY = 0;
   out.run = false; out.jumpPressed = false; out.actionPressed = false;
   out.jumpDown = false; out.dive = false;
+  out.abilityPressed = false; out.abilityDown = false; out.swapPressed = false;
   if (!pad) return out;
   const ax = pad.axes || [];
   const b = pad.buttons || [];
@@ -529,7 +557,12 @@ export function readGamepad(pad, prev = null, out = PAD_OUT) {
   // are levels, not edges — see the touch pad's jumpDown for the same reason.
   out.jumpDown = down(0);
   out.dive = down(1);                          // B
-  out.actionPressed = edge(2) || edge(1);      // X or B
+  out.actionPressed = edge(3) || edge(1);      // Y or a tapped B
+  // X is the party verb (BINDINGS in abilities.js: ability = pad 2), both as
+  // an edge (a SHOVE) and a level (LEVITATE is a hold). LB cycles the ring.
+  out.abilityPressed = edge(2);
+  out.abilityDown = down(2);
+  out.swapPressed = edge(4);
   return out;
 }
 

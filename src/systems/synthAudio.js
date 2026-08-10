@@ -26,7 +26,7 @@
 
 import { getCtx, unlockAudio, getSfxBus, getMusicBus } from './music/audioGraph.js';
 import {
-  buildSfx, hasSfx, resolveSfxKey, createChain, GLIDE_WIND,
+  buildSfx, hasSfx, resolveSfxKey, createChain, GLIDE_WIND, SEND_FB,
   attackKeyForClass, setFootstepSurface, getFootstepSurface,
   resetFootsteps, resolveSurface, surfaceForTile,
 } from './sfxLibrary.js';
@@ -71,10 +71,14 @@ function getSendBus() {
   const delay = ctx.createDelay(0.5);
   delay.delayTime.value = 0.092;
   const fb = ctx.createGain();
-  fb.gain.value = 0.3;
+  fb.gain.value = SEND_FB;               // < 0.6 stability bound, tested
   const damp = ctx.createBiquadFilter();
   damp.type = 'lowpass';
   damp.frequency.value = 3400;
+  // Q is in dB for lowpass; below 0 so the filter INSIDE the feedback loop
+  // can never add gain at any frequency (the default +1 dB peak is what
+  // pushed the harp's loop over unity).
+  damp.Q.value = -6;
   const out = ctx.createGain();
   out.gain.value = 0.32;
   input.connect(delay);

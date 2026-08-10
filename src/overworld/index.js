@@ -1771,8 +1771,13 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   // Both are part of the pure step output, so a replay reproduces every sound
   // and every puff of dust exactly.
 
-  /** Metres of ground covered per footfall. Two per stride at heroRig's rate. */
-  const STRIDE_M = 0.98;
+  /**
+   * Metres of ground covered per footfall — distance-paced, NEVER per frame.
+   * A walking child takes shorter steps than a sprinting one: ~0.7 m at a
+   * walk, ~1.0 m at a run, matching heroRig's visible gait.
+   */
+  const STRIDE_WALK_M = 0.7;
+  const STRIDE_RUN_M = 1.0;
   /** Distance banked since the last footstep. */
   let strideAcc = 0;
   /** Was the glide wind bed open last frame? */
@@ -1835,14 +1840,15 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     // footfalls per metre or the feet audibly skate. Same rule heroRig's
     // stride phase uses, so the sound lands with the visible foot.
     if (player.grounded && player.mode === MODES.WALK) {
+      const strideLen = input.run ? STRIDE_RUN_M : STRIDE_WALK_M;
       strideAcc += Math.hypot(player.vel.x, player.vel.z) * dt;
-      if (strideAcc >= STRIDE_M) {
-        strideAcc %= STRIDE_M;
+      if (strideAcc >= strideLen) {
+        strideAcc %= strideLen;
         sfxFootstep(surf, { run: !!input.run });
       }
     } else {
       // Land mid-stride and the next step is a fresh one.
-      strideAcc = STRIDE_M * 0.5;
+      strideAcc = STRIDE_WALK_M * 0.5;
     }
 
     // ── traversal: climb, glide, swim ────────────────────────────────────
