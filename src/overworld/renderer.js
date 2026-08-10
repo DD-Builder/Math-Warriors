@@ -83,11 +83,16 @@ export function createRenderer({ game, onContextLost, onContextRestored }) {
   let drawFn = null;          // (simTime, alpha) => void — render
 
   function frame(nowMs) {
-    if (typeof window !== 'undefined') window.__MW_RIG_FRAMES = (window.__MW_RIG_FRAMES || 0) + 1;
     rafId = running ? requestAnimationFrame(frame) : null;
     if (contextLost) return;
     const now = nowMs / 1000;
-    let delta = Math.min(now - last, MAX_FRAME);
+    // CLAMPED ON BOTH SIDES. The rAF timestamp is the frame's vsync time and
+    // can lag the performance.now() that seeded `last` in start() — by
+    // milliseconds at 60 fps, by SECONDS when software rendering pushes a
+    // frame past a second. An unclamped negative delta banks a DEBT in the
+    // accumulator that the sim must pay off before it ever steps: measured
+    // -3.3 s under SwiftShader, which read as "the world never starts".
+    let delta = Math.max(0, Math.min(now - last, MAX_FRAME));
     last = now;
     if (frozen) { drawFn?.(simTime, 0); return; }
     accumulator += delta;

@@ -178,6 +178,10 @@ export class OverworldScene extends Phaser.Scene {
           onBattleVictory: (r) => this._onBattleVictory(r),
           onBattleDefeat: (r) => this._onBattleDefeat(r),
           onBattleEnd: (r) => this._onBattleEnd(r),
+          // Walking into a roaming island creature (creatures.js) is a real
+          // encounter: same battle path as a floor's monster tile, difficulty
+          // keyed to the floor the creature's species belongs to.
+          onCreatureEncounter: (enemyId, info) => this._onCreatureEncounter(enemyId, info),
 
           // ── THE PRESENTATION HOOKS ─────────────────────────────────────
           // Every one of these is EMITTED by the 3D runtime whether or not
@@ -1325,12 +1329,32 @@ export class OverworldScene extends Phaser.Scene {
    * @param {object} [obj]      the rule object walked into — its world
    *                            position is where the battle line is drawn
    */
+  /**
+   * A roaming island creature touched the hero (creatures.js contact rule).
+   * Same fight, same overlay, same rewards as a floor encounter — the world
+   * position keeps the battle line where the creature actually stood, and the
+   * creature's home floor sets the difficulty.
+   */
+  _onCreatureEncounter(enemyId, info = {}) {
+    if (this._destroyed || this.app?.battleActive?.()) return;
+    playSfx('world/encounter');
+    this._startBattle(false, undefined, {
+      worldX: info.x,
+      worldZ: info.z,
+      floorHint: info.floor,
+    });
+  }
+
   _startBattle(isBoss, enemyId, obj = null) {
     if (this.app?.battleActive?.()) return;
 
     const party = (this.party || []).filter((h) => h && h.hp > 0);
+    // `floorHint` lets an ISLAND encounter (a roaming creature) borrow the
+    // difficulty of the floor its species belongs to; inside a floor the
+    // floor itself wins.
+    const floorNum = this.floorId || obj?.floorHint || 1;
     const enemies = composeEncounter({
-      floor: this.floorId || 1,
+      floor: floorNum,
       grade: this.save.grade,
       isBoss: !!isBoss,
       enemyId: isBoss ? enemyId : null,
@@ -1348,7 +1372,7 @@ export class OverworldScene extends Phaser.Scene {
         enemies,
         party,
         isBoss: !!isBoss,
-        floor: this.floorId || 1,
+        floor: floorNum,
         grade: this.save.grade,
         worldPos: obj && Number.isFinite(obj.worldX)
           ? { x: obj.worldX, y: 0, z: obj.worldZ }
