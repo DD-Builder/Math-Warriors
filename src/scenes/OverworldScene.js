@@ -38,6 +38,7 @@ import {
   goldenGate, exitGate, advanceChallenge, challengeGoal, grantChest, grantGold,
   grantPotion, useFountain, syncPartyToSave, objectiveText,
 } from '../overworld/floorRules.js';
+import { momentTitle } from '../overworld/progression.js';
 
 /** Bump when the 3D floor snapshot shape changes; stale ones are discarded. */
 const FLOOR3D_SCHEMA = 1;
@@ -177,6 +178,27 @@ export class OverworldScene extends Phaser.Scene {
           onBattleVictory: (r) => this._onBattleVictory(r),
           onBattleDefeat: (r) => this._onBattleDefeat(r),
           onBattleEnd: (r) => this._onBattleEnd(r),
+
+          // ── THE PRESENTATION HOOKS ─────────────────────────────────────
+          // Every one of these is EMITTED by the 3D runtime whether or not
+          // anyone listens. They shipped once with no receivers — abilities,
+          // discovery, the compass and every progression beat were computed
+          // each frame and silently dropped ("modules wired because imports
+          // exist"). The receivers live here now; keep this list in sync with
+          // the hooks index.js forwards (index.js: abilities + discovery).
+          onHeroSwap: (e) => this._onHeroSwap(e),
+          onAbilityPrompt: (p) => this._onAbilityPrompt(p),
+          onAbilityBlocked: (r, hint) => { if (hint) this._flash(hint); },
+          onAbilityGate: (g, canOpen, who) => this._onAbilityGate(g, canOpen, who),
+          onMoment: (m) => { const t = momentTitle(m); if (t) this._flash(t); },
+          onStagedMoment: (m) => this._onStagedMoment(m),
+          onVista: (f, p) => this._onVista(p),
+          onBanter: () => this._banterT = OverworldScene.BANTER_PERIOD,
+          onPing: (f, p) => { if (p?.line) this._flash(p.line); },
+          onDiscovery: (e) => this._onDiscovery(e),
+          onCompass: (h) => { this._discHint = h || null; },
+          onDiscoveryProgress: (p) => { this._discProgress = p || null; },
+          onToybox: (s) => { this._toyboxStats = s || null; },
         },
       });
     } catch (err) {
@@ -237,6 +259,9 @@ export class OverworldScene extends Phaser.Scene {
         // orbit has to be told where the eye actually landed or it swings.
         this._resyncCamera();
         this.app?.clearFloorTriggerLatch?.();
+        // If that cinematic was a STAGED progression moment, the queue must
+        // hear it finished or it never offers the next one.
+        this.app?.stagedMomentDone?.();
       },
     });
 
@@ -333,6 +358,9 @@ export class OverworldScene extends Phaser.Scene {
         // fire unconditionally on every boot. Skippable, like all of them.
         if (!this.floorId && !this._resumeFloor && this._isFirstArrival()) {
           this._cine?.play(islandArrival({ palace: { x: 0, y: 58, z: 0 } }));
+          // The moment the cinematic clears (or is skipped), turn the camera
+          // at Floor 1's gate and say where to go — see _orientFirstArrival.
+          this._waitThenSay(() => this._orientFirstArrival(), 800);
         }
       },
     });
@@ -413,6 +441,31 @@ export class OverworldScene extends Phaser.Scene {
     });
     this._mapBtn = mapBtn;
     [mapBtn.bg, mapBtn.shadow, mapBtn.label, mapBtn.zone].forEach((o) => o?.setDepth(95).setScrollFactor(0));
+
+    // ── THE PORTAL COMPASS ────────────────────────────────────────────────
+    // A papercut chip on the HUD's top edge whose arrow always points at the
+    // nearest gate the child can PLAY RIGHT NOW, with the distance beside it.
+    // This is the answer to "I never even found a playable level": a portal
+    // 18 m from spawn is undiscoverable when nothing on screen mentions it.
+    // The arrow is bearing-relative to the CAMERA, so "arrow up" always means
+    // "walk forward" — the only compass convention a five-year-old has.
+    {
+      const cx = GAME_WIDTH - 350;
+      const cy = 60;
+      const shadow = this.add.rectangle(cx + 4, cy + 6, 270, 56, PAPER.shadow, 0.30)
+        .setDepth(93).setScrollFactor(0);
+      const plate = this.add.rectangle(cx, cy, 270, 56, PAPER.inkTeal, 0.88)
+        .setStrokeStyle(3, PAPER.gold, 0.55).setDepth(94).setScrollFactor(0);
+      const arrow = this.add.triangle(cx - 105, cy, 0, -15, 12, 10, -12, 10, PAPER.gold)
+        .setDepth(95).setScrollFactor(0);
+      const label = this.add.text(cx - 80, cy, '', {
+        fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+        fontSize: '20px', color: PAPER_CSS.gold,
+      }).setOrigin(0, 0.5).setDepth(95).setScrollFactor(0);
+      const parts = [shadow, plate, arrow, label];
+      parts.forEach((o) => o.setVisible(false));
+      this._compass = { parts, arrow, label };
+    }
 
     // ── THE STAMINA RING ──────────────────────────────────────────────────
     // A papercut arc drawn AROUND THE HERO rather than parked in a corner,
@@ -519,6 +572,58 @@ export class OverworldScene extends Phaser.Scene {
     else this._pulseChip(this._potionChip, this.save.potions || 0);
   }
 
+  // ── Ability / discovery / progression receivers ──────────────────────
+
+  /** The party ring turned: new leader in the field, chips re-read. */
+  _onHeroSwap(e) {
+    playSfx('ui/select');
+    this._flash(`${(e?.to?.name || e?.to?.id || 'HERO').toUpperCase()} LEADS!`);
+    this._chipT = 99; // refresh the touch chips this frame
+  }
+
+  /** "Somebody here can move that" — the ability layer's contextual nudge. */
+  _onAbilityPrompt(p) {
+    const text = p?.hint || p?.text || (p?.verb ? `${p.verb}!` : null);
+    if (!text) return;
+    // Throttled: a prompt re-emitted per frame must not stack toasts.
+    if (this._lastPromptText === text && this.time.now - (this._lastPromptAt || 0) < 4000) return;
+    this._lastPromptText = text;
+    this._lastPromptAt = this.time.now;
+    this._flash(text);
+  }
+
+  _onAbilityGate(g, canOpen) {
+    const name = g?.name || 'THE WAY';
+    this._flash(canOpen ? `${name}: your party can open this!` : `${name} needs a different hero…`);
+  }
+
+  /** A progression moment big enough for the director. True = staged. */
+  _onStagedMoment(m) {
+    const seq = this.app?.cinematicFor?.(m);
+    if (!seq || !this._cine) return false;
+    return this._cine.play(seq) === true;
+  }
+
+  /** A vista fill: the line, the gold, the purse pulse. */
+  _onVista(p) {
+    if (!p) return;
+    if (p.line) this._say([{ speaker: p.name || 'Elara', text: p.line }]);
+    if (p.gold) {
+      this.save.gold = (this.save.gold || 0) + p.gold;
+      writeSave(this.save, this.slot);
+      this._pulseChip(this._goldChip, this.save.gold);
+    }
+  }
+
+  /** A discovery arrival beat — chime, name, reward, persist. */
+  _onDiscovery(e) {
+    playSfx('world/secret');
+    const name = e?.record?.name || 'A DISCOVERY';
+    this._flash(`${name.toUpperCase()} — DISCOVERED!`);
+    if (e?.reward?.gold) this._pulseChip(this._goldChip, this.save.gold || 0);
+    writeSave(this.save, this.slot);
+  }
+
   // ── Portal prompt ──
   _showPortalPrompt(portal) {
     this._nearPortal = portal;
@@ -564,9 +669,21 @@ export class OverworldScene extends Phaser.Scene {
     });
 
     if (route.block === 'no-party') {
+      // A save with fewer than three heroes cannot enter (same gate as the 2D
+      // map). This used to scene.start() mid-frame — from inside the live
+      // input poll — which threw an uncaught "reading 'sys'" TypeError inside
+      // Phaser's scene-start path and left the child at a button that did
+      // nothing. Say WHY, then leave through the same guarded transition every
+      // other exit uses, deferred out of the input callback.
+      if (this._entering) return;
+      this._entering = true;
       audio.play('ui/back');
+      this._flash('You need 3 heroes! Let’s pick your party…');
       this.saveMazeState();
-      this.scene.start(SCENES.PARTY_SELECT, { grade: this.save.grade });
+      this.time.delayedCall(900, () => {
+        if (this._destroyed) return;
+        transitionTo(this, SCENES.PARTY_SELECT, { grade: this.save.grade }, 300, 'fade');
+      });
       return;
     }
     if (route.block === 'locked') {
@@ -734,6 +851,10 @@ export class OverworldScene extends Phaser.Scene {
     this.app?.exitFloor();
     this._resyncCamera();
     this._destroyFloorHud();
+    // A completed floor turns its beacon teal and may have unlocked the next
+    // gate's gold — recolour from the save's fresh truth either way.
+    this.app?.refreshBeacons?.();
+    this._portalTargets = null;
     audio.playMusic('music/map');
   }
 
@@ -1086,6 +1207,10 @@ export class OverworldScene extends Phaser.Scene {
       unlockHero(this.save, obj.heroId);
       writeSave(this.save, this.slot);
       this._saveFloorState();
+      // The party ring re-reads the roster, and the progression sweep gets a
+      // chance to queue the moment this rescue just created.
+      this.app?.refreshParty?.();
+      this.app?.sweepProgress?.();
     };
     const played = this._cine?.play(heroFreed({
       heroId: obj.heroId,
@@ -1165,7 +1290,12 @@ export class OverworldScene extends Phaser.Scene {
    * and offers a child taps that do nothing.
    */
   _setWorldHudVisible(v) {
+    this._hudVisible = v;
     this._controls?.setVisible(v);
+    if (!v && this._compass) {
+      this._compass.parts.forEach((o) => o.setVisible(false));
+      this._compass.shown = false;
+    }
     // The ring belongs to WALKING. A fight has its own HP bars and a stamina
     // arc floating over a battle formation is noise.
     this._stamina?.setVisible(v);
@@ -1325,6 +1455,14 @@ export class OverworldScene extends Phaser.Scene {
     for (const a of achievements || []) lines.push(`${a.name || a} UNLOCKED!`);
     this._battleUi?.banner?.('VICTORY!', lines, PAPER_CSS.gold);
 
+    // A boss win completes the floor and unlocks the next — recolour the
+    // beacons and drop the cached compass targets so both tell fresh truth.
+    // A rescue may also have grown the party: the ring re-reads it.
+    this.app?.refreshBeacons?.();
+    this.app?.refreshParty?.();
+    this.app?.sweepProgress?.();
+    this._portalTargets = null;
+
     this._saveFloorState();
     this._refreshFloorHud();
   }
@@ -1386,6 +1524,7 @@ export class OverworldScene extends Phaser.Scene {
     playSfx('world/secret');
     updateQuestProgress(this.save, 'floor');
     writeSave(this.save, this.slot);
+    this.app?.sweepProgress?.();
     // The DEPARTURE beat is read while the floor is still open — getFloorBeat
     // and getProofFragment are keyed on this.floorId, and _leaveFloor clears it.
     const departure = getFloorBeat(floorId, 'departure');
@@ -1520,9 +1659,13 @@ export class OverworldScene extends Phaser.Scene {
     if (!this.app || !this._controls) return;
 
     // Real seconds since the last update, clamped: a backgrounded tab must
-    // never hand the accel/orbit integrators a half-second step.
+    // never hand the accel/orbit integrators a half-second step. The clamp is
+    // generous (250 ms, matching the sim's own MAX_FRAME) because controls3d
+    // now SUBSTEPS its integrators internally — the old 50 ms clamp silently
+    // slowed acceleration, turning and camera recentre on any device below
+    // 20 fps, which is exactly the hardware this game is played on (D1-B).
     const now = time || (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    const dt = this._lastInputT ? Math.min(0.05, (now - this._lastInputT) / 1000) : 1 / 60;
+    const dt = this._lastInputT ? Math.min(0.25, (now - this._lastInputT) / 1000) : 1 / 60;
     this._lastInputT = now;
 
     // The director runs FIRST: a beat that ends this frame must have released
@@ -1548,6 +1691,8 @@ export class OverworldScene extends Phaser.Scene {
       moveN: this.app.getSpeedNorm ? this.app.getSpeedNorm() : 0,
       locked,
       actionKind: locked ? null : (this.app.getNearActionKind ? this.app.getNearActionKind() : null),
+      // The DIVE pad exists only while it means something.
+      swimming: this.app.getTraversalMode ? this.app.getTraversalMode() === 'swim' : false,
     });
 
     // `world: true` — controls3d already resolved the stick against the
@@ -1562,7 +1707,29 @@ export class OverworldScene extends Phaser.Scene {
     });
     this.app.setCameraOrbit?.({ yaw: f.yaw, pitch: f.pitch, zoom: f.zoom });
 
+    // ── THE PARTY VERBS ──────────────────────────────────────────────────
+    // controls3d surfaces the edges (touch chip, F/X, pad X); the runtime
+    // holds the rules. releaseAbility() is level-driven and idempotent — the
+    // wizard's LEVITATE is a hold, and the drop must fire on ANY release path
+    // (finger off, slide off, focus loss), so it keys off the level, not an
+    // event.
+    if (!locked) {
+      if (f.abilityPressed) this.app.pressAbility?.();
+      else if (!f.abilityHeld) this.app.releaseAbility?.();
+      if (f.swapSlot != null) this.app.swapHero?.(f.swapSlot);
+      else if (f.swapPressed) this.app.swapHero?.();
+    }
+    // The chips re-read at ~6 Hz — labels, tints and cooldown dims are HUD,
+    // not physics, and 6 Hz is faster than a child can read.
+    this._chipT = (this._chipT || 0) + dt;
+    if (this._chipT >= 0.15) {
+      this._chipT = 0;
+      this._controls.setAbilityChip?.(locked ? null : this.app.abilityChip?.());
+      this._controls.setPartyChips?.(locked ? null : this.app.partyChips?.());
+    }
+
     this._updateStamina(dt);
+    this._updateCompass(locked);
     this._updateBanter(dt, locked, f);
 
     // ACTION — the one context verb. The on-screen button, E/Enter and the
@@ -1602,6 +1769,79 @@ export class OverworldScene extends Phaser.Scene {
       this._heroSY = p.y * GAME_HEIGHT;
     }
     gauge.update(st, dt, this._heroSX ?? GAME_WIDTH / 2, this._heroSY ?? GAME_HEIGHT * 0.62);
+  }
+
+  /**
+   * THE PORTAL COMPASS, per frame.
+   *
+   * Points at the nearest gate whose floor is UNLOCKED and NOT COMPLETE — the
+   * nearest thing the child can actually play. Bearing is taken relative to
+   * the camera (arrow-up = walk forward). Hidden inside floors, during any
+   * lock, and while the ENTER prompt is up (the prompt IS the arrival).
+   */
+  _updateCompass(locked) {
+    const c = this._compass;
+    if (!c) return;
+    const show = !!this.app && this._hudVisible !== false
+      && !this.floorId && !locked && !this._nearPortal;
+    if (!show) {
+      if (c.shown !== false) { c.parts.forEach((o) => o.setVisible(false)); c.shown = false; }
+      return;
+    }
+    const st = this.app.getTraversalState?.();
+    if (!st || !st.pos) return;
+
+    let targets = this._portalTargets;
+    if (!targets) {
+      const floors = this.save.floors || [];
+      targets = (this.app.portals?.() || [])
+        .map((p) => ({ ...p, rec: floors[p.floorId - 1] || {} }));
+      this._portalTargets = targets;
+    }
+    let best = null;
+    let bestD = Infinity;
+    for (const p of targets) {
+      if (!p.rec.unlocked || p.rec.complete) continue;
+      const d = Math.hypot(p.x - st.pos.x, p.z - st.pos.z);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    if (!best) {
+      if (c.shown !== false) { c.parts.forEach((o) => o.setVisible(false)); c.shown = false; }
+      return;
+    }
+    const bearing = Math.atan2(best.x - st.pos.x, best.z - st.pos.z);
+    const camYaw = this.app.getCameraYaw?.() ?? 0;
+    c.arrow.setRotation(Phaser.Math.Angle.Wrap(bearing - camYaw));
+    const txt = `FLOOR ${best.floorId} · ${Math.max(1, Math.round(bestD))}m`;
+    if (c.label.text !== txt) c.label.setText(txt);
+    if (c.shown !== true) { c.parts.forEach((o) => o.setVisible(true)); c.shown = true; }
+  }
+
+  /**
+   * FIRST-SESSION ORIENTATION — the beat after the arrival cinematic.
+   *
+   * The arrival shot frames the palace (the locked floor-9 landmark), which
+   * told a first-time player to walk at the one door that will not open. This
+   * beat turns the CAMERA at Floor 1's gate — the beacon column is right
+   * there in frame — and says so, once per save, then leaves the compass to
+   * carry the message for the rest of the session.
+   */
+  _orientFirstArrival() {
+    if (this._destroyed || this.floorId) return;
+    const s = this.save;
+    s.seenBeats = s.seenBeats || {};
+    if (s.seenBeats.island_orientation) return;
+    s.seenBeats.island_orientation = true;
+    writeSave(s, this.slot);
+    const gate = (this.app?.portals?.() || []).find((p) => p.floorId === 1);
+    const st = this.app?.getTraversalState?.();
+    if (gate && st && st.pos) {
+      this._controls?.snapTo(Math.atan2(gate.x - st.pos.x, gate.z - st.pos.z));
+    }
+    this._say([
+      { speaker: 'Elara', text: 'See that pillar of golden light? That is the gate to Floor 1!' },
+      { speaker: 'Elara', text: 'When you are lost, follow the little gold compass at the top of the screen.' },
+    ]);
   }
 
   /**

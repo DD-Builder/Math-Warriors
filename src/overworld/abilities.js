@@ -241,16 +241,19 @@ export function heroIdOf(hero) {
  *
  * Bindings, all three input sources (see controls3d.js):
  *
- *   ability    touch: a third chip, right of ACTION, same 96 px, ability tint
- *              keyboard: E   (and Shift as an alias — small hands, one row)
+ *   ability    touch: its own round chip below ACTION, at the ability's tint
+ *              keyboard: F (and X as an alias — both rest under a left hand).
+ *              NOT E and NOT Shift: controls3d already spends E on ACTION and
+ *              Shift on RUN, and a binding table that collides with the live
+ *              map is how this verb shipped unreachable the first time.
  *              gamepad: X / Square (button 2)
- *   swap       touch: the party ring chip, top-right of the stick
+ *   swap       touch: the party ring chip, right of the stick
  *              keyboard: Q, and 1/2/3 to pick a slot directly
  *              gamepad: LB / L1 (button 4) cycles, RB / R1 (5) cycles back
  *   jump       unchanged. The second hop is served by the SAME press.
  */
 export const BINDINGS = Object.freeze({
-  ability: Object.freeze({ keys: ['KeyE', 'ShiftLeft', 'ShiftRight'], pad: [2] }),
+  ability: Object.freeze({ keys: ['KeyF', 'KeyX'], pad: [2] }),
   swapNext: Object.freeze({ keys: ['KeyQ'], pad: [4] }),
   swapPrev: Object.freeze({ keys: [], pad: [5] }),
   swapSlot: Object.freeze({ keys: ['Digit1', 'Digit2', 'Digit3'], pad: [] }),

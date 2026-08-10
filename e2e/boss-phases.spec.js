@@ -50,6 +50,12 @@ test('every boss transforms through both phases and fires its special', async ({
       await wait(1400);
       const s = game.scene.getScene('BattleScene');
       if (!s || !s.enemies || !s.enemies[0]) return { ok: false, why: 'no battle scene' };
+      // Boss battles open with a staged entrance (~3s, 5s watchdog) and the
+      // turn loop only starts when its curtain calls nextTurn(). Wait for
+      // currentTurn to exist before driving turns, or startHeroTurn() below
+      // dereferences undefined on slow renderers (SwiftShader in CI).
+      for (let i = 0; i < 40 && !s.currentTurn; i++) await wait(250);
+      if (!s.currentTurn) return { ok: false, why: 'turn loop never started (entrance stuck)' };
       const boss = s.enemies[0];
       const out = { ok: true, id: boss.id, phases: [], arena: !!s._arenaHandle, textures: [] };
 

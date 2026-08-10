@@ -1136,10 +1136,16 @@ const OCEAN = {
  */
 function pondTuning(radius) {
   const R = radius;
+  // AMPLITUDES (playtest: "water doesn't move" — reported at the garden pond,
+  // the first water a player meets): the original numbers (waveAmp 0.018 — an
+  // 1.8 CENTIMETRE swell — foamSwing R*0.012, runupLift 0.010) were authored
+  // for stillness and read as a frozen pane from the 3-8 m a child actually
+  // stands at. A pond is calmer than the sea, but it must still visibly LIVE:
+  // a finger-height ripple, a foam lace that breathes, sparkle that walks.
   return {
     palette: POND_PLIES,
-    waveAmp: 0.018,
-    detailAmp: 0.10,
+    waveAmp: 0.055,
+    detailAmp: 0.34,
     taperIn: -0.25,
     taperOut: -R * 0.55,
     ply: [-R * 0.42, -R * 0.20, -R * 0.055],
@@ -1149,24 +1155,24 @@ function pondTuning(radius) {
     lipWidth: R * 0.022,
     foamCenter: -R * 0.045,
     foamWidth: R * 0.030,
-    foamSwing: R * 0.012,
-    foamSpeed: 0.30,
-    runupSpeed: 0.09,
+    foamSwing: R * 0.035,
+    foamSpeed: 0.62,
+    runupSpeed: 0.24,
     runupOut: -R * 0.055,
     runupIn: -R * 0.008,
     runupWidth: R * 0.014,
-    runupLift: 0.010,
+    runupLift: 0.05,
     foamMix: [0.16, 0.20, 0.22, 0.08],
     foamCut: [0.30, 0.62],
     swellGain: 1.0,
     swellPlies: 3,
     swellCut: 0.60,
     swellTone: 0.10,
-    crest: 0.22,
-    crestSlope: [0.04, 0.12],
-    glitter: 0.85,
+    crest: 0.50,
+    crestSlope: [0.02, 0.09],
+    glitter: 1.10,
     glitterScale: 0.55,
-    glitterBand: [0.04, 0.30],
+    glitterBand: [0.06, 0.42],
     glitterRare: 0.16,
     // A pond is seen from 3-8 m, so its path is a tight highlight near the
     // far bank, not a road: much higher power, much lower strength.

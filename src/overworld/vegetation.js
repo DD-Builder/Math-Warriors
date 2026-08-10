@@ -702,111 +702,147 @@ function leanM(px, py, pz, dir, tilt, sx = 1, sy = 1, sz = 1) {
     new THREE.Vector3(px, py, pz), q, new THREE.Vector3(sx, sy, sz));
 }
 
+// ── THE PROPORTION LAW (playtest defect: "trees look like umbrellas or
+// mushrooms", "you can walk through trees") ─────────────────────────────
+//
+// The first tables authored 3.5-4.7 m trees with crowns as wide as they were
+// tall, and the scale band then skewed DOWN — so most placed trees stood
+// 1.2-2.8x the 1.72 m hero with their canopy underside at face height. A child
+// reads that silhouette as a mushroom, and walks head-first through foliage a
+// 30 cm trunk collider cannot represent. Every species below is therefore
+// written against three hard rules:
+//
+//   TALLER THAN WIDE   canopy top 5.5-8 m at unit scale (3-5x the hero placed;
+//                      conifers taller still), and height >= 1.3x crown
+//                      diameter for every round-crown species.
+//   CANOPY OFF THE HEAD the lowest foliage of every species clears 2.4 m at
+//                      the minimum placed scale — you walk UNDER a tree's
+//                      crown and INTO its trunk, never through its face.
+//   COLLIDER = LOW MASS `collider` is the radius of the solid body a child
+//                      can actually run into (trunk flare, willow curtain
+//                      skirt), in unit metres; index.js registers it scaled.
 const TREE_SPECIES = {
   broadleaf: {
-    trunk: { color: PAPER.sand, shade: 0.86, rTop: 0.25, rBot: 0.34, h: 2.3, sides: 7 },
+    trunk: { color: PAPER.sand, shade: 0.86, rTop: 0.26, rBot: 0.36, h: 3.4, sides: 7 },
+    collider: 0.44,
     slabs: [
-      { y: 2.05, r: 2.50, h: 0.62, taper: 0.80, color: PAPER.forest, spin: 0.0 },
-      { y: 3.00, r: 2.10, h: 0.58, taper: 0.78, color: PAPER.forestL, spin: 0.4 },
-      { y: 3.85, r: 1.52, h: 0.52, taper: 0.66, color: PAPER.leaf, spin: 0.8 },
-      { y: 4.48, r: 0.84, h: 0.44, taper: 0.50, color: PAPER.leaf, spin: 1.2 },
+      { y: 3.10, r: 2.35, h: 0.72, taper: 0.82, color: PAPER.forest, spin: 0.0 },
+      { y: 4.15, r: 2.05, h: 0.66, taper: 0.78, color: PAPER.forestL, spin: 0.4 },
+      { y: 5.15, r: 1.55, h: 0.58, taper: 0.68, color: PAPER.leaf, spin: 0.8 },
+      { y: 6.00, r: 0.95, h: 0.50, taper: 0.52, color: PAPER.leaf, spin: 1.2 },
     ],
     variants: [
       { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.03, tone: [1.00, 1.00, 1.00] },
-      { s: 1.24, wide: 1.10, tall: 0.92, lean: 0.05, tone: [0.94, 0.99, 0.93] },
-      { s: 0.82, wide: 0.90, tall: 1.14, lean: 0.08, tone: [1.05, 1.00, 0.92] },
-      { s: 1.06, wide: 0.86, tall: 1.06, lean: 0.02, tone: [0.96, 1.02, 1.00] },
+      { s: 1.18, wide: 1.06, tall: 0.98, lean: 0.05, tone: [0.94, 0.99, 0.93] },
+      { s: 0.90, wide: 0.94, tall: 1.10, lean: 0.08, tone: [1.05, 1.00, 0.92] },
+      { s: 1.06, wide: 0.90, tall: 1.06, lean: 0.02, tone: [0.96, 1.02, 1.00] },
     ],
   },
   conifer: {
-    trunk: { color: PAPER.sand, shade: 0.70, rTop: 0.22, rBot: 0.30, h: 2.0, sides: 7 },
+    trunk: { color: PAPER.sand, shade: 0.70, rTop: 0.22, rBot: 0.34, h: 2.6, sides: 7 },
+    collider: 0.40,
     slabs: [
-      { y: 1.60, r: 2.05, h: 1.60, taper: 0.40, color: PAPER.forestD, spin: 0.0 },
-      { y: 2.85, r: 1.66, h: 1.50, taper: 0.38, color: PAPER.forest, spin: 0.45 },
-      { y: 3.95, r: 1.24, h: 1.35, taper: 0.34, color: PAPER.forestL, spin: 0.9 },
+      { y: 2.10, r: 2.10, h: 1.80, taper: 0.40, color: PAPER.forestD, spin: 0.0 },
+      { y: 3.55, r: 1.68, h: 1.65, taper: 0.38, color: PAPER.forest, spin: 0.45 },
+      { y: 4.85, r: 1.26, h: 1.50, taper: 0.34, color: PAPER.forestL, spin: 0.9 },
     ],
-    cones: [{ y: 5.10, r: 0.86, h: 1.55, color: PAPER.leaf, spin: 1.3 }],
+    cones: [{ y: 6.05, r: 0.88, h: 2.00, color: PAPER.leaf, spin: 1.3 }],
     variants: [
       { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.02, tone: [1.00, 1.00, 1.00] },
-      { s: 1.30, wide: 0.92, tall: 1.16, lean: 0.01, tone: [0.93, 0.98, 0.95] },
-      { s: 0.78, wide: 1.10, tall: 0.88, lean: 0.05, tone: [1.06, 1.01, 0.94] },
-      { s: 1.10, wide: 1.04, tall: 1.06, lean: 0.03, tone: [0.98, 1.00, 1.04] },
+      { s: 1.15, wide: 0.92, tall: 1.12, lean: 0.01, tone: [0.93, 0.98, 0.95] },
+      { s: 0.90, wide: 1.08, tall: 0.94, lean: 0.05, tone: [1.06, 1.01, 0.94] },
+      { s: 1.08, wide: 1.02, tall: 1.06, lean: 0.03, tone: [0.98, 1.00, 1.04] },
     ],
   },
   frostpine: {
-    trunk: { color: PAPER.creamD, shade: 0.78, rTop: 0.22, rBot: 0.30, h: 2.0, sides: 7 },
+    trunk: { color: PAPER.creamD, shade: 0.78, rTop: 0.22, rBot: 0.32, h: 2.4, sides: 7 },
+    collider: 0.38,
     slabs: [
-      { y: 1.65, r: 1.95, h: 1.52, taper: 0.42, color: PAPER.tealD, spin: 0.0 },
-      { y: 2.90, r: 1.52, h: 1.38, taper: 0.38, color: PAPER.teal, spin: 0.45 },
-      { y: 3.95, r: 1.05, h: 1.24, taper: 0.30, color: PAPER.tealL, spin: 0.9 },
+      { y: 2.05, r: 1.95, h: 1.70, taper: 0.42, color: PAPER.tealD, spin: 0.0 },
+      { y: 3.45, r: 1.50, h: 1.55, taper: 0.38, color: PAPER.teal, spin: 0.45 },
+      { y: 4.70, r: 1.08, h: 1.40, taper: 0.30, color: PAPER.tealL, spin: 0.9 },
     ],
-    cones: [{ y: 4.95, r: 0.72, h: 1.30, color: PAPER.white, spin: 1.3 }],
+    cones: [{ y: 5.80, r: 0.72, h: 1.80, color: PAPER.white, spin: 1.3 }],
     variants: [
       { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.02, tone: [1.00, 1.00, 1.00] },
-      { s: 1.22, wide: 0.94, tall: 1.12, lean: 0.01, tone: [0.96, 1.00, 1.02] },
-      { s: 0.80, wide: 1.08, tall: 0.90, lean: 0.04, tone: [1.04, 1.01, 0.97] },
+      { s: 1.15, wide: 0.94, tall: 1.10, lean: 0.01, tone: [0.96, 1.00, 1.02] },
+      { s: 0.90, wide: 1.06, tall: 0.95, lean: 0.04, tone: [1.04, 1.01, 0.97] },
       { s: 1.08, wide: 1.00, tall: 1.04, lean: 0.02, tone: [0.99, 1.03, 1.03] },
     ],
   },
   blossom: {
-    trunk: { color: PAPER.sand, shade: 0.90, rTop: 0.22, rBot: 0.30, h: 2.1, sides: 7 },
+    trunk: { color: PAPER.sand, shade: 0.90, rTop: 0.24, rBot: 0.34, h: 3.2, sides: 7 },
+    collider: 0.40,
     slabs: [
-      { y: 1.90, r: 2.30, h: 0.56, taper: 0.82, color: PAPER.rose, spin: 0.0 },
-      { y: 2.62, r: 1.95, h: 0.50, taper: 0.78, color: PAPER.white, spin: 0.5 },
-      { y: 3.24, r: 1.30, h: 0.46, taper: 0.62, color: PAPER.peach, spin: 1.0 },
+      { y: 2.95, r: 1.85, h: 0.62, taper: 0.80, color: PAPER.rose, spin: 0.0 },
+      { y: 3.80, r: 1.65, h: 0.56, taper: 0.76, color: PAPER.white, spin: 0.5 },
+      { y: 4.60, r: 1.15, h: 0.50, taper: 0.60, color: PAPER.peach, spin: 1.0 },
+      { y: 5.25, r: 0.62, h: 0.44, taper: 0.50, color: PAPER.rose, spin: 1.5 },
     ],
     variants: [
-      { s: 1.00, wide: 1.06, tall: 0.96, lean: 0.05, tone: [1.00, 1.00, 1.00] },
-      { s: 1.26, wide: 1.16, tall: 0.90, lean: 0.07, tone: [1.02, 0.96, 0.98] },
-      { s: 0.84, wide: 0.94, tall: 1.10, lean: 0.09, tone: [0.97, 1.00, 1.03] },
-      { s: 1.08, wide: 1.00, tall: 1.02, lean: 0.04, tone: [1.03, 1.01, 0.96] },
+      { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.05, tone: [1.00, 1.00, 1.00] },
+      { s: 1.16, wide: 1.05, tall: 0.98, lean: 0.07, tone: [1.02, 0.96, 0.98] },
+      { s: 0.90, wide: 0.94, tall: 1.10, lean: 0.09, tone: [0.97, 1.00, 1.03] },
+      { s: 1.08, wide: 0.98, tall: 1.04, lean: 0.04, tone: [1.03, 1.01, 0.96] },
     ],
   },
   ember: {
-    trunk: { color: PAPER.coralD, shade: 0.80, rTop: 0.24, rBot: 0.32, h: 2.4, sides: 7 },
+    trunk: { color: PAPER.coralD, shade: 0.80, rTop: 0.26, rBot: 0.38, h: 3.6, sides: 7 },
+    collider: 0.46,
     slabs: [
-      { y: 2.15, r: 2.35, h: 0.58, taper: 0.78, color: PAPER.coralD, spin: 0.0 },
-      { y: 3.05, r: 1.85, h: 0.52, taper: 0.74, color: PAPER.coral, spin: 0.45 },
-      { y: 3.82, r: 1.14, h: 0.46, taper: 0.58, color: PAPER.gold, spin: 0.9 },
+      { y: 3.30, r: 2.15, h: 0.66, taper: 0.78, color: PAPER.coralD, spin: 0.0 },
+      { y: 4.25, r: 1.85, h: 0.60, taper: 0.74, color: PAPER.coral, spin: 0.45 },
+      { y: 5.15, r: 1.30, h: 0.54, taper: 0.60, color: PAPER.gold, spin: 0.9 },
+      { y: 5.95, r: 0.78, h: 0.46, taper: 0.50, color: PAPER.gold, spin: 1.35 },
     ],
     variants: [
       { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.04, tone: [1.00, 1.00, 1.00] },
-      { s: 1.22, wide: 1.12, tall: 0.94, lean: 0.06, tone: [1.03, 0.98, 0.94] },
-      { s: 0.80, wide: 0.90, tall: 1.12, lean: 0.09, tone: [0.96, 0.99, 1.00] },
+      { s: 1.16, wide: 1.06, tall: 0.98, lean: 0.06, tone: [1.03, 0.98, 0.94] },
+      { s: 0.90, wide: 0.92, tall: 1.10, lean: 0.09, tone: [0.96, 0.99, 1.00] },
       { s: 1.06, wide: 0.96, tall: 1.04, lean: 0.03, tone: [1.01, 1.02, 0.97] },
     ],
   },
   willow: {
-    trunk: { color: PAPER.sand, shade: 0.92, rTop: 0.20, rBot: 0.30, h: 3.5, sides: 7 },
+    trunk: { color: PAPER.sand, shade: 0.92, rTop: 0.22, rBot: 0.36, h: 4.6, sides: 7 },
+    // The hanging curtain skirt is the willow's visible body at ground level;
+    // its collider is that skirt, not the pole hidden inside it — this was the
+    // species you could walk clean through.
+    collider: 0.85,
     slabs: [
-      { y: 3.85, r: 2.45, h: 0.72, taper: 0.52, color: PAPER.forestL, spin: 0.0 },
-      { y: 4.40, r: 1.35, h: 0.50, taper: 0.44, color: PAPER.leaf, spin: 0.6 },
+      { y: 4.95, r: 2.30, h: 0.78, taper: 0.52, color: PAPER.forestL, spin: 0.0 },
+      { y: 5.60, r: 1.40, h: 0.56, taper: 0.44, color: PAPER.leaf, spin: 0.6 },
     ],
     // Weeping curtains: tapered plies hung from the crown rim, wide end up.
+    // tilt 2.7 hangs them near-vertically (a real weeping willow) so their
+    // tips stop just above head height instead of curtaining the hero's face.
     droops: {
-      count: 9, attachR: 1.85, attachY: 3.70, len: 2.8, tilt: 2.42,
-      rTop: 0.11, rBot: 0.40, sides: 5,
+      count: 9, attachR: 1.80, attachY: 4.85, len: 3.2, tilt: 2.7,
+      rTop: 0.11, rBot: 0.38, sides: 5,
       colors: [PAPER.forest, PAPER.leaf, PAPER.forestL],
     },
     variants: [
       { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.05, tone: [1.00, 1.00, 1.00] },
-      { s: 1.20, wide: 1.08, tall: 1.06, lean: 0.03, tone: [0.95, 1.00, 0.95] },
-      { s: 0.84, wide: 0.94, tall: 0.94, lean: 0.09, tone: [1.05, 1.00, 0.94] },
-      { s: 1.06, wide: 1.02, tall: 1.10, lean: 0.06, tone: [0.98, 1.01, 1.02] },
+      { s: 1.15, wide: 1.05, tall: 1.05, lean: 0.03, tone: [0.95, 1.00, 0.95] },
+      { s: 0.92, wide: 0.95, tall: 0.98, lean: 0.09, tone: [1.05, 1.00, 0.94] },
+      { s: 1.06, wide: 1.00, tall: 1.08, lean: 0.06, tone: [0.98, 1.01, 1.02] },
     ],
   },
   umbrella: {
-    trunk: { color: PAPER.sand, shade: 0.88, rTop: 0.22, rBot: 0.32, h: 3.6, sides: 7 },
+    // Reworked from the flat-parasol-on-a-pole that NAMED the "umbrella" bug
+    // into a stone-pine silhouette: long bare trunk, high stacked crown that
+    // is still wider at its base than its top but now clearly a TREE.
+    trunk: { color: PAPER.sand, shade: 0.88, rTop: 0.26, rBot: 0.40, h: 5.0, sides: 7 },
+    collider: 0.50,
     slabs: [
-      { y: 3.60, r: 3.55, h: 0.40, taper: 0.88, color: PAPER.forest, spin: 0.0 },
-      { y: 4.05, r: 2.65, h: 0.36, taper: 0.80, color: PAPER.forestL, spin: 0.5 },
-      { y: 4.42, r: 1.45, h: 0.32, taper: 0.68, color: PAPER.leaf, spin: 1.0 },
+      { y: 5.05, r: 2.55, h: 0.72, taper: 0.86, color: PAPER.forest, spin: 0.0 },
+      { y: 5.85, r: 2.00, h: 0.60, taper: 0.78, color: PAPER.forestL, spin: 0.5 },
+      { y: 6.50, r: 1.25, h: 0.52, taper: 0.66, color: PAPER.leaf, spin: 1.0 },
     ],
     variants: [
       { s: 1.00, wide: 1.00, tall: 1.00, lean: 0.06, tone: [1.00, 1.00, 1.00] },
-      { s: 1.24, wide: 1.14, tall: 0.94, lean: 0.09, tone: [0.95, 0.99, 0.94] },
-      { s: 0.82, wide: 0.92, tall: 1.10, lean: 0.11, tone: [1.05, 1.00, 0.93] },
-      { s: 1.08, wide: 1.06, tall: 1.02, lean: 0.04, tone: [0.98, 1.02, 1.01] },
+      { s: 1.16, wide: 1.05, tall: 0.98, lean: 0.09, tone: [0.95, 0.99, 0.94] },
+      { s: 0.90, wide: 0.94, tall: 1.08, lean: 0.11, tone: [1.05, 1.00, 0.93] },
+      { s: 1.08, wide: 1.02, tall: 1.02, lean: 0.04, tone: [0.98, 1.02, 1.01] },
     ],
   },
 };
@@ -845,8 +881,12 @@ const MAX_CROWN = Math.max(...Object.values(SPECIES_CROWN));
 function treeScale(spec, it, hero) {
   const nv = spec.variants.length;
   const v = spec.variants[Math.floor(it.b * nv) % nv];
-  const s = v.s * (0.78 + it.c * 0.52) * (hero ? 1.55 : 1);
-  return { v, sx: s * v.wide * (0.94 + it.d * 0.13), sy: s * v.tall * (0.92 + it.a * 0.20) };
+  // The band's FLOOR is the load-bearing number: it used to be 0.78x on top of
+  // 0.78x variants, which put most placed trees at 1.2-1.6x the hero — the
+  // "mushroom field" defect. 0.88 x a 0.90 variant keeps the smallest tree at
+  // ~3x hero height while the ceiling still buys real skyline variety.
+  const s = v.s * (0.88 + it.c * 0.42) * (hero ? 1.45 : 1);
+  return { v, sx: s * v.wide * (0.94 + it.d * 0.13), sy: s * v.tall * (0.96 + it.a * 0.16) };
 }
 
 /** One papercut tree, absolute PAPER colours, merged into a single buffer. */
@@ -1593,7 +1633,14 @@ export function createVegetation(heightfield, opts = {}) {
     items.forEach((it, i) => {
       // Same resolver the scatter's spacing rule used — see treeScale.
       const { v, sx, sy } = treeScale(spec, it, it.hero);
-      trees.push({ x: it.x, y: it.y, z: it.z, r: spec.trunk.rBot * sx });
+      // `r` is the COLLIDER the world registers, and it is the species' low
+      // solid mass (trunk flare, willow skirt) — not the bare trunk-top
+      // radius. See the PROPORTION LAW note above TREE_SPECIES.
+      trees.push({
+        x: it.x, y: it.y, z: it.z,
+        r: (spec.collider ?? spec.trunk.rBot) * sx,
+        species: name,
+      });
       // Yaw, then a small lean about a random bearing: a forest of perfectly
       // vertical poles is the tell that nothing here grew.
       _q4.setFromAxisAngle(AXIS_Y, it.c * TAU);

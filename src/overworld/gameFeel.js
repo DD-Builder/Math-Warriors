@@ -137,14 +137,22 @@ export const FEEL = {
   // heading authority, `top` scales the maximum speed this surface allows.
   surface: {
     ground: {
-      accel: 42,  // 0 -> full sprint in ~0.20 s. Slower reads as ice; faster
-                  // reads as a teleport and kills the sense of weight.
-      brake: 58,  // sprint -> 0 in ~0.15 s. This is the number that decides
+      accel: 55,  // 0 -> full sprint in ~0.155 s. Slower reads as ice; faster
+                  // reads as a teleport and kills the sense of weight. This is
+                  // THE momentum model — controls3d's input shaping is a fast
+                  // digital-edge filter on top (accel 11 / decel 26), so these
+                  // numbers must carry the whole feel alone. When both were
+                  // slow the two filters STACKED: 0.35 s to full speed and a
+                  // 1.57 m stop slide, measured on the build (the D1-F
+                  // "abysmal"). One mass, one place, and it is this table.
+      brake: 70,  // sprint -> 0 in ~0.12 s. This is the number that decides
                   // whether a child can stop at the edge of a platform.
-      drag: 34,   // stick released at a sprint: coasts ~1.1 m over ~0.25 s.
-                  // Measured, and the number was chosen against a ledge: at
-                  // 16 the coast was 2.2 m, which reads as momentum right up
-                  // until it walks a five-year-old off a platform.
+      drag: 60,   // stick released at a sprint: coasts ~0.60 m (v²/2a) over
+                  // ~0.14 s — a visible plant, never a slide, and inside the
+                  // 0.5–1.6 m band the momentum spec pins. The old 34 coasted
+                  // 1.06 m of ITS OWN on top of the input filter's tail
+                  // (1.57 m measured total); a five-year-old walked off
+                  // ledges they had released the stick before.
       turn: 1.00,
       top: 1.00,
     },

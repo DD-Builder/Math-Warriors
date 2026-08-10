@@ -81,6 +81,8 @@ import { createBattle3D } from './battle3d.js';
 import { buildLevel3D } from './level3d.js';
 import { TILE_M } from './level3dBuild.js';
 import { createAtmosphere } from './atmosphere.js';
+import { createCreatures } from './creatures.js';
+import { createCompanions } from './companions.js';
 import { timeOfDay, applyFloorSky, levelSky } from './timeOfDay.js';
 import { WEATHER_NAMES, createWeatherBlender, createRenderFrame, applyWeather } from './weather.js';
 import { fromSave } from './state.js';
@@ -540,6 +542,33 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   const atmosphere = createAtmosphere(heightfield, { seed: WORLD.SEED });
   scene.add(atmosphere.group);
 
+  // ── The island's LIFE ──────────────────────────────────────────────────
+  //
+  // creatures.js (the 30-species roaming bestiary) and companions.js (the two
+  // party followers) both shipped finished, tested — and never instantiated.
+  // The playtest line was "there are no other characters or animals or
+  // anything": THIS is where they enter the world. Both are ISLAND systems —
+  // their homes and their ground sampler are island coordinates — so a floor
+  // parks them exactly as it parks the terrain (see enterFloor/exitFloor).
+  //
+  // Touching a hostile creature starts a real fight: the hook forwards to the
+  // scene (which owns the party and the maths overlay), through the same
+  // startBattle path a floor encounter uses. Guarded here so a cinematic, a
+  // locked stick or a running battle can never be interrupted by a wandering
+  // slime.
+  const creatures = createCreatures(heightfield, {
+    hooks: {
+      onEncounter: (enemyId, info) => {
+        if (inputLocked || cineCam || (battle && battle.isActive())) return;
+        hooks.onCreatureEncounter?.(enemyId, info);
+      },
+    },
+  });
+  scene.add(creatures.group);
+
+  const companions = createCompanions({ save, heightfield });
+  scene.add(companions.group);
+
   // ── Movement FX ────────────────────────────────────────────────────────
   //
   // feelFx  dust puffs under a landing or a skid, paper scraps shed at a
@@ -817,6 +846,19 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     else pending.push(c);
   }
   attachIslandEmitters();
+
+  // ── Portal beacons: colour them to the save's truth ────────────────────
+  // Gold = playable now, teal = done, faint = still sealed. Re-run whenever a
+  // floor completes or unlocks (the scene calls world.refreshBeacons()).
+  function refreshBeacons() {
+    props.setBeaconStates?.(props.portals.map((p) => {
+      const rec = (save?.floors || [])[p.floorId - 1];
+      if (rec && rec.complete) return 'done';
+      if (rec && rec.unlocked) return 'open';
+      return 'locked';
+    }));
+  }
+  refreshBeacons();
 
   // ── Time of day + weather ──────────────────────────────────────────────
   //
@@ -1579,12 +1621,16 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     water.group.visible = false;
     props.group.visible = false;
     atmosphere.group.visible = false;
+    creatures.group.visible = false;
+    companions.group.visible = false;
     // The chalk routes, wind-socks and thermal ribbons are ISLAND furniture —
     // their coordinates are island coordinates. Park them with the island; the
     // canopy and the veil stay, because they belong to the hero.
     setTravFxFurniture(false);
     feelFx.reset();
     clearNearPortal();
+    // Nothing carried, no verb mid-windup, across a transition.
+    abilities.cancel();
 
     scene.add(lvl.group);
     // Only the level's own materials need the atmosphere seal — the rest of
@@ -1637,6 +1683,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
 
   function exitFloor() {
     if (!floor) return false;
+    abilities.cancel();
     detachFloorEmitters();
     scene.remove(floor.lvl.group);
     floor.lvl.dispose();
@@ -1647,6 +1694,8 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     water.group.visible = true;
     props.group.visible = true;
     atmosphere.group.visible = true;
+    creatures.group.visible = true;
+    companions.group.visible = true;
     setTravFxFurniture(true);
     feelFx.reset();
 
@@ -1669,6 +1718,9 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       parkedIsland = null;
     }
     heroRig.reset();
+    // The followers were parked at their last island position; fall them in
+    // behind wherever the hero re-entered rather than warping them mid-frame.
+    companions.reset(player);
     // …and the island gets the island's back.
     setCamProfile(false, true);
     snapCamera();
@@ -1913,6 +1965,11 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       // a floor. Proximity is a squared-distance compare per record and the
       // compass re-aims on a 6 Hz timer, not per frame.
       discovery.update(player.pos.x, player.pos.z, dt);
+      // The wildlife sim runs on the SAME fixed step as the player, so "the
+      // creature reached me" and "I reached the creature" agree. It sits
+      // behind the encountersEnabled gate above with every other trigger:
+      // a fight cannot start inside a fight.
+      creatures.step(dt, player.pos);
     }
   }
 
@@ -2027,6 +2084,11 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       water.update(lightFrame, animT);
       props.update(animT, player.pos, windT);
       atmosphere.update(lightFrame, animT, player.pos, camera);
+      // Pose + cull the wildlife on the ANIMATION clock (a frozen pose
+      // reproduces to the pixel), and march the two companions along the
+      // hero's breadcrumb trail. Island only: both live at island coordinates.
+      creatures.draw(animT, player.pos);
+      companions.update(player, animT);
     }
 
     // ── The two movement FX rigs ─────────────────────────────────────────
@@ -2070,16 +2132,31 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       // cinematic here is what stops it re-pushing a shot into the slot on the
       // next Phaser tick — the sim loop is frozen but the SCENE's update is not.
       if (on) hooks.stopCinematics?.();
+      // Unfreezing DROPS any pose. `currentPose` pins the animation clock
+      // (draw() uses POSE_TIME while it is set), and nothing but clearPose()
+      // ever cleared it — so any harness that posed and then called
+      // freeze(false) ran a live sim over a world whose water, wind, petals
+      // and props were frozen forever. Every "verified" screenshot run that
+      // posed first was photographing a still life.
+      if (!on && currentPose) {
+        currentPose = null;
+        poseCam = null;
+        todFrozen = false;
+      }
       rig.setFrozen(on);
     },
     teleport(x, z, yaw = 0) {
       hooks.stopCinematics?.();
+      // A teleport is a hard reset of the player's presentation — it must not
+      // inherit a pose's frozen animation clock any more than its camera.
+      currentPose = null;
       poseCam = null;
       cineCam = null;
       feelFx.reset();
       player = controller.spawnState({ x, z, yaw });
       clearNearPortal();
       heroRig.reset();
+      companions.reset(player);
       snapCamera();
       // snapCamera re-anchors the boom BEHIND the new facing, but the input
       // layer owns the orbit and re-pushes it every frame — without telling the
@@ -2211,6 +2288,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       // phase, squash and dust the player happened to be carrying, and two runs
       // of the same pose would not be the same image.
       heroRig.reset();
+      companions.reset(player);
       rig.setFrozen(true);
       snapCamera();
       rig.renderOnce();
@@ -2223,6 +2301,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       todFrozen = false;
       rig.setFrozen(false);
       heroRig.reset();
+      companions.reset(player);
       snapCamera();
     },
 
@@ -2263,6 +2342,24 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
         id: p.id, floorId: p.floorId, x: p.x, y: p.y, z: p.z, radius: p.radius,
       }));
     },
+
+    /**
+     * The portal the player is standing in, and the context verb's kind — the
+     * SAME reads the scene uses (world.getNearPortal / getNearActionKind),
+     * mirrored here because a harness that cannot observe portal proximity is
+     * a harness that never drives portal entry end-to-end. That drift (they
+     * lived only on `world`) is how the ENTER crash shipped unnoticed.
+     */
+    getNearPortal() {
+      return nearPortal
+        ? {
+          id: nearPortal.id, floorId: nearPortal.floorId,
+          x: nearPortal.x, y: nearPortal.y, z: nearPortal.z, radius: nearPortal.radius,
+        }
+        : null;
+    },
+    getNearActionKind() { return world.getNearActionKind(); },
+    abilityStats() { return abilities.stats(); },
 
     /**
      * Where the island's CLIMBABLE FACES and LAUNCH PADS are.
@@ -2338,6 +2435,16 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
         atmosphere: atmosphere.stats,
         props: props.stats,
         hero: heroRig.stats,
+        // The island's population, live — visibleMeshes is what the current
+        // frame actually submits, creatures/ambient are the resident counts.
+        creatures: {
+          creatures: creatures.stats.creatures,
+          ambient: creatures.stats.ambient,
+          species: creatures.stats.species,
+          visibleMeshes: creatures.stats.visibleMeshes,
+          triangles: creatures.stats.triangles,
+        },
+        companions: companions.stats,
         colliders: props.trees.length + props.buildings.length + props.portals.length * 2,
         // The two movement FX rigs, so the draw-call budget test can see them.
         feelFx: feelFx.stats,
@@ -2508,8 +2615,34 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     audioStats() { return audio3d.stats(); },
     /** Scene records which gate the player last stepped through. */
     notePortalUsed(id) { lastPortalId = id || null; },
+    /** Recolour the portal beacons after a floor completes or unlocks. */
+    refreshBeacons() { refreshBeacons(); },
     /** The portal the player is standing in, or null. */
     getNearPortal() { return nearPortal; },
+
+    // ── THE PARTY VERBS ──────────────────────────────────────────────────
+    // controls3d surfaces the edges; the scene forwards them here. These are
+    // the forwards the wiring doc (abilityWiring.js) always specified — the
+    // playtest that found "only a jump and nothing else" found them missing.
+    /** The active hero's field verb — SHOVE fires, LEVITATE begins. */
+    pressAbility() { abilities.pressAbility(); },
+    /** The hold ended — a levitated crate is set down. */
+    releaseAbility() { abilities.releaseAbility(); },
+    /** Cycle the party ring, or jump straight to a slot/class. */
+    swapHero(which) { return which == null ? abilities.swapNext() : abilities.swapTo(which); },
+    /** {verb, enabled, cooldown, tint, ...} for the ability chip, or null. */
+    abilityChip() { return abilities.chip(); },
+    /** [{id, name, cls, verb, tint, active}] for the party ring chip. */
+    partyChips() { return abilities.chips(); },
+    /** Re-read the party after a rescue, an evolution or a party edit. */
+    refreshParty() { abilities.refreshParty(); },
+    /** Progression sweep — call after a battle, a floor, a rescue, a shop. */
+    sweepProgress() { return abilities.sweep(); },
+    /** The floor-complete staged sequence, for the cinematic director. */
+    floorCompleteSequence(o) { return abilities.floorComplete(o); },
+    /** Tell the moment queue the director finished a staged moment. */
+    stagedMomentDone() { abilities.stagedDone(); },
+    abilityStats() { return abilities.stats(); },
     /**
      * What the context ACTION button should say it will do, as a raw type
      * string — 'portal' on the island, the nearest floor object's type inside
@@ -2637,7 +2770,7 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       }
       scene.remove(
         terrain.group, sky.group, water.group, props.group, atmosphere.group,
-        travFx.group, camera, hero,
+        creatures.group, companions.group, travFx.group, camera, hero,
       );
       camera.remove(feelFx.lineGroup);
       terrain.dispose();
@@ -2645,8 +2778,11 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       water.dispose();
       props.dispose();
       atmosphere.dispose();
+      creatures.dispose();
+      companions.dispose();
       feelFx.dispose();
       travFx.dispose();
+      abilities.dispose();
       heroRig.dispose();
       // Shared textures are owned here, not by the subsystems that borrow
       // them, so they are released exactly once — after every material that

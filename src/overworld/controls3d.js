@@ -71,6 +71,14 @@ export const CONTROLS = {
   stickCapture: 330,    // px: GENEROUS grab radius around the fixed base. A
                         // five-year-old aims a thumb at "down there on the
                         // left", not at a circle.
+  stickFloatMinY: 190,  // px: any touch on the LEFT HALF below this line that
+                        // misses the capture disc still gets a stick — a
+                        // temporary one anchored under the finger. Before this,
+                        // a third of the screen was a silent dead zone (the
+                        // measured D1-C): a child dragging "on the left but not
+                        // on the circle" got nothing and no feedback. The FIXED
+                        // base never moves; the float is a guest that leaves on
+                        // release.
   stickHomeEase: 0.30,  // per-frame ease of the knob back to centre on release
                         // — springs home in ~5 frames, reads as "let go", and
                         // never snaps (a snap looks like a dropped input)
@@ -607,6 +615,11 @@ export function createTouchControls(scene, { tuning = CONTROLS, onJump, onAction
   const state = { x: 0, y: 0, active: false, id: null };
   let knobX = t.stickX;
   let knobY = t.stickY;
+  // Where the CURRENT grab is measured from. The fixed base for a capture-disc
+  // grab; the touch point itself for a left-half grab outside the disc (the
+  // "floating guest" — see stickFloatMinY). Reset to the base on release.
+  let originX = t.stickX;
+  let originY = t.stickY;
 
   const jumpShadow = scene.add.circle(t.jumpX + 6, t.jumpY + 10, t.jumpR, PAPER.shadow, 0.30)
     .setDepth(DEPTH_PAD).setScrollFactor(0);
@@ -637,9 +650,87 @@ export function createTouchControls(scene, { tuning = CONTROLS, onJump, onAction
   actParts.forEach((o) => o.setVisible(false));
   actBg.disableInteractive();
 
+  // ── ABILITY: the party verb (SHOVE / LIFT / DROP) ─────────────────────
+  // Hidden until the scene feeds a chip (setAbilityChip) — a button with no
+  // verb behind it teaches a child that buttons lie.
+  const abShadow = scene.add.circle(t.abilityX + 5, t.abilityY + 9, t.abilityR, PAPER.shadow, 0.30)
+    .setDepth(DEPTH_PAD).setScrollFactor(0);
+  const abBg = scene.add.circle(t.abilityX, t.abilityY, t.abilityR, PAPER.teal, 0.94)
+    .setStrokeStyle(5, PAPER.cream, 0.75).setDepth(DEPTH_KNOB).setScrollFactor(0)
+    .setInteractive({ useHandCursor: true });
+  const abText = scene.add.text(t.abilityX, t.abilityY, '', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '22px', color: '#fff6e6',
+  }).setOrigin(0.5).setDepth(DEPTH_LABEL).setScrollFactor(0);
+  const abParts = [abShadow, abBg, abText];
+  let abilityVisible = false;
+  const setAbilityVisible = (v) => {
+    if (v === abilityVisible) return;
+    abilityVisible = v;
+    abParts.forEach((o) => o.setVisible(v));
+    if (v) abBg.setInteractive({ useHandCursor: true });
+    else abBg.disableInteractive();
+  };
+  abParts.forEach((o) => o.setVisible(false));
+  abBg.disableInteractive();
+
+  // ── SWAP: the party ring chip ─────────────────────────────────────────
+  // Shows the ACTIVE hero's initial with pips for the rest of the party.
+  // Hidden until the scene feeds chips (a party of one has nothing to swap).
+  const swShadow = scene.add.circle(t.swapX + 4, t.swapY + 8, t.swapR, PAPER.shadow, 0.30)
+    .setDepth(DEPTH_PAD).setScrollFactor(0);
+  const swBg = scene.add.circle(t.swapX, t.swapY, t.swapR, PAPER.cream, 0.92)
+    .setStrokeStyle(4, PAPER.teal, 0.8).setDepth(DEPTH_KNOB).setScrollFactor(0)
+    .setInteractive({ useHandCursor: true });
+  const swText = scene.add.text(t.swapX, t.swapY - 6, '', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '30px', color: '#1d5f63',
+  }).setOrigin(0.5).setDepth(DEPTH_LABEL).setScrollFactor(0);
+  const swLabel = scene.add.text(t.swapX, t.swapY + 26, 'SWAP', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '14px', color: '#1d5f63',
+  }).setOrigin(0.5).setDepth(DEPTH_LABEL).setScrollFactor(0);
+  /** One pip per party member, lit for the active slot. */
+  const swPips = [0, 1, 2].map((i) => scene.add.circle(
+    t.swapX - 22 + i * 22, t.swapY - t.swapR - 16, 7, PAPER.teal, 0.4,
+  ).setDepth(DEPTH_LABEL).setScrollFactor(0));
+  const swParts = [swShadow, swBg, swText, swLabel, ...swPips];
+  let swapVisible = false;
+  const setSwapVisible = (v) => {
+    if (v === swapVisible) return;
+    swapVisible = v;
+    swParts.forEach((o) => o.setVisible(v));
+    if (v) swBg.setInteractive({ useHandCursor: true });
+    else swBg.disableInteractive();
+  };
+  swParts.forEach((o) => o.setVisible(false));
+  swBg.disableInteractive();
+
+  // ── DIVE: shown only while swimming — HOLD to go under ────────────────
+  const dvShadow = scene.add.circle(t.diveX + 5, t.diveY + 9, t.diveR, PAPER.shadow, 0.30)
+    .setDepth(DEPTH_PAD).setScrollFactor(0);
+  const dvBg = scene.add.circle(t.diveX, t.diveY, t.diveR, PAPER.inkTeal, 0.94)
+    .setStrokeStyle(5, PAPER.cream, 0.75).setDepth(DEPTH_KNOB).setScrollFactor(0)
+    .setInteractive({ useHandCursor: true });
+  const dvText = scene.add.text(t.diveX, t.diveY, 'DIVE', {
+    fontFamily: '"Fredoka One", "Baloo 2", sans-serif', fontSize: '22px', color: '#fff6e6',
+  }).setOrigin(0.5).setDepth(DEPTH_LABEL).setScrollFactor(0);
+  const dvParts = [dvShadow, dvBg, dvText];
+  let diveVisible = false;
+  const setDiveVisible = (v) => {
+    if (v === diveVisible) return;
+    diveVisible = v;
+    dvParts.forEach((o) => o.setVisible(v));
+    if (v) dvBg.setInteractive({ useHandCursor: true });
+    else { dvBg.disableInteractive(); diveDown = false; }
+  };
+  dvParts.forEach((o) => o.setVisible(false));
+  dvBg.disableInteractive();
+
   let jumpEdge = false;
   let jumpDown = false;
   let actionEdge = false;
+  let abilityEdge = false;
+  let abilityDown = false;
+  let swapEdge = false;
+  let diveDown = false;
   jumpBg.on('pointerdown', () => { jumpEdge = true; jumpDown = true; onJump?.(); });
   // HELD, not just pressed. gameFeel.js cuts a jump short the moment the button
   // comes up — that is the whole of variable jump height — so the touch pad has
@@ -650,28 +741,58 @@ export function createTouchControls(scene, { tuning = CONTROLS, onJump, onAction
     jumpBg.on(ev, () => { jumpDown = false; });
   }
   actBg.on('pointerdown', () => { actionEdge = true; onAction?.(); });
+  abBg.on('pointerdown', () => { abilityEdge = true; abilityDown = true; });
+  for (const ev of ['pointerup', 'pointerout', 'pointerupoutside']) {
+    abBg.on(ev, () => { abilityDown = false; });
+  }
+  swBg.on('pointerdown', () => { swapEdge = true; });
+  dvBg.on('pointerdown', () => { diveDown = true; });
+  for (const ev of ['pointerup', 'pointerout', 'pointerupoutside']) {
+    dvBg.on(ev, () => { diveDown = false; });
+  }
 
   /** Is this pointer inside the stick's (generous) capture disc? */
   const inCapture = (p) => Math.hypot(p.x - t.stickX, p.y - t.stickY) <= t.stickCapture;
+  /**
+   * A left-half touch that missed the disc but is clearly a movement ask —
+   * below the HUD chips, left of the look surface. It gets a floating origin
+   * under the finger, so no part of the left half is ever a dead zone.
+   */
+  const inFloatZone = (p) => p.x < GAME_WIDTH * 0.5 && p.y > t.stickFloatMinY;
 
   const setFromPointer = (p) => {
-    const dx = p.x - t.stickX;
-    const dy = p.y - t.stickY;
+    const dx = p.x - originX;
+    const dy = p.y - originY;
     const len = Math.hypot(dx, dy);
     const capped = Math.min(len, t.stickRadius);
     const nx = len > 1e-4 ? dx / len : 0;
     const ny = len > 1e-4 ? dy / len : 0;
-    knobX = t.stickX + nx * capped;
-    knobY = t.stickY + ny * capped;
+    knobX = originX + nx * capped;
+    knobY = originY + ny * capped;
     state.x = nx * (capped / t.stickRadius);
     state.y = ny * (capped / t.stickRadius);
   };
 
   const onDown = (p) => {
-    if (state.active || !inCapture(p)) return;
+    if (state.active) return;
     // Never steal a press that landed on a button.
     if (Math.hypot(p.x - t.jumpX, p.y - t.jumpY) <= t.jumpR) return;
     if (actionVisible && Math.hypot(p.x - t.actionX, p.y - t.actionY) <= t.actionR) return;
+    if (abilityVisible && Math.hypot(p.x - t.abilityX, p.y - t.abilityY) <= t.abilityR) return;
+    if (swapVisible && Math.hypot(p.x - t.swapX, p.y - t.swapY) <= t.swapR) return;
+    if (diveVisible && Math.hypot(p.x - t.diveX, p.y - t.diveY) <= t.diveR) return;
+    const captured = inCapture(p);
+    if (!captured && !inFloatZone(p)) return;
+    if (captured) {
+      originX = t.stickX;
+      originY = t.stickY;
+    } else {
+      // Floating grab: the ring travels to the finger so the child SEES the
+      // stick they are holding, and travels home again on release.
+      originX = p.x;
+      originY = p.y;
+    }
+    ring.setPosition(originX, originY);
     state.active = true;
     state.id = p.id;
     setFromPointer(p);
@@ -683,6 +804,9 @@ export function createTouchControls(scene, { tuning = CONTROLS, onJump, onAction
     state.id = null;
     state.x = 0;
     state.y = 0;
+    originX = t.stickX;
+    originY = t.stickY;
+    ring.setPosition(t.stickX, t.stickY);
   };
 
   scene.input.on('pointerdown', onDown);
@@ -697,12 +821,51 @@ export function createTouchControls(scene, { tuning = CONTROLS, onJump, onAction
     /** Is the JUMP pad still held? Drives variable jump height. */
     get jumpDown() { return jumpDown; },
     consumeAction() { const v = actionEdge; actionEdge = false; return v; },
+    consumeAbility() { const v = abilityEdge; abilityEdge = false; return v; },
+    /** Is the ABILITY chip still held? LEVITATE is a hold, not a tap. */
+    get abilityDown() { return abilityDown; },
+    consumeSwap() { const v = swapEdge; swapEdge = false; return v; },
+    /** Is the DIVE pad held? Releasing floats a swimmer straight back up. */
+    get diveDown() { return diveDown; },
     /** null hides the button; any string shows it. */
     setActionLabel(label) {
       if (!label) { setActionVisible(false); return; }
       if (actText.text !== label) actText.setText(label);
       setActionVisible(true);
     },
+    /**
+     * The party verb chip. null hides it (no verb on the active hero); a chip
+     * ({verb, tint, enabled}) shows it, at its ability's tint, dimmed while it
+     * cannot fire — a lying button teaches a child to stop pressing buttons.
+     */
+    setAbilityChip(chip) {
+      if (!chip || !chip.verb) { setAbilityVisible(false); return; }
+      if (abText.text !== chip.verb) abText.setText(chip.verb);
+      if (Number.isFinite(chip.tint)) abBg.fillColor = chip.tint;
+      const a = chip.enabled === false ? 0.45 : 0.94;
+      if (abBg.fillAlpha !== a) abBg.setFillStyle(abBg.fillColor, a);
+      setAbilityVisible(true);
+    },
+    /**
+     * The party ring. `chips` is abilities.chips() — [{name, active, ...}].
+     * Hidden for a party of 0 or 1: there is nothing to swap to.
+     */
+    setPartyChips(chips) {
+      if (!chips || chips.length < 2) { setSwapVisible(false); return; }
+      const act = chips.find((c) => c.active) || chips[0];
+      const initial = (act.name || act.id || '?').charAt(0).toUpperCase();
+      if (swText.text !== initial) swText.setText(initial);
+      for (let i = 0; i < swPips.length; i++) {
+        const on = i < chips.length;
+        swPips[i].setVisible(on && swapVisible);
+        if (on) swPips[i].setFillStyle(PAPER.teal, chips[i].active ? 0.95 : 0.35);
+      }
+      setSwapVisible(true);
+      // setSwapVisible flips every part including pips beyond the party size.
+      for (let i = chips.length; i < swPips.length; i++) swPips[i].setVisible(false);
+    },
+    /** Swimming? The DIVE pad exists only while it means something. */
+    setDiveVisible(v) { setDiveVisible(!!v); },
     /** Ease the knob home on release. Called every frame by poll(). */
     update() {
       if (!state.active) {
@@ -714,14 +877,20 @@ export function createTouchControls(scene, { tuning = CONTROLS, onJump, onAction
     },
     setVisible(v) {
       [ring, knobShadow, knob, jumpShadow, jumpBg, jumpText].forEach((o) => o.setVisible(v));
-      if (!v) setActionVisible(false);
+      if (!v) {
+        setActionVisible(false);
+        setAbilityVisible(false);
+        setSwapVisible(false);
+        setDiveVisible(false);
+      }
     },
     destroy() {
       scene.input.off('pointerdown', onDown);
       scene.input.off('pointermove', onMove);
       scene.input.off('pointerup', onUp);
       scene.input.off('pointerupoutside', onUp);
-      [ring, knobShadow, knob, jumpShadow, jumpBg, jumpText, ...actParts].forEach((o) => o.destroy());
+      [ring, knobShadow, knob, jumpShadow, jumpBg, jumpText,
+        ...actParts, ...abParts, ...swParts, ...dvParts].forEach((o) => o.destroy());
     },
   };
 }
@@ -750,6 +919,8 @@ export function createLookInput(scene, { tuning = CONTROLS, minX = GAME_WIDTH * 
     // Buttons keep their own margin — a tap on JUMP must not also pan.
     if (Math.hypot(p.x - t.jumpX, p.y - t.jumpY) <= t.jumpR + t.buttonPad) return false;
     if (Math.hypot(p.x - t.actionX, p.y - t.actionY) <= t.actionR + t.buttonPad) return false;
+    if (Math.hypot(p.x - t.abilityX, p.y - t.abilityY) <= t.abilityR + t.buttonPad) return false;
+    if (Math.hypot(p.x - t.diveX, p.y - t.diveY) <= t.diveR + t.buttonPad) return false;
     return true;
   };
 
@@ -849,18 +1020,28 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
   const look = createLookInput(scene, { tuning: t });
 
   const kb = scene.input?.keyboard;
-  const keyDefs = kb ? kb.addKeys('W,A,S,D,UP,LEFT,DOWN,RIGHT,SPACE,SHIFT,E,ENTER') : null;
+  // C/CTRL dive (HELD), F/X ability, Q swap-next, ONE..THREE direct slots.
+  // E and ENTER stay ACTION, SHIFT stays RUN — the BINDINGS table in
+  // abilities.js matches this list; keep the two in agreement.
+  const keyDefs = kb
+    ? kb.addKeys('W,A,S,D,UP,LEFT,DOWN,RIGHT,SPACE,SHIFT,E,ENTER,C,CTRL,F,X,Q,ONE,TWO,THREE')
+    : null;
   const keys = {
     left: false, right: false, up: false, down: false, run: false,
     jumpPressed: false, actionPressed: false, jumpDown: false, dive: false,
+    abilityPressed: false, abilityDown: false, swapPressed: false, swapSlot: null,
   };
   let prevSpace = false;
   let prevAct = false;
+  let prevAbility = false;
+  let prevSwap = false;
+  const prevSlot = [false, false, false];
 
   let padBits = [];
   const padFrag = {
     x: 0, y: 0, camX: 0, camY: 0, run: false,
     jumpPressed: false, actionPressed: false, jumpDown: false, dive: false,
+    abilityPressed: false, abilityDown: false, swapPressed: false,
   };
 
   const orbit = createOrbitState(startYaw);
@@ -876,6 +1057,8 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
   };
   const res = { moveX: 0, moveZ: 0, run: false, jump: false, action: false, camYawDelta: 0, camPitchDelta: 0 };
   const drive = { yawDelta: 0, pitchDelta: 0, zoomWant: 1, touched: false, moveN: 0, playerYaw: 0 };
+  /** The look pixels for ONE substep — frag/n, rewritten each poll. */
+  const _subLook = { dx: 0, dy: 0, mouse: false };
   const ctrl = { x: 0, z: 0, run: false };
   const outFrame = {
     x: 0, z: 0, run: false, jump: false, action: false, yaw: 0, pitch: 0, zoom: 1,
@@ -884,6 +1067,9 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
     // `dive` is what takes a swimmer under (traversal.js). Both are false in
     // every locked frame, exactly like the stick.
     jumpHeld: false, dive: false,
+    // The party verbs, as edge + level + swap ask — the scene forwards these
+    // to the ability runtime (app.pressAbility / releaseAbility / swapHero).
+    abilityPressed: false, abilityHeld: false, swapPressed: false, swapSlot: null,
   };
 
   const down = (k) => !!(k && k.isDown);
@@ -911,14 +1097,32 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
     const spaceNow = down(k?.SPACE);
     keys.jumpPressed = spaceNow && !prevSpace;
     keys.jumpDown = spaceNow;
-    // C (or CTRL, if the host registered it) takes a swimmer under. Held, not
-    // tapped: releasing floats you straight back up, which is the only dive
-    // control a five-year-old can be trusted with.
+    // C or CTRL takes a swimmer under. Held, not tapped: releasing floats you
+    // straight back up, which is the only dive control a five-year-old can be
+    // trusted with. (Both keys ARE registered above — a read of a key addKeys
+    // never registered is how dive shipped dead the first time.)
     keys.dive = down(k?.C) || down(k?.CTRL);
     prevSpace = spaceNow;
     const actNow = down(k?.E) || down(k?.ENTER);
     keys.actionPressed = actNow && !prevAct;
     prevAct = actNow;
+    // F (or X, for the platformer hands) is the party verb; Q cycles the ring;
+    // 1/2/3 pick a slot directly. E/Shift were NOT used for the ability on
+    // purpose — they already mean ACTION and RUN here.
+    const abilityNow = down(k?.F) || down(k?.X);
+    keys.abilityPressed = abilityNow && !prevAbility;
+    keys.abilityDown = abilityNow;
+    prevAbility = abilityNow;
+    const swapNow = down(k?.Q);
+    keys.swapPressed = swapNow && !prevSwap;
+    prevSwap = swapNow;
+    keys.swapSlot = null;
+    const slotKeys = [k?.ONE, k?.TWO, k?.THREE];
+    for (let i = 0; i < 3; i++) {
+      const dn = down(slotKeys[i]);
+      if (dn && !prevSlot[i]) keys.swapSlot = i;
+      prevSlot[i] = dn;
+    }
 
     // ── Gamepad ─────────────────────────────────────────────────────
     let pad = null;
@@ -932,14 +1136,14 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
     // ── Assemble ────────────────────────────────────────────────────
     const jumpEdge = touch.consumeJump() || keys.jumpPressed || padFrag.jumpPressed;
     const actionEdge = touch.consumeAction();
+    const abilityEdge = touch.consumeAbility() || keys.abilityPressed || padFrag.abilityPressed;
+    const swapEdge = touch.consumeSwap() || keys.swapPressed || padFrag.swapPressed;
     if (jumpEdge) raw.pressedAt = now;
     if (ctx.grounded) raw.groundedAt = now;
 
-    raw.look = look.consume();
-    raw.dt = dt;
+    const frag = look.consume();
     raw.now = now;
     raw.grounded = ctx.grounded;
-    raw.touchAction = actionEdge;
 
     if (ctx.locked) {
       // A modal is up: no movement, no jump, no orbit. The knob still eases
@@ -949,37 +1153,65 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
       look.reset();
       touch.update();
       touch.setActionLabel(null);
+      touch.setDiveVisible(false);
       outFrame.x = 0; outFrame.z = 0; outFrame.run = false;
       outFrame.jump = false; outFrame.action = false;
       outFrame.jumpHeld = false; outFrame.dive = false;
+      outFrame.abilityPressed = false; outFrame.abilityHeld = false;
+      outFrame.swapPressed = false; outFrame.swapSlot = null;
       outFrame.yaw = orbit.yaw; outFrame.pitch = orbit.pitch; outFrame.zoom = orbit.zoom;
       return outFrame;
     }
 
-    resolveInput(raw, orbit.yaw, t, res);
-    if (res.jump) { raw.pressedAt = null; raw.groundedAt = null; }
-    raw.prevMoveX = res.moveX;
-    raw.prevMoveZ = res.moveZ;
+    // ── Integrate, in fixed-size SUBSTEPS ───────────────────────────
+    // The accel/turn filter and the orbit inertia/recentre integrate on the
+    // PHASER frame's dt. On a device running below 20 fps a single clamped
+    // step under-integrates all of them — the measured "controls get mushier
+    // as the device gets slower" (D1-B). Splitting the frame into <=33 ms
+    // slices makes the integration identical at 20 fps and at 120 fps; at a
+    // healthy 60 fps n is 1 and nothing changes.
+    const n = Math.max(1, Math.min(8, Math.ceil((dt || 0) / (1 / 30))));
+    const sub = (dt || 0) / n;
+    _subLook.mouse = frag.mouse;
+    _subLook.dx = frag.dx / n;
+    _subLook.dy = frag.dy / n;
+    raw.look = _subLook;
+    raw.dt = sub;
+    let jumped = false;
+    let actioned = false;
+    for (let i = 0; i < n; i++) {
+      raw.touchAction = i === 0 ? actionEdge : false;
+      resolveInput(raw, orbit.yaw, t, res);
+      if (res.jump) { jumped = true; raw.pressedAt = null; raw.groundedAt = null; }
+      if (res.action) actioned = true;
+      raw.prevMoveX = res.moveX;
+      raw.prevMoveZ = res.moveZ;
 
-    drive.yawDelta = res.camYawDelta;
-    drive.pitchDelta = res.camPitchDelta;
-    drive.zoomWant = look.zoomWant;
-    drive.touched = look.touched || res.camYawDelta !== 0 || res.camPitchDelta !== 0;
-    drive.moveN = ctx.moveN || 0;
-    drive.playerYaw = ctx.playerYaw || 0;
-    stepOrbit(orbit, drive, dt, t, orbit);
+      drive.yawDelta = res.camYawDelta;
+      drive.pitchDelta = res.camPitchDelta;
+      drive.zoomWant = look.zoomWant;
+      drive.touched = look.touched || res.camYawDelta !== 0 || res.camPitchDelta !== 0;
+      drive.moveN = ctx.moveN || 0;
+      drive.playerYaw = ctx.playerYaw || 0;
+      stepOrbit(orbit, drive, sub, t, orbit);
+    }
 
     toControllerInput(res, ctrl, t);
     touch.update();
     touch.setActionLabel(actionLabel(ctx.actionKind));
+    touch.setDiveVisible(!!ctx.swimming);
 
     outFrame.x = ctrl.x;
     outFrame.z = ctrl.z;
     outFrame.run = ctrl.run;
-    outFrame.jump = res.jump;
-    outFrame.action = res.action;
+    outFrame.jump = jumped;
+    outFrame.action = actioned;
     outFrame.jumpHeld = touch.jumpDown || keys.jumpDown || padFrag.jumpDown;
-    outFrame.dive = keys.dive || padFrag.dive;
+    outFrame.dive = touch.diveDown || keys.dive || padFrag.dive;
+    outFrame.abilityPressed = abilityEdge;
+    outFrame.abilityHeld = touch.abilityDown || keys.abilityDown || padFrag.abilityDown;
+    outFrame.swapPressed = swapEdge;
+    outFrame.swapSlot = keys.swapSlot;
     outFrame.yaw = orbit.yaw;
     outFrame.pitch = orbit.pitch;
     outFrame.zoom = orbit.zoom;
@@ -1000,6 +1232,10 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
       orbit.idle = 99;
     },
     setVisible(v) { touch.setVisible(v); },
+    /** The party verb chip — forward app.abilityChip() here every frame. */
+    setAbilityChip(chip) { touch.setAbilityChip(chip); },
+    /** The party ring — forward app.partyChips() here when the party changes. */
+    setPartyChips(chips) { touch.setPartyChips(chips); },
     destroy() { touch.destroy(); look.destroy(); },
   };
 }

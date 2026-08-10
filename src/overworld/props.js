@@ -945,6 +945,51 @@ export function createProps(heightfield, opts = {}) {
   const _s3 = new THREE.Vector3(1, 1, 1);
   const _col = new THREE.Color();
   const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+  const Q_ID = new THREE.Quaternion();
+
+  // ═══ 1b. PORTAL BEACONS ═══
+  // A column of light standing on every gate, visible across the island. This
+  // is WAYFINDING, not decoration: the playtest failure was not that the
+  // portals were far away (18 m from spawn) — it was that nothing anywhere
+  // said "a level lives HERE". The column fades to nothing with height (a
+  // vertical alpha gradient), adds over the sky, and never writes depth, so it
+  // reads as a shaft of light and not as a glowing pillar of plastic.
+  // Colour is per-instance state: GOLD = a floor you can play right now,
+  // TEAL = already completed, and locked gates glow faintly warm so the world
+  // still promises them. One instanced mesh, one draw call for all nine.
+  const BEACON_H = 46;
+  const BEACON_R = 1.35;
+  const beaconTex = (() => {
+    const cv = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
+    if (!cv) return null;
+    cv.width = 2; cv.height = 128;
+    const cx = cv.getContext('2d');
+    const grad = cx.createLinearGradient(0, 128, 0, 0);   // v=0 bottom -> v=1 top
+    grad.addColorStop(0.0, 'rgb(200,200,200)');
+    grad.addColorStop(0.45, 'rgb(90,90,90)');
+    grad.addColorStop(1.0, 'rgb(0,0,0)');
+    cx.fillStyle = grad;
+    cx.fillRect(0, 0, 2, 128);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = THREE.RepeatWrapping;
+    return tex;
+  })();
+  const beaconMat = trackMat(new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, depthWrite: false,
+    side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    opacity: 0.5, fog: false,
+    ...(beaconTex ? { alphaMap: beaconTex } : {}),
+  }));
+  if (beaconTex) textures.push(beaconTex);
+  const beacons = new THREE.InstancedMesh(
+    track(new THREE.CylinderGeometry(BEACON_R * 0.55, BEACON_R, BEACON_H, 10, 1, true)),
+    beaconMat, nP,
+  );
+  beacons.name = 'portal-beacon';
+  beacons.castShadow = false;
+  beacons.receiveShadow = false;
+  /** Per-portal restore matrices so a hidden arch also drops its beacon. */
+  const beaconRestore = [];
 
   if (banners) {
     const cells = new Float32Array(nP * 2);
@@ -975,6 +1020,10 @@ export function createProps(heightfield, opts = {}) {
       new THREE.Vector3(p.x, p.y + BANNER_Y, p.z), _q4.clone(), _s3) : null;
     const stoneRestore = new THREE.Matrix4().compose(
       new THREE.Vector3(p.x, p.y, p.z), _q4.clone(), _s3);
+    beaconRestore[i] = new THREE.Matrix4().compose(
+      new THREE.Vector3(p.x, p.y + BEACON_H / 2 + 1.5, p.z), Q_ID, _s3);
+    beacons.setMatrixAt(i, beaconRestore[i]);
+    beacons.setColorAt(i, _col.setHex(PAPER.gold, THREE.SRGBColorSpace));
 
     const mesh = makeHandle(p.x, p.y, p.z, (v) => {
       const m = v ? stoneRestore : ZERO;
@@ -984,6 +1033,8 @@ export function createProps(heightfield, opts = {}) {
       archStone.instanceMatrix.needsUpdate = true;
       archTrim.instanceMatrix.needsUpdate = true;
       archPage.instanceMatrix.needsUpdate = true;
+      beacons.setMatrixAt(i, v ? beaconRestore[i] : ZERO);
+      beacons.instanceMatrix.needsUpdate = true;
       if (banners) {
         banners.setMatrixAt(i, v ? bannerRestore : ZERO);
         banners.instanceMatrix.needsUpdate = true;
@@ -997,10 +1048,29 @@ export function createProps(heightfield, opts = {}) {
     };
   });
 
-  for (const m of [archStone, archTrim, archPage]) {
+  for (const m of [archStone, archTrim, archPage, beacons]) {
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
     m.frustumCulled = true;
+  }
+  group.add(beacons);
+
+  /**
+   * Recolour the beacons to the save's truth. `states[i]` matches portals[i]
+   * (worldSpec order): 'open' = playable now (bright gold), 'done' = finished
+   * (calm teal), anything else = still sealed (faint ember — a promise, not an
+   * invitation). Call at boot and again whenever a floor completes/unlocks.
+   */
+  function setBeaconStates(states) {
+    if (!states || !states.length) return;
+    for (let i = 0; i < portalEntries.length; i++) {
+      const s = states[i];
+      if (s === 'done') _col.setHex(PAPER.teal, THREE.SRGBColorSpace).multiplyScalar(0.5);
+      else if (s === 'open') _col.setHex(PAPER.gold, THREE.SRGBColorSpace);
+      else _col.setHex(PAPER.gold, THREE.SRGBColorSpace).multiplyScalar(0.16);
+      beacons.setColorAt(i, _col);
+    }
+    if (beacons.instanceColor) beacons.instanceColor.needsUpdate = true;
   }
   archStone.castShadow = castShadow;
   archStone.receiveShadow = true;
@@ -1216,6 +1286,9 @@ export function createProps(heightfield, opts = {}) {
   // faster. It defaults to simTime, so every existing caller is unaffected.
   function update(simTime, playerPos, windTime = simTime) {
     WIND.value = windTime;
+    // The beacons BREATHE — a slow shared pulse on the one material, so nine
+    // columns cost one uniform write and read as alive rather than as neon.
+    beaconMat.opacity = 0.42 + 0.13 * Math.sin(simTime * 1.35);
     veg.update(simTime, playerPos, windTime);
     const px = playerPos ? (playerPos.x ?? 0) : 0;
     const pz = playerPos ? (playerPos.z ?? 0) : 0;
@@ -1248,7 +1321,7 @@ export function createProps(heightfield, opts = {}) {
   // pays.
   const marketCalls = stallMeshes.length + (cargoMesh ? 1 : 0);
   const shadowCalls = castShadow ? (2 + buildingMeshes.length + marketCalls) : 0;
-  const colorCalls = 3 + (banners ? 1 : 0) + buildingMeshes.length
+  const colorCalls = 3 + (banners ? 1 : 0) + 1 /* beacons */ + buildingMeshes.length
     + marketCalls + (apronMesh ? 1 : 0)
     + (coinMesh ? 1 : 0) + (potionMesh ? 1 : 0) + 1;
   const stats = {
@@ -1286,5 +1359,8 @@ export function createProps(heightfield, opts = {}) {
     buildingBodies.length = 0;
   }
 
-  return { group, portals, buildings: buildingBodies, trees, collectibles, stats, update, dispose };
+  return {
+    group, portals, buildings: buildingBodies, trees, collectibles, stats,
+    update, dispose, setBeaconStates,
+  };
 }

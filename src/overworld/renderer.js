@@ -83,6 +83,7 @@ export function createRenderer({ game, onContextLost, onContextRestored }) {
   let drawFn = null;          // (simTime, alpha) => void — render
 
   function frame(nowMs) {
+    if (typeof window !== 'undefined') window.__MW_RIG_FRAMES = (window.__MW_RIG_FRAMES || 0) + 1;
     rafId = running ? requestAnimationFrame(frame) : null;
     if (contextLost) return;
     const now = nowMs / 1000;
@@ -135,6 +136,12 @@ export function createRenderer({ game, onContextLost, onContextRestored }) {
         triangles: info.render.triangles,
         geometries: info.memory.geometries,
         textures: info.memory.textures,
+        // Loop health, so a harness (or a bug report) can tell a dead loop
+        // from a slow one: a stuck simTime with running=true and
+        // contextLost=true is an eviction that never restored.
+        running,
+        frozen,
+        contextLost,
       };
     },
 
