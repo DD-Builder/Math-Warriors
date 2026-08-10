@@ -59,7 +59,7 @@ import { DEFAULT_TUNING } from './controller.js';
 //
 // traversal.js grew an injectable walk base for exactly this; see the note on
 // createTraversalController's `opts.base`.
-import { createGameFeel, createFeelFx, rigScale, fovOffsetDeg } from './gameFeel.js';
+import { createGameFeel, createFeelFx, fovOffsetDeg } from './gameFeel.js';
 import {
   createIslandTraversal, createFloorTraversal, dispatchTraversalEvent,
   applyRigFlags, jumpLabel,
@@ -70,7 +70,9 @@ import { createAudio3D } from './audio3d.js';
 import {
   footstep as sfxFootstep, land as sfxLand, playSfx,
   startGlideWind, setGlideWindIntensity, stopGlideWind,
+  debugSfxCallLog,
 } from '../systems/synthAudio.js';
+import { watchdogStats } from '../systems/music/audioGraph.js';
 import { resolveSurface } from '../systems/sfxLibrary.js';
 import { createTerrain } from './terrainMesh.js';
 import { createSky } from './sky.js';
@@ -1974,8 +1976,6 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
   }
 
   // ── Draw ───────────────────────────────────────────────────────────────
-  /** Scratch for gameFeel's whole-body squash. Written every frame, never new. */
-  const _rigS = { sx: 1, sy: 1, sz: 1 };
   /** Scratch for audio3d.update()'s frame record. Rewritten in place. */
   const _audioFrame = {
     dt: 1 / 60, playerPos: null, indoors: false,
@@ -2050,12 +2050,21 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     lastDrawSim = simTime;
     player.groundY = groundAt(player.pos.x, player.pos.z);
     heroRig.update(heroDt, player);
-    // SQUASH AND STRETCH, on the outer group. heroRig already runs its own
-    // landing squash on the inner `rig` node; this is gameFeel's whole-body
-    // channel multiplied over it, which is what makes a hard landing read as a
-    // hard landing instead of the same little bob every time.
-    rigScale(player, _rigS);
-    hero.scale.set(_rigS.sx, _rigS.sy, _rigS.sz);
+    // SQUASH AND STRETCH have exactly ONE writer: heroRig's own landing
+    // channel on the inner `rig` node (heroRig.js, driven off `state.grounded`
+    // / `fallV` directly, not off gameFeel's parallel `player.squash`). This
+    // outer group's scale is deliberately left untouched.
+    //
+    // It used to ALSO be set here from gameFeel.rigScale(player), multiplying
+    // a second, independently-computed landing squash over heroRig's own —
+    // two separate impact detectors reacting to the same touchdown, compounding
+    // instead of agreeing. Combined worst case was rig 0.78 x outer 0.78 ~=
+    // 0.61 on Y (a ~40% compression) on every real landing, which is the
+    // measured root cause of "the hero looks like a stack of jello" — see
+    // .forensics/world.md Defect 5. `player.squash`/`player.stretch` still
+    // exist (gameFeel.step still computes them, `feel()` still reports them)
+    // for camera dip / dust / FOV kick, which are unrelated channels; they
+    // just no longer reach the mesh.
 
     // THE CAMERA HAS EXACTLY ONE WRITER PER FRAME. During a fight that writer
     // is battle3d — its sweep, its push-ins and its shake all move the eye, and
@@ -2383,6 +2392,19 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
       return islandTraversal.spec.pads.map((p) => ({ id: p.id, x: p.x, z: p.z }));
     },
 
+    /**
+     * Every tree's trunk collider — position + radius. Same contract as
+     * portals()/climbRoutes() above and for the same reason: a "walk into a
+     * tree" spec that hardcoded a coordinate pulled from a one-off Node dump
+     * would silently stop testing collision the day the terrain seed or
+     * vegetation layout moved. The harness reads the real, live list and
+     * walks toward the nearest one, exactly like a child bumping into
+     * whatever tree happens to be in front of them.
+     */
+    trees() {
+      return props.trees.map((t) => ({ x: t.x, y: t.y, z: t.z, r: t.r }));
+    },
+
     // Floor entry, drivable from the harness without walking into an arch.
     enterFloor(floorId) {
       const r = enterFloor(floorId);
@@ -2426,7 +2448,33 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
         skidding: (player.skidT || 0) > 0,
       };
     },
+    /**
+     * The hero mesh's ACTUAL rendered scale, for the jello probe — `feel()`
+     * only reports gameFeel's channel, which no longer touches the mesh (see
+     * the comment at the `heroRig.update` call site). This is the composed
+     * scale a screenshot would show: the outer group (always identity now)
+     * times heroRig's own inner `rig` node, which is the one and only squash
+     * writer.
+     */
+    heroScale() {
+      return {
+        x: hero.scale.x * heroRig.rig.scale.x,
+        y: hero.scale.y * heroRig.rig.scale.y,
+        z: hero.scale.z * heroRig.rig.scale.z,
+      };
+    },
     audio() { return audio3d.stats(); },
+    /**
+     * Everything the audio-metrics probe needs, in one call: the master
+     * safety watchdog's counters (ducks/nonFinite/lastRms — the harp-scream
+     * class of bug trips this) and every resolved sfx call since boot (key +
+     * AudioContext time), so a harness can compute real calls/sec per key
+     * from an actual session instead of reading the source and hoping.
+     * Read-only, like everything else here — nothing plays or mutes from it.
+     */
+    audioDebug() {
+      return { watchdog: watchdogStats(), sfxCalls: debugSfxCallLog(), loops: audio3d.stats() };
+    },
     cinematicActive() { return world.cinematicActive(); },
 
     worldStats() {
@@ -2619,6 +2667,25 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     refreshBeacons() { refreshBeacons(); },
     /** The portal the player is standing in, or null. */
     getNearPortal() { return nearPortal; },
+    /**
+     * Every portal's static geometry — id/floorId/position/radius.
+     *
+     * `createOverworld` returns THIS object (`world`), not `api` a few
+     * hundred lines down, which only exists for `window.__MW_OVERWORLD`
+     * debugging. `.portals()` was added to `api` (for a debug-surface
+     * fix — see D10-C) but never mirrored here, so `this.app.portals()` —
+     * every REAL caller in OverworldScene.js, not just the debug console —
+     * silently got `undefined` back forever: the portal compass, and the
+     * first-arrival beat that turns the camera at Floor 1's gate, both
+     * read this and both went dark though neither line ever threw. Exactly
+     * the "wired because the import exists" failure mode this file's own
+     * header warns about.
+     */
+    portals() {
+      return props.portals.map((p) => ({
+        id: p.id, floorId: p.floorId, x: p.x, y: p.y, z: p.z, radius: p.radius,
+      }));
+    },
 
     // ── THE PARTY VERBS ──────────────────────────────────────────────────
     // controls3d surfaces the edges; the scene forwards them here. These are

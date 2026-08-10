@@ -34,7 +34,7 @@ const BASE_ARGS = [
 // added here is BOTH claimed by the '3d' project and excluded from '2d' — the
 // two lists are one regex on purpose, because a WebGL spec that leaks into the
 // Canvas2D project fails in a way that looks like a game bug.
-const OVERWORLD_SPECS = /(overworld-.*|level3d-shots|battle3d-shots)\.spec\.js/;
+const OVERWORLD_SPECS = /(overworld-.*|level3d-shots|battle3d-shots|playthrough)\.spec\.js/;
 
 export default defineConfig({
   testDir: './e2e',

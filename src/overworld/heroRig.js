@@ -1100,6 +1100,13 @@ export const ANIM = {
   wadeSink: 0.19,
   wadeSplay: 0.40,
   squashDecay: 4.2,
+  // Whole-body squash amplitude, capped at a kid-legible "oof" rather than a
+  // full-body pancake: 15% Y-compression max, with roughly 60% of that back
+  // out sideways (volume-preserving-ish, not exact). See the squash-tuning
+  // comment at the rig.scale.set() call below for why these numbers exist.
+  squashY: 0.15,
+  squashXZ: 0.09,
+  legSquash: 0.18,
   landMinFall: 2.5,
   speedDamp: 11,
   yawDamp: 7,
@@ -1433,11 +1440,18 @@ export function createHeroRig(heroId, opts = {}) {
       + st.wStagger * 0.10;
     rig.rotation.y = st.wStagger * -0.14 + idle * Math.sin(st.t * 0.37) * 0.02;
 
+    // Squash is capped at 15% Y-compression (SQUASH_Y) — a kid-legible "oof"
+    // on a hard landing, not a stack of jello. This is now the ONLY writer of
+    // the hero's whole-body scale: index.js used to multiply a second,
+    // independently-computed gameFeel squash on top of this one every frame,
+    // compounding to ~40% compression on a real landing — see
+    // .forensics/world.md Defect 5 and the comment at heroRig.update()'s call
+    // site in index.js.
     const stretch = st.wAir * (st.fallV > 0 ? 0.06 : 0.02);
     rig.scale.set(
-      1 + sq * 0.16 - stretch * 0.5,
-      1 - sq * 0.22 + stretch,
-      1 + sq * 0.16 - stretch * 0.5,
+      1 + sq * ANIM.squashXZ - stretch * 0.5,
+      1 - sq * ANIM.squashY + stretch,
+      1 + sq * ANIM.squashXZ - stretch * 0.5,
     );
 
     // ── Torso ──
@@ -1467,7 +1481,13 @@ export function createHeroRig(heroId, opts = {}) {
       : (-head.rotation.x * 0.95 - rig.rotation.x * 0.5 + sw * 0.05 * moveN * loco
         - st.accel * 0.030 - runN * 0.20
         - st.wGlide * 0.55 + st.wAir * 0.30 + sq * 0.38);
-    const [fl, fv] = springStep(st.flowLag, st.flowVel, flowTarget, 58, 8.0, d);
+    // Damping raised from 8.0 to ~critical (2*sqrt(58)=15.2 for zeta=1): at
+    // 8.0 this spring was zeta=~0.53, under-damped enough to overshoot and
+    // ring on every idle sway/breath tick — small each time, but continuous,
+    // which is part of what read as "jello" even standing still. Critical
+    // damping keeps the cape/hat lag (the target still moves) without the
+    // bounce-back past it. See .forensics/world.md Defect 5.
+    const [fl, fv] = springStep(st.flowLag, st.flowVel, flowTarget, 58, 15, d);
     st.flowLag = fl;
     st.flowVel = fv;
     flow.rotation.x = fl;
@@ -1478,7 +1498,10 @@ export function createHeroRig(heroId, opts = {}) {
     // this is the skirt catching up with the hips; on everyone else it is a
     // couple of degrees of weight and costs nothing.
     const hemTarget = roll * 0.5 - sw * 0.05 * moveN * loco;
-    const [hl, hv] = springStep(st.hemLag, st.hemVel, hemTarget, 30, 7.0, d);
+    // Same fix as the flow spring above: 7.0 was zeta=~0.64 (2*sqrt(30)=11
+    // is critical), under-damped enough to wobble on its own after the body
+    // stopped moving.
+    const [hl, hv] = springStep(st.hemLag, st.hemVel, hemTarget, 30, 11, d);
     st.hemLag = hl;
     st.hemVel = hv;
     torso.rotation.z += (hl - hemTarget) * 0.6;
@@ -1518,7 +1541,7 @@ export function createHeroRig(heroId, opts = {}) {
       - climbLegR + st.wGlide * 0.10 - st.wStagger * 0.20;
     legL.rotation.z = 0.02 + st.wWade * 0.10 - st.wGlide * 0.06;
     legR.rotation.z = -0.02 - st.wWade * 0.10 + st.wGlide * 0.06;
-    const legSquash = 1 - sq * 0.30 - st.wAir * 0.06;
+    const legSquash = 1 - sq * ANIM.legSquash - st.wAir * 0.06;
     legL.scale.y = legSquash;
     legR.scale.y = legSquash;
 

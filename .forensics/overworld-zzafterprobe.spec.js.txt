@@ -63,7 +63,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test('after-probe: world fixes', async ({ page }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(1_500_000);
   fs.mkdirSync(OUT, { recursive: true });
   const R = { pageErrors: [] };
   page.on('pageerror', (e) => R.pageErrors.push(e.message));
@@ -90,8 +90,11 @@ test('after-probe: world fixes', async ({ page }) => {
   });
 
   // ── Defect 6: nearest tree to spawn (broadleaf, from the Node dump) ──
-  // tree at (5.30, 155.10) collider r=0.435 -> expected stop 1.035
-  const T1 = { x: 5.30, z: 155.10, r: 0.435 };
+  // Re-dumped against the current build (createHeightfield takes a bare seed
+  // number, not {seed}; an earlier dump passed the wrong shape and silently
+  // reproduced a stale layout — see .forensics/world.md session notes).
+  // tree at (13.616, 155.959) collider r=0.513 -> expected stop 1.113
+  const T1 = { x: 13.616, z: 155.959, r: 0.513 };
   const run1 = await walkAt(page, T1, { x: T1.x - 4.0, z: T1.z }, 4);
   R.treeBroadleaf = {
     tree: T1,

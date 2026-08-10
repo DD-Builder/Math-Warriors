@@ -77,6 +77,15 @@ export class OverworldScene extends Phaser.Scene {
     this._destroyed = false;
     this._nearPortal = null;
     this._entering = false;
+    /** Real-clock (performance.now()) deadline for the no-party redirect
+     * below — see _enterPortal()'s 'no-party' branch for why this is not
+     * `this.time.delayedCall`. */
+    this._noPartyRedirectAt = null;
+    /** Queue for _scheduleRaw() — every OTHER deferred call in this scene
+     * (story beats, the math-door retry prompt) now goes through the same
+     * raw-clock mechanism as _noPartyRedirectAt, for the same reason: see
+     * _scheduleRaw's doc comment. */
+    this._pendingRaw = [];
 
     // ── Floor state ──
     // Null on the island. When a floor is open these mirror MazeScene's own
@@ -684,10 +693,22 @@ export class OverworldScene extends Phaser.Scene {
       audio.play('ui/back');
       this._flash('You need 3 heroes! Let’s pick your party…');
       this.saveMazeState();
-      this.time.delayedCall(900, () => {
-        if (this._destroyed) return;
-        transitionTo(this, SCENES.PARTY_SELECT, { grade: this.save.grade }, 300, 'fade');
-      });
+      // NOT this.time.delayedCall(900, ...) — MEASURED on the build: under
+      // sustained sub-5fps (this scene's normal operating range on
+      // SwiftShader, and the range a loaded real device can hit too — see
+      // D1-B), Phaser's OWN TimeStep delta-smoothing
+      // (core/TimeStep.js#smoothDelta) treats every over-200ms frame as
+      // "probably a corrupted/backgrounded-tab delta" and substitutes a
+      // stale value from its history buffer instead of the real elapsed
+      // time. Clock.update() advances TimerEvents by that substituted
+      // delta, not by wall-clock time, so a `this.time.delayedCall` can
+      // stall for many real seconds — observed hanging past 9s of a 900 ms
+      // delay with the callback never firing, timer stuck "active" the
+      // whole time. `update(time)`'s own `time` argument is the RAW,
+      // unsmoothed timestamp (it is what Clock.now is set from too), so a
+      // plain deadline compared against it every frame is immune to the
+      // same stall. See the check at the top of update().
+      this._noPartyRedirectAt = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + 900;
       return;
     }
     if (route.block === 'locked') {
@@ -826,12 +847,65 @@ export class OverworldScene extends Phaser.Scene {
     const poll = () => {
       if (this._destroyed || epoch !== this._floorEpoch) return;
       if (this._cine?.active || this.dialogue?.active || this._mathPrompt) {
-        this.time.delayedCall(300, poll);
+        this._scheduleRaw(300, poll);
         return;
       }
       fn();
     };
-    this.time.delayedCall(delayMs, poll);
+    // NOT this.time.delayedCall — see _scheduleRaw's doc comment. Every story
+    // beat in this file (first-arrival orientation, a floor's arrival/departure
+    // lines, a rescue's dialogue) went through _waitThenSay, and
+    // this.time.delayedCall is exactly the primitive _noPartyRedirectAt's
+    // comment already warned stalls under sustained sub-5fps — MEASURED live:
+    // under a fresh-save session on this build, the very first orientation
+    // beat's `this.time.delayedCall(800, poll)` never fired at all across 20+
+    // real seconds (Phaser's Clock never advanced far enough), even though
+    // the cinematic that scheduled it had already finished. That is the
+    // second half of "no cutscenes seen" — the FIRST beat a fresh player
+    // should ever see was silently dead on exactly the hardware (SwiftShader,
+    // and by extension a loaded iPad) this game targets.
+    this._scheduleRaw(delayMs, poll);
+  }
+
+  /**
+   * A deferred call on the RAW clock, not Phaser's Clock.
+   *
+   * `this.time.delayedCall` looked right and tested green (a spec that just
+   * lets rAF run at native desktop speed will see it fire on schedule every
+   * time) — it is still wrong. Phaser's TimeStep smooths `delta` and, per
+   * core/TimeStep.js#smoothDelta, treats any frame slower than ~200 ms as a
+   * probably-corrupted/backgrounded-tab reading and substitutes a stale value
+   * from its own history instead of the real elapsed time. `Clock.update()`
+   * advances every TimerEvent (delayedCall included) by THAT substituted
+   * delta, not by wall-clock time — so under sustained sub-5fps (this scene's
+   * normal range on SwiftShader, and a range a loaded real device can hit
+   * too, per D1-B) a delayedCall can stall for many real seconds, or — as
+   * measured live on this build's very first story beat — never fire at all.
+   *
+   * `update(time)`'s `time` argument is the RAW, unsmoothed timestamp (see
+   * the `now` computed at its top, which is what `_noPartyRedirectAt` already
+   * compared against for the same reason); a plain deadline against that is
+   * immune. This is the general form of that one-off pattern, for every OTHER
+   * deferred call in the scene.
+   */
+  _scheduleRaw(delayMs, fn) {
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    this._pendingRaw.push({ at: now + Math.max(0, delayMs), fn });
+  }
+
+  /** Run and clear every _scheduleRaw() entry whose deadline has passed. */
+  _flushScheduledRaw(now) {
+    if (!this._pendingRaw.length) return;
+    const due = [];
+    this._pendingRaw = this._pendingRaw.filter((p) => {
+      if (now < p.at) return true;
+      due.push(p.fn);
+      return false;
+    });
+    for (const fn of due) {
+      if (this._destroyed) return;
+      fn();
+    }
   }
 
   /** Leave the floor and step back onto the island at the portal. */
@@ -860,6 +934,18 @@ export class OverworldScene extends Phaser.Scene {
     this.app?.refreshBeacons?.();
     this._portalTargets = null;
     audio.playMusic('music/map');
+    // Write the island position NOW, not only at the next portal entry.
+    // exitFloor() (above) parks the player back at the SAME island spot
+    // saveMazeState() captured on the way in, so a plain enter->exit
+    // round trip happens to already agree — but saveMazeState is otherwise
+    // only called on the way INTO a gate, on the no-party redirect, on the
+    // 2D battle fallback, and on visibilitychange. Any session that ends
+    // (tab close, crash) after leaving a floor and before touching another
+    // portal would resume from that stale entry-time snapshot instead of
+    // wherever the player actually is. `this.floorId` is already null here
+    // (set above), which is saveMazeState's own guard against writing floor
+    // coordinates into the island slot.
+    this.saveMazeState();
   }
 
   _hydrateParty() {
@@ -1658,7 +1744,8 @@ export class OverworldScene extends Phaser.Scene {
           playSfx('ui/wrong');
           kill();
           this._flash('Try again!');
-          this.time.delayedCall(600, () => {
+          // NOT this.time.delayedCall — see _scheduleRaw's doc comment.
+          this._scheduleRaw(600, () => {
             if (this._destroyed || door.open || !this.floorId) return;
             const spec = doorQuestionSpec(door, this.floorId);
             const q = generateRatedQuestion({ ...spec, grade: getAdaptiveGrade(this.save, spec.operator) });
@@ -1691,6 +1778,52 @@ export class OverworldScene extends Phaser.Scene {
     const now = time || (typeof performance !== 'undefined' ? performance.now() : Date.now());
     const dt = this._lastInputT ? Math.min(0.25, (now - this._lastInputT) / 1000) : 1 / 60;
     this._lastInputT = now;
+
+    // The no-party ENTER redirect's deadline (see _enterPortal) — checked
+    // against the RAW `now` above, not Phaser's Clock, on purpose.
+    //
+    // This does NOT call the shared `transitionTo()` helper. That helper's
+    // fade branch is exactly the same shape as the bug this file just spent
+    // two comments explaining: `cameras.main.fadeOut()` plus a
+    // `this.time.delayedCall(duration + 200, doStart)` SAFETY NET for when
+    // 'camerafadeoutcomplete' doesn't fire — and that safety net is a
+    // Clock-based delayedCall too. MEASURED live: with the redirect's own
+    // stall fixed (above), the very next stage stalled the same way —
+    // `transitionTo`'s internal timer sat "active" for 19+ real seconds
+    // without firing, `PartySelectScene` never becoming active, on a save
+    // with too few heroes standing at a portal with nothing else to do.
+    // `transitionTo` is shared by every scene in the game and out of scope
+    // to change wholesale here, so this path keeps its cosmetic fade (best
+    // effort — a decoration, not a dependency) but drives the ACTUAL scene
+    // switch off `_scheduleRaw`, the one mechanism in this file proven
+    // immune to the stall.
+    if (this._noPartyRedirectAt != null && now >= this._noPartyRedirectAt) {
+      this._noPartyRedirectAt = null;
+      if (!this._destroyed) {
+        try { this.cameras.main.fadeOut(300, 31, 66, 68); } catch { /* cosmetic only */ }
+        this._scheduleRaw(300, () => {
+          if (this._destroyed) return;
+          // `scene.start()` itself still cannot be called from INSIDE this
+          // scene's own update() call stack — that is the original crash
+          // this whole redirect exists to avoid (a `this.time.delayedCall`
+          // callback fires from a different point in Phaser's per-frame
+          // systems step than `Scene.update()`, which is what let the OLD
+          // code get away with calling it directly; `_scheduleRaw`'s flush
+          // runs INSIDE update(), so calling scene.start() straight from it
+          // reproduces the exact "reading 'sys'" TypeError — MEASURED,
+          // confirmed live on this build). A real `setTimeout(fn, 0)` runs
+          // as its own browser task, outside any Phaser call stack and
+          // independent of Phaser's Clock, satisfying both constraints:
+          // wall-clock-driven AND not reentrant with update().
+          setTimeout(() => {
+            if (!this._destroyed) this.scene.start(SCENES.PARTY_SELECT, { grade: this.save.grade });
+          }, 0);
+        });
+      }
+    }
+    // Every _scheduleRaw() deadline (story beats via _waitThenSay, the
+    // math-door retry prompt) — same raw-clock reasoning as the check above.
+    this._flushScheduledRaw(now);
 
     // The director runs FIRST: a beat that ends this frame must have released
     // the camera before the follow boom is asked what it wants.
@@ -1759,17 +1892,19 @@ export class OverworldScene extends Phaser.Scene {
     // ACTION — the one context verb. The on-screen button, E/Enter and the
     // gamepad's X all land here, and the label above them already said which
     // of ENTER / OPEN / TALK it was going to be.
+    //
+    // There used to be a SECOND keyboard listener here — a `this.wasd`
+    // + `Phaser.Input.Keyboard.JustDown()` twin of this exact check, kept
+    // "for anyone who learned E before the ACTION button existed". It was
+    // dead weight wearing a working costume: `Key.onUp()` zeroes `_justDown`
+    // the instant a key comes up, so on a device slow enough to run a frame
+    // behind a keydown+keyup pair (measured: this build, under SwiftShader,
+    // and by extension the iPad this ships to — see D1-B) `JustDown()` can
+    // return false for a press that unquestionably happened. `f.action`
+    // (controls3d.js) no longer has that hole — its keyboard edges are
+    // captured off the raw `keydown-*` DOM event, not a per-frame diff — so
+    // this is the only ENTER path now, and it is the reliable one.
     if (f.action && !locked) this._doAction();
-
-    // E / Enter also remains the keyboard twin of tapping the ENTER prompt,
-    // for anyone who learned it before the ACTION button existed.
-    if (this._nearPortal && !this._entering) {
-      const e = this.wasd?.E;
-      const ent = this.wasd?.ENTER;
-      if ((e && Phaser.Input.Keyboard.JustDown(e)) || (ent && Phaser.Input.Keyboard.JustDown(ent))) {
-        this._enterPortal();
-      }
-    }
   }
 
   /**
@@ -1815,17 +1950,29 @@ export class OverworldScene extends Phaser.Scene {
     const st = this.app.getTraversalState?.();
     if (!st || !st.pos) return;
 
+    // Cache the STATIC geometry only (id/floorId/x/z never move once the
+    // world is built) — never the unlock/complete record. The old version
+    // baked `rec` into the cached entry and, worse, cached on the very FIRST
+    // call regardless of whether `app.portals()` had anything in it yet: on
+    // a fresh boot that first call can land before the world has finished
+    // building its portal props, returning `[]`, and `if (!targets)` treats
+    // an empty ARRAY as truthy — so an empty cache stuck forever, and the
+    // compass silently never showed for the rest of the session. MEASURED
+    // on the build: `_portalTargets` stayed `[]` from spawn onward even
+    // with three floors unlocked. Re-fetch until we actually see a portal,
+    // and always read `unlocked`/`complete` live so completing a floor
+    // retargets the arrow instead of pointing at a finished level forever.
     let targets = this._portalTargets;
-    if (!targets) {
-      const floors = this.save.floors || [];
-      targets = (this.app.portals?.() || [])
-        .map((p) => ({ ...p, rec: floors[p.floorId - 1] || {} }));
-      this._portalTargets = targets;
+    if (!targets || targets.length === 0) {
+      targets = this.app.portals?.() || [];
+      if (targets.length) this._portalTargets = targets;
     }
+    const floors = this.save.floors || [];
     let best = null;
     let bestD = Infinity;
     for (const p of targets) {
-      if (!p.rec.unlocked || p.rec.complete) continue;
+      const rec = floors[p.floorId - 1] || {};
+      if (!rec.unlocked || rec.complete) continue;
       const d = Math.hypot(p.x - st.pos.x, p.z - st.pos.z);
       if (d < bestD) { bestD = d; best = p; }
     }
@@ -1941,34 +2088,52 @@ export class OverworldScene extends Phaser.Scene {
     this.app?.pause();
   }
 
+  /**
+   * Every step below is wrapped, independently, in try/catch.
+   *
+   * WHY: `_teardown()` runs from Phaser's OWN 'shutdown'/'destroy' events —
+   * by definition every OTHER piece of this scene is already mid-collapse
+   * around it, in whatever order Phaser's scene manager felt like. One
+   * subsystem throwing here (a GameObject a director's `showSkip()` still
+   * held a reference to, already destroyed by the time cinematics.js's own
+   * `stop()` tried to hide it — MEASURED live: `Cannot read properties of
+   * undefined (reading 'sys')` from `cinematics.js` inside `this._cine
+   * .destroy()`, exercised for the first time ever by the no-party ENTER
+   * redirect actually reaching a real scene.start() instead of dying
+   * earlier) used to abort every step after it — orphaning the battle UI,
+   * skipping the floor-state save, leaking the 3D app — and surface as an
+   * uncaught page error on top, which is exactly the class of crash defect
+   * 10 was about. A teardown step that fails should lose only itself.
+   */
   _teardown() {
     this._destroyed = true;
-    this._controls?.destroy();
-    this._controls = null;
+    const safely = (label, fn) => {
+      try { fn(); } catch (err) { console.warn(`[overworld] teardown step "${label}" failed:`, err); }
+    };
+    safely('controls', () => { this._controls?.destroy(); this._controls = null; });
     // The director owns a letterbox, a fade and a SKIP chip. Stopping it first
     // releases the cinematic camera slot before the world below is disposed.
-    if (this._cineSkipGuard) {
+    safely('cineSkipGuard', () => {
+      if (!this._cineSkipGuard) return;
       this.input.keyboard?.off('keydown', this._cineSkipGuard);
       this.input.off('pointerdown', this._cineSkipGuard);
       this._cineSkipGuard = null;
-    }
-    this._cine?.destroy();
-    this._cine = null;
-    this._stamina?.destroy();
-    this._stamina = null;
-    this._destroyPrompt();
-    this._mathPrompt?.kill();
+    });
+    safely('cinematic', () => { this._cine?.destroy(); this._cine = null; });
+    safely('stamina', () => { this._stamina?.destroy(); this._stamina = null; });
+    safely('portalPrompt', () => this._destroyPrompt());
+    safely('mathPrompt', () => this._mathPrompt?.kill());
     // A fight in flight must not survive the scene: end it before the world
     // goes, so the save is written and the overlay is not left orphaned.
-    try { this.app?.endBattle?.('fled'); } catch { /* the world may be half-gone */ }
-    this._battleUi?.destroy();
-    this._battleUi = null;
+    safely('endBattle', () => this.app?.endBattle?.('fled'));
+    safely('battleUi', () => { this._battleUi?.destroy(); this._battleUi = null; });
     // A floor in progress must survive the scene going away (a battle, a tab
     // close): the snapshot is what _restoreFloorState replays on the way back.
-    if (this.floorId) this._saveFloorState();
-    if (this.app) {
+    safely('saveFloorState', () => { if (this.floorId) this._saveFloorState(); });
+    safely('appDispose', () => {
+      if (!this.app) return;
       this.app.dispose();
       this.app = null;
-    }
+    });
   }
 }

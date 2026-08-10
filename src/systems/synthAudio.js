@@ -242,6 +242,26 @@ function nowSec() {
 }
 
 // ------------------------------------------------------------------
+// CALL-RATE INSTRUMENTATION — for the e2e player-gate's audio metrics.
+// ------------------------------------------------------------------
+// A rolling log of every resolved playSfx() call (key + AudioContext time),
+// capped so a long session cannot leak memory. Purely observational: this
+// never changes what plays, when, or how loud — it exists so a harness can
+// answer "did any sfx key fire more than N times/sec" from the real build
+// instead of guessing from source. `playSfx` is the single choke point every
+// sound in the game funnels through (audio.js's play(), footstep(), land(),
+// playAttack() all call down into it), so logging here — once — covers all
+// of them.
+const CALL_LOG_MAX = 4000;
+let _callLog = [];
+function logCall(key) {
+  _callLog.push({ key, t: nowSec() });
+  if (_callLog.length > CALL_LOG_MAX) _callLog.splice(0, _callLog.length - CALL_LOG_MAX);
+}
+/** For the e2e audio-metrics probe: every resolved sfx call since boot. */
+export function debugSfxCallLog() { return _callLog.slice(); }
+
+// ------------------------------------------------------------------
 // PUBLIC PLAY API
 // ------------------------------------------------------------------
 
@@ -256,6 +276,7 @@ export function playSfx(key, opts = {}) {
   try {
     const k = resolveSfxKey(key);
     if (!k) return false;
+    logCall(k);
 
     // Chained sounds fill in their own position in the run.
     const o = { ...opts };

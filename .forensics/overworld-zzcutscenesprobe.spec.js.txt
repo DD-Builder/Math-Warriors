@@ -1,0 +1,181 @@
+/**
+ * CUTSCENES + UI PROOF — drives a FRESH save through: first-arrival cinematic,
+ * first-arrival orientation beat, floor entry (title card + arrival beat),
+ * a rescue (heroFreed cinematic), and the floor-complete beat — screenshotting
+ * each — plus a HUD content dump. Not part of the gate; parked into
+ * .forensics/ after use per the .forensics/world.md convention.
+ */
+import { test, expect } from '@playwright/test';
+import fs from 'fs';
+
+test.beforeEach(async ({ context }) => {
+  await context.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, (r) => r.abort());
+});
+
+function freshSave() {
+  return {
+    version: 1, grade: 3,
+    party: [
+      { id: 'knight-shadow', name: 'Shadow', hp: 52, maxHp: 52, xp: 0, level: 1 },
+    ],
+    unlockedHeroes: ['knight-shadow'],
+    gold: 0, potions: 0,
+    floors: Array.from({ length: 9 }, (_, i) => ({ id: i + 1, unlocked: i === 0, complete: false, bestStreak: 0 })),
+    settings: { musicVolume: 0, sfxVolume: 0, reducedMotion: false },
+    stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0, playTimeSec: 0, firstPlayedAt: Date.now(), lastPlayedAt: Date.now() },
+  };
+}
+
+test('cutscene + UI beats fire on a fresh save', async ({ page }) => {
+  test.setTimeout(300_000);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  fs.mkdirSync('.forensics/cutscene-proof', { recursive: true });
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!window.__MW?.game, null, { timeout: 30_000 });
+  await page.evaluate((save) => {
+    localStorage.setItem('mathwarriors.save', JSON.stringify(save));
+    const mgr = window.__MW.game.scene;
+    mgr.getScenes(true).forEach((s) => mgr.stop(s.scene.key));
+    mgr.start('OverworldScene', {});
+  }, freshSave());
+  await page.waitForFunction(() => window.__MW_OVERWORLD?.ready === true, null, { timeout: 60_000 });
+  await page.waitForFunction(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return s && !s._cover;
+  }, null, { timeout: 90_000 });
+
+  // ── BEAT 1: first-arrival cinematic on a genuinely fresh save ──
+  const arrivalActive = await page.evaluate(() => window.__MW_OVERWORLD.cinematicActive());
+  await page.screenshot({ path: '.forensics/cutscene-proof/01-arrival-cinematic.png' });
+  console.log('BEAT1_ARRIVAL_CINEMATIC_ACTIVE', arrivalActive);
+
+  await page.evaluate(() => window.__MW.game.scene.getScene('OverworldScene')._cine?.skip?.());
+  await page.waitForTimeout(300);
+
+  // ── BEAT 2: first-arrival orientation (camera snap + Elara lines) ──
+  await page.waitForFunction(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return !!s?.dialogue?.active;
+  }, null, { timeout: 20_000 }).catch(() => {});
+  const orientDialogueActive = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return !!s?.dialogue?.active;
+  });
+  await page.screenshot({ path: '.forensics/cutscene-proof/02-orientation-beat.png' });
+  console.log('BEAT2_ORIENTATION_DIALOGUE_ACTIVE', orientDialogueActive);
+  // Close it out of the way (TAP button == pointerdown/space).
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(400);
+  const seenBeats = await page.evaluate(() => window.__MW.game.scene.getScene('OverworldScene').save.seenBeats);
+  console.log('SEEN_BEATS_AFTER_ORIENTATION', JSON.stringify(seenBeats));
+
+  // ── HUD dump (idle, on the island) ──
+  const hudIsland = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return {
+      gold: s._goldChip?.label?.text,
+      potions: s._potionChip?.label?.text,
+      staminaVisible: !!s._stamina && s._stamina.visible !== false,
+      partyCount: (s.save.party || []).length,
+      unlockedHeroes: s.save.unlockedHeroes,
+    };
+  });
+  console.log('HUD_ISLAND', JSON.stringify(hudIsland));
+
+  // ── BEAT 3: floor entry — title card + arrival beat ── (floor 2, not 1:
+  // floor 1's objective is fairy-collection with no 'hero' rescue object —
+  // rescues start floor 2+, see task #27's L1 audit — and we want beat 5
+  // below to find a real one)
+  // NOTE: window.__MW_OVERWORLD.cinematicActive() reflects the 3D app's OWN
+  // camera-cinematic flag (world.cinematicActive() in index.js) — true only
+  // while a cinematic is DRIVING THE 3D CAMERA (arrival, rescue, boss
+  // approach). A title/complete card has no camera beat (see cinematics.js
+  // floorTitleCard/floorCompleteCard: card+stinger+sfx, no `camera` beat), so
+  // it never touches that flag even while genuinely on screen. The scene's
+  // OWN director (`_cine.active`) is the correct, ALWAYS-true-while-playing
+  // signal for every cinematic including pure letterbox cards; use that here.
+  const floorTitleActive = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    s._cine?.skip?.();
+    s._openFloor(2);
+    return !!s._cine?.active;
+  });
+  await page.screenshot({ path: '.forensics/cutscene-proof/03-floor-title-card.png' });
+  console.log('BEAT3_FLOOR_TITLE_CARD_ACTIVE', floorTitleActive);
+
+  await page.evaluate(() => window.__MW.game.scene.getScene('OverworldScene')._cine?.skip?.());
+  await page.waitForFunction(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return !!s?.dialogue?.active;
+  }, null, { timeout: 20_000 }).catch(() => {});
+  const floorArrivalDialogueActive = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return !!s?.dialogue?.active;
+  });
+  await page.screenshot({ path: '.forensics/cutscene-proof/04-floor-arrival-beat.png' });
+  console.log('BEAT4_FLOOR_ARRIVAL_DIALOGUE_ACTIVE', floorArrivalDialogueActive);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(400);
+
+  // ── HUD dump (inside the floor: objective text) ──
+  const hudFloor = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return {
+      objectiveText: s._floorHud?.objText?.text,
+      floorId: s.floorId,
+      objectCount: (s.objects || []).length,
+      objectTypes: [...new Set((s.objects || []).map((o) => o.type))],
+    };
+  });
+  console.log('HUD_FLOOR', JSON.stringify(hudFloor));
+
+  // ── BEAT 5: rescue (heroFreed cinematic) — use a REAL 'hero' object from
+  // this floor's own generated layout if one exists, so `_consume`'s
+  // `app.consumeFloorObject(obj.handle)` has a real prop to retract. ──
+  let rescueResult = { found: false };
+  const heroObj = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    const o = (s.objects || []).find((x) => x.type === 'hero' && !x.consumed);
+    return o ? { heroId: o.heroId, x: o.x, y: o.y } : null;
+  });
+  if (heroObj) {
+    const rescueCineActive = await page.evaluate((o) => {
+      const s = window.__MW.game.scene.getScene('OverworldScene');
+      const obj = s.objects.find((x) => x.type === 'hero' && x.x === o.x && x.y === o.y);
+      s._rescueHero(obj);
+      return window.__MW_OVERWORLD.cinematicActive();
+    }, heroObj);
+    await page.screenshot({ path: '.forensics/cutscene-proof/05-rescue-cinematic.png' });
+    await page.evaluate(() => window.__MW.game.scene.getScene('OverworldScene')._cine?.skip?.());
+    await page.waitForFunction(() => {
+      const s = window.__MW.game.scene.getScene('OverworldScene');
+      return !!s?.dialogue?.active;
+    }, null, { timeout: 20_000 }).catch(() => {});
+    const rescueDialogueActive = await page.evaluate(() => !!window.__MW.game.scene.getScene('OverworldScene')?.dialogue?.active);
+    await page.screenshot({ path: '.forensics/cutscene-proof/06-rescue-dialogue.png' });
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(400);
+    const unlockedAfter = await page.evaluate(() => window.__MW.game.scene.getScene('OverworldScene').save.unlockedHeroes);
+    rescueResult = { found: true, heroId: heroObj.heroId, cineActive: rescueCineActive, dialogueActive: rescueDialogueActive, unlockedAfter };
+  }
+  console.log('BEAT5_RESCUE', JSON.stringify(rescueResult));
+
+  // ── BEAT 6: floor-complete (title card + parting words) ──
+  await page.evaluate(() => window.__MW.game.scene.getScene('OverworldScene')._cine?.skip?.());
+  const floorCompleteActive = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    s._finishFloor();
+    return !!s._cine?.active; // see the note above BEAT3 on which flag to read
+  });
+  await page.screenshot({ path: '.forensics/cutscene-proof/07-floor-complete.png' });
+  console.log('BEAT6_FLOOR_COMPLETE_CINEMATIC_ACTIVE', floorCompleteActive);
+  const floorRecord = await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return s.save.floors?.[1];
+  });
+  console.log('FLOOR2_RECORD_AFTER_COMPLETE', JSON.stringify(floorRecord));
+
+  expect(errors, `page errors: ${errors.join('; ')}`).toEqual([]);
+});

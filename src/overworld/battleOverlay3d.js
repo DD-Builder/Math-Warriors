@@ -92,6 +92,7 @@ export function createBattleOverlay3D(scene, opts = {}) {
   let hintBtn = null;
   let typeBtn = null;
   let commandBtns = [];
+  let lastCommands = [];
   let numpad = null;
   let hintPanel = null;
   let vitals = null;          // { momentum, heroes:[], foes:[] }
@@ -406,6 +407,7 @@ export function createBattleOverlay3D(scene, opts = {}) {
      */
     showCommands(cmds, choose) {
       ui.hideCommands();
+      lastCommands = cmds;
       setBandVisible(false);
       const n = Math.max(1, cmds.length);
       const w = 220, gap = 20;
@@ -620,6 +622,22 @@ export function createBattleOverlay3D(scene, opts = {}) {
 
     /** Is a fight's UI currently on screen? */
     isLive() { return live; },
+
+    /**
+     * HARNESS-ONLY, read-only introspection for the player-gate e2e spec —
+     * same "read never write" contract as window.__MW_OVERWORLD's
+     * portals()/climbRoutes(). A spec must answer through the REAL UI (tap
+     * the command it wants, tap "123", type on the numpad, tap GO!) exactly
+     * as a child would; these three getters are the minimum it needs to
+     * compute WHERE on screen to tap and WHAT the correct typed answer is.
+     * Nothing here can choose a command or submit an answer on the game's
+     * behalf — that would defeat the entire point of driving the overlay.
+     */
+    debugCommandZones() {
+      return commandBtns.map((b, i) => ({ cmd: lastCommands[i], zone: b.zone }));
+    },
+    debugTypeButtonZone() { return typeBtn?.zone || null; },
+    debugCurrentQuestion() { return currentQuestion; },
 
     destroy() {
       live = false;

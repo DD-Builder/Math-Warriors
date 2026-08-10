@@ -1031,11 +1031,51 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
     jumpPressed: false, actionPressed: false, jumpDown: false, dive: false,
     abilityPressed: false, abilityDown: false, swapPressed: false, swapSlot: null,
   };
-  let prevSpace = false;
-  let prevAct = false;
-  let prevAbility = false;
-  let prevSwap = false;
-  const prevSlot = [false, false, false];
+
+  /**
+   * EDGE keys (jump/action/ability/swap/slots) are captured off the RAW DOM
+   * keydown, not by diffing `key.isDown` between two poll()s.
+   *
+   * Why: Phaser's `Key.onUp()` unconditionally zeroes `_justDown` the instant
+   * the key comes up — see node_modules/phaser/.../Key.js — so BOTH the naive
+   * "isDown && !prevIsDown" idiom this file used to use AND Phaser's own
+   * `JustDown()` helper lose a press outright if the keydown+keyup pair lands
+   * between two polls. That is not a corner case here: this scene targets a
+   * three.js + shadows + Rapier + Phaser stack under SwiftShader/an iPad,
+   * where a single frame can run 150-500 ms (D1-B), and a keyboard test rig
+   * or an impatient player's tap easily fits inside one gap. MEASURED on the
+   * build: `page.keyboard.press('e')`, and even an explicit 200 ms HOLD, at
+   * a portal's ENTER prompt produced zero response — `_justDown` was set by
+   * the keydown, then wiped by the keyup before any poll() ever read it,
+   * even though `_nearPortal` and every "unlocked" gate were correct. The
+   * fix: a `keydown-<CODE>` listener (fired once per real press — the
+   * plugin itself suppresses OS auto-repeat via its own `key.isDown` check)
+   * flips a flag with no per-frame window to fall through; poll() drains it
+   * whenever it next runs, however late.
+   */
+  let kbJumpEdge = false;
+  let kbActionEdge = false;
+  let kbAbilityEdge = false;
+  let kbSwapEdge = false;
+  let kbSwapSlot = null;
+  const onKbJump = () => { kbJumpEdge = true; };
+  const onKbAction = () => { kbActionEdge = true; };
+  const onKbAbility = () => { kbAbilityEdge = true; };
+  const onKbSwap = () => { kbSwapEdge = true; };
+  const onKbSlot0 = () => { kbSwapSlot = 0; };
+  const onKbSlot1 = () => { kbSwapSlot = 1; };
+  const onKbSlot2 = () => { kbSwapSlot = 2; };
+  if (kb) {
+    kb.on('keydown-SPACE', onKbJump);
+    kb.on('keydown-E', onKbAction);
+    kb.on('keydown-ENTER', onKbAction);
+    kb.on('keydown-F', onKbAbility);
+    kb.on('keydown-X', onKbAbility);
+    kb.on('keydown-Q', onKbSwap);
+    kb.on('keydown-ONE', onKbSlot0);
+    kb.on('keydown-TWO', onKbSlot1);
+    kb.on('keydown-THREE', onKbSlot2);
+  }
 
   let padBits = [];
   const padFrag = {
@@ -1094,35 +1134,25 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
     keys.up = down(k?.W) || down(k?.UP);
     keys.down = down(k?.S) || down(k?.DOWN);
     keys.run = down(k?.SHIFT);
-    const spaceNow = down(k?.SPACE);
-    keys.jumpPressed = spaceNow && !prevSpace;
-    keys.jumpDown = spaceNow;
+    // LEVELS (held state) are fine sampled per frame — a hold spans many
+    // polls by definition. EDGES (jump/action/ability/swap/slot) come off
+    // the robust keydown-* flags above, not an isDown diff — see the big
+    // comment where those listeners are installed.
+    keys.jumpDown = down(k?.SPACE);
     // C or CTRL takes a swimmer under. Held, not tapped: releasing floats you
     // straight back up, which is the only dive control a five-year-old can be
     // trusted with. (Both keys ARE registered above — a read of a key addKeys
     // never registered is how dive shipped dead the first time.)
     keys.dive = down(k?.C) || down(k?.CTRL);
-    prevSpace = spaceNow;
-    const actNow = down(k?.E) || down(k?.ENTER);
-    keys.actionPressed = actNow && !prevAct;
-    prevAct = actNow;
+    keys.jumpPressed = kbJumpEdge; kbJumpEdge = false;
+    keys.actionPressed = kbActionEdge; kbActionEdge = false;
     // F (or X, for the platformer hands) is the party verb; Q cycles the ring;
     // 1/2/3 pick a slot directly. E/Shift were NOT used for the ability on
     // purpose — they already mean ACTION and RUN here.
-    const abilityNow = down(k?.F) || down(k?.X);
-    keys.abilityPressed = abilityNow && !prevAbility;
-    keys.abilityDown = abilityNow;
-    prevAbility = abilityNow;
-    const swapNow = down(k?.Q);
-    keys.swapPressed = swapNow && !prevSwap;
-    prevSwap = swapNow;
-    keys.swapSlot = null;
-    const slotKeys = [k?.ONE, k?.TWO, k?.THREE];
-    for (let i = 0; i < 3; i++) {
-      const dn = down(slotKeys[i]);
-      if (dn && !prevSlot[i]) keys.swapSlot = i;
-      prevSlot[i] = dn;
-    }
+    keys.abilityDown = down(k?.F) || down(k?.X);
+    keys.abilityPressed = kbAbilityEdge; kbAbilityEdge = false;
+    keys.swapPressed = kbSwapEdge; kbSwapEdge = false;
+    keys.swapSlot = kbSwapSlot; kbSwapSlot = null;
 
     // ── Gamepad ─────────────────────────────────────────────────────
     let pad = null;
@@ -1236,6 +1266,20 @@ export function createControls3D(scene, { tuning = CONTROLS, startYaw = 0 } = {}
     setAbilityChip(chip) { touch.setAbilityChip(chip); },
     /** The party ring — forward app.partyChips() here when the party changes. */
     setPartyChips(chips) { touch.setPartyChips(chips); },
-    destroy() { touch.destroy(); look.destroy(); },
+    destroy() {
+      touch.destroy();
+      look.destroy();
+      if (kb) {
+        kb.off('keydown-SPACE', onKbJump);
+        kb.off('keydown-E', onKbAction);
+        kb.off('keydown-ENTER', onKbAction);
+        kb.off('keydown-F', onKbAbility);
+        kb.off('keydown-X', onKbAbility);
+        kb.off('keydown-Q', onKbSwap);
+        kb.off('keydown-ONE', onKbSlot0);
+        kb.off('keydown-TWO', onKbSlot1);
+        kb.off('keydown-THREE', onKbSlot2);
+      }
+    },
   };
 }
