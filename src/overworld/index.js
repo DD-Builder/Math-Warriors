@@ -2353,6 +2353,32 @@ export async function createOverworld({ game, save = null, hooks = {} }) {
     },
 
     /**
+     * What stands INSIDE the open floor, in WORLD coordinates, for the same
+     * reason portals() exists: a harness must be able to walk the player into
+     * a real monster tile instead of hardcoding a position.
+     *
+     * WHY THIS HAD TO EXIST. The playthrough gate tried to find a fight by
+     * reading `worldX`/`worldZ` off the SCENE's rule objects — but those
+     * fields are only ever set on island creature encounters and hero handles,
+     * never on floor objects, whose coordinates live on the 3D handles here.
+     * So the gate teleported to `undefined`, never tripped the proximity
+     * check, and timed out looking like "combat is broken" when combat was
+     * fine. Two parallel object models, one silently missing the field the
+     * other exposed. Read-only copies; the live entries own meshes and
+     * trigger state.
+     */
+    floorObjects() {
+      if (!floor) return [];
+      return floor.lvl.objects.map((o) => ({
+        id: o.id,
+        type: (o.data && o.data.type) || o.type || null,
+        x: o.x, y: o.y, z: o.z,
+        radius: o.radius,
+        consumed: !!o.consumed,
+      }));
+    },
+
+    /**
      * The portal the player is standing in, and the context verb's kind — the
      * SAME reads the scene uses (world.getNearPortal / getNearActionKind),
      * mirrored here because a harness that cannot observe portal proximity is

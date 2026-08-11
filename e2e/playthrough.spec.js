@@ -610,13 +610,20 @@ test('a full session: arrival, movement, collision, life, a floor, a fight, a re
   await test.step('6. encounter -> numpad -> victory -> rewards', async () => {
     const goldBefore = await page.evaluate(() => window.__MW.game.scene.getScene('OverworldScene').save.gold || 0);
 
+    // Coordinates come from the 3D handles via floorObjects(), NOT from the
+    // scene's rule objects: `worldX`/`worldZ` are only ever populated on
+    // island creature encounters and hero handles, so reading them here
+    // yielded `undefined`, teleported the player nowhere, and made a working
+    // combat system look broken. Ask the thing that actually owns positions.
     const foe = await page.evaluate(() => {
-      const s = window.__MW.game.scene.getScene('OverworldScene');
-      const o = (s.objects || []).find((x) => x.type === 'encounter' && !x.consumed)
-        || (s.objects || []).find((x) => x.type === 'boss' && !x.consumed);
-      return o ? { type: o.type, x: o.worldX, z: o.worldZ } : null;
+      const objs = window.__MW_OVERWORLD.floorObjects();
+      const o = objs.find((x) => x.type === 'encounter' && !x.consumed)
+        || objs.find((x) => x.type === 'boss' && !x.consumed);
+      return o ? { type: o.type, x: o.x, z: o.z, radius: o.radius } : null;
     });
     expect(foe, 'Floor 1 has something to fight').toBeTruthy();
+    expect(Number.isFinite(foe.x) && Number.isFinite(foe.z),
+      `the foe has real world coordinates (got x=${foe?.x} z=${foe?.z})`).toBe(true);
 
     // Approach from a short distance and WALK the last stretch — the real
     // proximity trigger fires this, nothing here calls _startBattle.
