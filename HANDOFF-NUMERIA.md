@@ -2,27 +2,27 @@
 
 **Read this entire file before writing any code.** It carries the owner's
 instructions, the art direction, the architecture, and — most importantly —
-the hard-won lessons from a long and partly failed first attempt. The failures
-documented here are not history; they are the specific traps that will re-bite
-you if you do not read them.
+the documented failure modes from a long, partly-failed first attempt. Those
+failures are not history; they are the exact traps that will re-bite you.
+
+> **START HERE:** §9 is the single next task. §3 is why previous attempts
+> failed. If you read only two sections, read those.
 
 ---
 
 ## 1. WHAT THIS PROJECT IS
 
-**Math Warriors: Numeria** is a 3D open-world educational math RPG for ages
-5–10, built in **Three.js**, spun out of a working 2D game called **Math
-Warriors Classic**.
+**Math Warriors: Numeria** — a 3D open-world educational math RPG for ages
+5–10 in **Three.js**, spun out of a working 2D game, **Math Warriors Classic**.
 
-Two separate products, two separate repos, never to be developed in one
-context window:
+Two products, two repos, **never developed in one context window**:
 
 | | Repo | State |
 |---|---|---|
-| **Math Warriors Classic** | `DD-Builder/Math-Warriors` (`main`) | Shipping 2D Phaser game, v0.9.5. Charming, working, deployed. **Do not touch from the Numeria repo.** |
-| **Math Warriors: Numeria** | the new repo | This 3D project. Started from branch `claude/overworld-3d`. |
+| **Math Warriors Classic** | `DD-Builder/Math-Warriors` (`main`) | Shipping 2D Phaser game, v0.9.5. Works, deployed, charming. **Never touch from Numeria.** |
+| **Math Warriors: Numeria** | `DD-Builder/math-warriors-numeria` | This project. Source: branch `claude/overworld-3d` (29 commits, 235 files, ~87k lines ahead of Classic's main). |
 
-### The owner's original brief (verbatim, re-stated by them three times)
+### The owner's brief (verbatim; they restated it three times)
 
 > "You are AGI-pilled. I want you to transform this game into a full open
 > world exploration game at the level of Super Mario Odyssey + The Legend of
@@ -39,99 +39,94 @@ context window:
 > say which one looks better. Do this in ThreeJS. /loop until it's utterly
 > perfect. Fan out sub-agents and ultracode."
 
-And later, correctly widening the scope:
+And, correctly widening scope:
 
 > "AAA games have excellent art and graphics, but also game play, sound
 > effects, and story."
 
-### Owner decisions already made (do not re-litigate)
+And on parallelism:
 
-- **The WHOLE game is 3D.** An early version made only the hub 3D and dropped
-  the player back into a 2D maze on entering a floor. The owner's verdict:
-  *"when you enter the playing level, it's back to the 2d, not our 3d world.
-  That is not what i wanted."* Floors, battles, everything: 3D.
-- **Physics:** a real engine. Rapier (`@dimforge/rapier3d-compat`) is already
-  installed and lazily chunked.
-- **Critic loops:** run until the critic is wowed, with a hard round ceiling
-  (~10) per domain. Report domains that hit the ceiling *unsatisfied* rather
-  than pretending they passed.
-- **Scope includes:** traversal verticality (climb/glide/swim), sky islands,
-  caves, weather + full day/night, secrets & discovery.
-- **Math stays the core.** This is an educational game. Exploring leads to
-  math. Never write a second question generator — reuse
-  `src/systems/math.js generateRatedQuestion`.
+> "How many agents are fanned out and working? They should be working in
+> parallel not serial."
+
+### Locked decisions (do not re-litigate)
+
+- **The WHOLE game is 3D.** An early build made only the hub 3D and dropped
+  the player into a 2D maze on entering a floor. Owner: *"when you enter the
+  playing level, it's back to the 2d… That is not what i wanted."*
+- **Real physics engine.** Rapier (`@dimforge/rapier3d-compat`), installed and
+  lazily chunked.
+- **Critic loops run until wowed**, hard ceiling ~10 rounds/domain. Report
+  domains that hit the ceiling *unsatisfied* — never fake a pass.
+- **In scope:** climb/glide/swim, sky islands, caves, weather + day/night,
+  secrets & discovery.
+- **Math stays the core.** Reuse `src/systems/math.js generateRatedQuestion`.
+  Never write a second question generator.
 
 ---
 
-## 2. ART DIRECTION (CURRENT — supersedes earlier passes)
+## 2. ART DIRECTION (current — supersedes all earlier passes)
 
-The owner changed direction late and deliberately. **The full spec lives in
-`docs/art-direction-3d.md` — read it.** Summary:
+Full spec: **`docs/art-direction-3d.md`** — read it. Summary:
 
-**Follow Super Mario Odyssey (form, colour) and Astro Bot / PS5 (materials,
-lighting).**
+**Super Mario Odyssey (form, colour) + Astro Bot / PS5 (materials, lighting).**
 
-- **ROUNDEDNESS IS LAW.** No raw boxes, cones, or hard-extruded prisms in the
-  final image. Rounded-box/capsule/sphere-blended primitives; bevels on
-  everything. Tree canopies are blobby sphere clusters, not stacked discs.
+- **ROUNDEDNESS IS LAW.** No raw boxes/cones/hard prisms in the final image.
+  Rounded-box, capsule, sphere-blended primitives; bevels everywhere. Tree
+  canopies are blobby sphere clusters, not stacked discs.
 - **Toy materials.** World = satin matte. Characters, creatures, collectibles,
-  interactables = toy gloss (tight speculars, vinyl/ABS feel), with a Fresnel
-  rim to pop silhouettes.
-- **Lighting.** Warm sun key + sky hemisphere + a real **ground-bounce** term
-  (undersides tinted by local ground colour). Soft wide shadow penumbra,
-  buttery AO in crevices.
-- **Animation.** Springy and **critically damped**. Squash on landing ≤15%,
-  recovering <300ms; idle breathing ≤2%. The owner described the previous hero
-  as *"a stack of jello"* — that is the exact failure mode to avoid.
-- **Silhouette test.** Every asset must be identifiable blacked out. If a tree
-  reads as an umbrella or a hero reads as a stack, it fails.
+  interactables = toy gloss (vinyl/ABS, tight speculars) + Fresnel rim.
+- **Lighting.** Warm sun key + sky hemisphere + real **ground bounce**
+  (undersides tinted by local ground colour). Soft wide penumbra, buttery AO.
+- **Animation.** Springy, **critically damped**. Landing squash ≤15% recovering
+  <300ms; idle breathing ≤2%. Owner called the old hero *"a stack of jello"* —
+  that is the failure mode to avoid.
+- **Silhouette test.** Every asset identifiable blacked out. If a tree reads as
+  an umbrella or a hero as a stack, it fails.
 
-**What survives from the original 2D identity:** the `PAPER` palette in
-`src/config.js` is the franchise's colour DNA, and **shadows must be COLOURED
-(teal family) — never black, never grey.** Saturation/value may lift toward
-Odyssey brightness. The flat papercut *slab construction* is retired in 3D;
-the *palette law* is not.
+**Surviving from the 2D identity:** the `PAPER` palette (`src/config.js`) is
+the franchise's colour DNA, and **shadows must be COLOURED (teal family) —
+never black or grey.** Saturation may lift toward Odyssey brightness. The flat
+papercut *slab construction* is retired in 3D; the *palette law* is not.
+
+> ⚠️ **The entire existing codebase predates this direction** — it was built to
+> the flat-papercut spec. A full re-skin pass is owed and has not started.
 
 ---
 
-## 3. THE HARD-WON LESSONS (read this section twice)
+## 3. THE HARD-WON LESSONS (read twice)
 
-These are the actual failure modes that cost this project weeks. Each one
-shipped to the owner and was caught by them, not by any test.
+Every one of these shipped to the owner and was caught by *them*, not by a test.
 
 ### 3.1 "Boots" ≠ "Plays" — the central failure
 
-Every gate for months verified *the game boots with zero console errors and
-tests pass*. **Nobody ever played it.** All ten of the owner's eventual
-defects lived in that gap. Their verdict:
+For months every gate verified *the game boots with zero console errors and
+tests pass*. **Nobody ever played it.** All ten of the owner's defects lived in
+that gap:
 
-> "This sucks. Controls are absolutely abysmal - like totally broken. The
-> sound is broken and makes a prolonged high pitched machine sound. There is
-> only a jump and nothing else. There are no other characters or animals or
-> anything to interact with. The hero looks like a stack of jello. The physics
-> of objects doesn't work: you can walk through trees (which are too short and
+> "This sucks. Controls are absolutely abysmal - like totally broken. The sound
+> is broken and makes a prolonged high pitched machine sound. There is only a
+> jump and nothing else. There are no other characters or animals or anything
+> to interact with. The hero looks like a stack of jello. The physics of
+> objects doesn't work: you can walk through trees (which are too short and
 > look like umbrellas or mushrooms), water doesn't move… I never even found a
 > playable level to understand the math combat."
 
 **RULE: the only acceptable evidence is driving the real BUILT game with
-synthetic input and observing behaviour.** A play-through gate — move, get
-blocked by a tree, follow a marker, enter a level, fight, win, exit — with
-screenshots at every step, is the definition of done.
+synthetic input and observing behaviour.** `e2e/playthrough.spec.js` now
+encodes this (see §5).
 
 ### 3.2 Unwired modules — happened FOUR times
 
-Agents repeatedly delivered excellent, fully-tested modules that **nothing
-imported**:
-- `battle3d.js` (75KB) sat orphaned for a full round.
-- `traversal.js` (climb/glide/swim) was verified **100% dead code** after
-  being "delivered" — nothing imported it, nothing tested it.
-- `physics.js`/`physicsProps.js` (2285 lines) committed and never imported.
-- `discoverySpec.js` + `puzzles.js` authored against three helper modules that
-  **were never written**.
+Agents delivered excellent, fully-tested modules that **nothing imported**:
+`battle3d.js` (75KB) orphaned a full round · `traversal.js` verified **100%
+dead code** after being "delivered" · `physics.js`/`physicsProps.js` (2285
+lines) committed and never imported · `discoverySpec.js` + `puzzles.js`
+authored against three helper modules **that were never written**.
 
-**RULE: wiring is the deliverable, not the code.** Every agent must finish by
-proving, with `grep`, that its module has a real importer outside itself and
-its own test. Run this audit regularly:
+**RULE: wiring is the deliverable, not the code.** Every agent finishes by
+proving with `grep` that its module has a real importer outside itself and its
+test. Audit:
 
 ```bash
 for f in src/overworld/*.js; do b=$(basename $f .js); case "$b" in *test*) continue;; esac;
@@ -139,74 +134,99 @@ for f in src/overworld/*.js; do b=$(basename $f .js); case "$b" in *test*) conti
   [ "$n" -eq 0 ] && echo "ORPHAN: $b"; done
 ```
 
-### 3.3 Unit tests that only check themselves
+### 3.3 Tests that only check themselves
 
-Several tables were self-consistent and completely wrong in situ. Examples:
-- `SOUND_FOR` mapped traversal events to bare names (`climb`) while the SFX
-  library ships namespaced keys (`move/climb`) — **every traversal sound
-  resolved to `null`.** Six battle cues were dead the same way.
+Self-consistent tables, completely wrong in situ:
+- `SOUND_FOR` mapped events to bare names (`climb`) while the SFX library ships
+  namespaced keys (`move/climb`) — **every traversal sound resolved to `null`**;
+  six battle cues dead the same way.
 - `controls3d` exposed no held-button state, so variable jump height was
   *physically impossible* while its tests passed.
-- `discoverySpec`'s content had never once been run against the real island.
+- `discoverySpec`'s content had never been run against the real island.
+- The playthrough gate's own `expect(foe).toBeTruthy()` passed while the foe's
+  coordinates were `undefined` (see 3.5).
 
-**RULE: integration probes against the built game, not just unit tests.**
+### 3.4 Specific bugs found — do not reintroduce
 
-### 3.4 Specific bugs found by forensics (do not reintroduce)
-
-- **The "machine scream"**: the `harp` instrument was a live Karplus-Strong
-  loop with feedback 0.93 and a damping lowpass left at WebAudio's default Q.
-  **Lowpass Q is in dB** — the default adds +1 dB of resonant peaking *inside
-  the loop*, giving loop gain ≈1.06 > 1. Every harp note self-oscillated into
-  a rising ~3.2 kHz scream. Fixed structurally: no live feedback loop exists;
-  the string is pre-rendered offline into a buffer. `MAX_FEEDBACK = 0.6` is
-  now a named constant in `audioGraph.js` with a test on it, plus a master
-  **watchdog** (analyser on the limiter output; ducks on non-finite samples or
+- **The "machine scream"**: the `harp` was a live Karplus-Strong loop, feedback
+  0.93, damping lowpass left at WebAudio's default Q. **Lowpass Q is in dB** —
+  the default adds +1 dB of resonant peaking *inside the loop* → loop gain
+  ≈1.06 > 1 → every harp note self-oscillated into a rising ~3.2 kHz scream,
+  following the music everywhere. Fixed **structurally**: no live feedback loop
+  exists; the string is pre-rendered offline into a buffer. `MAX_FEEDBACK =
+  0.6` is a named constant in `audioGraph.js` with a test, plus a master
+  **watchdog** (analyser on the limiter; ducks on non-finite samples or
   sustained hot RMS).
-- **Negative delta debt**: the fixed-step accumulator clamped delta only on
-  the upper bound. A negative delta (rAF timestamp lagging `performance.now()`,
+- **Jello hero**: **two independent squash systems** fired on every landing and
+  *multiplied* — `heroRig.js` squashed the inner rig node, `gameFeel.js` the
+  outer transform, neither aware of the other. Two individually-correct systems
+  producing one broken result. Reconciled to a single damped source.
+- **Negative-delta debt**: the fixed-step accumulator clamped delta only on the
+  upper bound. A negative delta (rAF timestamp lagging `performance.now()`,
   measured −3.3 s under SwiftShader) banked a debt the sim had to pay off
   before stepping — read as "the world never starts". Now clamped both sides.
 - **Trees**: trunk collision was proven CORRECT (hero stops within 4 mm of the
-  predicted radius). The "walking through trees" complaint is an **art**
-  problem — wide short umbrella canopies at head height with (correctly) no
-  collider. Fix the art, not the physics.
-- **Camera sensitivity** was 2.8× its own annotated intent.
+  predicted radius). "Walking through trees" is an **art** bug — wide short
+  umbrella canopies at head height with (correctly) no collider. Fix the art.
 - **Toon ramp**: three's `gradientmap_pars_fragment` samples the ramp's **red
-  channel only**, splatted to grey — so a carefully authored teal ramp shipped
-  as flat grey. Fixed by swapping the shader chunk (`installToonRampRGB`).
+  channel only**, splatted to grey — a carefully authored teal ramp shipped as
+  flat grey. Fixed by swapping the shader chunk (`installToonRampRGB`).
+- **Camera sensitivity** was 2.8× its own annotated intent.
 
-### 3.5 Process
-- **Session/weekly usage limits killed ~50 agents** across waves. Mitigate:
-  resume workflows from cache (`resumeFromRunId`), stagger waves, commit often.
-- **No network access** for reference images (proxy blocks all general hosts).
-  Critics cannot literally view SMO/TotK screenshots; they compare against
-  trained knowledge. Do not claim a "blind side-by-side" that didn't happen.
-- **The screenshot harness runs SwiftShader software GL**, which differs from a
-  real iPad GPU. Critics judge composition/palette/silhouette, not AA quality.
-  **Final judgment is always the owner on-device.**
+### 3.5 TWO PARALLEL OBJECT MODELS (new, and it bites)
+
+The scene keeps **rule objects** (tile coords + game state); the 3D app keeps
+**handles** (world coords). `worldX`/`worldZ` are populated **only** on island
+creature encounters and hero handles — **never on floor objects**. The
+playthrough gate read `o.worldX` off a floor rule object, got `undefined`,
+teleported nowhere, and timed out looking like "combat is broken".
+
+Mitigation added: **`api.floorObjects()`** in `src/overworld/index.js`
+(alongside `api.portals()`), returning live handle coords. Harnesses must ask
+the component that *owns* positions. **This mismatch is a latent trap
+elsewhere — treat any `worldX` read with suspicion.**
+
+### 3.6 A probe can lie — verify your instrument
+
+I ran a probe that appeared to prove a severe bug (the 3D app holding a floor
+while the scene thought none was open). **The probe was invalid**: it called
+`scene._enterFloor(1)`, which does not exist, and silently fell through to
+`app.enterFloor(1)`, which builds the 3D floor *without* setting scene-side
+state. The scene's real entry path is around **`OverworldScene.js:757`**.
+Before believing a shocking result, verify the probe called a real API.
+
+### 3.7 Process realities
+- **Session/weekly usage limits killed ~50 agents** across waves. Resume
+  workflows from cache (`resumeFromRunId`), stagger, **commit constantly**.
+- **No network for reference images** (proxy blocks general hosts). Critics
+  compare against trained knowledge — never claim a "blind side-by-side" that
+  didn't happen.
+- **SwiftShader ≠ device.** The screenshot harness is software GL at ~2–6 fps.
+  Critics judge composition/palette/silhouette, not AA. **Final judgment is the
+  owner on-device.**
 
 ---
 
 ## 4. TECHNICAL ARCHITECTURE
 
-### Stack
-Phaser 3 (2D shell/HUD/input) + Three.js r170 (3D world) + Rapier
-(`@dimforge/rapier3d-compat`) + Vite. Node `node:test` for unit tests,
-Playwright for e2e.
+**Stack:** Phaser 3 (2D shell/HUD/input) + Three.js r170 (3D world) + Rapier +
+Vite. `node:test` for units, Playwright for e2e.
 
-### The canvas sandwich (important, non-obvious)
-`#mw-overworld` WebGL canvas sits **UNDER** a **transparent** Phaser canvas.
-Phaser owns HUD, transitions, input; Three owns the world. This gives the
-existing Paper UI components, opaque scene transitions that cover the 3D view,
-and the system overlay for free. `#game` CSS supplies the ink-teal background.
+**Canvas sandwich (non-obvious):** `#mw-overworld` WebGL canvas sits **UNDER**
+a **transparent** Phaser canvas. Phaser owns HUD, transitions, input; Three
+owns the world. Gives the Paper UI, opaque scene transitions covering the 3D
+view, and the system overlay for free. `#game` CSS supplies the ink-teal ground.
 
-### Determinism
-Fixed **60 Hz** simulation accumulator in `renderer.js`. Identical input traces
-produce identical trajectories at 7 fps (SwiftShader) and 120 Hz (ProMotion).
-This is what makes screenshots and tests reproducible. **Never** use wall-clock
-in simulation.
+**Determinism:** fixed **60 Hz** accumulator in `renderer.js`. Identical input
+traces → identical trajectories at 7 fps and 120 Hz. This is what makes tests
+and screenshots reproducible. **Never use wall-clock in simulation.**
 
-### Module map (`src/overworld/`, ~50 modules)
+**Controller stack order matters:** `traversal → gameFeel → controller`.
+`gameFeel` delegates non-walk modes but can never *enter* one; `traversal` is
+the only layer that knows how to leave walking. Wrap them the other way and
+climb/glide/swim become permanently unreachable.
+
+**Module map** (`src/overworld/`, ~50 modules):
 ```
 WORLD:     heightfield, worldSpec, terrainMesh, geobuild, level3d, level3dBuild
 RENDER:    renderer, index (assembly), sky, water, atmosphere, weather,
@@ -223,128 +243,167 @@ NARRATIVE: cinematics + src/data/story.js
 SUPPORT:   state, poses, timeOfDay
 ```
 
-**Controller stack order matters:** `traversal → gameFeel → controller`.
-`gameFeel` delegates non-walk modes but can never *enter* one; `traversal` is
-the only layer that knows how to leave walking. Wrapping them the other way
-makes climb/glide/swim permanently unreachable.
+**Audio (iOS-critical):** No audio files — everything synthesised. **Exactly
+ONE AudioContext**, in `src/systems/music/audioGraph.js`; Phaser's sound
+manager is disabled (`audio: { noAudio: true }`) because a second context
+breaks iPad. Chain: voices → music/sfx buses → master → safety → **limiter** →
+destination; never connect straight to destination. iOS unlock uses
+**document-level capture listeners** in `main.js` — do not add handlers that
+swallow or `preventDefault` pointer events.
 
-### Audio constraints (iOS-critical)
-- **No audio files.** Everything is synthesised procedurally in WebAudio.
-- **Exactly ONE AudioContext**, in `src/systems/music/audioGraph.js`. Phaser's
-  sound manager is disabled (`audio: { noAudio: true }`) — a second context
-  breaks iPad.
-- Signal chain: voices → music/sfx buses → master → safety → **limiter** →
-  destination. Never connect straight to destination.
-- iOS unlock uses **document-level capture listeners** in `main.js`. Do not add
-  handlers that swallow or `preventDefault` pointer events, or audio dies.
+**Rendering constraints (non-negotiable):** three r170 · **no
+post-processing** · **no depth-texture reads, no `fwidth`/derivatives** (the
+SwiftShader harness must match device) · InstancedMesh/merged for repeats ·
+**zero per-frame allocation** · `dispose()` everything · budget on M4 iPad
+@1440×1080: **≤250 draw calls, ≤500k tris** (currently ~153 / ~510k — at the
+ceiling; the re-skin must not blow it).
 
-### Rendering constraints (all non-negotiable)
-- three r170. **No post-processing / EffectComposer.**
-- **No depth-texture reads. No `fwidth`/derivatives** — the SwiftShader
-  screenshot harness must match the device.
-- InstancedMesh/merged geometry for anything repeated.
-- **Zero per-frame allocation.** `dispose()` everything.
-- Budget on M4 iPad @1440×1080: **≤250 draw calls, ≤500k triangles**.
-  (Currently ~128 draws / ~480k tris on the island.)
+**Save:** `src/systems/save.js`, **v6**, strict append-only MIGRATIONS chain. A
+missing migration **wipes saves**. 3D state lives additively under
+`save.overworld`.
 
-### Save system
-`src/systems/save.js`, currently **v6**, strict append-only MIGRATIONS chain.
-A missing migration step **wipes saves**. Add fields to `makeDefaultSave()`,
-append a migration, coerce in `normalize()`, extend `save.test.js`. 3D state
-lives additively under `save.overworld`.
-
-### Testing
-- `npm test` — node:test, **2680 passing**. This is the deploy gate.
-  Pure-logic modules (no three/DOM at import) get `.test.js` siblings.
-- `npx playwright test --project=2d` — the 2D fallback game, must stay green.
-- `npx playwright test --project=3d` — WebGL specs, run under SwiftShader
-  (`--use-angle=swiftshader --enable-unsafe-swiftshader`). The two projects
-  exist because software WebGL is ~10× slower and broke timing-sensitive 2D
-  specs.
-- Forensic probes and evidence live in `.forensics/`.
-
-### Build
-Vite. `manualChunks`: `phaser`, `three`, `rapier` — three and Rapier are
-**lazily imported** so they never enter the eager boot bundle.
-Current: phaser 1.48MB, rapier 2.24MB, three 688KB, app ~1.6MB.
+**Build:** Vite `manualChunks`: `phaser`, `three`, `rapier` — three and Rapier
+**lazily imported**, never in the eager boot bundle. Current: phaser 1.48MB,
+rapier 2.24MB, three 688KB, app ~1.6MB.
 
 ---
 
-## 5. CURRENT STATE
+## 5. THE PLAY-THROUGH GATE (the definition of done)
 
-### Working
-- 3D island (480 m, 9 biomes themed to the floors) with terrain, water, sky,
-  weather, day/night, vegetation.
-- Floors load as **3D places** via `buildLevel3D(floorId)` — no 2D maze.
-- Real hero rigs built from the actual hero art; companions follow and speak
-  banter; creatures exist.
-- Physics toybox (logs, crates, ball, plank) with SHOVE; SWAP party switching.
+`e2e/playthrough.spec.js` — run with:
+```bash
+npx playwright test e2e/playthrough.spec.js --project=3d
+```
+It drives the **built** game with synthetic touch/keyboard through a full
+session, screenshotting each step to `e2e/screenshots/playthrough/`:
+
+| Step | What it proves | Status |
+|---|---|---|
+| 1 | Arrival cinematic + orientation dialogue | ✅ PASS |
+| 2 | Touch-stick drive, camera orbit, jump | ✅ PASS |
+| 3 | Walk into a tree → **blocked** | ✅ PASS |
+| 4 | Companions, creature, water motion, hero close-up | ✅ PASS |
+| 5 | Compass → portal prompt → title card → **real 3D floor** (asserts no `BattleScene`, `activeFloor===1`, real geometry) | ✅ PASS |
+| 6 | Encounter → numpad → victory → rewards | ❌ **FAILS** |
+
+19 screenshots exist as evidence for steps 1–5.
+
+**Never replace this gate with a "boots clean" check.** Other e2e:
+`--project=2d` (Classic's suite, must stay green) and `--project=3d`
+(WebGL specs under SwiftShader flags).
+
+---
+
+## 6. CURRENT STATE
+
+**2680 unit tests passing. Build clean. Branch pushed.**
+
+### Working (verified by driving the built game)
+- 3D island (480 m, 9 floor-themed biomes): terrain, water, sky, weather,
+  day/night, vegetation.
+- **Floors load as real 3D places** via `buildLevel3D(floorId)` — no 2D maze.
+- Real hero rigs from the actual hero art; companions follow **and speak
+  banter**; creatures roam.
+- Physics toybox (crates, logs, ball, plank) with SHOVE; SWAP party switching.
+- Portal beacons + compass (addresses "never found a playable level").
 - 3D battles staged in-world with a 2D math overlay.
-- Positional audio, procedural SFX library, adaptive music with a main theme
-  ("Nine Paper Roads", stored as scale degrees so it transposes/recurs).
-- Story: a 9-beat arc where the collected proof pages *are* the villain.
-- 2680 tests green, build clean.
+- Positional audio, procedural SFX, adaptive music with main theme *"Nine Paper
+  Roads"* (stored as scale degrees so it transposes and recurs).
+- Story: 9-beat arc where the collected proof pages **are** the villain.
 
-### Known broken / unfinished (be honest about these)
-- **The play-through gate has never completed a pass.** This is the single
-  most important outstanding item.
-- Hero "jello" deformation not yet confirmed fixed.
-- Level art scored **3.3/10** by a harsh critic vs the island's 7/10. Their
-  diagnosis: *"The engine is not the problem. The levels were not composed."*
-  Nothing in a level is taller than ~2.9 m, so skylines are flat with no
-  landmark to navigate toward.
-- Tree art (umbrella/mushroom read) not yet rebuilt to the Mario/Astro spec.
-- Portal discoverability: the owner never found a playable level. Needs a
-  compass/waypoint and arch beacons.
-- **The entire codebase predates the Mario/Astro art direction** — it was built
-  to the flat-papercut spec. A full re-skin pass is owed.
-- `bossArenas.js` is still orphaned.
+### Broken / unfinished — be honest about these
+1. **Combat does not resolve.** See §9 — the single next task.
+2. **Level art scored 3.3/10** by a harsh critic vs the island's 7/10. Their
+   diagnosis: *"The engine is not the problem. The levels were not composed."*
+   Nothing in a level is taller than ~2.9 m → flat skylines, no landmark to
+   navigate toward, spawn on the flattest terrace.
+3. **Tree art** still reads as umbrellas/mushrooms.
+4. **The Mario/Astro re-skin has not started** — all art is to the retired
+   papercut spec.
+5. `bossArenas.js` is still orphaned.
+6. Draw calls at 153 and tris at ~510k are **at/over budget** before the
+   re-skin adds anything.
 
 ---
 
-## 6. HOW TO WORK ON THIS
+## 7. HOW TO WORK ON THIS
 
-1. **Fan out agents in parallel**, not serially. The owner explicitly called
-   this out: *"They should be working in parallel not serial."* Use the
-   Workflow tool; 10–15 concurrent agents is reasonable.
-2. **File ownership discipline.** When agents run in parallel, exactly one
-   agent owns `index.js` and `OverworldScene.js`; everyone else creates new
-   files and *reports wiring lines* for the integrator to apply.
-3. **Every wave ends with a play-through gate.** No exceptions, no "boots
-   clean" substitutes.
-4. **Critic loops**: separate harsh-critic agents that score against SMO/TotK
-   from memory, produce ranked file-level defect lists, and drive the next
-   build round. A 7/10 should be rare. Report unsatisfied ceilings honestly.
-5. **Commit and push often** — usage limits kill agents mid-flight; uncommitted
-   work is lost work.
-6. **Never overstate.** The owner has repeatedly caught claims that outran the
-   evidence ("the overworld is the hub" when `goHub()` had zero callers). If
-   you have not observed it, say so.
+1. **Fan out agents in parallel**, not serially — the owner explicitly asked.
+   10–15 concurrent via the Workflow tool is reasonable.
+2. **File ownership:** exactly ONE agent owns `index.js` and
+   `OverworldScene.js` per wave; everyone else creates new files and *reports
+   wiring lines* for the integrator to apply.
+3. **Every wave ends with the play-through gate.** No "boots clean" substitutes.
+4. **Critic loops:** separate harsh critics scoring against SMO/TotK from
+   memory, producing ranked file-level defect lists that drive the next round.
+   A 7/10 should be rare. Report unsatisfied ceilings.
+5. **Commit and push constantly** — usage limits kill agents mid-flight.
+6. **Never overstate.** The owner has repeatedly caught claims outrunning
+   evidence (e.g. "the overworld is the hub" when `goHub()` had zero callers).
+   If you have not observed it, say so.
 
 ---
 
-## 7. NAMING
+## 8. GETTING THE CODE INTO THE NUMERIA REPO
 
-Repo is `math-warriors-numeria`. Suggested in-game titles:
-- **Math Warriors: Numeria** — the world is already named Numeria in the story
-  ("Numeria is quietly losing its numbers…"), so the title doubles as lore.
-- *Math Warriors World* · *Math Warriors: The Great Story*
+The source is `claude/overworld-3d` in `DD-Builder/Math-Warriors` (29 commits
+ahead of Classic's `main`). From a local clone of Math-Warriors:
 
----
+```bash
+git fetch origin claude/overworld-3d
+git remote add numeria https://github.com/DD-Builder/math-warriors-numeria.git
+git push numeria origin/claude/overworld-3d:refs/heads/main
+```
 
-## 8. STORY BIBLE (short form)
+History intact. (Ask if a squashed single-commit start is preferred instead.)
 
-Numeria is losing its numbers. The Chaos King is eventually revealed as **The
-Theorem** — the Great Story's discarded first draft, a proof that concluded the
-world "doesn't add up". Each floor's midpoint yields one line of his
-handwriting; read in order, the collected pages **are** the villain. The
-victory is **completing** him, not destroying him — floor 9 is the party
-writing the line he never could. Heroes are rescued from themed prisons along
-the way. Nine floors: Sprout Garden, Tidepool Shallows, Sky Cliffs, Ember
-Slopes, Frost Fields, Crystal Hollow, Market Town, Canyon Library, Paper
-Palace. Full data in `src/data/story.js`, `src/data/levels.js` lore headers,
-and `src/data/dialogue.js`.
+**Latest playable build** (pre-gate, for reference):
+https://claude.ai/code/artifact/1b156991-2c7e-4804-befd-ec52a0c7c62e
 
 ---
 
-*Generated at handoff. Branch `claude/overworld-3d`, 2680 tests passing.*
+## 9. THE SINGLE NEXT TASK
+
+**Make `e2e/playthrough.spec.js` step 6 pass: a fight must trigger AND
+RESOLVE.**
+
+Latest evidence, from an agent stopped mid-investigation:
+> *"The fight runs but doesn't resolve in 6 min."*
+
+So combat **does** trigger inside a 3D floor — the earlier "combat is broken"
+reading was the coordinate bug in 3.5. The real problem is the fight not
+**concluding**. Start there, not from trigger-path theories.
+
+Suspects to instrument (verify, don't trust):
+- `battle3d.js` turn loop — does it advance? Does a correct answer land damage?
+  Does enemy HP reach 0? Is the victory transition ever fired?
+- The 2D math overlay (`battleOverlay3d.js`) — does the numpad's answer reach
+  the rules layer, or does the fight stall waiting for input that never arrives?
+- `_startBattle`'s 2D fallback: `!app.startBattle || party.length===0 ||
+  enemies.length===0` starts the old `BattleScene` and `battleActive()` stays
+  false forever — confirm which path actually ran.
+- The step-6 timeout is generous but SwiftShader is ~2–6 fps; assert on **sim
+  state**, not wall-clock.
+
+**Done means:** the gate passes, `npm test` still ≥2680, `npm run build` clean,
+`--project=2d` green, and a pass/fail table for the owner's ten defects with a
+screenshot per row — anything unprovable marked FAILED.
+
+---
+
+## 10. STORY BIBLE (short form)
+
+Numeria is losing its numbers. The Chaos King is revealed as **The Theorem** —
+the Great Story's discarded first draft, a proof that concluded the world
+"doesn't add up". Each floor's midpoint yields one line of his handwriting;
+read in order, the collected pages **are** the villain. Victory is
+**completing** him, not destroying him — floor 9 is the party writing the line
+he never could. Heroes are rescued from themed prisons along the way. Nine
+floors: Sprout Garden, Tidepool Shallows, Sky Cliffs, Ember Slopes, Frost
+Fields, Crystal Hollow, Market Town, Canyon Library, Paper Palace. Data in
+`src/data/story.js`, `src/data/levels.js` lore headers, `src/data/dialogue.js`.
+
+---
+
+*Updated at pause. Branch `claude/overworld-3d` @ `204beaf`, 2680 tests green,
+working tree clean, everything pushed.*
