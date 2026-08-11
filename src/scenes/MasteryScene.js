@@ -6,6 +6,7 @@ import { audio } from '../systems/audio.js';
 import { drawPapercutBackground } from '../systems/papercut.js';
 import { PaperPanel, PaperButton, TEXT, safeArea } from '../ui/paperUI.js';
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
+import { goHub } from '../ui/hubRouter.js';
 
 export class MasteryScene extends Phaser.Scene {
   constructor() {
@@ -131,7 +132,7 @@ export class MasteryScene extends Phaser.Scene {
       w: 200, h: 60, color: PAPER.teal, fontSize: 22,
       onClick: () => {
         audio.play('ui/back');
-        transitionTo(this, SCENES.WORLD_MAP, undefined, 200);
+        goHub(this, undefined, 200);
       },
     });
   }

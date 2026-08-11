@@ -282,16 +282,40 @@ export function createHeroPartCanvasClipped(w, h, drawFn, topExt, botExt, allowe
 }
 
 // ─── CONVENIENCE: Create monster canvas ─────────────────────────
-export function createMonsterCanvas(size, bgColor, drawFn, t) {
+/**
+ * Render a monster draw function to an offscreen canvas.
+ *
+ * `opts` reaches the art two ways: as a THIRD argument to drawFn, and
+ * as flags on the renderer. Every art function predates both and
+ * ignores extra args, so this is free.
+ *
+ * TWO SEPARATE PHASE CHANNELS, deliberately not merged:
+ *   opts.phase (1..3)  → R.bossPhase — the BATTLE phase, i.e. has this
+ *                        boss crossed 60% / 30% HP and transformed.
+ *   opts.artPhase      → R.phase — the art file's own per-drawing
+ *                        variant flag (the Theorem uses `R.phase >= 1`
+ *                        to draw its COMPLETED, mended self).
+ * Collapsing them would make every Theorem render at full HP draw the
+ * finished proof, spoiling the ending. Any other key on `opts` is
+ * copied straight onto R so new art flags need no change here.
+ */
+export function createMonsterCanvas(size, bgColor, drawFn, t, opts) {
   var cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
   var R = new Rndr(cv);
   R.clear(bgColor || null);
+  var o = opts || {};
+  for (var k in o) {
+    if (k === 'phase' || k === 'artPhase') continue;
+    R[k] = o[k];
+  }
+  R.bossPhase = o.phase || 1;
+  R.phase = o.artPhase || 0;
   // Translate to center so draw functions work at origin
   var G = cv.getContext('2d');
   var drawScale = size / 160;
   G.save(); G.translate(size / 2, size / 2); G.scale(drawScale, drawScale);
-  try { drawFn(R, t || 0); } catch (e) { /* ignore */ }
+  try { drawFn(R, t || 0, o); } catch (e) { /* ignore */ }
   G.restore();
   return cv;
 }

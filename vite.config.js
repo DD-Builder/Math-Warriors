@@ -17,7 +17,22 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          phaser: ['phaser']
+          phaser: ['phaser'],
+          // Three.js only ever loads via dynamic import() from the overworld
+          // module — its own chunk keeps it out of the eager boot bundle and
+          // lets it cache independently across builds.
+          three: ['three'],
+          // Rapier, same deal but more so. The `-compat` build inlines its
+          // WebAssembly as base64 INSIDE the JavaScript, which is what makes it
+          // work under Vite with no asset plumbing and also what makes it a
+          // ~2.2 MB source file. src/overworld/physics.js is the only module
+          // that references it and does so through a lazy `import()`, so this
+          // chunk is fetched the first time a player walks into the overworld
+          // toybox and never during boot. Naming it here (rather than leaving
+          // Rollup to mint an anonymous chunk) keeps it cacheable across builds
+          // and keeps it visible in the bundle report, which is the only way a
+          // 2 MB dependency stays honest.
+          rapier: ['@dimforge/rapier3d-compat']
         }
       }
     }

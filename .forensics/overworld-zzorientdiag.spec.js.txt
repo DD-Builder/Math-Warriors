@@ -1,0 +1,87 @@
+import { test, expect } from '@playwright/test';
+
+test.beforeEach(async ({ context }) => {
+  await context.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, (r) => r.abort());
+});
+
+function freshSave() {
+  return {
+    version: 1, grade: 3,
+    party: [{ id: 'knight-shadow', name: 'Shadow', hp: 52, maxHp: 52, xp: 0, level: 1 }],
+    unlockedHeroes: ['knight-shadow'],
+    gold: 0, potions: 0,
+    floors: Array.from({ length: 9 }, (_, i) => ({ id: i + 1, unlocked: i === 0, complete: false, bestStreak: 0 })),
+    settings: { musicVolume: 0, sfxVolume: 0, reducedMotion: false },
+    stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0, playTimeSec: 0, firstPlayedAt: Date.now(), lastPlayedAt: Date.now() },
+  };
+}
+
+test('diagnose orientation beat timing', async ({ page }) => {
+  test.setTimeout(180_000);
+  page.on('console', (m) => console.log('[console]', m.type(), m.text()));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!window.__MW?.game, null, { timeout: 30_000 });
+  await page.evaluate((save) => {
+    localStorage.setItem('mathwarriors.save', JSON.stringify(save));
+    const mgr = window.__MW.game.scene;
+    mgr.getScenes(true).forEach((s) => mgr.stop(s.scene.key));
+    mgr.start('OverworldScene', {});
+  }, freshSave());
+  await page.waitForFunction(() => window.__MW_OVERWORLD?.ready === true, null, { timeout: 60_000 });
+
+  // Monkeypatch BEFORE cover clears (which is what schedules the beat) so we
+  // can see whether _orientFirstArrival ever actually runs.
+  await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    window.__orientCalls = [];
+    const orig = s._orientFirstArrival.bind(s);
+    s._orientFirstArrival = (...args) => {
+      window.__orientCalls.push({ t: performance.now(), floorId: s.floorId, destroyed: s._destroyed });
+      return orig(...args);
+    };
+    const origWTS = s._waitThenSay.bind(s);
+    window.__waitThenSayCalls = [];
+    s._waitThenSay = (fn, delayMs) => {
+      window.__waitThenSayCalls.push({ t: performance.now(), delayMs });
+      return origWTS(fn, delayMs);
+    };
+  });
+
+  await page.waitForFunction(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return s && !s._cover;
+  }, null, { timeout: 90_000 });
+
+  console.log('cinematicActive right after cover clears:', await page.evaluate(() => window.__MW_OVERWORLD.cinematicActive()));
+
+  await page.evaluate(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    window.__manualFired = false;
+    s.time.delayedCall(100, () => { window.__manualFired = true; });
+  });
+  await page.waitForTimeout(3000);
+  console.log('MANUAL_DELAYED_CALL_FIRED', await page.evaluate(() => window.__manualFired));
+
+  await page.evaluate(() => window.__MW.game.scene.getScene('OverworldScene')._cine?.skip?.());
+
+  for (let i = 0; i < 20; i++) {
+    const snap = await page.evaluate(() => {
+      const s = window.__MW.game.scene.getScene('OverworldScene');
+      return {
+        cineActive: !!s._cine?.active,
+        dialogueActive: !!s.dialogue?.active,
+        mathPrompt: !!s._mathPrompt,
+        floorEpoch: s._floorEpoch,
+        seenBeats: s.save.seenBeats,
+        floorId: s.floorId,
+        timeNow: s.time?.now,
+      };
+    });
+    console.log(`t+${i * 1000}ms`, JSON.stringify(snap));
+    await page.waitForTimeout(1000);
+  }
+  const calls = await page.evaluate(() => ({ orient: window.__orientCalls, wts: window.__waitThenSayCalls }));
+  console.log('ORIENT_CALLS', JSON.stringify(calls.orient));
+  console.log('WAIT_THEN_SAY_CALLS', JSON.stringify(calls.wts));
+  expect(true).toBe(true);
+});

@@ -8,6 +8,7 @@ import { PaperPanel, PaperButton, PaperCard, TEXT, safeArea } from '../ui/paperU
 import { transitionTo, fadeInScene } from '../ui/sceneHelpers.js';
 import { EQUIPMENT_TIERS } from '../systems/equipment.js';
 import { drawHeroSprite } from '../ui/heroSprites.js';
+import { goHub } from '../ui/hubRouter.js';
 
 const SHOP_ITEMS = [
   { id: 'potion',   name: 'POTION',      cost: 20,  desc: '+1 potion',               icon: PAPER.lavender },
@@ -86,7 +87,7 @@ export class ShopScene extends Phaser.Scene {
 
     PaperButton(this, area.cx, area.bottom - 50, 'BACK', {
       w: 260, h: 64, color: 0x4aa848, fontSize: 24,
-      onClick: () => transitionTo(this, SCENES.WORLD_MAP, undefined, 200),
+      onClick: () => goHub(this, undefined, 200),
     });
 
     if (this.pendingFlash) {

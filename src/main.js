@@ -70,6 +70,7 @@ import { EvolutionScene } from './scenes/EvolutionScene.js';
 import { GalleryScene } from './scenes/GalleryScene.js';
 import { ProgressScene } from './scenes/ProgressScene.js';
 import { TowerScene } from './scenes/TowerScene.js';
+import { OverworldScene } from './scenes/OverworldScene.js';
 import { audio } from './systems/audio.js';
 import { loadSave } from './systems/save.js';
 
@@ -79,6 +80,11 @@ const loadingEl = document.getElementById('loading');
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
+  // Transparent canvas: the 3D overworld renders on a canvas UNDER this one,
+  // showing through only while OverworldScene is active. Everywhere else the
+  // page background (#game CSS, same ink-teal as the old opaque clear) shows
+  // through untouched areas, so every 2D scene looks pixel-identical.
+  transparent: true,
   backgroundColor: COLORS.bg,
   scale: {
     mode: Phaser.Scale.FIT,
@@ -105,7 +111,7 @@ const config = {
   audio: {
     noAudio: true,
   },
-  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PlacementScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene, EvolutionScene, GalleryScene, ProgressScene, TowerScene],
+  scene: [BootScene, TitleScene, SaveSlotScene, TutorialScene, GradeSelectScene, PlacementScene, PartySelectScene, WorldMapScene, CutsceneScene, MazeScene, BattleScene, EndingScene, ShopScene, SettingsScene, MasteryScene, BossRushScene, EvolutionScene, GalleryScene, ProgressScene, TowerScene, OverworldScene],
 };
 
 const game = new Phaser.Game(config);
@@ -169,6 +175,10 @@ setInterval(() => {
   if (!activeScene || activeScene._sessionTimerShown) return;
   activeScene._sessionTimerShown = true;
 
+  // Give scenes that composite an external canvas (the 3D overworld) a
+  // chance to pause their render loop before we cover the screen.
+  activeScene.prepareSystemOverlay?.();
+
   // Pause the active scene and show a full-screen overlay
   const w = activeScene.cameras.main.width;
   const h = activeScene.cameras.main.height;
@@ -214,4 +224,11 @@ window.__MW = { game, scenes: SCENES };
 // (showing "Updating…") so no stale UI flashes before the navigation lands.
 game.events.once('ready', () => {
   if (loadingEl && !window.__MW_RELOADING) loadingEl.classList.add('hidden');
+  // Stack order for the 3D overworld: Phaser's (transparent) canvas must sit
+  // ABOVE the #mw-overworld WebGL canvas so the HUD, transitions, and system
+  // overlays always cover the 3D view.
+  if (game.canvas) {
+    game.canvas.style.position = 'relative';
+    game.canvas.style.zIndex = '1';
+  }
 });

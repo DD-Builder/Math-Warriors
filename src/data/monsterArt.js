@@ -410,17 +410,119 @@ R.glow(-8,2,4,3,MAG3,.58,4);R.glow(-8,2,2,2,MAGL3,.72,1.5);R.glow(8,2,4,3,MAG3,.
 R.gshadow(0,76,26,5);G.restore();
 },
 pyroclast: function(R,t){
-var G=R.G,roll=t*.05,bob=Math.sin(t*.04)*5,pulse=Math.sin(t*.068)*.05;
-G.save();G.translate(0,bob);G.scale(1+pulse*.4,1-pulse*.55);
-var OUTER='#d06a4d',MID='#e78f6c',CORE='#f2bf9a',MAG4='#e39a4a',MAGL4='#ecb964',LAVA='#ecb964',HOT='#f5eedd',CRUST='#d9cfb2';
-for(var fi=0;fi<8;fi++){var fr=(fi+1)/9,fsize=(1-fr)*22,falpha=(1-fr)*.48;var fx=-fr*52,fy=fr*18;var flamePts=[];for(var fp=0;fp<7;fp++){var fpa=fp/6*Math.PI*1.4-Math.PI*.7;flamePts.push([fx+Math.cos(fpa)*fsize*.5,fy-Math.abs(Math.sin(fpa))*fsize]);}G.save();G.globalAlpha=falpha;R.L(flamePts,fi<4?MAG4:LAVA,400+fi,{sx:2,sy:3,sp:7,sa:falpha*.8,ns:true});R.glow(fx,fy-fsize*.5,fsize*.4,fsize*.5,fi<4?MAG4:HOT,falpha*.58,8);G.restore();}
-R.Lc(0,0,42,OUTER,1,{sx:4,sy:7,sp:18,sa:.54});R.Lc(0,0,36,MID,2,{sx:3,sy:5,sp:13,sa:.44});R.Lc(0,0,28,CORE,3,{sx:2,sy:4,sp:9,sa:.32});
-G.save();G.rotate(roll);var crustPts=[];for(var ci=0;ci<8;ci++){var ca=ci/8*Math.PI*2,cr=30+Math.sin(ci*2.2)*4;crustPts.push([Math.cos(ca)*cr,Math.sin(ca)*cr]);crustPts.push([Math.cos(ca+.3)*36,Math.sin(ca+.3)*36]);}R.L(crustPts,CRUST,10,{sx:3,sy:5,sp:12,sa:.44});G.restore();
-[[[-10,-20],[0,-30],[10,-20],[14,-8],[6,4],[-6,4],[-14,-8]],[[-20,8],[-26,18],[-18,26],[0,28],[18,26],[26,18],[20,8]]].forEach(function(cl,i){R.L(cl,MAG4,20+i,{sx:1,sy:2,sp:6,sa:.46});R.glow(0,i===0?-16:18,14,8,MAG4,.52,7);R.glow(0,i===0?-16:18,8,5,LAVA,.42,3);});
-R.glow(0,0,16,16,LAVA,.42,12);R.glow(0,0,8,8,HOT,.36,6);
-R.L([[-14,-8],[-4,-12],[4,-12],[14,-8],[12,-4],[4,-6],[-4,-6],[-12,-4]],MAG4,30,{ns:true});R.glow(-6,-8,4,2,MAGL4,.62,3);R.glow(6,-8,4,2,MAGL4,.62,3);
-R.L([[-10,10],[-6,8],[0,9],[6,8],[10,10],[8,13],[0,12],[-8,13]],MAG4,31,{ns:true});R.glow(0,11,8,3,LAVA,.38,4);
-R.gshadow(0,46,38,7);G.restore();
+/* PYROCLAST — floor 4 boss. SHAPE LANGUAGE: a walking volcano. The outline is
+ * a mountain — wide planted crag feet, a broad chest, and a JAGGED CROWN of
+ * seven caldera spires with a smoking vent in the middle of the skull. A child
+ * should read "volcano monster" from the silhouette alone.
+ *
+ * Construction is strictly layered cut paper: coral rock (dark→light) for the
+ * mass, SAND/CREAM ash crust plates laid over it so the value never goes flat,
+ * gold lava showing through the fissures where the crust has split. Arms are
+ * cut BEHIND the torso and the ash pauldrons are laid back over the joint, so
+ * every limb has real paper depth. Shadows are the teal drop-shadow family
+ * only — the crust reads as paper because you can see its edge everywhere.
+ *
+ * MOTION: lung-slow breathing bob + body sway; a magma PUMP heartbeat that
+ * brightens every fissure, fist and eye together; ash smoke drifting up off
+ * the shoulders; embers rising from crown and cracks (secondary motion); and
+ * the SIGNATURE ERUPTION SURGE — a long slow swell that grows the crown tips,
+ * floods the vent and throws a fountain of lava paper out of its head. */
+var G=R.G;
+var breath=Math.sin(t*.031),bob=breath*4,sway=Math.sin(t*.023)*.016;
+var pump=.5+Math.sin(t*.088)*.5;
+var surge=Math.pow(Math.max(0,Math.sin(t*.0175)),4);
+var ROCK='#d06a4d',ROCKM='#e78f6c',ROCKL='#f2bf9a',ASHD='#d9cfb2',ASH='#e8dec6',MAG='#e39a4a',LAVA='#ecb964',HOT='#f5eedd',INK='#1f4244';
+G.save();G.translate(0,bob);G.rotate(sway);
+// ── ambient heat bloom, then ash smoke drifting up off the shoulders
+R.glow(0,6,52,60,MAG,.1+surge*.08,22);
+for(var si=0;si<5;si++){var sph=((t*.0075+si*.2)%1),smy=-40-sph*32,smx=(si-2)*13+Math.sin(t*.02+si*1.7)*9,smr=8+sph*14;G.save();G.globalAlpha=(1-sph)*.28;R.Le(smx,smy,smr,smr*.76,si%2?ASH:ASHD,300+si,{ns:true});G.restore();}
+// ── ARMS first: cut behind the torso so the shoulder plates can overlap them
+[-1,1].forEach(function(sd){var d=sd,drift=Math.sin(t*.041+(sd>0?1.6:0))*3,ix=(sd>0?0:1);
+R.L([[d*28,-16],[d*52,-6],[d*58,12+drift],[d*47,20+drift],[d*32,10],[d*26,-6]],ROCK,50+ix,{sx:4,sy:6,sp:16,sa:.54});
+R.L([[d*30,-13],[d*49,-4],[d*54,11+drift],[d*45,17+drift],[d*33,8],[d*29,-5]],ROCKM,52+ix,{sx:2,sy:4,sp:10,sa:.38});
+R.L([[d*50,9+drift],[d*63,18+drift],[d*65,35+drift],[d*53,43+drift],[d*43,33+drift],[d*44,16+drift]],ROCK,54+ix,{sx:4,sy:6,sp:15,sa:.54});
+R.L([[d*51,13+drift],[d*60,20+drift],[d*61,33+drift],[d*52,39+drift],[d*46,30+drift],[d*47,18+drift]],ROCKM,56+ix,{sx:2,sy:4,sp:9,sa:.38});
+R.L([[d*44,20+drift],[d*62,26+drift],[d*61,33+drift],[d*44,29+drift]],ASHD,57+ix,{sx:2,sy:3,sp:6,sa:.36});
+R.Lc(d*55,44+drift,12,ROCK,58+ix,{sx:3,sy:5,sp:11,sa:.52});
+R.Lc(d*55,44+drift,8,ROCKM,60+ix,{sx:2,sy:3,sp:7,sa:.34});
+[0,1,2].forEach(function(k){var kx=d*(48+k*7),ky=36+drift+k*2;R.L([[kx-4,ky],[kx+4,ky],[kx+3,ky+7],[kx-3,ky+7]],ASHD,62+k+ix*4,{sx:1,sy:2,sp:5,sa:.4});});
+R.glow(d*55,46+drift,9,7,MAG,.3+pump*.26,8);R.glow(d*55,46+drift,4,3,LAVA,.4+pump*.3,4);});
+// ── feet: cooled crag boots planted wide, ash dusted across the toes
+R.L([[-40,52],[-16,50],[-12,64],[-18,71],[-42,69],[-47,60]],ROCK,1,{sx:4,sy:7,sp:14,sa:.52});
+R.L([[-37,54],[-19,52],[-16,62],[-21,67],[-38,65],[-42,58]],ROCKM,2,{sx:2,sy:4,sp:9,sa:.36});
+R.L([[16,50],[40,52],[47,60],[42,69],[18,71],[12,64]],ROCK,4,{sx:4,sy:7,sp:14,sa:.52});
+R.L([[19,52],[37,54],[42,58],[38,65],[21,67],[16,62]],ROCKM,5,{sx:2,sy:4,sp:9,sa:.36});
+// ── legs: heavy basalt columns with an ash knee-plate and a molten shin seam
+R.L([[-40,18],[-14,16],[-11,54],[-39,56]],ROCK,7,{sx:4,sy:7,sp:15,sa:.54});
+R.L([[-34,22],[-19,20],[-17,50],[-33,52]],ROCKM,8,{sx:2,sy:4,sp:9,sa:.36});
+R.L([[-38,28],[-14,26],[-13,34],[-37,36]],ASHD,9,{sx:3,sy:4,sp:8,sa:.44});
+R.L([[14,16],[40,18],[39,56],[11,54]],ROCK,11,{sx:4,sy:7,sp:15,sa:.54});
+R.L([[19,20],[34,22],[33,52],[17,50]],ROCKM,12,{sx:2,sy:4,sp:9,sa:.36});
+R.L([[14,26],[38,28],[37,36],[13,34]],ASHD,13,{sx:3,sy:4,sp:8,sa:.44});
+R.L([[-29,40],[-25,40],[-24,48],[-27,54],[-30,48]],MAG,15,{sx:1,sy:2,sp:5,sa:.4});
+R.L([[25,40],[29,40],[30,48],[27,54],[24,48]],MAG,16,{sx:1,sy:2,sp:5,sa:.4});
+R.glow(-27,47,4,9,MAG,.26+pump*.22,6);R.glow(27,47,4,9,MAG,.26+pump*.22,6);
+// ── torso: three nested rock layers, broadest at the shoulders
+R.L([[-33,-20],[33,-20],[45,-2],[41,20],[30,31],[-30,31],[-41,20],[-45,-2]],ROCK,20,{sx:5,sy:8,sp:24,sa:.56});
+R.L([[-27,-15],[27,-15],[38,-2],[34,17],[25,26],[-25,26],[-34,17],[-38,-2]],ROCKM,21,{sx:3,sy:5,sp:15,sa:.44});
+R.L([[-18,-9],[18,-9],[25,0],[22,13],[15,21],[-15,21],[-22,13],[-25,0]],ROCKL,22,{sx:2,sy:4,sp:10,sa:.3});
+// ── belly crust: a wide ash slab that has flaked over the lower chest
+R.L([[-21,20],[21,20],[25,29],[-25,29]],ASHD,23,{sx:3,sy:4,sp:10,sa:.46});
+R.ln(-19,25,19,25,'rgba(245,238,221,.34)',1.6,.5);
+// ── molten fissures: the crust has split open. Every vein pumps together.
+[[[-4,-17],[3,-17],[5,-6],[2,2],[6,10],[1,20],[-1,10],[-4,3],[-6,-6]],[[-30,-2],[-21,-6],[-13,4],[-16,11],[-25,4]],[[21,-6],[30,-2],[25,4],[16,11],[13,4]],[[-16,4],[-10,2],[-7,12],[-11,17],[-15,10]],[[10,2],[16,4],[15,10],[11,17],[7,12]],[[-9,-14],[-6,-15],[-3,-6],[-7,-4]],[[6,-15],[9,-14],[7,-4],[3,-6]]].forEach(function(fv,i){R.L(fv,MAG,40+i,{sx:1,sy:2,sp:6,sa:.42});var fcx=0,fcy=0;fv.forEach(function(p){fcx+=p[0];fcy+=p[1];});fcx/=fv.length;fcy/=fv.length;R.glow(fcx,fcy,7,9,MAG,.3+pump*.3+surge*.2,8);R.glow(fcx,fcy,3,4,LAVA,.28+pump*.34,4);});
+// ── ash flecks: small cooled chips scattered over the rock for paper texture
+[[-36,4],[-30,12],[36,2],[31,11],[-8,-14],[10,-14],[-22,-8],[22,-8]].forEach(function(p,i){var fs=3+i%3;R.L([[p[0]-fs,p[1]],[p[0]+fs*.6,p[1]-fs*.7],[p[0]+fs,p[1]+fs*.5],[p[0]-fs*.4,p[1]+fs]],i%2?ASHD:ASH,60+i,{sx:1,sy:2,sp:4,sa:.32});});
+// ── shoulder pauldrons: ash crust laid back over the arm joint, spiked
+[-1,1].forEach(function(sd){var d=sd,ix=(sd>0?0:1);
+R.L([[d*46,-8],[d*26,-21],[d*11,-10],[d*20,7],[d*44,9]],ROCK,70+ix,{sx:3,sy:5,sp:13,sa:.5});
+R.L([[d*43,-7],[d*26,-18],[d*17,-10],[d*23,3],[d*40,5]],ROCKM,72+ix,{sx:2,sy:3,sp:8,sa:.34});
+R.L([[d*44,-2],[d*22,-12],[d*19,-7],[d*42,3]],ASHD,73+ix,{sx:2,sy:3,sp:6,sa:.3});
+R.L([[d*30,-18],[d*40,-32],[d*46,-26],[d*38,-13]],ROCK,74+ix,{sx:3,sy:5,sp:10,sa:.5});
+R.L([[d*32,-18],[d*39,-29],[d*42,-25],[d*36,-15]],ROCKM,76+ix,{sx:2,sy:3,sp:6,sa:.34});
+R.L([[d*18,-16],[d*24,-28],[d*29,-24],[d*24,-12]],ROCK,78+ix,{sx:2,sy:4,sp:8,sa:.48});});
+// ── neck: stacked crag slabs between the shoulders (rock, so the head's
+// shadow lands on warm paper instead of greying out a cream plate)
+R.L([[-19,-24],[19,-24],[22,-14],[-22,-14]],ROCK,80,{sx:3,sy:4,sp:9,sa:.46});
+R.L([[-14,-22],[14,-22],[16,-17],[-16,-17]],ROCKM,81,{sx:1,sy:2,sp:5,sa:.3});
+// ── head: a squared crag skull with a heavy overhanging brow
+R.L([[-26,-55],[26,-55],[30,-37],[26,-18],[-26,-18],[-30,-37]],ROCK,90,{sx:4,sy:6,sp:16,sa:.5});
+R.L([[-21,-51],[21,-51],[25,-37],[21,-21],[-21,-21],[-25,-37]],ROCKM,91,{sx:3,sy:5,sp:12,sa:.42});
+R.L([[-17,-48],[17,-48],[19,-41],[-19,-41]],ROCKL,92,{sx:2,sy:3,sp:7,sa:.28});
+R.L([[-29,-41],[-20,-43],[-18,-26],[-28,-24]],ASHD,93,{sx:2,sy:3,sp:7,sa:.44});
+R.L([[20,-43],[29,-41],[28,-24],[18,-26]],ASHD,94,{sx:2,sy:3,sp:7,sa:.44});
+R.L([[-25,-46],[0,-41],[25,-46],[25,-39],[0,-35],[-25,-40]],ROCK,95,{sx:2,sy:4,sp:9,sa:.5});
+R.L([[-21,-44],[0,-40],[21,-44],[21,-41],[0,-37],[-21,-41]],ROCKM,96,{sx:1,sy:2,sp:5,sa:.3});
+// ── THE CROWN: seven caldera spires of uneven height, ash-capped near the tips
+[[-24,-50,-32,-63,7],[-13,-53,-16,-69,7],[0,-54,1,-73,9],[13,-53,17,-69,7],[24,-50,33,-63,7],[-30,-40,-44,-52,6],[30,-40,44,-52,6]].forEach(function(s,i){var w=s[4],up=surge*4;
+R.L([[s[0]-w,s[1]],[s[0]+w,s[1]],[s[2]+2.5,s[3]-up],[s[2],s[3]-4-up],[s[2]-2.5,s[3]-up]],ROCK,100+i,{sx:3,sy:5,sp:10,sa:.54});
+R.L([[s[0]-w*.55,s[1]],[s[0]+w*.55,s[1]],[s[2]+1.2,s[3]+2-up],[s[2]-1.2,s[3]+2-up]],ROCKM,110+i,{sx:2,sy:3,sp:6,sa:.34});
+R.L([[s[0]*.55+s[2]*.45-3.6,s[1]*.55+s[3]*.45],[s[0]*.55+s[2]*.45+3.6,s[1]*.55+s[3]*.45],[s[2]+1.6,s[3]+1-up],[s[2]-1.6,s[3]+1-up]],ASHD,120+i,{sx:1,sy:2,sp:5,sa:.34});
+R.L([[s[0]-w*.4,s[1]],[s[0]+w*.4,s[1]],[s[0],s[1]-7-w*.35]],MAG,130+i,{ns:true});
+R.glow(s[2],s[3]+1,4,5,LAVA,.2+surge*.55+Math.sin(t*.07+i)*.08,6);});
+// ── the head vent: a caldera between the spires that erupts on the surge
+R.Le(0,-51,11,4.2,ROCK,140,{sx:1,sy:2,sp:6,sa:.44});R.Le(0,-51,8,2.8,MAG,141,{sx:1,sy:1,sp:4,sa:.3});R.Le(0,-51,4.5,1.6,LAVA,142,{ns:true});
+R.glow(0,-51,9,4,MAG,.3+surge*.4,7);R.glow(0,-52,4,2,HOT,.28+surge*.5,3);
+R.L([[-12,-49],[12,-49],[10,-45],[-10,-45]],ROCK,143,{sx:1,sy:2,sp:5,sa:.4});
+if(surge>.06){for(var ei=0;ei<7;ei++){var ea=-Math.PI*.5+(ei-3)*.29,er=surge*(22+ei%3*9);var ex=Math.cos(ea)*er*.95,ey=-50+Math.sin(ea)*er;G.save();G.globalAlpha=surge*.85;R.L([[ex-3,ey],[ex+3,ey],[ex+1,ey-8],[ex-1,ey-8]],ei%2?LAVA:MAG,150+ei,{ns:true});R.glow(ex,ey-4,4,6,LAVA,surge*.6,6);G.restore();}}
+// ── eyes: molten slits under the brow, flaring on the heartbeat
+R.L([[-19,-37],[-7,-39],[-5,-31],[-17,-30]],INK,160,{ns:true});
+R.L([[7,-39],[19,-37],[17,-30],[5,-31]],INK,161,{ns:true});
+R.Le(-12,-34.5,4.6,3.2,MAG,162,{ns:true});R.Le(12,-34.5,4.6,3.2,MAG,163,{ns:true});
+R.Le(-12,-34.5,2.6,1.9,LAVA,164,{ns:true});R.Le(12,-34.5,2.6,1.9,LAVA,165,{ns:true});
+R.glow(-12,-34.5,6,4,LAVA,.5+pump*.3,5);R.glow(12,-34.5,6,4,LAVA,.5+pump*.3,5);
+R.Lc(-13.4,-35.8,1.4,HOT,166,{ns:true});R.Lc(10.6,-35.8,1.4,HOT,167,{ns:true});
+// ── mouth: a lava grin with cooled ash teeth top and bottom
+R.L([[-18,-27],[18,-27],[14,-22],[0,-19],[-14,-22]],INK,170,{ns:true});
+R.L([[-14,-26],[14,-26],[11,-22],[0,-21],[-11,-22]],MAG,171,{ns:true});
+R.glow(0,-24,12,4,LAVA,.42+pump*.22,6);
+[-12,-6,0,6,12].forEach(function(mx,i){R.L([[mx-2.6,-27],[mx+2.6,-27],[mx,-22.5-(i%2)*1.6]],ASH,175+i,{ns:true});});
+[-8,-2,4,10].forEach(function(mx2,i){var by=-20.6-Math.abs(mx2)*.09;R.L([[mx2-2.2,by],[mx2+2.2,by],[mx2,by-3.4]],ASHD,181+i,{ns:true});});
+// ── embers lifting off the crown and the cracks — the drifting secondary motion
+for(var pi=0;pi<14;pi++){var pph=((t*.017+pi*.0714)%1),pbx=[-30,-14,0,16,30,-40,40,-8,8,-22,22,0,-34,34][pi],pby=[-56,-60,-62,-60,-56,-46,-46,8,8,-2,-2,24,-18,-18][pi];var pex=pbx+Math.sin(t*.05+pi*1.9)*7,pey=pby-pph*44,pal=(1-pph)*.62;if(pal>.04){G.save();G.globalAlpha=pal;R.Lc(pex,pey,1.6+pph*2.2,pi%3?LAVA:MAG,200+pi,{ns:true});R.glow(pex,pey,3+pph*3,3+pph*3,pi%3?LAVA:HOT,pal*.5,5);G.restore();}}
+// ── the molten ground the titan is standing in
+R.glow(0,70,42,9,MAG,.26+pump*.14,14);R.glow(0,70,20,5,LAVA,.24,8);
+R.gshadow(0,74,38,7);G.restore();
 },
 };
 export var FLOOR9_MONSTERS = {
@@ -519,45 +621,120 @@ R.glow(-8,-32,6,6,ICE2,.6+Math.sin(t*.06)*.2,5);R.glow(8,-32,6,6,ICE2,.6+Math.si
 G.restore();
 },
 absolutezero: function(R,t){
-var G=R.G,bob=Math.sin(t*.028)*6,sway=Math.sin(t*.019)*.022;
+/* ABSOLUTE ZERO — floor 5 boss. SHAPE LANGUAGE: perfect crystalline SYMMETRY.
+ * Where Pyroclast is lopsided and jagged, this one is a mirror down its spine:
+ * a faceted diamond torso hanging in the air over a frost pool, blade arms cut
+ * from flat ice planes, a hexagonal skull under a five-spire crown, and — the
+ * silhouette-maker — a twelve-armed SNOWFLAKE HALO turning slowly behind it.
+ * Read the outline alone and you get "ice monarch".
+ *
+ * The idea that drives the construction is FROZEN NEGATIVE SPACE: six wedges
+ * have shattered out of its body. The holes are cut as deep-teal paper (the
+ * shadow family, never black) and the missing crystals hang in the air beside
+ * their own sockets. Everything is layered cut paper — deep teal → teal →
+ * pale teal → sky → paper white, each plane shadowing the plane beneath.
+ *
+ * MOTION: a long slow float and sway; the halo counter-rotates against the
+ * body; a SIGNATURE RE-FORMING — every so often the six shards snap home into
+ * their sockets and the whole body flares white, then they drift back out;
+ * plus a slow regal BLINK, frost breath sinking from the mouth (cold air
+ * falls) and a mist ring pulsing outward across the floor. */
+var G=R.G;
+var bob=Math.sin(t*.021)*6+Math.sin(t*.037)*2,sway=Math.sin(t*.015)*.017;
+var hspin=t*.0055,shimmer=.5+Math.sin(t*.05)*.5;
+var snap=Math.pow(Math.max(0,Math.sin(t*.0105)),5);
+var blink=Math.pow(Math.max(0,Math.sin(t*.0135+1.1)),14);
+var ICED='#2a6063',ICE='#44888a',ICEL='#7fb3ae',SKY='#a4c8d8',WHT='#fdfbf2',CRM='#f5eedd',INK='#1f4244';
 G.save();G.translate(0,bob);G.rotate(sway);
-R.gshadow(0,82,54,10);
-var DRGN='#2a6063',DRGNM='#44888a',DRGNL='#7fb3ae',SCALE='#a4c8d8',WHT='#fdfbf2',DRK='#1f4244',GLOW='#fdfbf2';
-// Serpentine tail layers
-R.L([[20,50],[38,46],[52,36],[60,20],[56,4],[44,-6],[32,2],[24,20],[20,38]],DRGN,1,{sx:3,sy:5,sp:13,sa:.5});
-R.L([[22,48],[36,44],[48,34],[55,20],[52,6],[42,-2],[30,4],[23,20],[22,36]],DRGNM,2,{sx:2,sy:4,sp:9,sa:.38});
-R.L([[26,44],[38,40],[48,30],[52,18],[48,8],[40,2],[30,8],[26,22],[26,38]],DRGNL,3,{sx:2,sy:3,sp:7,sa:.26});
-// Crystal spines along back
-[[48,10,54,0,5],[38,-2,44,-12,4],[26,-8,30,-18,5],[14,-18,16,-30,4],[2,-26,2,-38,5]].forEach(function(s,i){R.L([[s[0]-s[4]*.5,s[1]],[s[0]+s[4]*.5,s[1]],[s[2]+1.5,s[3]],[s[2],s[3]-4],[s[2]-1.5,s[3]]],SCALE,10+i,{sx:2,sy:3,sp:6,sa:.46});R.L([[s[0],s[1]],[s[2]+.5,s[3]],[s[2]-0.5,s[3]]],WHT,11+i,{sx:1,sy:1,sp:3,sa:.2,ns:true});R.glow(s[2],s[3],3,3,SCALE,.28+Math.sin(t*.08+i*.7)*.12,4);});
-// Main body
-R.L([[-22,-4],[-28,20],[-26,50],[-10,60],[10,60],[26,50],[28,20],[22,-4],[14,-14],[0,-18],[-14,-14]],DRGN,20,{sx:4,sy:7,sp:20,sa:.56});
-R.L([[-18,-2],[-24,18],[-22,46],[-8,56],[8,56],[22,46],[24,18],[18,-2],[10,-12],[0,-16],[-10,-12]],DRGNM,21,{sx:3,sy:5,sp:14,sa:.46});
-R.L([[-12,2],[-16,18],[-14,42],[-4,50],[4,50],[14,42],[16,18],[12,2],[6,-10],[0,-12],[-6,-10]],DRGNL,22,{sx:2,sy:3,sp:9,sa:.32});
-// Scales on body (geometric patches)
-[[-14,8],[12,6],[-10,24],[14,22],[-12,38],[10,36]].forEach(function(p,i){R.Le(p[0],p[1],7,5,SCALE,30+i,{sx:1,sy:2,sp:4,sa:.36});R.Le(p[0],p[1],4,3,WHT,31+i,{sx:0,sy:0,sp:2,sa:.18,ns:true});});
-// Left wing
-R.L([[-22,4],[-50,-6],[-66,-24],[-64,-44],[-48,-46],[-28,-28],[-20,2]],DRGN,40,{sx:4,sy:6,sp:18,sa:.52});
-R.L([[-22,4],[-46,-4],[-60,-20],[-58,-38],[-44,-40],[-26,-24],[-20,2]],DRGNM,41,{sx:3,sy:4,sp:12,sa:.4});
-R.L([[-22,4],[-40,-2],[-52,-16],[-50,-32],[-38,-34],[-24,-20],[-20,2]],DRGNL,42,{sx:2,sy:3,sp:7,sa:.26});
-// Wing spines
-[[-52,-8],[-62,-22],[-60,-36]].forEach(function(p,i){R.L([[p[0]-3,p[1]],[p[0]+3,p[1]],[p[0]+1,p[1]-10],[p[0],p[1]-13],[p[0]-1,p[1]-10]],SCALE,50+i,{sx:1,sy:2,sp:4,sa:.44});R.glow(p[0],p[1]-11,3,3,SCALE,.3+Math.sin(t*.07+i)*.12,4);});
-// Head
-R.L([[-24,-18],[-20,-40],[-8,-56],[0,-60],[8,-56],[20,-40],[24,-18],[18,-8],[0,-4],[-18,-8]],DRGN,60,{sx:4,sy:6,sp:16,sa:.56});
-R.L([[-20,-16],[-16,-36],[-6,-50],[0,-54],[6,-50],[16,-36],[20,-16],[14,-6],[0,-2],[-14,-6]],DRGNM,61,{sx:3,sy:4,sp:11,sa:.44});
-// Horns
-R.L([[-12,-40],[-18,-56],[-14,-62],[-8,-52],[-10,-40]],DRGN,70,{sx:2,sy:4,sp:8,sa:.5});R.L([[-12,-40],[-16,-54],[-12,-60],[-8,-50],[-10,-40]],SCALE,71,{sx:1,sy:2,sp:4,sa:.28});
-R.L([[10,-40],[14,-56],[18,-62],[12,-52],[12,-40]],DRGN,72,{sx:2,sy:4,sp:8,sa:.5});R.L([[10,-40],[12,-54],[16,-60],[12,-50],[10,-40]],SCALE,73,{sx:1,sy:2,sp:4,sa:.28});
-// Eyes
-R.Ld(-9,-30,6,WHT,80,{ns:true});R.Ld(9,-30,6,WHT,81,{ns:true});
-R.Ld(-9,-30,3.5,DRK,82,{ns:true});R.Ld(9,-30,3.5,DRK,83,{ns:true});
-R.glow(-9,-30,8,8,SCALE,.65+Math.sin(t*.09)*.2,6);R.glow(9,-30,8,8,SCALE,.65+Math.sin(t*.09)*.2,6);
-// Jaw and teeth
-R.L([[-18,-18],[-12,-10],[0,-8],[12,-10],[18,-18],[14,-14],[0,-12],[-14,-14]],DRK,84,{ns:true});
-[[-12,-18],[-6,-18],[0,-18],[6,-18],[12,-18]].forEach(function(p,i){R.L([[p[0]-3,p[1]],[p[0]+3,p[1]],[p[0],p[1]+6]],WHT,85+i,{ns:true});});
-// Frost breath particles (animated)
-for(var i=0;i<10;i++){var ph=((t*.036+i*.11)%1),bx=-24-ph*38,by=-24-ph*12+Math.sin(t*.1+i)*10,bs=3+ph*5,bal=(1-ph)*.62;G.save();G.globalAlpha=bal;R.Le(bx,by,bs,bs*.6,SCALE,90+i,{ns:true,sx:0,sy:0,sp:2,sa:.2});R.glow(bx,by,bs+2,bs*.8,WHT,bal*.5,4);G.restore();}
-// Body glow effects
-R.glow(0,24,18,28,SCALE,.15,14);R.glow(-9,-30,10,10,SCALE,.22,8);R.glow(9,-30,10,10,SCALE,.22,8);
+R.gshadow(0,76,40,7);
+// ── aurora: cold light arcs bending behind the halo
+for(var ai=0;ai<4;ai++){var aph=ai*.9+t*.012,arr=48+ai*7;G.save();G.strokeStyle=ai%2?SKY:ICEL;G.lineWidth=2.4-ai*.4;G.globalAlpha=.1+Math.abs(Math.sin(aph))*.13;G.beginPath();G.arc(0,-16,arr,Math.PI*1.06+ai*.1,Math.PI*1.94-ai*.1);G.stroke();G.restore();}
+// ── THE HALO: twelve snowflake arms, barbed, counter-rotating behind the body
+var HCY=-16;
+for(var hi=0;hi<12;hi++){var ha=hi/12*Math.PI*2+hspin,hc=Math.cos(ha),hs=Math.sin(ha),lng=hi%2?52:65;
+var HP=function(rr,off){return[hc*rr-hs*off,HCY+hs*rr+hc*off];};
+R.L([HP(12,6),HP(lng,3.2),HP(lng+6,0),HP(lng,-3.2),HP(12,-6)],SKY,400+hi,{sx:3,sy:5,sp:12,sa:.42});
+R.L([HP(14,3),HP(lng-2,1.5),HP(lng+3,0),HP(lng-2,-1.5),HP(14,-3)],WHT,420+hi,{sx:2,sy:3,sp:6,sa:.24});
+[[.44,12],[.7,8.5]].forEach(function(bk,bi){var br=lng*bk[0],bl=bk[1];
+R.L([HP(br,3),HP(br+bl*.9,bl),HP(br+bl*.45,bl*1.35),HP(br-1.5,4.4)],SKY,440+hi*2+bi,{sx:2,sy:3,sp:7,sa:.4});
+R.L([HP(br,-3),HP(br+bl*.9,-bl),HP(br+bl*.45,-bl*1.35),HP(br-1.5,-4.4)],SKY,470+hi*2+bi,{sx:2,sy:3,sp:7,sa:.4});});
+R.Lc(hc*(lng+5),HCY+hs*(lng+5),2.4,WHT,510+hi,{ns:true});R.glow(hc*(lng+5),HCY+hs*(lng+5),4,4,SKY,.2+shimmer*.2,5);}
+R.Lc(0,HCY,13,SKY,530,{sx:3,sy:4,sp:9,sa:.4});R.Lc(0,HCY,8,WHT,531,{sx:2,sy:2,sp:5,sa:.22});
+// ── ARMS: flat ice planes, cut behind the torso, mirrored exactly
+[-1,1].forEach(function(sd){var d=sd,ix=(sd>0?0:1),lift=Math.sin(t*.026+(sd>0?1.4:0))*3;
+R.L([[d*26,-16],[d*44,-8],[d*51,10+lift],[d*40,17+lift],[d*27,5]],ICED,10+ix,{sx:4,sy:6,sp:16,sa:.54});
+R.L([[d*28,-13],[d*42,-6],[d*47,9+lift],[d*39,14+lift],[d*29,3]],ICE,12+ix,{sx:3,sy:4,sp:10,sa:.4});
+R.L([[d*30,-10],[d*40,-4],[d*43,8+lift],[d*37,11+lift],[d*31,2]],ICEL,14+ix,{sx:2,sy:3,sp:6,sa:.26});
+R.L([[d*44,6+lift],[d*55,18+lift],[d*60,42+lift],[d*53,44+lift],[d*42,26+lift]],ICED,16+ix,{sx:4,sy:6,sp:15,sa:.54});
+R.L([[d*46,10+lift],[d*54,20+lift],[d*57,39+lift],[d*52,40+lift],[d*44,25+lift]],ICE,18+ix,{sx:3,sy:4,sp:10,sa:.4});
+R.L([[d*48,15+lift],[d*54,22+lift],[d*58,36+lift],[d*50,36+lift],[d*47,25+lift]],SKY,20+ix,{sx:2,sy:3,sp:6,sa:.26});
+R.L([[d*55,32+lift],[d*66,47+lift],[d*51,43+lift]],SKY,22+ix,{sx:2,sy:3,sp:7,sa:.42});
+R.L([[d*56,34+lift],[d*63,44+lift],[d*53,42+lift]],WHT,24+ix,{sx:1,sy:1,sp:4,sa:.2});
+R.glow(d*63,45+lift,5,5,SKY,.28+shimmer*.2,6);});
+// ── TORSO: five nested faceted planes tapering to a point — a hanging gem
+R.L([[0,-26],[13,-22],[24,-10],[27,8],[20,32],[10,50],[0,64],[-10,50],[-20,32],[-27,8],[-24,-10],[-13,-22]],ICED,30,{sx:5,sy:8,sp:24,sa:.56});
+R.L([[0,-22],[10,-18],[20,-8],[22,7],[16,29],[8,45],[0,57],[-8,45],[-16,29],[-22,7],[-20,-8],[-10,-18]],ICE,31,{sx:4,sy:6,sp:16,sa:.46});
+R.L([[0,-17],[7,-13],[14,-6],[15,6],[11,24],[5,37],[0,46],[-5,37],[-11,24],[-15,6],[-14,-6],[-7,-13]],ICEL,32,{sx:3,sy:4,sp:10,sa:.32});
+R.L([[0,-13],[5,-9],[9,-2],[9,7],[5,20],[0,30],[-5,20],[-9,7],[-9,-2],[-5,-9]],SKY,33,{sx:2,sy:3,sp:7,sa:.24});
+// ── facet seams: the paper is creased, so light catches down the mirror line
+G.save();G.globalAlpha=.3;R.L([[0,-24],[7,2],[0,58],[-7,2]],WHT,34,{ns:true});G.restore();
+G.save();G.globalAlpha=.2;R.L([[-24,-9],[-11,-3],[-18,30]],WHT,35,{ns:true});R.L([[24,-9],[18,30],[11,-3]],WHT,36,{ns:true});G.restore();
+R.L([[-24,-10],[-13,-22],[0,-26],[13,-22],[24,-10],[19,-9],[11,-18],[0,-21],[-11,-18],[-19,-9]],CRM,37,{sx:1,sy:2,sp:6,sa:.3});
+R.ln(-21,6,21,6,'rgba(253,251,242,.3)',1.4,.6);R.ln(-14,30,14,30,'rgba(253,251,242,.26)',1.2,.55);
+// ── the SOCKETS: six wedges that shattered out. Cut as deep teal negative space.
+var NOTCH=[[25,-2,.96,-.28],[22,26,.82,.58]];
+NOTCH.forEach(function(n,ni){[-1,1].forEach(function(sd){var d=sd,tri=[[d*(n[0]-6),n[1]-6],[d*(n[0]+2),n[1]-1],[d*(n[0]-4),n[1]+7]];
+R.L(tri,ICED,40+ni*2+(sd>0?0:1),{sx:2,sy:3,sp:7,sa:.5});
+G.save();G.globalAlpha=.55;R.L(tri.map(function(p){return[p[0]*.86,p[1]*.9];}),INK,46+ni*2+(sd>0?0:1),{ns:true});G.restore();});});
+// ── PAULDRONS: hexagonal ice plates laid back over the shoulder joint
+[-1,1].forEach(function(sd){var d=sd,ix=(sd>0?0:1);
+R.L([[d*15,-20],[d*27,-30],[d*40,-23],[d*42,-10],[d*29,-3],[d*17,-10]],ICED,50+ix,{sx:4,sy:6,sp:14,sa:.52});
+R.L([[d*18,-19],[d*27,-27],[d*37,-21],[d*38,-11],[d*28,-6],[d*20,-11]],ICE,52+ix,{sx:3,sy:4,sp:9,sa:.38});
+R.L([[d*22,-18],[d*27,-23],[d*33,-19],[d*33,-13],[d*27,-10],[d*23,-13]],SKY,54+ix,{sx:2,sy:3,sp:6,sa:.24});
+R.L([[d*15,-20],[d*27,-30],[d*40,-23],[d*37,-22],[d*27,-27],[d*18,-19]],CRM,55+ix,{sx:1,sy:2,sp:5,sa:.28});
+[[20,-28,8],[29,-33,11],[38,-27,8]].forEach(function(bp,bi){R.L([[d*(bp[0]-3),bp[1]],[d*(bp[0]+3),bp[1]],[d*(bp[0]+1),bp[1]-bp[2]],[d*bp[0],bp[1]-bp[2]-3],[d*(bp[0]-1),bp[1]-bp[2]]],ICED,56+ix*4+bi,{sx:2,sy:3,sp:6,sa:.46});
+R.L([[d*(bp[0]-1.2),bp[1]],[d*(bp[0]+1.2),bp[1]],[d*bp[0],bp[1]-bp[2]+2]],SKY,64+ix*4+bi,{sx:1,sy:1,sp:3,sa:.2});});});
+// ── the heart: a gem in the chest that flares white when the shards re-form
+R.L([[0,-16],[10,-3],[0,13],[-10,-3]],ICE,70,{sx:2,sy:4,sp:9,sa:.46});
+R.L([[0,-11],[6,-2],[0,8],[-6,-2]],SKY,71,{sx:1,sy:2,sp:5,sa:.28});
+R.L([[0,-6],[3,-2],[0,3],[-3,-2]],WHT,72,{ns:true});
+R.glow(0,-2,13,15,SKY,.24+snap*.4,11);R.glow(0,-2,6,7,WHT,.3+snap*.5,5);
+// ── HEAD: a hexagonal skull, three planes deep
+R.L([[0,-62],[18,-52],[21,-36],[10,-25],[-10,-25],[-21,-36],[-18,-52]],ICED,80,{sx:4,sy:7,sp:18,sa:.54});
+R.L([[0,-58],[14,-50],[17,-36],[8,-27],[-8,-27],[-17,-36],[-14,-50]],ICE,81,{sx:3,sy:5,sp:12,sa:.42});
+R.L([[0,-53],[9,-47],[11,-37],[5,-31],[-5,-31],[-11,-37],[-9,-47]],ICEL,82,{sx:2,sy:3,sp:8,sa:.28});
+G.save();G.globalAlpha=.26;R.L([[0,-60],[6,-42],[0,-27],[-6,-42]],WHT,83,{ns:true});G.restore();
+R.L([[-18,-52],[0,-62],[18,-52],[14,-51],[0,-58],[-14,-51]],CRM,84,{sx:1,sy:2,sp:5,sa:.3});
+// ── CROWN: five spires, exactly mirrored, tallest at the spine
+[[0,-60,0,-74,4.5],[-10,-57,-14,-70,4],[10,-57,14,-70,4],[-17,-50,-25,-61,3.6],[17,-50,25,-61,3.6]].forEach(function(cs,ci){var w=cs[4];
+R.L([[cs[0]-w,cs[1]],[cs[0]+w,cs[1]],[cs[2]+1.6,cs[3]],[cs[2],cs[3]-4],[cs[2]-1.6,cs[3]]],ICED,90+ci,{sx:3,sy:5,sp:9,sa:.5});
+R.L([[cs[0]-w*.5,cs[1]],[cs[0]+w*.5,cs[1]],[cs[2]+.8,cs[3]+2],[cs[2]-.8,cs[3]+2]],SKY,96+ci,{sx:2,sy:2,sp:5,sa:.24});
+R.Lc(cs[2],cs[3]-1,1.8,WHT,102+ci,{ns:true});R.glow(cs[2],cs[3]-1,4,5,SKY,.24+shimmer*.26,6);});
+// ── FACE: calm, imperious, never frightening. Diamond eyes with a slow blink.
+R.L([[-17,-51],[-5,-53],[-5,-49],[-17,-48]],ICED,110,{ns:true});
+R.L([[5,-53],[17,-51],[17,-48],[5,-49]],ICED,111,{ns:true});
+[-1,1].forEach(function(sd){var d=sd,ex=d*9;
+R.L([[ex,-48],[ex+d*6,-42],[ex,-36],[ex-d*6,-42]],WHT,112+(sd>0?0:1),{sx:1,sy:2,sp:5,sa:.28});
+R.L([[ex,-46],[ex+d*4,-42],[ex,-38],[ex-d*4,-42]],SKY,114+(sd>0?0:1),{ns:true});
+R.L([[ex,-44.5],[ex+d*2.3,-42],[ex,-39.5],[ex-d*2.3,-42]],INK,116+(sd>0?0:1),{ns:true});
+R.Lc(ex-d*1.6,-43.6,1.2,WHT,118+(sd>0?0:1),{ns:true});
+R.glow(ex,-42,7,6,SKY,.34+shimmer*.22,6);
+if(blink>.02){R.L([[ex-d*6.4,-42.4],[ex,-48.4],[ex+d*6.4,-42.4],[ex+d*6.4,-42.4-blink*7+7],[ex,-48.4+blink*7],[ex-d*6.4,-42.4-blink*7+7]],ICE,120+(sd>0?0:1),{ns:true});}});
+R.L([[-9,-32],[0,-28],[9,-32],[7,-31],[0,-30],[-7,-31]],INK,124,{ns:true});
+R.L([[-5,-30.4],[0,-28.6],[5,-30.4],[0,-29.6]],SKY,125,{ns:true});
+// ── THE SHARDS: the six missing wedges, hanging beside their own sockets.
+// They drift out on the long cycle and SNAP home when the body re-forms.
+NOTCH.forEach(function(n,ni){[-1,1].forEach(function(sd){var d=sd,gap=(1-snap)*(19+ni*4),drft=Math.sin(t*.033+ni*1.7+(sd>0?0:2.4))*3;
+var ox=d*(n[0]+n[2]*gap),oy=n[1]+n[3]*gap+drft;
+R.L([[ox-d*7,oy-7],[ox+d*3,oy-2],[ox-d*5,oy+8]],ICE,130+ni*2+(sd>0?0:1),{sx:3,sy:4,sp:8,sa:.46});
+R.L([[ox-d*5,oy-5],[ox+d*1,oy-2],[ox-d*4,oy+5]],SKY,140+ni*2+(sd>0?0:1),{sx:2,sy:2,sp:5,sa:.26});
+R.L([[ox-d*3.4,oy-3],[ox-d*.4,oy-1.6],[ox-d*3,oy+2]],WHT,150+ni*2+(sd>0?0:1),{ns:true});
+R.glow(ox,oy,7,8,SKY,.2+snap*.34,7);});});
+// ── frost breath: cold air is heavy, so it SINKS out of the mouth and pools
+for(var fi=0;fi<11;fi++){var fph=((t*.0125+fi*.0909)%1),fx=(fi%2?-1:1)*(3+fi*1.1)+Math.sin(t*.04+fi)*5,fy=-27+fph*74,fal=(1-fph)*.5;if(fal>.03){G.save();G.globalAlpha=fal;R.L([[fx-2.4,fy],[fx+2.4,fy],[fx,fy+4.4]],fi%3?WHT:SKY,200+fi,{ns:true});G.restore();}}
+// ── the frozen floor: mist banks, and a cold ring pulsing outward
+for(var mi=0;mi<3;mi++){var mph=((t*.009+mi*.34)%1),mr=16+mph*38;G.save();G.globalAlpha=(1-mph)*.24;R.Le((mi-1)*13,66+mi*3,mr*.7,mr*.2,mi%2?WHT:CRM,210+mi,{ns:true});G.restore();}
+R.glow(0,70,34+snap*10,8,SKY,.24,13);R.glow(0,70,16,4,WHT,.26,7);
 G.restore();
 },
 };
@@ -645,25 +822,400 @@ R.glow(-6, -4, 6, 6, '#a4c8d8', 0.3, 4); R.glow(6, -4, 6, 6, '#a4c8d8', 0.3, 4);
 R.L([[-3, 6],[0, 4],[3, 6]], DARK, 131, {ns:true});
 G.restore();
 },
+/**
+ * THE THEOREM — the Great Story's discarded first draft, and the last
+ * thing this game ever shows a child. Built to be the most elaborate
+ * piece of art in Numeria: a cathedral-scale papercut construct of
+ * unfolding manuscript, drifting equation fragments and a core of
+ * nested proof-geometry.
+ *
+ * WHY he reads sad rather than evil: FLOOR_9's lore ends with the party
+ * COMPLETING his proof, not erasing it ("Not to beat him. To COMPLETE
+ * him."). So every villain cue is deliberately inverted — the crown is
+ * broken instead of bladed, the halo has a missing tile instead of a
+ * closed ring, his own pages are struck through in his own hand, the
+ * equation across his chest ends in an empty box, and the face is
+ * heavy-lidded and downcast with an ink tear, warm cheeks and a soft
+ * mouth. Awe comes from SCALE, symmetry and warm light — never menace.
+ *
+ * REGIONS, drawn back to front and kept in self-contained blocks so a
+ * phase change can transform one without disturbing the others:
+ *   HALO · DRIFT PAGES · WINGS · MANTLE · ARMS · CORE · HEAD · CROWN ·
+ *   ORBIT · BASE · MOTES
+ * Setting `R.phase = 1` before rendering draws the COMPLETED Theorem:
+ * the halo closes, the snapped crown prong regrows, the empty box in
+ * his equation fills with its answer and the mouth turns up. It
+ * defaults to 0 so every existing caller is unaffected.
+ */
 theorem: function(R, t) {
-var G = R.G; G.save();
-var THEO = '#7fb3ae', THEOL = '#f5eedd', DARK = '#2a6063', GLOW = '#fdfbf2', INK = '#1f4244';
-var pulse = Math.sin(t * 1.4) * 0.08 + 1.0;
-G.scale(pulse, pulse);
-R.gshadow(0, 46, 36, 7);
-R.L([[-28,-20],[-18,-36],[0,-42],[18,-36],[28,-20],[30,4],[24,24],[14,34],[0,38],[-14,34],[-24,24],[-30,4]], DARK, 140, {sx:3,sy:3,sp:16});
-R.L([[-24,-16],[-14,-30],[0,-36],[14,-30],[24,-16],[26,2],[20,20],[12,28],[0,32],[-12,28],[-20,20],[-26,2]], THEO, 141, {sx:2,sy:2,sp:14});
-R.glow(0, 0, 28, 28, GLOW, 0.2 + Math.sin(t * 2) * 0.08, 14);
-for (var i = 0; i < 3; i++) {
-  var a = i / 3 * Math.PI * 2 + t * 0.5;
-  var ox = Math.cos(a) * 16, oy = Math.sin(a) * 16 - 2;
-  R.Ld(ox, oy, 4, THEOL, 142 + i, {sx:1,sy:1,sp:6});
-  R.glow(ox, oy, 6, 6, GLOW, 0.3, 4);
+var G = R.G;
+var SHD = '#2a6063', TEAL = '#44888a', TEALL = '#7fb3ae', SKY = '#a4c8d8', INK = '#1f4244';
+var LAVD = '#7c6fa8', LAV = '#9c8fc0';
+var SAND = '#d9cfb2', CRMD = '#e8dec6', CRM = '#f5eedd', WHT = '#fdfbf2';
+var GOLD = '#ecb964', ORNG = '#e39a4a', PEACH = '#f2bf9a';
+var mend = (R.phase || 0) >= 1 ? 1 : 0;   // 1 = the proof completes
+var mo = mend ? -1 : 1;                    // flips the mouth curve
+var breathe = Math.sin(t * 0.021);         // slow, tired breathing
+var riffle = t * 0.04;                     // page-riffle wave through the mantle
+var spin = t * 0.009;                      // halo / orbit drift
+var bob = breathe * 3;
+
+// ── local helpers ───────────────────────────────────────────────
+// An equation glyph. He is written ON, so text belongs in his art.
+function glyph(gx, gy, ch, sz, col, al, rot) {
+  G.save(); G.translate(gx, gy); if (rot) G.rotate(rot);
+  G.globalAlpha = al; G.fillStyle = col;
+  G.font = 'bold ' + sz + 'px Georgia, "Times New Roman", serif';
+  G.textAlign = 'center'; G.textBaseline = 'middle';
+  G.fillText(ch, 0, 0); G.restore();
 }
-R.Ld(-8, -10, 5, '#fdfbf2', 150, {ns:true}); R.Ld(8, -10, 5, '#fdfbf2', 151, {ns:true});
-R.Ld(-8, -10, 2.5, INK, 152, {ns:true}); R.Ld(8, -10, 2.5, INK, 153, {ns:true});
-R.glow(-8, -10, 4, 4, GLOW, 0.2, 3); R.glow(8, -10, 4, 4, GLOW, 0.2, 3);
-R.L([[-6, 8],[0, 14],[6, 8]], THEOL, 154, {sx:1,sy:1,sp:4,ns:true});
+// One manuscript leaf: three cut-paper layers, ruled lines, torn tip.
+// `f` runs 0 (base) → 1 (tip) along the leaf, `o` offsets across it.
+function leaf(bx, by, ang, len, w, sd, ruled) {
+  var cx = Math.cos(ang), cy = Math.sin(ang), nx = -cy, ny = cx;
+  function P(f, o) { return [bx + cx * len * f + nx * o, by + cy * len * f + ny * o]; }
+  R.L([P(0, -w * .5), P(0, w * .5), P(.55, w), P(.9, w * .55), P(1, w * .12), P(1, -w * .3), P(.55, -w * .95)], LAVD, sd, {sx:4, sy:6, sp:20, sa:.5});
+  R.L([P(.05, -w * .36), P(.05, w * .36), P(.55, w * .74), P(.86, w * .4), P(.95, w * .06), P(.95, -w * .2), P(.55, -w * .7)], SAND, sd + 1, {sx:3, sy:4, sp:14, sa:.36});
+  R.L([P(.1, -w * .2), P(.1, w * .2), P(.55, w * .48), P(.8, w * .24), P(.88, 0), P(.55, -w * .44)], CRMD, sd + 2, {sx:2, sy:3, sp:9, sa:.24});
+  for (var q = 0; q < ruled; q++) {
+    var f = .26 + q * .15, a0 = P(f, -w * .42), a1 = P(f, w * .6);
+    R.ln(a0[0], a0[1], a1[0], a1[1], 'rgba(127,179,174,.5)', 1.3, .5);
+  }
+  var n0 = P(.99, -w * .3), n1 = P(1.07, -w * .02), n2 = P(.9, w * .04);
+  R.L([n0, n1, n2], CRMD, sd + 3, {sx:1, sy:2, sp:5, sa:.3});   // torn tip
+}
+// A torn chit of paper carrying one fragment of the abandoned proof.
+function chit(px, py, rot, sz, ch, sd) {
+  G.save(); G.translate(px, py); G.rotate(rot);
+  R.L([[-sz, -sz * .72], [sz * .92, -sz * .8], [sz, sz * .66], [-sz * .86, sz * .78]], LAVD, sd, {sx:2, sy:3, sp:8, sa:.44});
+  R.L([[-sz * .78, -sz * .54], [sz * .72, -sz * .6], [sz * .8, sz * .5], [-sz * .68, sz * .58]], CRM, sd + 1, {sx:1, sy:2, sp:5, sa:.26});
+  glyph(0, sz * .06, ch, sz * 1.5, SHD, .72, 0);
+  G.restore();
+}
+// A crumpled draft: a ball of paper he threw away, with creases.
+function crumple(px, py, rad, sd) {
+  var pts = [], i;
+  for (i = 0; i < 11; i++) {
+    var a = i / 11 * Math.PI * 2;
+    var rr = rad * (0.74 + ((i * 7) % 5) * 0.09);
+    pts.push([px + Math.cos(a) * rr, py + Math.sin(a) * rr * .82]);
+  }
+  R.L(pts, SAND, sd, {sx:3, sy:4, sp:12, sa:.46});
+  R.L(pts.map(function(p) { return [px + (p[0] - px) * .7, py + (p[1] - py) * .7]; }), CRMD, sd + 1, {sx:2, sy:3, sp:8, sa:.3});
+  for (i = 0; i < 3; i++) {
+    var ca = i * 1.9 + rad;
+    R.ln(px + Math.cos(ca) * rad * .2, py + Math.sin(ca) * rad * .2,
+         px + Math.cos(ca) * rad * .78, py + Math.sin(ca) * rad * .62, 'rgba(127,179,174,.45)', 1.2, .5);
+  }
+}
+
+G.save(); G.translate(0, bob);
+
+// ── GROUND ──────────────────────────────────────────────────────
+R.gshadow(0, 66, 54, 10);
+R.glow(0, 40, 54, 15, TEALL, 0.13, 20);
+R.glow(0, -4, 62, 66, LAVD, 0.16, 30);         // an aureole that lifts him off the floor
+R.glow(0, -6, 46, 54, CRM, 0.13, 26);          // the cathedral light he stands in
+
+// ── REGION 1 · HALO ─────────────────────────────────────────────
+// A ring of manuscript tiles that never closes. The gap at tile 17 is
+// the last line of the proof he could not write.
+for (var h = 0; h < 26; h++) {
+  if (!mend && h === 17) continue;
+  var ha = h / 26 * Math.PI * 2 + spin;
+  var hr = 62 + Math.sin(h * 1.7) * 2.5;
+  var hux = Math.cos(ha), huy = Math.sin(ha);
+  var hx = hux * hr, hy = huy * hr * 0.94 - 8;
+  var hw = 4.6, hh = 6 + (h % 3) * 2.2;
+  var htx = -huy, hty = hux;
+  R.L([[hx - htx * hw - hux * hh * .5, hy - hty * hw - huy * hh * .5],
+       [hx + htx * hw - hux * hh * .5, hy + hty * hw - huy * hh * .5],
+       [hx + htx * hw * .68 + hux * hh * .5, hy + hty * hw * .68 + huy * hh * .5],
+       [hx - htx * hw * .68 + hux * hh * .5, hy - hty * hw * .68 + huy * hh * .5]],
+      h % 3 === 0 ? LAVD : (h % 3 === 1 ? LAV : SAND), 300 + h, {sx:2, sy:3, sp:8, sa:.4});
+  if (h % 4 === 0) R.glow(hx, hy, 5, 5, GOLD, .16 + Math.sin(t * .03 + h) * .06, 6);
+}
+// Ruled rays fanning out behind him — the margins of an enormous page.
+for (var ry = 0; ry < 20; ry++) {
+  var ra = ry / 20 * Math.PI * 2 + spin * .6;
+  var r0 = 40, r1 = 58 + Math.sin(ry * 2.3) * 5;
+  R.ln(Math.cos(ra) * r0, Math.sin(ra) * r0 * .94 - 8,
+       Math.cos(ra) * r1, Math.sin(ra) * r1 * .94 - 8, 'rgba(124,111,168,.55)', 2, .34);
+}
+
+// ── REGION 2 · DRIFT PAGES ──────────────────────────────────────
+// Loose sheets circling him forever, always just out of reach.
+for (var dp = 0; dp < 6; dp++) {
+  var dph = ((t * 0.004 + dp * 0.167) % 1);
+  var da = dp / 6 * Math.PI * 2 + spin * 1.6;
+  var dr = 44 + Math.sin(dp * 1.3) * 8;
+  var dx = Math.cos(da) * dr, dy = Math.sin(da) * dr * .78 - 14 - dph * 8;
+  G.save(); G.translate(dx, dy); G.rotate(da * .5 + dph * 1.2);
+  G.globalAlpha = 0.42 + Math.sin(dph * Math.PI) * 0.3;
+  R.L([[-8, -11], [8, -12], [9, 11], [-7, 12]], LAVD, 400 + dp * 3, {sx:2, sy:3, sp:8, sa:.4});
+  R.L([[-6, -9], [6, -10], [7, 9], [-5, 10]], CRM, 401 + dp * 3, {sx:1, sy:2, sp:5, sa:.26});
+  for (var dl = 0; dl < 3; dl++) R.ln(-4, -5 + dl * 5, 5, -5 + dl * 5, 'rgba(68,136,138,.5)', 1.1, .45);
+  G.restore();
+}
+
+// Far half of the orbiting fragments — drawn now so they pass BEHIND
+// him and reappear in front in region 10.
+var GLY = ['+', '−', '×', '÷', '=', 'π', 'Σ', '√', '?', '∞'];
+for (var oc = 0; oc < 10; oc++) {
+  var oca = oc / 10 * Math.PI * 2 + spin * 2.4;
+  if (Math.sin(oca) >= 0) continue;
+  chit(Math.cos(oca) * 56, Math.sin(oca) * 46 - 8, Math.sin(t * .02 + oc) * .3, 7.2, GLY[oc], 840 + oc * 2);
+}
+
+// ── REGION 3 · WINGS ────────────────────────────────────────────
+// Two great fans of manuscript, hinged at the shoulders like a book
+// held open. They droop: the outer leaves hang lower than the inner.
+var WING = [[3.62, 44, 12, 3], [3.30, 50, 14, 3], [3.00, 52, 15, 3], [2.74, 48, 14, 2], [2.52, 40, 12, 2], [2.34, 31, 10, 2]];
+for (var wi = 0; wi < WING.length; wi++) {
+  var wd = WING[wi];
+  var wob = Math.sin(riffle + wi * 0.55) * 0.045;      // the pages riffle
+  leaf(-22 + wi, -6 + wi * 6, wd[0] + wob, wd[1], wd[2], 100 + wi * 6, wd[3]);
+}
+for (var wj = 0; wj < WING.length; wj++) {
+  // Mirrored: reflecting the angle flips the leaf's normal too, so the
+  // width is negated to keep the curl and the torn tip on the outside.
+  var wr = WING[wj];
+  var wob2 = Math.sin(riffle + wj * 0.55 + 0.8) * 0.045;
+  leaf(22 - wj, -6 + wj * 6, Math.PI - wr[0] - wob2, wr[1], -wr[2], 140 + wj * 6, wr[3]);
+}
+// Struck-through leaves: he crossed out two of his own pages.
+R.ln(-62, -20, -34, -2, 'rgba(68,136,138,.75)', 2.6, .55);
+R.ln(-58, -4, -30, -18, 'rgba(68,136,138,.6)', 2.2, .45);
+R.ln(38, 22, 60, 34, 'rgba(68,136,138,.7)', 2.4, .5);
+
+// ── REGION 4 · MANTLE ───────────────────────────────────────────
+// A robe of ruled manuscript, shoulders slumped, hem torn.
+R.L([[-27, -18], [-33, 0], [-39, 20], [-46, 40], [-50, 56], [-40, 60], [-20, 62], [0, 63], [20, 62], [40, 60], [50, 56], [46, 40], [39, 20], [33, 0], [27, -18], [14, -26], [0, -28], [-14, -26]], LAVD, 560, {sx:5, sy:8, sp:26, sa:.56});
+R.L([[-23, -16], [-28, 0], [-34, 20], [-40, 40], [-44, 54], [-36, 57], [-18, 59], [0, 60], [18, 59], [36, 57], [44, 54], [40, 40], [34, 20], [28, 0], [23, -16], [12, -23], [0, -25], [-12, -23]], SAND, 561, {sx:4, sy:6, sp:18, sa:.42});
+R.L([[-16, -14], [-20, 2], [-25, 22], [-30, 42], [-32, 54], [-16, 56], [0, 57], [16, 56], [32, 54], [30, 42], [25, 22], [20, 2], [16, -14], [0, -20]], CRM, 562, {sx:3, sy:4, sp:12, sa:.28});
+// Fold columns — each a separate sheet of the robe, riffling at the hem.
+for (var c = 0; c < 7; c++) {
+  var fx = (c - 3) * 11;
+  var topX = fx * 0.58, botX = fx * 1.3;
+  var hem = Math.sin(riffle + c * 0.8) * 3;
+  R.L([[topX - 4, -12], [topX + 4, -12], [botX + 7, 52], [botX + 7 + hem, 59], [botX - 7 + hem, 59], [botX - 7, 52]], c % 2 ? SAND : CRMD, 565 + c, {sx:2, sy:4, sp:14, sa:.3});
+  for (var rl = 0; rl < 6; rl++) {
+    var ly = -4 + rl * 9;
+    var lf = (ly + 12) / 64;
+    var lx = topX + (botX - topX) * lf, lw = 4 + lf * 3;
+    R.ln(lx - lw, ly, lx + lw, ly + 1, 'rgba(68,136,138,.5)', 1.3, .4);
+  }
+}
+// Margin numbering down his left side — the pages of the proof.
+for (var mn = 0; mn < 6; mn++) glyph(-40 + mn * 1.4, 4 + mn * 9, String(mn + 1), 7, SHD, .4, .1);
+// His own hand, crossing his own work out.
+R.ln(-30, 4, 26, 44, 'rgba(68,136,138,.7)', 3, .55);
+R.ln(28, 6, -24, 46, 'rgba(68,136,138,.55)', 2.6, .45);
+// Torn hem — the robe was never finished either.
+for (var th = 0; th < 13; th++) {
+  var tx = -48 + th * 8;
+  R.L([[tx - 4, 56], [tx + 4, 56], [tx, 56 + 5 + (th % 3) * 2.5]], th % 2 ? LAVD : SAND, 580 + th, {sx:2, sy:3, sp:6, sa:.4});
+}
+// A collar of folded card, high and stiff, holding the head up.
+R.L([[-26, -18], [-14, -28], [0, -31], [14, -28], [26, -18], [18, -14], [0, -12], [-18, -14]], LAV, 594, {sx:3, sy:5, sp:14, sa:.46});
+R.L([[-19, -18], [-10, -25], [0, -27], [10, -25], [19, -18], [12, -15], [0, -13], [-12, -15]], CRMD, 595, {sx:2, sy:3, sp:9, sa:.3});
+
+// ── REGION 5 · ARMS ─────────────────────────────────────────────
+// Sleeves of rolled manuscript. The left hand still grips a broken
+// quill; the right hand is open and empty, offering nothing.
+R.L([[-26, -12], [-40, 4], [-48, 24], [-46, 40], [-38, 42], [-34, 26], [-30, 8], [-20, -6]], LAVD, 640, {sx:4, sy:6, sp:18, sa:.5});
+R.L([[-25, -10], [-37, 4], [-44, 24], [-43, 38], [-38, 39], [-33, 24], [-29, 8], [-20, -4]], SAND, 641, {sx:3, sy:4, sp:12, sa:.34});
+R.L([[-24, -8], [-34, 5], [-40, 24], [-40, 35], [-37, 35], [-32, 23], [-28, 8], [-20, -3]], CRMD, 642, {sx:2, sy:3, sp:8, sa:.22});
+for (var fl = 0; fl < 4; fl++) {
+  var flx = -46 + fl * 3.4, fly = 42 + fl * 0.8;
+  R.L([[flx - 2.6, fly], [flx + 2.6, fly], [flx + 2, fly + 11 + fl], [flx - 2, fly + 11 + fl]], CRMD, 645 + fl, {sx:2, sy:3, sp:7, sa:.42});
+  R.L([[flx - 1.3, fly + 1], [flx + 1.3, fly + 1], [flx + 1, fly + 9 + fl], [flx - 1, fly + 9 + fl]], CRM, 649 + fl, {sx:1, sy:2, sp:4, sa:.24});
+}
+// The broken quill — snapped clean in half, still held.
+R.L([[-52, 40], [-44, 34], [-40, 36], [-48, 44]], CRM, 654, {sx:2, sy:3, sp:8, sa:.4});
+R.L([[-56, 44], [-50, 39], [-48, 42], [-54, 47]], SAND, 655, {sx:2, sy:3, sp:7, sa:.4});
+R.L([[-41, 36], [-36, 32], [-35, 35], [-39, 38]], GOLD, 656, {sx:1, sy:2, sp:5, sa:.36});
+R.glow(-38, 34, 4, 4, GOLD, .3, 5);
+R.L([[26, -12], [42, 2], [50, 20], [48, 34], [40, 35], [36, 22], [30, 8], [20, -6]], LAVD, 660, {sx:4, sy:6, sp:18, sa:.5});
+R.L([[25, -10], [39, 3], [46, 20], [45, 32], [40, 32], [35, 21], [29, 8], [20, -4]], SAND, 661, {sx:3, sy:4, sp:12, sa:.34});
+R.L([[24, -8], [36, 4], [42, 20], [42, 30], [39, 30], [34, 20], [28, 8], [20, -3]], CRMD, 662, {sx:2, sy:3, sp:8, sa:.22});
+for (var fr = 0; fr < 4; fr++) {
+  var frx = 40 + fr * 3.4, fry = 36 + fr * 1.2;
+  var fcurl = Math.sin(riffle * .6 + fr) * 1.6;
+  R.L([[frx - 2.6, fry], [frx + 2.6, fry], [frx + 4 + fcurl, fry + 10 + fr], [frx + fcurl, fry + 12 + fr]], CRMD, 665 + fr, {sx:2, sy:3, sp:7, sa:.42});
+}
+R.glow(46, 44, 9, 6, CRM, .22, 8);   // the empty hand catches the light
+
+// ── REGION 6 · CORE ─────────────────────────────────────────────
+// A well cut down through him to the proof itself: nested geometry
+// turning against itself, with a small warm heart at the centre.
+R.Ld(0, 16, 25, LAV, 680, {sx:4, sy:6, sp:22, sa:.5});
+R.Ld(0, 16, 20.5, LAVD, 681, {sx:3, sy:4, sp:18, sa:.44});
+R.glow(0, 16, 20, 20, GOLD, .3 + Math.sin(t * .03) * .07, 16);
+for (var tk = 0; tk < 16; tk++) {           // tick marks around the well
+  var tka = tk / 16 * Math.PI * 2 - spin * 2;
+  var tk0 = 21, tk1 = 24.5;
+  R.ln(Math.cos(tka) * tk0, 16 + Math.sin(tka) * tk0, Math.cos(tka) * tk1, 16 + Math.sin(tka) * tk1, 'rgba(68,136,138,.6)', 1.6, .5);
+}
+for (var hx6 = 0; hx6 < 6; hx6++) {         // hexagon ring, turning one way
+  var hxa = hx6 / 6 * Math.PI * 2 + t * .012;
+  var hxb = (hx6 + 1) / 6 * Math.PI * 2 + t * .012;
+  R.L([[Math.cos(hxa) * 16, 16 + Math.sin(hxa) * 16], [Math.cos(hxb) * 16, 16 + Math.sin(hxb) * 16],
+       [Math.cos(hxb) * 12.5, 16 + Math.sin(hxb) * 12.5], [Math.cos(hxa) * 12.5, 16 + Math.sin(hxa) * 12.5]],
+      hx6 % 2 ? CRM : WHT, 686 + hx6, {sx:2, sy:3, sp:8, sa:.34});
+}
+for (var tr = 0; tr < 3; tr++) {            // triangle, turning the other
+  var tra = tr / 3 * Math.PI * 2 - t * .019;
+  var trb = (tr + 1) / 3 * Math.PI * 2 - t * .019;
+  R.L([[Math.cos(tra) * 11, 16 + Math.sin(tra) * 11], [Math.cos(trb) * 11, 16 + Math.sin(trb) * 11], [0, 16]], GOLD, 694 + tr, {sx:1, sy:2, sp:6, sa:.3});
+}
+for (var sk = 0; sk < 12; sk++) {           // spokes of light out of the heart
+  var ska = sk / 12 * Math.PI * 2 + t * .006;
+  R.ln(Math.cos(ska) * 7, 16 + Math.sin(ska) * 7, Math.cos(ska) * 13, 16 + Math.sin(ska) * 13, 'rgba(236,185,100,.8)', 1.8, .5);
+}
+R.Ld(0, 16, 6.6, ORNG, 700, {sx:2, sy:2, sp:10, sa:.3});
+R.Ld(0, 16, 4, GOLD, 701, {ns:true});
+R.Ld(0, 15, 2, WHT, 702, {ns:true});
+R.glow(0, 16, 10, 10, GOLD, .5 + Math.sin(t * .05) * .12, 8);
+
+// ── REGION 7 · HEAD ─────────────────────────────────────────────
+// A cowl of folded card. The face is placed low in it, looking down.
+R.L([[-28, -14], [-31, -32], [-25, -48], [-13, -56], [0, -58], [13, -56], [25, -48], [31, -32], [28, -14], [16, -8], [0, -6], [-16, -8]], LAVD, 750, {sx:4, sy:7, sp:22, sa:.54});
+R.L([[-24, -14], [-27, -31], [-22, -45], [-11, -52], [0, -54], [11, -52], [22, -45], [27, -31], [24, -14], [14, -9], [0, -7], [-14, -9]], SAND, 751, {sx:3, sy:5, sp:16, sa:.42});
+R.L([[-19, -15], [-21, -30], [-17, -42], [-9, -48], [0, -50], [9, -48], [17, -42], [21, -30], [19, -15], [10, -11], [0, -10], [-10, -11]], CRM, 752, {sx:2, sy:3, sp:11, sa:.26});
+R.ln(-13, -52, -8, -14, 'rgba(68,136,138,.45)', 1.6, .4);
+R.ln(0, -55, 0, -12, 'rgba(68,136,138,.35)', 1.6, .3);
+R.ln(13, -52, 8, -14, 'rgba(68,136,138,.45)', 1.6, .4);
+// Brow band — a torn strip of an older draft, tied around his head.
+R.L([[-23, -44], [23, -44], [24, -38], [12, -36], [0, -38], [-12, -36], [-24, -38]], LAV, 755, {sx:3, sy:4, sp:12, sa:.46});
+R.L([[-18, -43], [18, -43], [18, -39.5], [0, -38.5], [-18, -39.5]], CRMD, 756, {sx:2, sy:2, sp:8, sa:.28});
+glyph(0, -41, 'Q.E.D.', 6, SHD, .5, 0);
+// Eyes — large, heavy-lidded, cast down. Warm teal, never red.
+[-11, 11].forEach(function(ex, ei) {
+  R.L([[ex - 9, -30], [ex - 4, -35], [ex + 4, -35], [ex + 9, -30], [ex + 4, -25], [ex - 4, -25]], WHT, 760 + ei * 6, {sx:2, sy:3, sp:10, sa:.32});
+  R.Ld(ex + (ei ? -.6 : .6), -28.6, 4.4, TEAL, 761 + ei * 6, {sx:1, sy:2, sp:8, sa:.28});
+  R.Ld(ex + (ei ? -.6 : .6), -28.6, 2.4, INK, 762 + ei * 6, {ns:true});
+  R.Ld(ex + (ei ? -2.2 : -1), -30.4, 1.5, WHT, 763 + ei * 6, {ns:true});
+  // the heavy upper lid: half the eye is already closed
+  R.L([[ex - 9.6, -30.4], [ex - 4, -36], [ex + 4, -36], [ex + 9.6, -30.4], [ex + 4, -28.8], [ex - 4, -28.8]], SAND, 764 + ei * 6, {sx:1, sy:2, sp:7, sa:.26});
+  R.glow(ex, -29, 8, 6, TEALL, .22, 6);
+});
+R.L([[-21, -37], [-4, -40], [-4, -37.6], [-20, -34.8]], SHD, 772, {sx:1, sy:1, sp:5, sa:.3});   // sad inner-up brows
+R.L([[21, -37], [4, -40], [4, -37.6], [20, -34.8]], SHD, 773, {sx:1, sy:1, sp:5, sa:.3});
+R.Le(-17, -22, 6, 3.4, PEACH, 774, {sx:1, sy:1, sp:6, sa:.2});   // warm cheeks keep him kind
+R.Le(17, -22, 6, 3.4, PEACH, 775, {sx:1, sy:1, sp:6, sa:.2});
+R.L([[-9, -19 + 1.6 * mo], [-4, -19 - 1.4 * mo], [0, -19 - 2.2 * mo], [4, -19 - 1.4 * mo], [9, -19 + 1.6 * mo],
+     [6, -19 + 1.5 * mo], [0, -19 - .4 * mo], [-6, -19 + 1.5 * mo]], SHD, 776, {ns:true});
+// An ink tear, teal, falling slowly and forever.
+var tearPh = (t * 0.006) % 1;
+var tearY = -24 + tearPh * 24;
+G.save(); G.globalAlpha = (1 - tearPh) * 0.75;
+R.L([[-13.5, tearY - 4], [-10.8, tearY - 1], [-11.4, tearY + 3.4], [-14.8, tearY + 2]], TEALL, 778, {ns:true});
+G.restore();
+
+// ── REGION 8 · THE UNFINISHED EQUATION ──────────────────────────
+// A torn strip pinned across his chest, drawn AFTER the head so the cowl's
+// lower lobe cannot swallow it — this strip is the emotional centre of the
+// whole design and has to be legible. It ends in an empty box: the answer
+// he never found. Completing him fills it in.
+R.L([[-31, -18], [27, -15], [29, 0], [-29, -3]], LAVD, 730, {sx:3, sy:4, sp:14, sa:.46});
+R.L([[-27, -16.2], [24, -13.6], [25.6, -1.6], [-25.5, -4.4]], CRM, 731, {sx:2, sy:3, sp:9, sa:.26});
+R.ln(-27, -8.6, 25, -6.2, 'rgba(127,179,174,.45)', 1.2, .45);
+var EQ = ['2', '+', '2', '='];
+for (var eq = 0; eq < 4; eq++) glyph(-23 + eq * 8.8, -9.6 + eq * .5, EQ[eq], 13, SHD, .88, .04);
+var boxPulse = 0.55 + Math.sin(t * .05) * 0.25;
+// The box is drawn as a teal-dark FRAME around an empty cream square, so it
+// reads unmistakably as a blank waiting to be filled rather than as one more
+// pale plate. When he is completed the frame turns gold and the answer lands.
+R.L([[9.4, -14], [22.6, -13.4], [22.6, -2.6], [9.4, -3.2]], mend ? GOLD : SHD, 736, {sx:2, sy:2, sp:8, sa:.34});
+R.L([[11.4, -12], [20.6, -11.6], [20.6, -4.6], [11.4, -5]], mend ? ORNG : CRM, 737, {ns:true});
+if (mend) glyph(16, -8.3, '4', 12, CRM, .95, .04);
+R.glow(16, -8.3, 10, 8, GOLD, mend ? .6 : boxPulse * .38, 6);
+
+// ── REGION 9 · CROWN ────────────────────────────────────────────
+// A diadem of quills. One is snapped short and its broken half drifts
+// away above him — he has been losing pieces for a very long time.
+var PRONG = [17, 13, 15, 10, 15, 13, 17];
+for (var p = 0; p < 7; p++) {
+  var pa = -Math.PI / 2 + (p - 3) * 0.30;
+  var pux = Math.cos(pa), puy = Math.sin(pa);
+  var pbx = pux * 21, pby = puy * 21 - 40;
+  var broken = (!mend && p === 1);
+  var plen = broken ? 5 : PRONG[p];
+  var pnx = -puy, pny = pux, pw = 3.6;
+  R.L([[pbx - pnx * pw, pby - pny * pw], [pbx + pnx * pw, pby + pny * pw],
+       [pbx + pux * plen + pnx * pw * .3, pby + puy * plen + pny * pw * .3],
+       [pbx + pux * (plen + 3), pby + puy * (plen + 3)],
+       [pbx + pux * plen - pnx * pw * .3, pby + puy * plen - pny * pw * .3]], LAVD, 800 + p * 3, {sx:2, sy:4, sp:9, sa:.5});
+  R.L([[pbx - pnx * pw * .5, pby - pny * pw * .5], [pbx + pnx * pw * .5, pby + pny * pw * .5],
+       [pbx + pux * (plen + 1), pby + puy * (plen + 1)]], CRM, 801 + p * 3, {sx:1, sy:2, sp:5, sa:.28});
+  if (broken) {
+    R.L([[pbx - pnx * pw, pby + puy * 5], [pbx, pby + puy * 3], [pbx + pnx * pw, pby + puy * 6]], CRMD, 802 + p * 3, {sx:1, sy:2, sp:5, sa:.3});
+  } else {
+    R.L([[pbx + pux * (plen + 1) - pnx * 1.4, pby + puy * (plen + 1) - pny * 1.4],
+         [pbx + pux * (plen + 4.5), pby + puy * (plen + 4.5)],
+         [pbx + pux * (plen + 1) + pnx * 1.4, pby + puy * (plen + 1) + pny * 1.4]], GOLD, 802 + p * 3, {sx:1, sy:1, sp:4, sa:.3});
+    R.glow(pbx + pux * (plen + 3), pby + puy * (plen + 3), 4, 4, GOLD, .34 + Math.sin(t * .04 + p) * .1, 5);
+  }
+}
+if (!mend) {   // the snapped half, still drifting
+  var dfy = -62 + Math.sin(t * .012) * 4;
+  G.save(); G.translate(-36, dfy); G.rotate(-0.5 + Math.sin(t * .01) * .2); G.globalAlpha = .7;
+  R.L([[-3, 6], [3, 6], [1, -8], [0, -11], [-1, -8]], LAVD, 824, {sx:2, sy:3, sp:7, sa:.4});
+  R.L([[-1.4, 5], [1.4, 5], [0, -9]], CRM, 825, {sx:1, sy:1, sp:4, sa:.22});
+  G.restore();
+}
+// The circlet: nine plates of gold leaf across the brow, one missing.
+for (var ci = 0; ci < 9; ci++) {
+  if (!mend && ci === 6) continue;
+  var cia = -2.62 + ci * 0.2575;
+  var cx9 = Math.cos(cia) * 24, cy9 = Math.sin(cia) * 24 - 40;
+  R.L([[cx9 - 2.6, cy9 - 2.6], [cx9 + 2.6, cy9 - 2.2], [cx9 + 2.2, cy9 + 2.6], [cx9 - 2.8, cy9 + 2.2]], GOLD, 830 + ci, {sx:1, sy:2, sp:5, sa:.4});
+}
+
+// ── REGION 10 · ORBITING PROOF FRAGMENTS ────────────────────────
+// Everything he ever wrote, still circling, waiting to be read.
+for (var ob = 0; ob < 10; ob++) {
+  var oba = ob / 10 * Math.PI * 2 + spin * 2.4;
+  if (Math.sin(oba) < 0) continue;            // far half already drawn behind
+  chit(Math.cos(oba) * 56, Math.sin(oba) * 46 - 8, Math.sin(t * .02 + ob) * .3, 8, GLY[ob], 850 + ob * 2);
+}
+
+// ── REGION 11 · BASE ────────────────────────────────────────────
+// The drift of discarded drafts he stands in, and the ink he spilled.
+R.Le(0, 63, 46, 8, TEAL, 500, {sx:3, sy:4, sp:14, sa:.4});
+R.Le(-6, 62, 30, 5, TEALL, 501, {sx:2, sy:3, sp:9, sa:.24});
+R.L([[-64, 69], [-60, 53], [-48, 43], [-30, 38], [-12, 40], [0, 36], [14, 40], [32, 38], [48, 43], [60, 53], [64, 69]], LAVD, 502, {sx:4, sy:6, sp:22, sa:.5});
+R.L([[-56, 69], [-53, 55], [-42, 47], [-26, 43], [-10, 45], [0, 41], [12, 45], [28, 43], [44, 47], [54, 55], [57, 69]], SAND, 503, {sx:3, sy:4, sp:16, sa:.34});
+[[-48, 50, 8], [-30, 56, 7], [-11, 58, 6], [9, 57, 7], [29, 55, 7], [46, 49, 8], [-58, 61, 6], [56, 60, 6], [0, 64, 5]].forEach(function(cr, i) {
+  crumple(cr[0], cr[1], cr[2], 510 + i * 3);
+});
+// Rolled-up scrolls lying at the very front.
+[[-34, 65, 15], [7, 67, 13], [39, 64, 12]].forEach(function(sc, i) {
+  R.L([[sc[0] - sc[2], sc[1] - 3.4], [sc[0] + sc[2], sc[1] - 3.8], [sc[0] + sc[2], sc[1] + 3.4], [sc[0] - sc[2], sc[1] + 3.8]], CRMD, 540 + i * 3, {sx:2, sy:3, sp:9, sa:.44});
+  R.Le(sc[0] - sc[2], sc[1], 2.4, 3.8, CRM, 541 + i * 3, {sx:1, sy:2, sp:6, sa:.26});
+  R.Le(sc[0] + sc[2], sc[1] - .2, 2.4, 3.8, SAND, 542 + i * 3, {sx:1, sy:2, sp:6, sa:.26});
+});
+// Two crossed-out fragments face-up in the pile, so the strike reads.
+R.ln(-46, 45, -32, 55, 'rgba(68,136,138,.7)', 2.2, .5);
+R.ln(-32, 45, -46, 55, 'rgba(68,136,138,.55)', 2, .42);
+R.ln(26, 51, 44, 57, 'rgba(68,136,138,.6)', 2, .45);
+
+// ── REGION 12 · MOTES ───────────────────────────────────────────
+// Warm specks rising from the pile toward the crown: the proof, slowly
+// being finished by somebody else at last.
+for (var mt = 0; mt < 16; mt++) {
+  var mph = ((t * 0.007 + mt * 0.0625) % 1);
+  var mx = -52 + mt * 7 + Math.sin(t * .02 + mt) * 5;
+  var my = 60 - mph * 112;
+  var mal = Math.sin(mph * Math.PI) * .55;
+  G.save(); G.globalAlpha = mal;
+  R.Ld(mx, my, 1.5 + mph * 2, GOLD, 900 + mt, {ns:true});
+  G.restore();
+  R.glow(mx, my, 3 + mph * 3, 3 + mph * 3, ORNG, mal * .45, 5);
+}
+R.glow(0, -34, 26, 22, CRM, .12, 16);
+R.glow(0, 16, 26, 26, GOLD, .14, 18);
 G.restore();
 },
 };
@@ -764,38 +1316,177 @@ R.glow(6, -28, 6, 6, SKY, 0.5 + Math.sin(t * 0.07) * 0.2, 5);
 G.restore();
 },
 theprism: function(R, t) {
-var G = R.G, bob = Math.sin(t * 0.032) * 5, pulse = Math.sin(t * 0.05) * 0.06 + 1.0;
-G.save(); G.translate(0, bob); G.scale(pulse, pulse);
-R.gshadow(0, 60, 50, 10);
-var LAV = '#9c8fc0', LAVD = '#7c6fa8', SKY = '#a4c8d8', WHT = '#fdfbf2', DRK = '#1f4244', ROSE = '#e8a09a', GOLD = '#ecb964', TEAL = '#44888a';
-var spin = t * 0.03;
-G.save(); G.rotate(spin);
-R.L([[0, -48], [42, -24], [42, 24], [0, 48], [-42, 24], [-42, -24]], LAVD, 1, {sx:4, sy:7, sp:20, sa:.54});
-R.L([[0, -40], [35, -20], [35, 20], [0, 40], [-35, 20], [-35, -20]], LAV, 2, {sx:3, sy:5, sp:14, sa:.44});
-R.L([[0, -30], [26, -15], [26, 15], [0, 30], [-26, 15], [-26, -15]], SKY, 3, {sx:2, sy:3, sp:9, sa:.32});
-R.L([[0, -18], [16, -9], [16, 9], [0, 18], [-16, 9], [-16, -9]], WHT, 4, {sx:1, sy:2, sp:5, sa:.22});
-G.restore();
-for (var i = 0; i < 6; i++) {
-  var ba = i / 6 * Math.PI * 2 + spin;
-  var bx = Math.cos(ba) * 42, by = Math.sin(ba) * 42;
-  var cols = [ROSE, GOLD, SKY, LAV, '#7fb3ae', '#e78f6c'];
-  G.save(); G.globalAlpha = 0.6 + Math.sin(t * 0.06 + i) * 0.2;
-  R.ln(0, 0, bx * 1.4, by * 1.4, cols[i], 2, 0.5);
-  R.glow(bx * 1.2, by * 1.2, 6, 6, cols[i], 0.5, 6);
+/* THE PRISM — floor 6 boss (Crystal Caverns / geometry). SHAPE LANGUAGE:
+ * REFRACTION, MADE OUT OF PAPER. The silhouette is one tall triangular
+ * monolith wearing a five-spire crystal crown, with a single WHITE BEAM cut
+ * into its left face and a huge RAINBOW FAN of paper strips cut out of its
+ * right. That in/out asymmetry is the entire read — white goes in, colour
+ * comes out — and a child can name this boss from the outline alone. Nothing
+ * else in the game has that shape.
+ *
+ * Construction is strict layered cut paper, and the prism is built as
+ * separate PLANES rather than a shaded solid: a dark lavender backing plate,
+ * a lavender body over it, a LIT sky-blue plane on the left, a SHADED teal
+ * plane on the right, and a cream sliver down the front edge where the two
+ * planes meet — so the paper edge of every facet stays visible. The chest
+ * core is a genuine HOLE: the socket is cut in deep teal (the shadow family,
+ * never black) and the spectrum chevrons are CLIPPED to that socket, so the
+ * light really does live behind the paper instead of on top of it.
+ *
+ * MOTION: a long hover bob with a slow sway and a faint breath scale; six
+ * halo facets counter-turn behind the body; spectrum chevrons scroll upward
+ * through the chest core (light travelling); shoulder shards drift, motes
+ * orbit, and a slow regal blink keeps the face alive. The SIGNATURE is the
+ * SPECTRUM SWEEP — the rainbow fan rakes up and down like a lighthouse while
+ * a separate slow swell floods the strips longer and brighter, brightens the
+ * crown tips and pushes caustics across the floor, so the boss visibly
+ * "fires" its refraction on its own rhythm without ever taking a turn. */
+var G = R.G;
+var bob = Math.sin(t * .024) * 5 + Math.sin(t * .041) * 1.6;
+var sway = Math.sin(t * .017) * .014;
+var breath = 1 + Math.sin(t * .031) * .014;
+var ring = t * .0062;                                        // halo counter-turn
+var sweep = Math.sin(t * .0125) * .20;                       // SIGNATURE rake
+var flare = Math.pow(Math.max(0, Math.sin(t * .0105)), 3);   // SIGNATURE swell
+var scroll = (t * .011) % 1;                                 // light up the core
+var blink = Math.pow(Math.max(0, Math.sin(t * .0138 - 1.25)), 16);
+var hue = Math.floor(t * .006) % 8;                          // slow shape-shift walk
+var LAVD = '#7c6fa8', LAV = '#9c8fc0', TEALD = '#2a6063', TEAL = '#44888a';
+var TEALL = '#7fb3ae', SKY = '#a4c8d8', CRM = '#f5eedd', WHT = '#fdfbf2';
+var SAND = '#d9cfb2', INK = '#1f4244';
+// the whole spectrum, straight out of PAPER: rose→coral→orange→gold→leaf→tealL→sky→lavender
+var SPEC = ['#e8a09a', '#e78f6c', '#e39a4a', '#ecb964', '#7d9f6d', '#7fb3ae', '#a4c8d8', '#9c8fc0'];
+G.save(); G.translate(0, bob); G.rotate(sway);
+R.gshadow(0, 66, 40, 8);
+// ── floor caustics: refracted colour crawling across the ground
+for (var ci = 0; ci < 7; ci++) {
+  var cph = ((t * .0055 + ci * .143) % 1), ccx = -50 + cph * 104, ccy = 60 + Math.sin(ci * 1.7) * 4;
+  R.glow(ccx, ccy, 8 + ci % 3 * 4, 4, SPEC[(ci + 1) % 8], (.5 - Math.abs(cph - .5)) * (.5 + flare * .5), 8);
+}
+// ── spectrum washes: cold light bending behind the halo
+for (var ai = 0; ai < 5; ai++) {
+  G.save(); G.strokeStyle = SPEC[ai + 2]; G.lineWidth = 3.4 - ai * .45;
+  G.globalAlpha = .08 + flare * .06 + Math.abs(Math.sin(t * .014 + ai * .62)) * .05;
+  G.beginPath(); G.arc(0, 6, 50 + ai * 7, Math.PI * 1.03 + ai * .04, Math.PI * 1.97 - ai * .04); G.stroke(); G.restore();
+}
+// ── THE HALO: six kite facets turning slowly behind the monolith
+for (var ki = 0; ki < 6; ki++) {
+  var ka = ki / 6 * Math.PI * 2 + ring, kc = Math.cos(ka), ks = Math.sin(ka);
+  var kr = 54 + Math.sin(t * .03 + ki * 1.1) * 3;
+  var KP = function (rr, off) { return [kc * rr - ks * off, -6 + ks * rr + kc * off]; };
+  R.L([KP(kr - 13, 0), KP(kr, 9), KP(kr + 13, 0), KP(kr, -9)], LAVD, 300 + ki, {sx:3, sy:5, sp:11, sa:.46});
+  R.L([KP(kr - 8, 0), KP(kr, 5.4), KP(kr + 8, 0), KP(kr, -5.4)], ki % 2 ? SKY : TEALL, 308 + ki, {sx:2, sy:3, sp:7, sa:.3});
+  R.L([KP(kr - 7, 0), KP(kr, 4.6), KP(kr + 1, .8)], CRM, 316 + ki, {sx:1, sy:2, sp:4, sa:.2});
+  R.glow(kc * kr, -6 + ks * kr, 5, 5, SPEC[ki], .22 + flare * .18, 5);
+}
+// ── LIGHT IN: one white wedge entering the left face, and its entry hotspot
+R.L([[-79, -56], [-72, -63], [-19, -16], [-25, -7]], CRM, 30, {sx:3, sy:5, sp:12, sa:.32});
+R.L([[-77, -57], [-73, -61], [-21, -16], [-25, -11]], WHT, 31, {sx:1, sy:2, sp:6, sa:.18});
+R.glow(-50, -38, 22, 7, WHT, .18 + flare * .14, 13);
+R.glow(-24, -12, 10, 9, WHT, .36 + flare * .3, 8);
+// ── LIGHT OUT: the rainbow fan. Eight paper strips, each a palette hue, each
+//    with a cream cut-edge along its top so it still reads as paper, not neon.
+var FX = 12, FY = 2;
+for (var bi = 0; bi < 8; bi++) {
+  var ba = -.34 + bi * .14 + sweep, bl = 32 + bi * 2.4 + flare * 11, bw = 3.4 + (bi % 2) * 1.2;
+  var bc = Math.cos(ba), bs = Math.sin(ba), bnx = -bs, bny = bc;
+  var tx = FX + bc * bl, ty = FY + bs * bl;
+  R.L([[FX + bnx * bw * .5, FY + bny * bw * .5], [tx + bnx * bw * 2, ty + bny * bw * 2],
+       [tx + bc * 8, ty + bs * 8], [tx - bnx * bw * 2, ty - bny * bw * 2],
+       [FX - bnx * bw * .5, FY - bny * bw * .5]], SPEC[bi], 200 + bi, {sx:3, sy:5, sp:13, sa:.44});
+  G.save(); G.globalAlpha = .5;
+  R.L([[FX + bnx * bw * .4, FY + bny * bw * .4], [tx + bnx * bw * 1.9, ty + bny * bw * 1.9],
+       [tx + bnx * bw * .9, ty + bny * bw * .9], [FX, FY]], CRM, 215 + bi, {sx:1, sy:2, sp:5, sa:.18});
+  G.restore();
+  R.L([[tx + bnx * bw * 1.6, ty + bny * bw * 1.6], [tx + bc * 8, ty + bs * 8],
+       [tx - bnx * bw * 1.6, ty - bny * bw * 1.6]], CRM, 225 + bi, {sx:1, sy:2, sp:4, sa:.22});
+  R.glow(tx + bc * 4, ty + bs * 4, 5, 5, SPEC[bi], .28 + flare * .26, 6);
+}
+// ── the monolith itself breathes very slightly; crown, body and face move together
+G.save(); G.scale(breath, breath);
+// ── CROWN: five spires rooted along the two upper edges, cut behind the body
+[[0, -50, 0, -71, 7], [-15, -33, -32, -62, 6], [15, -33, 32, -62, 6],
+ [-27, -13, -50, -38, 5], [27, -13, 50, -38, 5]].forEach(function (s, i) {
+  var rx = s[0], ry = s[1], sx2 = s[2], sy2 = s[3], hw = s[4];
+  var dx = sx2 - rx, dy = sy2 - ry, dl = Math.sqrt(dx * dx + dy * dy) || 1;
+  var ux = dx / dl, uy = dy / dl, nx = -uy, ny = ux;
+  R.L([[rx + nx * hw, ry + ny * hw], [sx2 + nx * 1.6, sy2 + ny * 1.6], [sx2 + ux * 4, sy2 + uy * 4],
+       [sx2 - nx * 1.6, sy2 - ny * 1.6], [rx - nx * hw, ry - ny * hw]], LAVD, 40 + i, {sx:4, sy:6, sp:14, sa:.52});
+  R.L([[rx + nx * hw * .55, ry + ny * hw * .55], [sx2 + nx * .9, sy2 + ny * .9], [sx2 + ux * 2, sy2 + uy * 2],
+       [sx2 - nx * .9, sy2 - ny * .9], [rx - nx * hw * .55, ry - ny * hw * .55]], i % 2 ? SKY : TEALL, 50 + i, {sx:2, sy:4, sp:9, sa:.34});
+  R.L([[rx + nx * hw * .3, ry + ny * hw * .3], [sx2, sy2], [rx, ry]], CRM, 60 + i, {sx:1, sy:2, sp:5, sa:.2});
+  R.glow(sx2, sy2, 6, 6, SPEC[(i * 2 + hue) % 8], .3 + flare * .3, 6);
+  R.Ld(sx2, sy2, 2.4, WHT, 70 + i, {ns:true});
+});
+// ── BODY as separate planes: backing plate, body, lit plane, shaded plane
+R.L([[-7, -52], [7, -52], [50, 34], [46, 42], [-46, 42], [-50, 34]], LAVD, 80, {sx:5, sy:8, sp:26, sa:.56});
+R.L([[-6, -46], [6, -46], [44, 32], [41, 39], [-41, 39], [-44, 32]], LAV, 81, {sx:3, sy:5, sp:16, sa:.42});
+R.L([[-4, -42], [-1, -42], [-1, 36], [-37, 36], [-40, 30]], SKY, 82, {sx:3, sy:4, sp:12, sa:.3});
+R.L([[4, -42], [1, -42], [1, 36], [37, 36], [40, 30]], TEAL, 83, {sx:3, sy:4, sp:12, sa:.34});
+// ── the front edge where the two planes meet, and the two outer cut edges
+R.L([[-2.4, -44], [2.4, -44], [3.2, 37], [-3.2, 37]], CRM, 84, {sx:2, sy:3, sp:9, sa:.26});
+R.L([[-1, -44], [1, -44], [1.4, 37], [-1.4, 37]], WHT, 85, {sx:1, sy:1, sp:5, sa:.16});
+R.L([[-7, -50], [-4, -50], [-40, 32], [-46, 32]], CRM, 86, {sx:2, sy:3, sp:9, sa:.24});
+R.L([[7, -50], [4, -50], [40, 32], [46, 32]], SAND, 87, {sx:2, sy:3, sp:9, sa:.28});
+// ── base bevel: the flat cut where the monolith was sliced off
+R.L([[-49, 33], [49, 33], [46, 42], [-46, 42]], LAVD, 88, {sx:4, sy:6, sp:16, sa:.5});
+R.L([[-45, 34], [45, 34], [43, 40], [-43, 40]], SAND, 89, {sx:2, sy:4, sp:10, sa:.34});
+R.L([[-44, 33], [44, 33], [44, 35.5], [-44, 35.5]], CRM, 90, {sx:1, sy:2, sp:6, sa:.2});
+// ── facet seams (no outlines — cream light and teal shade only)
+R.ln(-40, 30, 40, 30, 'rgba(245,238,221,.30)', 1.6, .7);
+R.ln(-26, -4, 26, -4, 'rgba(245,238,221,.22)', 1.4, .6);
+R.ln(-6, -46, -44, 32, 'rgba(245,238,221,.20)', 1.2, .55);
+R.ln(6, -46, 44, 32, 'rgba(31,61,63,.16)', 1.2, .5);
+// ── THE CORE: a real hole in the paper with the spectrum scrolling inside it
+var WIN = [[-16, -2], [16, -2], [20, 26], [15, 34], [-15, 34], [-20, 26]];
+R.L(WIN, TEALD, 91, {sx:3, sy:5, sp:14, sa:.5});
+G.save(); R.mkpath(WIN, 91); G.clip();
+for (var vi = 0; vi < 6; vi++) {
+  var vp = ((vi / 6) + scroll) % 1, vy = 36 - vp * 46;
+  G.save();
+  G.globalAlpha = Math.min(1, .45 + (1 - Math.abs(vp - .5) * 2) * .35 + flare * .18);
+  R.L([[-19, vy + 9], [0, vy - 3], [19, vy + 9], [19, vy + 14], [0, vy + 2], [-19, vy + 14]],
+      SPEC[(vi + hue) % 8], 240 + vi, {sx:1, sy:2, sp:7, sa:.22});
   G.restore();
 }
-R.glow(0, 0, 30, 30, WHT, 0.2 + Math.sin(t * 0.04) * 0.08, 16);
-for (var o = 0; o < 8; o++) {
-  var oa = o / 8 * Math.PI * 2 - t * 0.04;
-  var orb = 36 + Math.sin(t * 0.05 + o) * 4;
-  var ox = Math.cos(oa) * orb, oy = Math.sin(oa) * orb;
-  R.Ld(ox, oy, 3, WHT, 50 + o, {ns:true});
-  R.glow(ox, oy, 5, 5, LAV, 0.35, 4);
+R.glow(0, 16, 17, 20, WHT, .2 + flare * .3, 12);
+G.restore();
+R.L([[-16, -2], [16, -2], [15, 1.5], [-15, 1.5]], CRM, 92, {sx:1, sy:2, sp:6, sa:.2});
+R.L([[-16, -2], [-13, -2], [-17, 26], [-20, 26]], CRM, 93, {sx:1, sy:2, sp:6, sa:.2});
+R.L([[16, -2], [13, -2], [17, 26], [20, 26]], SAND, 94, {sx:1, sy:2, sp:6, sa:.24});
+// ── FACE: two faceted diamond eyes set into deep-teal sockets, brow plates
+//    laid back over them, and a small serene smile. Calm and curious, not cruel.
+[-1, 1].forEach(function (sd) {
+  var ex = sd * 10, ey = -19, ew = 6.6, eh = 7.4 * (1 - blink * .86), ix = sd > 0 ? 1 : 0;
+  R.L([[ex - ew - 2, ey - 2], [ex, ey - eh - 3], [ex + ew + 2, ey - 2], [ex, ey + eh + 3]], TEALD, 120 + ix, {sx:2, sy:4, sp:9, sa:.5});
+  R.L([[ex - ew, ey - 1], [ex, ey - eh], [ex + ew, ey - 1], [ex, ey + eh]], SKY, 122 + ix, {sx:2, sy:3, sp:7, sa:.3});
+  R.L([[ex - ew * .5, ey], [ex, ey - eh * .6], [ex + ew * .5, ey], [ex, ey + eh * .6]], INK, 124 + ix, {ns:true});
+  R.glow(ex, ey, 7, 6 * (1 - blink * .8), SPEC[(hue + (sd > 0 ? 4 : 0)) % 8], .34 + flare * .24, 6);
+  G.save(); G.fillStyle = WHT; G.globalAlpha = .9 * (1 - blink);
+  G.beginPath(); G.arc(ex - sd * 2.4, ey - 3, 2.1, 0, Math.PI * 2); G.fill(); G.restore();
+  R.L([[ex - ew - 2, ey - eh - 5], [ex + ew + 2, ey - eh - 7], [ex + ew, ey - eh - 2], [ex - ew, ey - eh - 1]], LAVD, 126 + ix, {sx:2, sy:3, sp:7, sa:.4});
+});
+R.L([[-9, -8], [-4, -5], [0, -4], [4, -5], [9, -8], [7, -4], [0, -1], [-7, -4]], INK, 130, {ns:true});
+G.restore();
+// ── shed shards drifting beside the body, each its own little papercut
+[[-60, 4, 1], [-52, 26, -1], [60, 4, -1], [52, 26, 1], [-46, -24, 1], [46, -24, -1]].forEach(function (s, i) {
+  var dr = Math.sin(t * .036 + i * 1.24) * 4, sr = 8 + i % 3 * 2;
+  var px = s[0] + dr * .5 * s[2], py = s[1] + dr;
+  R.L([[px, py - sr], [px + sr * .62, py], [px, py + sr], [px - sr * .62, py]], LAVD, 100 + i, {sx:3, sy:5, sp:9, sa:.48});
+  R.L([[px, py - sr * .6], [px + sr * .36, py], [px, py + sr * .6], [px - sr * .36, py]], i % 2 ? SKY : TEALL, 108 + i, {sx:2, sy:3, sp:6, sa:.3});
+  R.L([[px, py - sr * .6], [px + sr * .36, py], [px, py]], CRM, 116 + i, {sx:1, sy:1, sp:4, sa:.2});
+  R.glow(px, py, sr * .7, sr * .7, SPEC[(i * 3 + hue) % 8], .2 + flare * .16, 5);
+});
+// ── geometry motes orbiting on an ellipse, in front of everything
+for (var mi = 0; mi < 8; mi++) {
+  var ma = mi / 8 * Math.PI * 2 - t * .021, mr = 44 + Math.sin(t * .033 + mi * .9) * 7;
+  var mx = Math.cos(ma) * mr, my = -6 + Math.sin(ma) * mr * .62, ms = 2.6 + mi % 3;
+  G.save(); G.globalAlpha = .5 + Math.sin(t * .05 + mi) * .22;
+  R.L([[mx, my - ms], [mx + ms, my + ms * .8], [mx - ms, my + ms * .8]], SPEC[(mi + hue) % 8], 140 + mi, {sx:1, sy:2, sp:4, sa:.24});
+  G.restore();
+  R.glow(mx, my, ms + 2, ms + 2, SPEC[(mi + hue) % 8], .22, 4);
 }
-R.Ld(-10, -6, 6, WHT, 60, {ns:true}); R.Ld(10, -6, 6, WHT, 61, {ns:true});
-R.Ld(-10, -6, 3, DRK, 62, {ns:true}); R.Ld(10, -6, 3, DRK, 63, {ns:true});
-R.glow(-10, -6, 8, 8, SKY, 0.4, 5); R.glow(10, -6, 8, 8, SKY, 0.4, 5);
-R.L([[-8, 10], [0, 16], [8, 10]], LAV, 70, {sx:1, sy:1, sp:4, ns:true});
+R.glow(0, 14, 26, 30, WHT, .09 + flare * .12, 18);
 G.restore();
 },
 };
@@ -889,43 +1580,351 @@ R.Ld(-7, -32, 2.5, DRK, 62, {ns:true}); R.Ld(7, -32, 2.5, DRK, 63, {ns:true});
 R.L([[-8, -22], [-4, -20], [0, -21], [4, -20], [8, -22]], DRK, 64, {ns:true});
 G.restore();
 },
+/**
+ * THE COUNTERFEITER — floor 7 boss (the Gilded Mint / Grand Bazaar, money).
+ *
+ * SHAPE LANGUAGE: a coin that learned to sell you something. The silhouette
+ * is one enormous MINT MEDALLION for a head, sitting on a body tiled with
+ * overlapping struck plates, a peacock FAN of coin-blades opening behind
+ * him, a mint punch in one fist and a fan of forged notes in the other, all
+ * balanced on towers of stacked coin. A child reads "big shiny gold
+ * salesman" from the outline alone — nothing else in the game is round-on-
+ * round like this.
+ *
+ * THE TELL, and the whole reason the design exists: he is not made of gold.
+ * He is made of PAPER with gold leaf stuck on it. Every plate is cut as a
+ * gold face laid on a SAND paper blank whose rim still shows all the way
+ * round; the denominations stamped across his hide DISAGREE with each other
+ * (a 1 beside a 9 beside a ?); the plates slide out of register between
+ * glamour pulses; the great seal on his chest is worth 0; and a jagged CRACK
+ * runs down the mask where the leaf has flaked away. Inside the crack is
+ * plain cream paper and one real, soft, worried teal eye. The glamour is on
+ * the outside. The paper is underneath, and it is the paper that is afraid —
+ * which is what keeps him a swindler rather than a horror.
+ *
+ * MOTION: a salesman's bob and sway; a travelling SPECULAR SWEEP that rakes
+ * across the plates so the leaf catches the light one row at a time; leaf
+ * flakes peeling off and fluttering down; coins orbiting behind and in
+ * front; a slow blink and an endless tear on the honest eye. The SIGNATURE
+ * is the GLAMOUR PULSE — a long swell that snaps every plate into register,
+ * floods the whole figure gold, opens the fan, fires the mint punch and
+ * throws a burst of leaf off him; as it fades the plates slide apart again
+ * and more paper shows than before.
+ *
+ * Phases are held in self-contained regions (GROUND · FAN · ORBIT · PLINTH ·
+ * COAT · PLATES · ARMS · COLLAR · MEDALLION · CRACK · CROWN · FLAKES) so a
+ * phase change can transform one without disturbing the others.
+ */
 counterfeiter: function(R, t) {
-var G = R.G, bob = Math.sin(t * 0.03) * 5, pulse = Math.sin(t * 0.045) * 0.07 + 1.0;
-G.save(); G.translate(0, bob); G.scale(pulse, pulse);
-R.gshadow(0, 58, 46, 9);
-var GOLD = '#ecb964', SAND = '#d9cfb2', DRK = '#1f4244', WHT = '#fdfbf2', ORA = '#e39a4a', PEACH = '#f2bf9a', CREAM = '#f5eedd';
-var morph = Math.sin(t * 0.04);
-R.L([[-34, -30 + morph * 4], [-20, -48], [0, -54 + morph * 2], [20, -48], [34, -30 + morph * 4], [38, -4], [34, 20], [24, 38], [14, 46], [0, 50], [-14, 46], [-24, 38], [-34, 20], [-38, -4]], ORA, 1, {sx:4, sy:7, sp:20, sa:.54});
-R.L([[-28, -26 + morph * 3], [-16, -42], [0, -48 + morph * 2], [16, -42], [28, -26 + morph * 3], [32, -2], [28, 16], [20, 32], [10, 40], [0, 44], [-10, 40], [-20, 32], [-28, 16], [-32, -2]], GOLD, 2, {sx:3, sy:5, sp:16, sa:.46});
-R.L([[-18, -20 + morph * 2], [-8, -34], [0, -38 + morph], [8, -34], [18, -20 + morph * 2], [22, 0], [18, 14], [10, 26], [0, 30], [-10, 26], [-18, 14], [-22, 0]], PEACH, 3, {sx:2, sy:3, sp:10, sa:.32});
-R.glow(0, -4, 24, 30, GOLD, 0.2, 14);
-for (var i = 0; i < 8; i++) {
-  var ca = i / 8 * Math.PI * 2 + t * 0.035;
-  var cr = 32 + Math.sin(t * 0.04 + i) * 4;
-  var cx = Math.cos(ca) * cr, cy = Math.sin(ca) * cr;
-  R.Ld(cx, cy, 4, GOLD, 10 + i, {sx:1, sy:1, sp:4, sa:.4});
-  R.glow(cx, cy, 6, 6, ORA, 0.35, 4);
+var G = R.G;
+var GOLD = '#ecb964', ORNG = '#e39a4a', TARN = '#d06a4d', PEACH = '#f2bf9a';
+var SAND = '#d9cfb2', CRMD = '#e8dec6', CRM = '#f5eedd', WHT = '#fdfbf2';
+var SHD = '#2a6063', TEAL = '#44888a', TEALL = '#7fb3ae', INK = '#1f4244';
+// Phases are offset so the STATIC pose (t = 0, which is what the battle
+// sprite is rendered at) lands mid-glamour with the plates already visibly
+// out of register — the pose has to sell the design on its own.
+var bob = Math.sin(t * .026) * 4 + Math.sin(t * .047) * 1.2;
+var sway = Math.sin(t * .0185) * .018;
+var glam = Math.pow(Math.max(0, Math.sin(t * .0115 + .95)), 3);   // SIGNATURE swell
+var slip = Math.sin(t * .0225 + 1.15) * (1.4 - glam) * 1.9;       // out of register
+var sweep = ((t * .0072 + .62) % 1.4) - .2;                       // specular band
+var blink = Math.pow(Math.max(0, Math.sin(t * .0126 - 1.1)), 14);
+var spin = t * .012;
+var hy = -36;                                                     // medallion centre
+
+// ── local helpers ───────────────────────────────────────────────
+// A stamped numeral. He is covered in values, and they do not agree.
+function glyph(gx, gy, ch, sz, col, al, rot) {
+  G.save(); G.translate(gx, gy); if (rot) G.rotate(rot);
+  G.globalAlpha = al; G.fillStyle = col;
+  G.font = 'bold ' + sz + 'px Georgia, "Times New Roman", serif';
+  G.textAlign = 'center'; G.textBaseline = 'middle';
+  G.fillText(ch, 0, 0); G.restore();
 }
-for (var j = 0; j < 5; j++) {
-  var ja = j / 5 * Math.PI * 2 - t * 0.025;
-  var jr = 20;
-  var jx = Math.cos(ja) * jr, jy = Math.sin(ja) * jr - 4;
-  R.Ld(jx, jy, 5, CREAM, 20 + j, {sx:1, sy:1, sp:5, sa:.36});
-  R.glow(jx, jy, 7, 7, WHT, 0.2, 4);
+// How hard the travelling specular band is crossing a point right now.
+function lit(px, py) { return Math.max(0, 1 - Math.abs((px + py * .5 + 80) / 190 - sweep) * 5.5); }
+// A struck coin: gold leaf laid on a sand paper blank whose rim still shows.
+// `sa` lets the stacked plinth coins cast a much lighter shadow than the
+// free-standing ones, so a tower of them never silts up into a dark mass.
+function coin(px, py, rx, ry, sd, ch, tone, sa) {
+  R.Le(px, py, rx, ry, SAND, sd, {sx:2, sy:3, sp:9, sa:sa === undefined ? .44 : sa});
+  R.Le(px, py, rx * .87, ry * .85, tone, sd + 1, {sx:1, sy:2, sp:6, sa:.28});
+  R.Le(px, py, rx * .58, ry * .56, tone === GOLD ? ORNG : GOLD, sd + 2, {sx:1, sy:1, sp:5, sa:.2});
+  if (ch) glyph(px, py + ry * .08, ch, rx * 1.15, SHD, .58, 0);
+  var l = lit(px, py);
+  if (l > .03) R.glow(px - rx * .28, py - ry * .34, rx * .55, ry * .5, CRM, l * .45, 5);
 }
-R.Ld(-12, -12, 7, WHT, 30, {ns:true}); R.Ld(12, -12, 7, WHT, 31, {ns:true});
-R.Ld(-12, -12, 3.5, DRK, 32, {ns:true}); R.Ld(12, -12, 3.5, DRK, 33, {ns:true});
-R.glow(-12, -12, 8, 8, GOLD, 0.35, 5); R.glow(12, -12, 8, 8, GOLD, 0.35, 5);
-R.L([[-10, 8], [-4, 4], [0, 8], [4, 4], [10, 8], [6, 14], [0, 12], [-6, 14]], ORA, 40, {sx:2, sy:1, sp:5});
-for (var k = 0; k < 6; k++) {
-  var ph = ((t * 0.025 + k * 0.2) % 1);
-  var kx = -20 + k * 8 + Math.sin(t * 0.03 + k) * 4;
-  var ky = 30 + ph * 20;
-  var kal = (1 - ph) * 0.6;
-  G.save(); G.globalAlpha = kal;
-  R.Ld(kx, ky, 4, GOLD, 50 + k, {ns:true});
+// One plate of his hide: paper blank, gold leaf, a stamped value, and — when
+// the sweep passes over it — a cream sliver of highlight cut across a corner.
+function plate(px, py, w, h, tilt, sd, ch, tone) {
+  G.save(); G.translate(px, py); G.rotate(tilt);
+  R.L([[-w, -h * .64], [-w * .64, -h], [w * .64, -h], [w, -h * .64],
+       [w, h * .64], [w * .64, h], [-w * .64, h], [-w, h * .64]], SAND, sd, {sx:3, sy:4, sp:12, sa:.46});
+  R.L([[-w * .84, -h * .52], [-w * .52, -h * .84], [w * .52, -h * .84], [w * .84, -h * .52],
+       [w * .84, h * .52], [w * .52, h * .84], [-w * .52, h * .84], [-w * .84, h * .52]], tone, sd + 1, {sx:2, sy:3, sp:9, sa:.32});
+  R.L([[-w * .5, -h * .32], [-w * .28, -h * .5], [w * .5, -h * .28], [w * .28, h * .48], [-w * .48, h * .28]],
+      tone === GOLD ? ORNG : GOLD, sd + 2, {sx:1, sy:2, sp:6, sa:.22});
+  glyph(0, h * .06, ch, h * 1.02, SHD, .55, 0);
+  var l = lit(px, py);
+  if (l > .03) {
+    G.globalAlpha = l * .3;
+    R.L([[-w * .78, -h * .46], [-w * .16, -h * .8], [w * .12, -h * .46], [-w * .48, -h * .14]], CRM, sd + 3, {ns:true});
+  }
   G.restore();
 }
+
+G.save(); G.translate(0, bob); G.rotate(sway);
+
+// ── REGION 1 · GROUND ───────────────────────────────────────────
+// A pool of false warmth, and the coins that already fell off him.
+R.gshadow(0, 72, 40, 7);
+R.glow(0, 46, 52, 14, GOLD, .12 + glam * .1, 20);
+R.glow(0, -6, 56, 60, ORNG, .09 + glam * .12, 30);
+[[-56, 68, 9], [-33, 72, 8], [31, 72, 9], [56, 67, 8], [7, 74, 7]].forEach(function(c, i) {
+  coin(c[0], c[1], c[2], c[2] * .34, 40 + i * 4, null, i % 2 ? GOLD : ORNG, .26);
+});
+
+// ── REGION 2 · THE DIE ──────────────────────────────────────────
+// A mint die the size of a cathedral window standing on edge behind him —
+// the press he came out of. Almost all of it is hidden by his own body, so
+// what the eye actually gets is a great milled ring: one calm round shape
+// to hold the silhouette together and give the composition its awe.
+var dcy = 26;
+for (var ml = 0; ml < 50; ml++) {   // the milling: 50 cut notches round the rim
+  var mla = ml / 50 * Math.PI * 2 + spin * .3;
+  var mux = Math.cos(mla), muy = Math.sin(mla);
+  var mnx = -muy * 3.2, mny = mux * 3.2;
+  R.L([[mux * 57 + mnx, dcy + muy * 54 + mny], [mux * 57 - mnx, dcy + muy * 54 - mny],
+       [mux * 64 - mnx * .7, dcy + muy * 61 - mny * .7], [mux * 64 + mnx * .7, dcy + muy * 61 + mny * .7]],
+      ml % 2 ? SAND : CRMD, 50 + ml, {sx:2, sy:3, sp:7, sa:.22});
+}
+R.Le(0, dcy, 58, 55, CRMD, 46, {sx:4, sy:6, sp:20, sa:.3});
+R.Le(0, dcy, 54, 51, ORNG, 47, {sx:2, sy:4, sp:14, sa:.2});
+R.Le(0, dcy, 49, 46, SAND, 48, {sx:2, sy:3, sp:11, sa:.18});
+R.Le(0, dcy, 44, 41, CRMD, 49, {sx:2, sy:3, sp:10, sa:.16});
+for (var dg = 0; dg < 28; dg++) {   // the die's own legend, worn nearly away
+  var dga = dg / 28 * Math.PI * 2 - Math.PI / 2 + spin * .3;
+  glyph(Math.cos(dga) * 51.5, dcy + Math.sin(dga) * 48.5, '·1000·MINT·'[dg % 11], 6.4, SHD, .3, dga + Math.PI / 2);
+}
+R.glow(0, dcy, 53, 50, GOLD, .07 + glam * .07, 24);
+
+// ── REGION 3 · ORBIT (far half) ─────────────────────────────────
+// His float, circling him. Drawn now so half of it passes behind.
+var DEN = ['5', '1', '9', '?', '3', '7', '2', '?'];
+for (var oc = 0; oc < 8; oc++) {
+  var oca = oc / 8 * Math.PI * 2 + spin;
+  if (Math.sin(oca) >= 0) continue;
+  coin(Math.cos(oca) * 60, Math.sin(oca) * 40 + 4, 8.4, 7.6, 110 + oc * 4, DEN[oc], oc % 3 === 0 ? ORNG : GOLD);
+}
+
+// ── REGION 4 · THE PLINTH ───────────────────────────────────────
+// Towers of stacked coin he is standing on. The top coins of every other
+// tower have started to slide — his footing is a pile, not a floor.
+[[-40, 10, 70], [-20, 12, 71], [0, 9, 69], [21, 12, 71], [41, 10, 70]].forEach(function(s, i) {
+  for (var k = 0; k < s[1]; k++) {
+    var ky = s[2] - k * 3.5;
+    var lean = k > s[1] - 4 ? (k - s[1] + 4) * (i % 2 ? -1.7 : 1.7) * (1 + slip * .22) : 0;
+    coin(s[0] + lean, ky, 13 - k * .22, 3.4, 150 + i * 40 + k * 3, null, k % 2 ? GOLD : ORNG, .22);
+  }
+});
+
+// ── REGION 5 · THE COAT ─────────────────────────────────────────
+// The paper body itself. It is deliberately the DULLEST thing on him: the
+// gold only ever appears as plates laid on top, so wherever a plate has
+// slipped you are looking straight at the blank.
+R.L([[-31, -8], [-41, 20], [-52, 46], [-48, 60], [-24, 65], [0, 67], [24, 65], [48, 60], [52, 46], [41, 20], [31, -8], [15, -16], [0, -18], [-15, -16]], CRMD, 200, {sx:4, sy:6, sp:22, sa:.4});
+R.L([[-26, -8], [-35, 20], [-45, 45], [-42, 57], [-22, 61], [0, 63], [22, 61], [42, 57], [45, 45], [35, 20], [26, -8], [13, -14], [0, -16], [-13, -14]], SAND, 202, {sx:4, sy:6, sp:18, sa:.4});
+for (var cs = 0; cs < 6; cs++) {   // ruled seams: it was cut, not cast
+  var csy = 2 + cs * 10;
+  R.ln(-30 - cs * 2.6, csy, 30 + cs * 2.6, csy + 1, 'rgba(68,136,138,.42)', 1.3, .38);
+}
+for (var hm = 0; hm < 11; hm++) {  // hem of coin rims, tarnishing at the ends
+  var hmx = -45 + hm * 9;
+  coin(hmx, 61 - Math.abs(hmx) * .05, 5.4, 3.2, 230 + hm * 4, null, Math.abs(hm - 5) > 3 ? TARN : (hm % 2 ? GOLD : ORNG), .26);
+}
+
+// ── REGION 6 · THE PLATES ───────────────────────────────────────
+// His hide. Same size, same strike, four different answers. Every fourth
+// plate has no leaf left on it at all.
+var ROWS = [
+  [-2, 4, 21, ['1', '9', '5', '?']],
+  [11, 5, 30, ['3', '1', '8', '2', '6']],
+  [24, 5, 34, ['7', '?', '4', '9', '1']],
+  [37, 4, 30, ['2', '6', '?', '5']],
+  [48, 3, 19, ['8', '3', '?']],
+];
+for (var rw = 0; rw < ROWS.length; rw++) {
+  var rd = ROWS[rw], rn = rd[1];
+  for (var pi = 0; pi < rn; pi++) {
+    var ppx = -rd[2] + pi / (rn - 1) * rd[2] * 2 + slip * Math.cos(pi * 1.4 + rw);
+    var ppy = rd[0] + Math.sin(pi * 1.7 + rw) * 1.2 + slip * Math.sin(pi * 2.3 + rw * 1.9);
+    var tone = (rw * 5 + pi) % 4 === 3 ? SAND : ((rw + pi) % 2 ? GOLD : ORNG);
+    plate(ppx, ppy, 9.4, 6.9, Math.sin(pi * 1.3 + rw) * .11 + slip * .011, 280 + rw * 24 + pi * 4, rd[3][pi], tone);
+  }
+}
+// The great seal. It is the biggest, brightest, most ceremonial thing on
+// his chest and its denomination is ZERO.
+coin(0, 17, 15, 14, 380, null, GOLD);
+R.Le(0, 17, 9, 8.4, CRMD, 384, {sx:1, sy:2, sp:7, sa:.22});
+glyph(0, 17.6, '0', 17, SHD, .62, 0);
+R.glow(0, 17, 17, 16, GOLD, .16 + glam * .3, 12);
+
+// ── REGION 7 · ARMS ─────────────────────────────────────────────
+// Left fist holds the mint punch — it kicks on the glamour pulse. Right
+// hand fans the notes he wants you to take.
+R.L([[-28, -6], [-44, 6], [-56, 26], [-52, 42], [-43, 42], [-40, 25], [-32, 10], [-22, 2]], CRMD, 400, {sx:4, sy:6, sp:18, sa:.5});
+R.L([[-27, -4], [-42, 7], [-52, 26], [-49, 39], [-44, 39], [-39, 24], [-31, 10], [-22, 3]], SAND, 402, {sx:3, sy:4, sp:12, sa:.34});
+coin(-46, 34, 9.5, 5, 405, null, GOLD);
+var pz = 46 + glam * 7;
+R.L([[-58, pz - 8], [-47, pz - 12], [-38, pz - 5], [-40, pz + 7], [-51, pz + 11], [-59, pz + 3]], CRMD, 410, {sx:3, sy:5, sp:12, sa:.5});
+R.L([[-55, pz - 6], [-47, pz - 9], [-41, pz - 4], [-42, pz + 5], [-50, pz + 8], [-56, pz + 1]], ORNG, 412, {sx:2, sy:3, sp:8, sa:.32});
+glyph(-48, pz, '9', 12, SHD, .5, 0);
+R.glow(-48, pz, 11, 9, GOLD, .2 + glam * .45, 8);
+R.L([[28, -6], [44, 4], [55, 22], [52, 38], [43, 38], [40, 21], [32, 8], [22, 2]], CRMD, 420, {sx:4, sy:6, sp:18, sa:.5});
+R.L([[27, -4], [42, 5], [51, 22], [49, 35], [44, 35], [39, 20], [31, 8], [22, 3]], SAND, 422, {sx:3, sy:4, sp:12, sa:.34});
+coin(46, 31, 9.5, 5, 425, null, GOLD);
+var NOTE = ['100', '50', '100', '?'];
+for (var nt = 0; nt < 4; nt++) {
+  var na = -.46 + nt * .32 + Math.sin(t * .02 + nt) * .028;
+  G.save(); G.translate(50, 34); G.rotate(na);
+  R.L([[0, -6.4], [24, -8], [25, 6], [1, 7.2]], CRMD, 430 + nt * 4, {sx:3, sy:4, sp:12, sa:.44});
+  R.L([[3, -4.6], [22, -6], [22.6, 4.4], [4, 5.6]], CRM, 431 + nt * 4, {sx:1, sy:2, sp:6, sa:.24});
+  glyph(13, 0, NOTE[nt], 8, SHD, .5, 0);
+  R.ln(6, -2, 20, -3, 'rgba(68,136,138,.4)', 1, .4);
+  G.restore();
+}
+
+// ── REGION 8 · THE COLLAR ───────────────────────────────────────
+// A ruff of coin rims standing up behind the mask, tarnished at the back.
+for (var cl = 0; cl <= 12; cl++) {
+  var cla = -Math.PI + cl / 12 * Math.PI;
+  coin(Math.cos(cla) * 36, Math.sin(cla) * 13 + 1, 7.2, 6.6, 450 + cl * 4, null, cl % 4 === 0 ? TARN : (cl % 2 ? GOLD : ORNG));
+}
+
+// ── REGION 9 · THE MEDALLION ────────────────────────────────────
+// His head is a struck coin: paper blank, leaf rim, an ORNG field and a
+// relief portrait of himself, smiling, in cream.
+R.Le(0, hy, 31, 30, CRMD, 500, {sx:5, sy:8, sp:24, sa:.56});
+R.Le(0, hy, 28.4, 27.4, GOLD, 502, {sx:3, sy:5, sp:16, sa:.4});
+R.Le(0, hy, 24.4, 23.4, ORNG, 504, {sx:2, sy:4, sp:12, sa:.3});
+var RIM = ['·', '1', '0', '0', '·', 'M', 'I', 'N', 'T', '·', '9', '·', '?', '·', '5', '0', '·', 'M', 'I', 'N', 'T', '·', '1', '·'];
+for (var rl = 0; rl < RIM.length; rl++) {
+  var rla = rl / RIM.length * Math.PI * 2 - Math.PI / 2;
+  glyph(Math.cos(rla) * 26.4, hy + Math.sin(rla) * 25.4, RIM[rl], 5.4, SHD, .42, rla + Math.PI / 2);
+}
+// The portrait: a raised cameo of himself struck into the field. He put his
+// own face on his own money, which is the whole man in one gesture.
+R.Le(0, hy + 1, 19.4, 19.6, GOLD, 506, {sx:2, sy:3, sp:11, sa:.26});
+R.Le(0, hy + 1.5, 16.6, 17, PEACH, 508, {sx:1, sy:2, sp:8, sa:.2});
+R.L([[-15, hy - 6], [-5.6, hy - 10.6], [5.6, hy - 10.6], [15, hy - 6], [12.4, hy - 3.6], [0, hy - 5.6], [-12.4, hy - 3.6]], CRM, 512, {sx:1, sy:2, sp:7, sa:.2});
+R.L([[-2.4, hy - 1], [2.4, hy - 1], [3.4, hy + 5.4], [0, hy + 7.2], [-3.4, hy + 5.4]], CRM, 514, {sx:1, sy:1, sp:5, sa:.16});
+R.Le(-13.4, hy + 7.4, 5.6, 3.2, ORNG, 516, {sx:1, sy:1, sp:6, sa:.18});
+R.Le(13.4, hy + 7.4, 5.6, 3.2, ORNG, 517, {sx:1, sy:1, sp:6, sa:.18});
+// The struck eye: gold, glossy, and selling. Note the lid is stamped ON —
+// it is a picture of a friendly expression, not a face making one.
+R.L([[-17.6, hy - 3.4], [-10.4, hy - 10], [-3.2, hy - 3.4], [-10.4, hy + 3.4]], WHT, 520, {sx:2, sy:3, sp:8, sa:.28});
+R.Le(-10.4, hy - 1.4, 4.6, 4.4, GOLD, 522, {sx:1, sy:2, sp:6, sa:.22});
+R.Ld(-10.4, hy - 1.4, 2.4, INK, 524, {ns:true});
+R.Ld(-11.8, hy - 3, 1.4, WHT, 525, {ns:true});
+R.L([[-18, hy - 4.2], [-10.4, hy - 11.4], [-2.8, hy - 4.2], [-3.8, hy - 1.8], [-10.4, hy - 8.4], [-17, hy - 1.8]], SAND, 526, {sx:1, sy:1, sp:5, sa:.24});
+R.L([[-17, hy + .6], [-10.4, hy + 5.2], [-3.8, hy + .6], [-5, hy + 2.8], [-10.4, hy + 6.6], [-15.8, hy + 2.8]], SAND, 527, {sx:1, sy:1, sp:5, sa:.22});
+R.glow(-10.4, hy - 2, 8, 6, GOLD, .28 + glam * .3, 6);
+// The sales grin, struck into the field as a raised cream ridge over a
+// teal groove — warm, wide, and far too pleased with itself.
+R.L([[-14, hy + 10], [-7, hy + 16.4], [0, hy + 17.8], [7, hy + 16.4], [13, hy + 10],
+     [10.6, hy + 12.8], [0, hy + 14.6], [-11, hy + 12.8]], SHD, 530, {ns:true});
+R.L([[-12.6, hy + 9.4], [-6.2, hy + 14.8], [0, hy + 16], [6.2, hy + 14.8], [11.6, hy + 9.4],
+     [10, hy + 10.8], [0, hy + 13.4], [-10.6, hy + 10.8]], CRM, 532, {ns:true});
+R.L([[-15.4, hy + 9.6], [-11.8, hy + 11], [-13.2, hy + 13], [-16.4, hy + 11]], ORNG, 533, {ns:true});
+R.L([[15.4, hy + 9.6], [11.8, hy + 11], [13.2, hy + 13], [16.4, hy + 11]], ORNG, 534, {ns:true});
+
+// ── REGION 10 · THE CRACK ───────────────────────────────────────
+// Where the leaf came off. Underneath: cream paper, a torn edge, and the
+// only honest thing on him.
+// The upper-right quadrant of the strike has lifted clean off the blank.
+// The tear is bounded by the coin's own rim on the outside and a torn paper
+// edge on the inside, so you are looking THROUGH the gold at the paper.
+var CK = [];
+for (var ta = -1.30; ta <= -0.30; ta += .07) CK.push([Math.cos(ta) * 30.4, hy + Math.sin(ta) * 29.4]);
+CK.push([18, hy - 8], [10.5, hy - 10], [15, hy - 15], [7.5, hy - 17.5], [11, hy - 23], [4, hy - 26.5]);
+// Pale CREAM paper sitting in a saturated ORNG field: the value jump is
+// what makes the tear read instantly as a HOLE and not as a highlight. A
+// teal inner shadow runs the torn edge so the paper sits BELOW the leaf.
+R.L(CK, CRMD, 540, {sx:3, sy:4, sp:12, sa:.5});
+R.L(CK.map(function(p) { return [p[0] * .94, hy + (p[1] - hy) * .94]; }), CRM, 541, {sx:2, sy:3, sp:9, sa:.3});
+R.ln(19, hy - 6.6, 5.4, hy - 25, 'rgba(42,96,99,.55)', 3.2, .5);
+for (var rr = 0; rr < 4; rr++) {   // the blank's own ruling, showing through
+  R.ln(8 + rr * 2.6, hy - 22 + rr * 5.2, 25 - rr * 2.2, hy - 21 + rr * 5.2, 'rgba(68,136,138,.45)', 1.2, .42);
+}
+// Foil still clinging to the torn edge, curling back off the paper.
+[[18, hy - 9.6], [11, hy - 11.6], [15, hy - 16.6], [7.6, hy - 19], [11.4, hy - 24.6]].forEach(function(p, i) {
+  R.L([[p[0] - 3.4, p[1] + 1.4], [p[0] + 3.6, p[1] - .6], [p[0] + 1.4, p[1] + 5]], i % 2 ? GOLD : ORNG, 546 + i * 2, {sx:1, sy:2, sp:5, sa:.34});
+});
+// The honest eye. Bigger and softer than the struck one, teal rather than
+// gold, sitting lower, with a brow tilted up at the inner end.
+var eo = 1 - blink;
+R.L([[8.4, hy - 11], [14, hy - 17.2], [21.4, hy - 15.6], [23.6, hy - 7.6], [17.6, hy - 2], [10.2, hy - 3.8]], WHT, 550, {sx:2, sy:3, sp:9, sa:.3});
+R.Le(16, hy - 9, 5.2, 5 * eo + .5, TEAL, 552, {sx:1, sy:2, sp:7, sa:.26});
+R.Ld(16, hy - 9, 2.8 * eo + .3, INK, 554, {ns:true});
+R.Ld(14.4, hy - 10.8, 1.5 * eo, WHT, 555, {ns:true});
+R.L([[8, hy - 12], [14, hy - 18.2], [21.8, hy - 16.6], [24, hy - 8.2], [19.6, hy - 10.4], [14, hy - 14.2]], CRMD, 556, {sx:1, sy:2, sp:6, sa:.24});
+R.L([[9, hy - 21], [21, hy - 17.4], [21, hy - 15], [10, hy - 18.6]], SHD, 558, {sx:1, sy:1, sp:4, sa:.3});
+R.glow(16, hy - 9, 9, 7, TEALL, .2, 6);
+var tp = (t * .0075) % 1;
+G.save(); G.globalAlpha = (1 - tp) * .7;
+R.L([[14.4, hy - 2.4 + tp * 15], [17, hy + .2 + tp * 15], [16, hy + 3.6 + tp * 15], [13, hy + 1.6 + tp * 15]], TEALL, 559, {ns:true});
+G.restore();
+
+// ── REGION 11 · THE CROWN ───────────────────────────────────────
+// A laurel of foil. Two leaves have already gone to tarnish — the same
+// coral the mint uses for the ruined coins in the hem.
+// Seven leaves laid FLAT along the top of the rim, following its curve — a
+// wreath pressed into the coin, not a crown of spikes. Two have gone to
+// tarnish, the same coral as the ruined coins in his hem.
+for (var lf = 0; lf < 7; lf++) {
+  var lfa = -Math.PI + .5 + lf / 6 * (Math.PI - 1.0);
+  var lux = Math.cos(lfa), luy = Math.sin(lfa);
+  var lx = lux * 29.6, ly = hy + luy * 28.6;
+  var tang = lfa + Math.PI / 2 * (lf < 3.5 ? 1 : -1);   // leaves sweep toward the top
+  var tex = Math.cos(tang), tey = Math.sin(tang);
+  var lnx = -tey, lny = tex;
+  var ll = 9.5 + (3 - Math.abs(lf - 3)) * 1.4 + glam * 1.4;
+  var dull = (lf === 2);
+  R.L([[lx - tex * 2 - lnx * 4.4, ly - tey * 2 - lny * 4.4], [lx - tex * 2 + lnx * 4.4, ly - tey * 2 + lny * 4.4],
+       [lx + tex * ll + lnx * 2.4, ly + tey * ll + lny * 2.4],
+       [lx + tex * (ll + 4), ly + tey * (ll + 4)],
+       [lx + tex * ll - lnx * 2.4, ly + tey * ll - lny * 2.4]], CRMD, 570 + lf * 4, {sx:2, sy:3, sp:8, sa:.42});
+  R.L([[lx - tex * 1 - lnx * 2.6, ly - tey * 1 - lny * 2.6], [lx - tex * 1 + lnx * 2.6, ly - tey * 1 + lny * 2.6],
+       [lx + tex * (ll + 2.2), ly + tey * (ll + 2.2)]], dull ? TARN : GOLD, 571 + lf * 4, {sx:1, sy:2, sp:5, sa:.28});
+  R.ln(lx, ly, lx + tex * (ll + 2), ly + tey * (ll + 2), 'rgba(245,238,221,.5)', 1.1, .45);
+  R.glow(lx + tex * ll * .6, ly + tey * ll * .6, 5, 4, dull ? TARN : GOLD, .18 + glam * .26, 5);
+}
+
+// ── REGION 12 · ORBIT (near half) ───────────────────────────────
+for (var ob = 0; ob < 8; ob++) {
+  var oba = ob / 8 * Math.PI * 2 + spin;
+  if (Math.sin(oba) < 0) continue;
+  coin(Math.cos(oba) * 60, Math.sin(oba) * 40 + 4, 9, 8.2, 610 + ob * 4, DEN[ob], ob % 3 === 0 ? ORNG : GOLD);
+}
+
+// ── REGION 13 · PEELING LEAF ────────────────────────────────────
+// Gold coming off him in flakes. Every one of them exposes a little more
+// paper, and the glamour pulse throws off the most.
+var FBX = [-46, -30, -14, 2, 18, 34, 48, -38, -6, 26, 42, -22, 10, -52];
+var FBY = [-18, 4, 26, 38, 20, 0, -14, 40, 34, 30, 22, -30, -42, 10];
+for (var fk = 0; fk < 14; fk++) {
+  var fph = ((t * .0085 + fk * .0714) % 1);
+  var fex = FBX[fk] + Math.sin(t * .03 + fk * 1.7) * 8;
+  var fey = FBY[fk] + fph * 34;
+  var fal = Math.sin(fph * Math.PI) * (.38 + glam * .45);
+  if (fal < .04) continue;
+  G.save(); G.globalAlpha = fal; G.translate(fex, fey); G.rotate(fph * 5 + fk);
+  R.L([[-3.4, -2.6], [3.2, -3.2], [3.6, 2.4], [-2.8, 3]], fk % 3 === 0 ? TARN : GOLD, 650 + fk * 2, {ns:true});
+  G.restore();
+  R.glow(fex, fey, 4, 3, GOLD, fal * .38, 5);
+}
+R.glow(0, hy, 30, 28, GOLD, .09 + glam * .18, 18);
+R.glow(0, 26, 34, 30, ORNG, .07 + glam * .14, 20);
 G.restore();
 },
 };
@@ -1033,53 +2032,282 @@ R.glow(-7, -32, 6, 6, LAV, 0.4, 4); R.glow(7, -32, 6, 6, LAV, 0.4, 4);
 R.L([[-6, -18], [0, -14], [6, -18]], LAVD, 54, {sx:1, sy:1, sp:3, ns:true});
 G.restore();
 },
+/**
+ * THE PARADOX — floor 8 boss (the Infinity Library, "The Torn Story",
+ * fractions). He is what is left when a story is torn in half and both
+ * halves keep insisting they are the whole thing.
+ *
+ * SHAPE LANGUAGE: one figure, cut down the middle, whose two halves DO NOT
+ * AGREE. The left is cool teal and the right is warm lavender; they sit at
+ * different heights, their eyes are different shapes at different levels,
+ * their crowns are different (one tall spire against three stubs), their
+ * hems are torn on different rhythms, their ruled lines are ruled at
+ * different spacings — they were torn from different pages — and their two
+ * half-mouths meet at the seam pulling opposite ways. One arm points up and
+ * the other points down: he is giving you two answers at once. Behind him a
+ * PENROSE STAIRCASE of paper blocks climbs forever without ever getting
+ * higher, and a MÖBIUS ribbon runs round his waist showing both of its
+ * colours on what is plainly one edge. On his chest hangs an IMPOSSIBLE
+ * TRIBAR whose last join is the one a real object could never make.
+ *
+ * WHY he is not frightening: nothing here is a threat, it is an argument.
+ * The two halves read as a creature bickering with itself, the palette is
+ * the same bright teal-and-lavender the library is drawn in, the seam
+ * between the halves is lit warm gold, and the disagreement is funny before
+ * it is anything else — which is what a fractions boss should be.
+ *
+ * MOTION: the halves slide against each other in counter-phase, so he is
+ * never quite assembled; the staircase blocks climb and recycle; the Möbius
+ * band turns; fraction fragments orbit, half behind and half in front; the
+ * two eyes blink on different clocks. The SIGNATURE is the FOLD-THROUGH — a
+ * long swell where he pinches flat like a sheet turning edge-on, a bright
+ * fold-line sweeps the seam, and he comes back with his two palettes SWAPPED
+ * and everything still exactly as wrong as it was.
+ *
+ * Regions (FLOOR · STAIR-BACK · RIBBON-BACK · MOTES-BACK · HALVES · ARMS ·
+ * TRIBAR · SEAM · RIBBON-FRONT · STAIR-FRONT · MOTES-FRONT) are kept in
+ * self-contained blocks so a phase change can transform one alone.
+ */
 theparadox: function(R, t) {
-var G = R.G, bob = Math.sin(t * 0.028) * 5, pulse = Math.sin(t * 0.04) * 0.05 + 1.0;
-G.save(); G.translate(0, bob); G.scale(pulse, pulse);
-R.gshadow(0, 60, 48, 10);
-var LAV = '#9c8fc0', LAVD = '#7c6fa8', TEAL = '#44888a', TD = '#2a6063', WHT = '#fdfbf2', DRK = '#1f4244', SKY = '#a4c8d8', GOLD = '#ecb964';
-var warp = t * 0.03;
-R.L([[-36, -32], [-20, -48], [0, -54], [20, -48], [36, -32], [40, -6], [36, 20], [26, 38], [14, 46], [0, 50], [-14, 46], [-26, 38], [-36, 20], [-40, -6]], TD, 1, {sx:4, sy:7, sp:20, sa:.54});
-R.L([[-30, -28], [-16, -42], [0, -48], [16, -42], [30, -28], [34, -4], [30, 16], [22, 32], [12, 40], [0, 44], [-12, 40], [-22, 32], [-30, 16], [-34, -4]], LAVD, 2, {sx:3, sy:5, sp:16, sa:.46});
-R.L([[-20, -22], [-10, -34], [0, -38], [10, -34], [20, -22], [24, -2], [20, 12], [14, 24], [0, 30], [-14, 24], [-20, 12], [-24, -2]], LAV, 3, {sx:2, sy:3, sp:10, sa:.34});
-R.glow(0, 0, 28, 32, LAV, 0.18, 16);
-G.save(); G.rotate(warp);
-for (var i = 0; i < 3; i++) {
-  var tr = 16 + i * 8;
-  var pts = [];
-  for (var j = 0; j < 4; j++) {
-    var a = j / 4 * Math.PI * 2 + i * 0.3;
-    pts.push([Math.cos(a) * tr, Math.sin(a) * tr - 4]);
+var G = R.G;
+var TEALD = '#2a6063', TEAL = '#44888a', TEALL = '#7fb3ae', SKY = '#a4c8d8';
+var LAVD = '#7c6fa8', LAV = '#9c8fc0', PEACH = '#f2bf9a', GOLD = '#ecb964';
+var SAND = '#d9cfb2', CRMD = '#e8dec6', CRM = '#f5eedd', WHT = '#fdfbf2', INK = '#1f4244';
+// Phases are offset so the STATIC pose (t = 0, which is what the battle
+// sprite is rendered at) already shows the halves well out of agreement.
+var bob = Math.sin(t * .027) * 3.4;
+var dis = Math.sin(t * .021 + 1.25) * 4.6;      // the two halves, counter-phase
+var climb = t * .026;                           // the stair never stops rising
+var fold = Math.pow(Math.max(0, Math.sin(t * .0089)), 8);   // SIGNATURE pinch
+var cyc = Math.floor(t * .0089 / (Math.PI * 2) - .25);
+var swapped = ((cyc % 2) + 2) % 2 === 1;        // ...and he comes back mirrored
+var warp = t * .011;
+var blinkL = Math.pow(Math.max(0, Math.sin(t * .0133 - 1.4)), 14);
+var blinkR = Math.pow(Math.max(0, Math.sin(t * .0161 + 2.1)), 14);   // never together
+var COOL = [TEALD, TEAL, TEALL, SKY];
+var WARM = [LAVD, LAV, CRMD, PEACH];
+var LH = swapped ? WARM : COOL, RH = swapped ? COOL : WARM;
+
+// ── local helpers ───────────────────────────────────────────────
+function glyph(gx, gy, ch, sz, col, al, rot) {
+  G.save(); G.translate(gx, gy); if (rot) G.rotate(rot);
+  G.globalAlpha = al; G.fillStyle = col;
+  G.font = 'bold ' + sz + 'px Georgia, "Times New Roman", serif';
+  G.textAlign = 'center'; G.textBaseline = 'middle';
+  G.fillText(ch, 0, 0); G.restore();
+}
+// One block of the staircase, cut as three flat papers — a lit top and two
+// side faces — so every corner is a visible paper edge rather than shading.
+function block(px, py, w, h, d, sd, pal) {
+  R.L([[px - w, py], [px, py - d], [px + w, py], [px, py + d]], CRMD, sd, {sx:2, sy:3, sp:9, sa:.28});
+  R.L([[px - w, py], [px, py + d], [px, py + d + h], [px - w, py + h]], pal[0], sd + 1, {sx:2, sy:3, sp:8, sa:.32});
+  R.L([[px + w, py], [px, py + d], [px, py + d + h], [px + w, py + h]], pal[1], sd + 2, {sx:2, sy:3, sp:8, sa:.32});
+  R.ln(px - w, py, px, py + d, 'rgba(245,238,221,.7)', 1.4, .55);
+  R.ln(px + w, py, px, py + d, 'rgba(245,238,221,.55)', 1.2, .45);
+  R.ln(px, py + d, px, py + d + h, 'rgba(42,96,99,.5)', 1.2, .45);
+}
+// A torn chit of the Story carrying one fragment of an argument.
+function chit(px, py, rot, sz, ch, sd, pal) {
+  G.save(); G.translate(px, py); G.rotate(rot);
+  R.L([[-sz, -sz * .72], [sz * .92, -sz * .8], [sz, sz * .66], [-sz * .86, sz * .78]], pal[0], sd, {sx:2, sy:3, sp:8, sa:.44});
+  R.L([[-sz * .78, -sz * .54], [sz * .72, -sz * .6], [sz * .8, sz * .5], [-sz * .68, sz * .58]], CRM, sd + 1, {sx:1, sy:2, sp:5, sa:.26});
+  glyph(0, sz * .06, ch, sz * 1.35, TEALD, .7, 0);
+  G.restore();
+}
+// The impossible stair: 18 blocks on a ring behind him. The rise is taken
+// modulo the ring, so every block sits exactly one step above the one
+// before it AND the loop still closes — which is the trick. The join is
+// parked at the top-back, where his own head hides it. The front-lower arc
+// is left out entirely so the staircase reads as a horseshoe climbing up
+// out of the floor behind him rather than as clutter across his chest.
+function stair() {
+  for (var st = 0; st < 18; st++) {
+    var sta = st / 18 * Math.PI * 2 + Math.PI * .5;
+    if (Math.sin(sta) > .48) continue;
+    var rise = ((st + climb) % 18) * 1.05;
+    block(Math.cos(sta) * 60, 4 + Math.sin(sta) * 34 - rise, 12, 11, 5.5,
+          120 + st * 4, Math.cos(sta) < 0 ? LH : RH);
   }
-  G.save(); G.strokeStyle = i === 0 ? SKY : (i === 1 ? LAV : TEAL);
-  G.lineWidth = 1.5; G.globalAlpha = 0.3 + Math.sin(t * 0.05 + i) * 0.1;
-  G.beginPath(); G.moveTo(pts[0][0], pts[0][1]);
-  for (var k = 1; k < pts.length; k++) G.lineTo(pts[k][0], pts[k][1]);
-  G.closePath(); G.stroke(); G.restore();
 }
+// The Möbius band round his waist. It has one edge and one face, and the
+// colour flips halfway round — which is the joke, drawn in paper.
+function ribbon(back) {
+  var RB = 34;
+  for (var mb = 0; mb < RB; mb++) {
+    var ma = mb / RB * Math.PI * 2 + warp, mz = (mb + 1) / RB * Math.PI * 2 + warp;
+    if ((Math.sin(ma) < 0) !== back) continue;
+    var ax = Math.cos(ma) * 52, ay = 30 + Math.sin(ma) * 22;
+    var bx = Math.cos(mz) * 52, by = 30 + Math.sin(mz) * 22;
+    // width is taken across the PATH, so consecutive quads butt together
+    // into one continuous band rather than a row of chunks
+    var vx = bx - ax, vy = by - ay, vl = Math.sqrt(vx * vx + vy * vy) || 1;
+    var nx = -vy / vl, ny = vx / vl;
+    var wA = 2.4 + Math.abs(Math.cos(ma * .5 + warp)) * 7.6;
+    var wB = 2.4 + Math.abs(Math.cos(mz * .5 + warp)) * 7.6;
+    // ...and the FACE colour flips halfway round, because a Mobius band has
+    // only one side and it is still both colours. That is the whole joke.
+    var mface = Math.cos(ma * .5 + warp) > 0 ? RH : LH;
+    R.L([[ax + nx * wA, ay + ny * wA], [bx + nx * wB, by + ny * wB],
+         [bx - nx * wB, by - ny * wB], [ax - nx * wA, ay - ny * wA]],
+        mface[1], 200 + mb * 3, {sx:2, sy:3, sp:8, sa:.34});
+    R.L([[ax + nx * wA * .5, ay + ny * wA * .5], [bx + nx * wB * .5, by + ny * wB * .5],
+         [bx - nx * wB * .5, by - ny * wB * .5], [ax - nx * wA * .5, ay - ny * wA * .5]],
+        mface[2], 201 + mb * 3, {sx:1, sy:2, sp:5, sa:.2});
+  }
+}
+var FR = ['½', '¼', '¾', '=', '≠', '∞', '?', '½', '¾', '¼'];
+function motes(back) {
+  for (var mo = 0; mo < 10; mo++) {
+    var moa = mo / 10 * Math.PI * 2 + warp * 2.1;
+    if ((Math.sin(moa) < 0) !== back) continue;
+    chit(Math.cos(moa) * 62, Math.sin(moa) * 44 - 4, Math.sin(t * .02 + mo) * .32,
+         7.4, FR[mo], 300 + mo * 3, mo % 2 ? RH : LH);
+  }
+}
+
+G.save(); G.translate(0, bob); G.scale(1 - fold * .34, 1 + fold * .05);
+
+// ── REGION 1 · FLOOR ────────────────────────────────────────────
+// Even the ground disagrees: the tiles on his left are laid in one
+// perspective and the tiles on his right in the opposite one, and his
+// shadow leans one way under each half.
+R.gshadow(-16, 70, 24, 6);
+R.gshadow(16, 70, 24, 6);
+R.glow(0, -4, 58, 62, LAVD, .13, 28);
+R.glow(0, -4, 44, 50, TEALL, .1, 24);
+R.Le(0, 66, 42, 7, TEALD, 100, {sx:3, sy:4, sp:14, sa:.36});
+R.Le(-4, 65, 26, 4.4, TEAL, 101, {sx:2, sy:3, sp:9, sa:.22});
+for (var tl = 0; tl < 9; tl++) {
+  var tlx = -46 + tl * 11, tsg = tlx < -1 ? 1 : -1;
+  R.L([[tlx, 60], [tlx + 10, 60], [tlx + 10 + tsg * 5, 69], [tlx + tsg * 5, 69]],
+      tl % 2 ? SAND : CRMD, 104 + tl * 2, {sx:2, sy:3, sp:8, sa:.34});
+}
+
+// ── REGION 2 · THE STAIRCASE ────────────────────────────────────
+stair();
+// ── REGION 3 · THE RIBBON (back half) ───────────────────────────
+ribbon(true);
+// ── REGION 4 · FRACTION FRAGMENTS (back half) ───────────────────
+motes(true);
+
+// ── REGION 5 · THE TWO HALVES ───────────────────────────────────
+// Same figure, cut once, and the cut never lines up again.
+var HALVES = [[-1, LH, -dis, 0], [1, RH, dis, 1]];
+for (var hi = 0; hi < 2; hi++) {
+  var d = HALVES[hi][0], PL = HALVES[hi][1], oy = HALVES[hi][2], sd0 = 400 + hi * 70;
+  G.save(); G.translate(0, oy);
+  // robe half — three cut layers, each inset from the last
+  R.L([[0, -20], [d * 25, -15], [d * 33, 6], [d * 41, 34], [d * 45, 56], [d * 22, 61], [0, 63]], PL[0], sd0, {sx:5, sy:8, sp:24, sa:.52});
+  R.L([[0, -17], [d * 20, -12], [d * 27, 6], [d * 34, 33], [d * 38, 52], [d * 19, 57], [0, 59]], PL[1], sd0 + 3, {sx:4, sy:6, sp:16, sa:.4});
+  R.L([[0, -13], [d * 13, -9], [d * 18, 7], [d * 23, 31], [d * 26, 48], [d * 13, 52], [0, 54]], PL[2], sd0 + 6, {sx:3, sy:4, sp:11, sa:.26});
+  // ruled lines — his left is ruled at 11px and his right at 9px, because
+  // the two halves came out of two different books
+  for (var q = 0; q < 6; q++) {
+    var qy = -6 + q * (hi ? 9 : 11);
+    R.ln(d * 4, qy, d * (17 + q * 3.6), qy + d * .8, 'rgba(68,136,138,.5)', 1.3, .44);
+  }
+  // torn hem, on a different rhythm each side
+  for (var th = 0; th < 6; th++) {
+    var thx = d * (6 + th * 7), thy = 59 - Math.abs(th - 3) * 1.2;
+    R.L([[thx - 3.4, thy], [thx + 3.4, thy], [thx, thy + 4 + (th % (hi ? 2 : 3)) * 2.6]],
+        th % 2 ? PL[0] : PL[1], sd0 + 10 + th, {sx:2, sy:3, sp:6, sa:.4});
+  }
+  // cowl half
+  R.L([[0, -58], [d * 12, -56], [d * 22, -47], [d * 26, -32], [d * 23, -20], [0, -17]], PL[0], sd0 + 20, {sx:4, sy:7, sp:20, sa:.52});
+  R.L([[0, -54], [d * 10, -52], [d * 18, -44], [d * 22, -32], [d * 19, -21], [0, -18]], PL[1], sd0 + 23, {sx:3, sy:5, sp:14, sa:.4});
+  R.L([[0, -49], [d * 8, -47], [d * 14, -41], [d * 17, -32], [d * 15, -23], [0, -21]], PL[2], sd0 + 26, {sx:2, sy:3, sp:10, sa:.26});
+  // half-crown: one tall spire against three stubs. They are not the same
+  // crown and they never were.
+  var CR = hi ? [[6, 8], [14, 6], [21.5, 4]] : [[9, 12]];
+  for (var cr = 0; cr < CR.length; cr++) {
+    var crx = d * CR[cr][0], crh = CR[cr][1];
+    R.L([[crx - d * 4, -57], [crx + d * 4, -56], [crx + d * 1.4, -57 - crh], [crx, -60 - crh], [crx - d * 1.6, -57 - crh]],
+        PL[0], sd0 + 30 + cr * 3, {sx:2, sy:4, sp:8, sa:.48});
+    R.L([[crx - d * 1.7, -57], [crx + d * 1.7, -57], [crx, -58.4 - crh]], PL[2], sd0 + 31 + cr * 3, {sx:1, sy:1, sp:4, sa:.24});
+    R.glow(crx, -59 - crh, 4, 4, GOLD, .22 + Math.sin(t * .04 + cr + hi) * .07, 5);
+  }
+  // the eye of this half. Different shape, different height, different
+  // blink — and the iris is the colour the OTHER half is wearing.
+  var ex = d * 11.5, ey = -35, op = 1 - (hi ? blinkR : blinkL), IR = (hi ? LH : RH)[1];
+  if (hi) {   // right: a narrow, sceptical crescent
+    R.L([[ex - 9, ey + .5], [ex - 3, ey - 5.4], [ex + 5, ey - 4.6], [ex + 9.4, ey + 1.4], [ex + 2, ey + 5], [ex - 5, ey + 4.2]], WHT, sd0 + 40, {sx:2, sy:3, sp:8, sa:.3});
+    R.Le(ex + 1, ey - .4, 4, 3.8 * op + .4, IR, sd0 + 42, {sx:1, sy:2, sp:6, sa:.26});
+    R.Ld(ex + 1, ey - .4, 2.1 * op + .3, INK, sd0 + 44, {ns:true});
+    R.L([[ex - 12, ey - 8.6], [ex - 2, ey - 11], [ex + 9, ey - 8.6], [ex + 8, ey - 6.4], [ex - 2, ey - 8.6], [ex - 11, ey - 6.4]], PL[0], sd0 + 46, {sx:1, sy:1, sp:5, sa:.3});
+  } else {    // left: a wide, startled circle, set higher
+    R.Ld(ex, ey - 3, 8.2, WHT, sd0 + 40, {sx:2, sy:3, sp:8, sa:.3});
+    R.Le(ex, ey - 3, 4.8, 4.6 * op + .4, IR, sd0 + 42, {sx:1, sy:2, sp:6, sa:.26});
+    R.Ld(ex, ey - 3, 2.5 * op + .3, INK, sd0 + 44, {ns:true});
+    R.L([[ex - 11, ey - 15], [ex - 1, ey - 17.6], [ex + 10, ey - 14.6], [ex + 9, ey - 12.4], [ex - 1, ey - 15.2], [ex - 10, ey - 12.8]], PL[0], sd0 + 46, {sx:1, sy:1, sp:5, sa:.3});
+  }
+  R.Ld(ex - d * 1.6, ey - (hi ? 2 : 4.8), 1.4 * op, WHT, sd0 + 48, {ns:true});
+  R.glow(ex, ey - (hi ? 0 : 3), 8, 6, IR, .2, 6);
+  R.Le(d * 17, -26.5, 4.8, 2.6, PEACH, sd0 + 50, {sx:1, sy:1, sp:6, sa:.2});
+  // His half of the mouth: a short crescent running from the seam outward.
+  // The left corner lifts and the right corner drops, and because the halves
+  // have slid apart the two halves do not even meet in the middle.
+  var my = -22;
+  if (hi) R.L([[0, my - .6], [d * 6, my + 2.4], [d * 11.4, my + 4.2], [d * 12, my + 7.4], [d * 6, my + 5.6], [0, my + 3]], INK, sd0 + 54, {ns:true});
+  else R.L([[0, my - .6], [d * 6, my - 3.2], [d * 11.4, my - 5.6], [d * 12, my - 2.4], [d * 6, my - .2], [0, my + 3]], INK, sd0 + 54, {ns:true});
+  G.restore();
+}
+
+// ── REGION 6 · THE ARMS ─────────────────────────────────────────
+// One points up and one points down. Ask him a question and you get both.
+G.save(); G.translate(0, -dis);
+R.L([[-24, -6], [-40, -16], [-53, -34], [-49, -40], [-37, -28], [-27, -14], [-18, -2]], LH[0], 560, {sx:3, sy:5, sp:14, sa:.48});
+R.L([[-25, -8], [-39, -18], [-49, -33], [-47, -36], [-37, -26], [-28, -15], [-20, -5]], LH[1], 563, {sx:2, sy:3, sp:9, sa:.32});
+R.L([[-53, -34], [-47, -40], [-49, -48], [-54, -50], [-57, -44], [-57, -36]], LH[2], 566, {sx:2, sy:3, sp:8, sa:.36});
+R.L([[-51, -45], [-48, -47], [-49, -54], [-52, -55]], CRM, 568, {sx:1, sy:2, sp:5, sa:.26});
+R.glow(-50, -51, 5, 6, GOLD, .22, 6);
 G.restore();
-for (var i = 0; i < 6; i++) {
-  var oa = i / 6 * Math.PI * 2 + warp * 0.8;
-  var orb = 34 + Math.sin(t * 0.04 + i * 1.1) * 4;
-  var ox = Math.cos(oa) * orb, oy = Math.sin(oa) * orb;
-  R.Ld(ox, oy, 3, SKY, 20 + i, {ns:true});
-  R.glow(ox, oy, 5, 5, LAV, 0.3, 4);
+G.save(); G.translate(0, dis);
+R.L([[24, -6], [41, 6], [53, 28], [48, 36], [38, 25], [28, 8], [18, -2]], RH[0], 570, {sx:3, sy:5, sp:14, sa:.48});
+R.L([[25, -8], [40, 5], [49, 27], [46, 33], [38, 23], [29, 6], [20, -5]], RH[1], 573, {sx:2, sy:3, sp:9, sa:.32});
+R.L([[53, 28], [47, 35], [49, 45], [54, 47], [57, 40], [57, 31]], RH[2], 576, {sx:2, sy:3, sp:8, sa:.36});
+R.L([[51, 42], [54, 44], [53, 50], [50, 51]], CRM, 578, {sx:1, sy:2, sp:5, sa:.26});
+R.glow(51, 47, 5, 6, GOLD, .22, 6);
+G.restore();
+
+// ── REGION 7 · THE TRIBAR ───────────────────────────────────────
+// Three bars of paper, each laid over the next all the way round the
+// triangle. Two of those joins are ordinary. The third is the impossible
+// one, and it is the only reason this shape exists.
+var TO = [], TI = [], tk;
+for (tk = 0; tk < 3; tk++) {
+  var tka = warp * .5 + tk * Math.PI * 2 / 3 - Math.PI / 2;
+  TO.push([Math.cos(tka) * 27, 15 + Math.sin(tka) * 27]);
+  TI.push([Math.cos(tka) * 10, 15 + Math.sin(tka) * 10]);
 }
-for (var m = 0; m < 4; m++) {
-  var ma = m / 4 * Math.PI * 2 - warp * 1.2;
-  var mr = 22;
-  var mx = Math.cos(ma) * mr, my = Math.sin(ma) * mr - 2;
-  R.Ld(mx, my, 4, TEAL, 30 + m, {sx:1, sy:1, sp:5, sa:.36});
-  R.glow(mx, my, 6, 6, TEAL, 0.25, 4);
+function tlerp(p, q, f) { return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f]; }
+// Gold, orange and cream: three warm values, the only warm thing on him
+// besides the seam, so the tribar cuts clean out of the teal and lavender
+// of the robe instead of sinking into it.
+var TPAL = [GOLD, '#e39a4a', CRM];
+for (tk = 2; tk >= 0; tk--) {
+  var tn = (tk + 1) % 3, tf = (tk + 2) % 3;
+  R.L([TO[tk], TO[tn], tlerp(TO[tn], TO[tf], .36), tlerp(TI[tn], TI[tf], .36), TI[tn], TI[tk]],
+      TPAL[tk], 600 + tk * 4, {sx:3, sy:4, sp:10, sa:.44});
 }
-R.Ld(0, -18, 10, WHT, 40, {sx:2, sy:2, sp:8});
-R.glow(0, -18, 14, 14, GOLD, 0.3 + Math.sin(t * 0.06) * 0.1, 8);
-G.save(); G.font = 'bold 16px serif'; G.textAlign = 'center'; G.textBaseline = 'middle';
-G.fillStyle = DRK; G.globalAlpha = 0.75; G.fillText('∞', 0, -18); G.restore();
-R.Ld(-14, -6, 7, WHT, 50, {ns:true}); R.Ld(14, -6, 7, WHT, 51, {ns:true});
-R.Ld(-14, -6, 3.5, DRK, 52, {ns:true}); R.Ld(14, -6, 3.5, DRK, 53, {ns:true});
-R.glow(-14, -6, 8, 8, LAV, 0.3, 5); R.glow(14, -6, 8, 8, LAV, 0.3, 5);
-R.L([[-10, 14], [0, 22], [10, 14]], LAVD, 60, {sx:1, sy:1, sp:4, ns:true});
+R.L([TO[0], tlerp(TO[0], TO[1], .36), tlerp(TI[0], TI[1], .36), TI[0]], TPAL[2], 615, {sx:2, sy:3, sp:8, sa:.36});
+R.glow(0, 15, 14, 14, GOLD, .14 + fold * .3, 10);
+glyph(0, 15.5, '≠', 13, TEALD, .5, 0);
+
+// ── REGION 8 · THE SEAM ─────────────────────────────────────────
+// The cut itself: a strip of raw paper edge running the whole height of
+// him, lit warm gold. During the fold-through it flares white.
+R.L([[-1.8, -54], [1.8, -54], [1.5, 60], [-1.5, 60]], CRMD, 640, {sx:2, sy:3, sp:9, sa:.34});
+R.L([[-.7, -52], [.7, -52], [.6, 58], [-.6, 58]], CRM, 642, {ns:true});
+R.glow(0, 2, 2.2, 54, GOLD, .1 + fold * .45, 9);
+for (var sk = 0; sk < 7; sk++) {   // stitch marks: somebody has tried to mend this
+  var sky = -44 + sk * 16;
+  R.ln(-5.4, sky, 5.4, sky + 2.6, 'rgba(236,185,100,.7)', 1.5, .5);
+}
+
+// ── REGION 9 · RIBBON AND FRAGMENTS (front halves) ──────────────
+ribbon(false);
+motes(false);
+R.glow(0, -34, 26, 22, CRM, .1, 16);
 G.restore();
 },
 };

@@ -20,6 +20,68 @@ export function noiseBuffer() {
   return _noise;
 }
 
+/**
+ * Karplus-Strong damping factor for the OFFLINE pluck renderer below.
+ *
+ * STABILITY LAW (learned the hard way): the shipped harp used to be a LIVE
+ * WebAudio feedback loop — delay -> lowpass -> gain(0.93) -> delay. The
+ * lowpass's default Q of +1 dB gave the loop an effective gain of ~1.06 at
+ * resonance, so every note grew ~20 dB/s, overflowed to Inf -> NaN within
+ * seconds, and the NaN latched the song's FX delay (and everything downstream)
+ * permanently. That was the "prolonged high pitched machine sound".
+ *
+ * The fix is structural, not a tuned constant: NO live feedback loop exists
+ * here any more. The string is rendered in plain JS into an AudioBuffer by
+ * ksPluckSamples(), where the loop gain is exactly KS_DAMP times a 2-point
+ * average (magnitude <= 1), i.e. provably < 1 at every frequency. A buffer
+ * cannot run away and cannot poison the graph. audioStability.test.js asserts
+ * KS_DAMP < 1 and that the rendered pluck decays monotonically.
+ */
+export const KS_DAMP = 0.995;
+
+/**
+ * Render one Karplus-Strong pluck as raw samples. Pure function (no WebAudio,
+ * no DOM) so `node --test` can prove the decay. The recurrence is
+ *   ring[n] = KS_DAMP * 0.5 * (ring[n] + ring[n-1])
+ * — a damped 2-point moving average, worst-case round-trip gain KS_DAMP < 1.
+ */
+export function ksPluckSamples(freq, sampleRate, seconds = 1.9, rand = Math.random) {
+  const f = Math.min(Math.max(freq || 220, 30), 4000);
+  const N = Math.max(2, Math.round(sampleRate / f));
+  const len = Math.max(N + 1, Math.floor(sampleRate * seconds));
+  const out = new Float32Array(len);
+  const ring = new Float32Array(N);
+  for (let i = 0; i < N; i++) ring[i] = rand() * 2 - 1;
+  let prev = 0;
+  let idx = 0;
+  for (let i = 0; i < len; i++) {
+    const cur = ring[idx];
+    out[i] = cur;
+    ring[idx] = KS_DAMP * 0.5 * (cur + prev);
+    prev = cur;
+    idx = idx + 1 === N ? 0 : idx + 1;
+  }
+  // Feather the very end so a full-length playback can never click.
+  const fade = Math.min(256, len);
+  for (let i = 0; i < fade; i++) out[len - 1 - i] *= i / fade;
+  return out;
+}
+
+/** Rendered plucks, cached per pitch. A song uses ~10 pitches; this is tiny. */
+const _ksCache = new Map();
+function ksBuffer(freq) {
+  const ctx = getCtx();
+  const key = Math.round(freq * 4);
+  let buf = _ksCache.get(key);
+  if (!buf) {
+    const s = ksPluckSamples(freq, ctx.sampleRate);
+    buf = ctx.createBuffer(1, s.length, ctx.sampleRate);
+    buf.getChannelData(0).set(s);
+    _ksCache.set(key, buf);
+  }
+  return buf;
+}
+
 function env(gain, when, { a = 0.005, peak = 0.8, dur = 0.5, release = 0.08, sustain = null }) {
   const g = gain.gain;
   g.setValueAtTime(0.0001, when);
@@ -87,33 +149,29 @@ const makers = {
     };
   },
 
-  // True Karplus-Strong string — reserve for lead lines
+  // Karplus-Strong string, rendered OFFLINE into a buffer (see ksPluckSamples).
+  // No live feedback loop: a buffer source cannot diverge, cannot latch NaN,
+  // and needs no self-teardown timer — it simply ends.
   harp(out, fx) {
     return (when, { freq, vel }) => {
       const ctx = getCtx();
-      const burst = ctx.createBufferSource();
-      burst.buffer = noiseBuffer();
-      const bg = ctx.createGain();
-      bg.gain.setValueAtTime(0.5 * vel, when);
-      bg.gain.exponentialRampToValueAtTime(0.0001, when + 0.02);
-      const delay = ctx.createDelay(0.1);
-      delay.delayTime.setValueAtTime(1 / freq, when);
-      const fb = ctx.createGain();
-      fb.gain.value = 0.93;
+      const src = ctx.createBufferSource();
+      src.buffer = ksBuffer(freq);
+      // Gentle tone shaping where the old loop's damping filter sat. Q is set
+      // in dB, BELOW zero: the default +1 dB resonant peak at 3.2 kHz is the
+      // exact frequency band the runaway used to scream in, and nothing about
+      // a harp needs emphasis there.
       const damp = ctx.createBiquadFilter();
       damp.type = 'lowpass';
       damp.frequency.value = 3200;
-      burst.connect(bg); bg.connect(delay);
-      delay.connect(damp); damp.connect(fb); fb.connect(delay);
+      damp.Q.value = -6;
       const tap = ctx.createGain();
-      tap.gain.setValueAtTime(0.9, when);
+      tap.gain.setValueAtTime(Math.max(0.0001, 0.45 * vel), when);
       tap.gain.exponentialRampToValueAtTime(0.0001, when + 1.8);
-      delay.connect(tap); tap.connect(out);
+      src.connect(damp); damp.connect(tap); tap.connect(out);
       if (fx) tap.connect(fx);
-      burst.start(when, 0, 0.03);
-      // Self-teardown: the feedback loop would ring forever
-      setTimeout(() => { try { delay.disconnect(); fb.disconnect(); damp.disconnect(); tap.disconnect(); } catch { /* gone */ } },
-        Math.max(0, (when - ctx.currentTime) * 1000) + 2100);
+      src.start(when);
+      src.stop(when + 1.85);
     };
   },
 
@@ -161,7 +219,9 @@ const makers = {
       const breath = ctx.createBufferSource();
       breath.buffer = noiseBuffer();
       const bf = ctx.createBiquadFilter();
-      bf.type = 'bandpass'; bf.frequency.value = freq * 2; bf.Q.value = 8;
+      // Q audit: sustained voices stay at or below Q 6 — enough "whistle" to
+      // read as breath, never enough to ring on its own.
+      bf.type = 'bandpass'; bf.frequency.value = freq * 2; bf.Q.value = 6;
       const bgn = ctx.createGain();
       env(bgn, when, { a: 0.06, peak: 0.03 * vel, dur: durSec, sustain: 0.8 });
       breath.connect(bf); bf.connect(bgn); bgn.connect(out);

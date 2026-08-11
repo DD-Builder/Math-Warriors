@@ -394,7 +394,14 @@ describe('damage matrix: hits-to-kill stays in design bands', () => {
 
   for (const { id, isBoss, label } of CASES) {
     const enemyDef = getEnemyById(id);
-    const [lo, hi] = isBoss ? [8, 26] : [2, 8];
+    // DELIBERATE band change (boss escalation pass): the upper bound was
+    // 26, which the final boss could not exceed — so the Theorem had to
+    // stay the same size as a mid-game boss. It now carries the crown
+    // bonus from bossFloorWeight. Remember this model pins streak at 0
+    // and momentum at 0.5, so it is a worst-case floor, not the played
+    // length; combatSim.test.js asserts the length a child actually
+    // experiences (12-22 correct answers at grades 4-5).
+    const [lo, hi] = isBoss ? [8, 31] : [2, 8];
 
     test(`${label}: ${lo}-${hi} hits across grades 0-5 at typical ATK`, () => {
       assert.ok(enemyDef, `enemy ${id} should exist in the roster`);

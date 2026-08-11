@@ -176,3 +176,51 @@ describe('scheduler', () => {
     sched.stop();
   });
 });
+
+// The intensity level is pure state until a song graph exists, which is
+// exactly the case a boss fight hits when the AudioContext is still
+// suspended (iOS, pre-gesture). It must remember the level rather than
+// drop it, or a phase-3 boss would go back to sounding like phase 1 the
+// moment audio unlocks.
+describe('music intensity', () => {
+  test('clamps to 1..MAX and survives having no song', async () => {
+    const { setSongIntensity, getSongIntensity, MAX_INTENSITY } =
+      await import('./director.js');
+    // Boss phases have always driven 1/2/3; BOSS(4) was added above them
+    // for the overworld theme, so 3 must still be a valid phase, not the
+    // ceiling any more.
+    assert.ok(MAX_INTENSITY >= 3);
+    setSongIntensity(2);
+    assert.equal(getSongIntensity(), 2);
+    setSongIntensity(3);
+    assert.equal(getSongIntensity(), 3);
+    setSongIntensity(99);
+    assert.equal(getSongIntensity(), MAX_INTENSITY);
+    setSongIntensity(0);
+    assert.equal(getSongIntensity(), 1);
+    setSongIntensity(2.7);       // phases arrive as ints; be defensive
+    assert.equal(getSongIntensity(), 2);
+  });
+
+  test('accepts the named moods the overworld thinks in', async () => {
+    const { setSongIntensity, getSongIntensity, INTENSITY } = await import('./director.js');
+    setSongIntensity('calm');
+    assert.equal(getSongIntensity(), INTENSITY.CALM);
+    setSongIntensity('combat');
+    assert.equal(getSongIntensity(), INTENSITY.COMBAT);
+    setSongIntensity('boss');
+    assert.equal(getSongIntensity(), INTENSITY.BOSS);
+    setSongIntensity(1);
+  });
+
+  test('the daypart is a property of the WORLD, not of the piece', async () => {
+    // A song change must not reset dusk back to noon — walking into a
+    // cave at night and out again should not restore the bright lead.
+    const { setDaypart, getDaypart } = await import('./director.js');
+    assert.equal(getDaypart(), 'day');
+    setDaypart('night');
+    assert.equal(getDaypart(), 'night');
+    setDaypart('nonsense');
+    assert.equal(getDaypart(), 'day', 'unknown dayparts fall back to daylight');
+  });
+});

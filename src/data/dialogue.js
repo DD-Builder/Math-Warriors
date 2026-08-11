@@ -14,7 +14,28 @@
  *   realm in a themed way. Each floor's math concept is the tool
  *   that repairs it. (The final boss "The Theorem" in the enemy
  *   data is the Chaos King's battle name.)
+ *
+ * THE STORY LIVES IN story.js.
+ *   src/data/story.js owns the nine-beat arc, the per-floor
+ *   arrival/midpoint/departure beats, the fifteen hero voices, the
+ *   party banter library and the boss pre-fight/defeat lines. The
+ *   bottom of this file PUBLISHES those beats into DIALOGUE under
+ *   new keys so every existing consumer (DialogueOverlay, MazeScene,
+ *   OverworldScene, CutsceneScene) can read them the usual way.
+ *
+ *   New keys, all additive — nothing here was renamed or removed:
+ *     floorN_arrival      on entering a floor (replaces nothing;
+ *                         floorN_entry still exists and still works)
+ *     floorN_midpoint     the halfway discovery — a page of the proof
+ *     floorN_departure    the reflection after the floor is won
+ *     floorN_boss_defeat  the boss's turn, spoken as they fall
+ *     floorN_proof        the proof fragment earned on that floor
+ *     story_recap         "previously on Numeria" for returning players
  */
+
+import {
+  FLOOR_BEATS, PROOF_FRAGMENTS, BOSS_VOICE, BOSS_ORDER, getRecap,
+} from './story.js';
 
 export const DIALOGUE = {
   // ── GAME INTRO ──
@@ -803,3 +824,62 @@ export const HERO_REACTIONS = {
     'knight-berserker': { text: '"No more breaches. No more chaos. CHARGE!"', trigger: 'boss' },
   },
 };
+
+// ══════════════════════════════════════════════════════════════════
+// STORY PUBLICATION
+//
+// story.js owns the writing; this block makes it reachable through
+// the DIALOGUE map that every scene already reads. Purely additive:
+// no existing key is overwritten (the guard below asserts it in dev
+// and simply skips in production).
+// ══════════════════════════════════════════════════════════════════
+
+function publish(key, lines) {
+  if (!lines || !lines.length) return;
+  if (DIALOGUE[key]) return;   // never clobber a hand-written key
+  DIALOGUE[key] = lines;
+}
+
+for (let f = 1; f <= 9; f++) {
+  const beats = FLOOR_BEATS[f] || {};
+  publish(`floor${f}_arrival`, beats.arrival);
+  publish(`floor${f}_midpoint`, beats.midpoint);
+  publish(`floor${f}_departure`, beats.departure);
+}
+
+for (const frag of PROOF_FRAGMENTS) {
+  publish(`floor${frag.floor}_proof`, [
+    { speaker: 'Narrator', text: `${frag.title}: ${frag.text}`, wide: true },
+  ]);
+}
+
+for (const bossId of BOSS_ORDER) {
+  const v = BOSS_VOICE[bossId];
+  if (!v) continue;
+  publish(`floor${v.floor}_boss_prefight`, [
+    { speaker: v.name, text: v.prefight, sprite: bossId, side: 'right' },
+  ]);
+  publish(`floor${v.floor}_boss_defeat`, [
+    { speaker: v.name, text: v.defeat, sprite: bossId, side: 'right' },
+  ]);
+}
+
+DIALOGUE.story_recap = getRecap(0);
+
+/**
+ * "Previously on Numeria" — recomputed for the player's progress.
+ * @param {number} highestFloorCleared
+ */
+export function getStoryRecap(highestFloorCleared) {
+  return getRecap(highestFloorCleared);
+}
+
+// Convenience re-exports so scenes only need one story import.
+export {
+  STORY_ARC, FLOOR_BEATS, FLOOR_BIOME, PROOF_FRAGMENTS, HERO_VOICES,
+  PARTY_BANTER, BOSS_VOICE,
+  getArcBeat, getFloorBeat, getProofFragment, biomeForFloor,
+  getHeroVoice, getHeroLines, pickHeroLine, getSignatureLines,
+  getPerspectiveLines, getBossVoice, getBossLine,
+  availableBanter, resolveBanter, pickBanter,
+} from './story.js';

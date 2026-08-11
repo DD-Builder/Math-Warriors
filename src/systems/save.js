@@ -10,7 +10,7 @@ import { ALL_HEROES } from '../data/heroes.js';
 const LEGACY_KEY = 'mathwarriors.save';
 const SLOT_PREFIX = 'mathwarriors.save.';
 const META_KEY = 'mathwarriors.slots';
-const CURRENT_VERSION = 5;
+const CURRENT_VERSION = 6;
 const MAX_SLOTS = 3;
 
 const STARTER_HEROES = ['knight-shadow', 'wizard-stargazer', 'bunny-pepper'];
@@ -71,6 +71,15 @@ export function makeDefaultSave() {
     ownedSkins: [],
     viewedHeroes: [],
     pendingRescueDialogue: [],
+    // 3D overworld snapshot (v6+): pos null means "spawn fresh at the
+    // island spawn point"; collected holds overworld pickup ids so loot
+    // never respawns across sessions, and seen holds the ids of cinematics
+    // that have already played (overworld/cinematics.js).
+    overworld: {
+      pos: null, yaw: 0, portalId: null, collected: [], seen: [],
+      // Discovery ledgers (overworld/discovery.js). Additive, no version bump.
+      discovery: { found: [], solved: [], buffs: [], cosmetics: [], claimed: [] },
+    },
     settings: {
       musicVolume: 0.8,
       sfxVolume: 1.0,
@@ -78,6 +87,7 @@ export function makeDefaultSave() {
       colorblindMode: false,
       ttsEnabled: false,
       sessionTimer: 0,
+      overworldEnabled: true,
     },
     problemHistory: [],
     stats: {
@@ -170,6 +180,16 @@ const MIGRATIONS = [
       return { ...save, equipment };
     },
   },
+  {
+    from: 5, to: 6,
+    // 3D overworld hub: runtime snapshot + settings toggle. Pre-v6 saves
+    // simply never visited the overworld, so defaults are always correct.
+    migrate: (s) => ({
+      ...s,
+      overworld: s.overworld || { pos: null, yaw: 0, portalId: null, collected: [], seen: [] },
+      settings: { ...s.settings, overworldEnabled: s.settings?.overworldEnabled ?? true },
+    }),
+  },
 ];
 
 /**
@@ -208,6 +228,24 @@ function toNumber(value, fallback) {
     if (Number.isFinite(n)) return n;
   }
   return fallback;
+}
+
+/**
+ * The discovery container's persistable shape: five string-id ledgers, deduped.
+ * Keep DISCOVERY_KEYS in step with overworld/discovery.js — save.test.js fails
+ * if they drift.
+ */
+const DISCOVERY_KEYS = ['found', 'solved', 'buffs', 'cosmetics', 'claimed'];
+
+function normalizeDiscovery(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const out = {};
+  for (const key of DISCOVERY_KEYS) {
+    out[key] = Array.isArray(src[key])
+      ? [...new Set(src[key].filter((id) => typeof id === 'string'))]
+      : [];
+  }
+  return out;
 }
 
 function normalize(save) {
@@ -301,6 +339,48 @@ function normalize(save) {
   if (!Array.isArray(out.pendingRescueDialogue)) {
     out.pendingRescueDialogue = [];
   }
+
+  // Overworld snapshot: pos must be null or a FULL numeric {x,y,z} — a
+  // partial point would drop the player through the terrain, so anything
+  // malformed collapses to null (spawn fresh). collected keeps strings only.
+  const rawOverworld = (save.overworld && typeof save.overworld === 'object' && !Array.isArray(save.overworld))
+    ? save.overworld : {};
+  const rawPos = rawOverworld.pos;
+  const posValid = rawPos && typeof rawPos === 'object' && !Array.isArray(rawPos) &&
+    [rawPos.x, rawPos.y, rawPos.z].every((n) => typeof n === 'number' && Number.isFinite(n));
+  out.overworld = {
+    pos: posValid ? { x: rawPos.x, y: rawPos.y, z: rawPos.z } : null,
+    yaw: toNumber(rawOverworld.yaw, 0),
+    portalId: typeof rawOverworld.portalId === 'string' ? rawOverworld.portalId : null,
+    collected: Array.isArray(rawOverworld.collected)
+      ? rawOverworld.collected.filter((id) => typeof id === 'string')
+      : [],
+    // Cinematics already played. ADDITIVE, and deliberately NOT a version
+    // bump: an absent list means "nothing has played yet", which is the
+    // correct reading of every save written before cinematics existed, so
+    // there is nothing for a migration to do. Deduped and string-only for
+    // the same reason `collected` is — this list is written from gameplay
+    // and read as a gate, and a duplicate would grow it without bound.
+    seen: Array.isArray(rawOverworld.seen)
+      ? [...new Set(rawOverworld.seen.filter((id) => typeof id === 'string'))]
+      : [],
+    // Discovery: shrines, grottos, landmark puzzles and story pages
+    // (overworld/discovery.js). ADDITIVE and deliberately NOT a version bump,
+    // for exactly the reason `seen` documents above — an absent container reads
+    // correctly as "nothing discovered yet" on every older save, so there is
+    // nothing for a migration to do.
+    //
+    // This block is a WHITELIST and it is the reason discovery state survives a
+    // write at all: everything not named here is dropped. It is spelled out
+    // inline rather than imported from overworld/discovery.js on purpose —
+    // save.js is in the 2D fallback bundle, which must not pull in the 3D
+    // island's content spec. save.test.js asserts these keys stay in step with
+    // discovery.js's own container, so the duplication cannot drift silently.
+    discovery: normalizeDiscovery(rawOverworld.discovery),
+  };
+  out.settings.overworldEnabled = typeof out.settings.overworldEnabled === 'boolean'
+    ? out.settings.overworldEnabled
+    : true;
 
   out.version = CURRENT_VERSION;
 

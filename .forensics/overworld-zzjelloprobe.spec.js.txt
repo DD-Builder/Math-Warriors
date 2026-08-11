@@ -1,0 +1,114 @@
+/**
+ * JELLO PROBE — samples the hero's actual rendered scale (window.__MW_OVERWORLD.heroScale())
+ * every real animation frame, via an in-page rAF recorder (avoids Playwright round-trip
+ * overhead swallowing whole SwiftShader frames). Not part of the gate; parked back into
+ * .forensics/ after use per the .forensics/world.md convention.
+ */
+import { test, expect } from '@playwright/test';
+
+test.beforeEach(async ({ context }) => {
+  await context.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, (r) => r.abort());
+});
+
+function freshSave() {
+  return {
+    version: 1, grade: 3,
+    party: [
+      { id: 'knight-shadow', name: 'Shadow', hp: 52, maxHp: 52, xp: 0, level: 1 },
+    ],
+    gold: 0, potions: 0,
+    floors: Array.from({ length: 9 }, (_, i) => ({ id: i + 1, unlocked: i === 0, complete: false, bestStreak: 0 })),
+    settings: { musicVolume: 0, sfxVolume: 0, reducedMotion: false },
+    stats: { totalBattles: 0, totalCorrect: 0, totalWrong: 0, playTimeSec: 0, firstPlayedAt: Date.now(), lastPlayedAt: Date.now() },
+  };
+}
+
+test('hero scale trace: idle + jump/land', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!window.__MW?.game, null, { timeout: 30_000 });
+  await page.evaluate((save) => {
+    localStorage.setItem('mathwarriors.save', JSON.stringify(save));
+    const mgr = window.__MW.game.scene;
+    mgr.getScenes(true).forEach((s) => mgr.stop(s.scene.key));
+    mgr.start('OverworldScene', {});
+  }, freshSave());
+  await page.waitForFunction(() => window.__MW_OVERWORLD?.ready === true, null, { timeout: 60_000 });
+  await page.waitForFunction(() => {
+    const s = window.__MW.game.scene.getScene('OverworldScene');
+    return s && !s._cover;
+  }, null, { timeout: 90_000 });
+
+  // Skip any first-arrival cinematic so input reaches the controller.
+  await page.evaluate(() => {
+    const scene = window.__MW.game.scene.getScene('OverworldScene');
+    scene._cine?.skip?.();
+  });
+  await page.waitForTimeout(500);
+
+  // Start an in-page rAF recorder — every REAL frame, not a Playwright poll —
+  // so a SwiftShader frame slower than our sample interval can't hide the peak.
+  await page.evaluate(() => {
+    window.__trace = [];
+    window.__marks = {};
+    window.__t0 = performance.now();
+    function tick() {
+      window.__trace.push({
+        t: performance.now() - window.__t0,
+        y: window.__MW_OVERWORLD.heroScale().y,
+        grounded: window.__MW_OVERWORLD._state.grounded,
+      });
+      if (!window.__stopTrace) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+
+  await page.waitForTimeout(1500); // idle window
+
+  await page.evaluate(() => { window.__marks.jumpStart = performance.now() - window.__t0; });
+  await page.keyboard.down('w');
+  await page.waitForTimeout(400); // build some speed
+  await page.keyboard.down(' ');
+  await page.waitForTimeout(220); // hold across several sim steps (droppable sub-frame taps otherwise)
+  await page.keyboard.up(' ');
+
+  await page.waitForFunction(() => window.__MW_OVERWORLD._state.grounded === false, null, { timeout: 10_000 }).catch(() => {});
+  await page.waitForFunction(() => window.__MW_OVERWORLD._state.grounded === true, null, { timeout: 10_000 });
+  await page.evaluate(() => { window.__marks.landed = performance.now() - window.__t0; });
+  await page.keyboard.up('w');
+
+  await page.waitForTimeout(1200); // recovery window
+  const { trace, marks } = await page.evaluate(() => {
+    window.__stopTrace = true;
+    return { trace: window.__trace, marks: window.__marks };
+  });
+
+  const idle = trace.filter((s) => s.t < marks.jumpStart);
+  const idleY = idle.map((s) => s.y);
+  const idleAmp = idleY.length ? (Math.max(...idleY) - Math.min(...idleY)) / 2 : null;
+
+  const post = trace.filter((s) => s.t >= marks.landed);
+  const postY = post.map((s) => s.y);
+  const minY = postY.length ? Math.min(...postY) : null;
+  const peakSquashFrac = minY == null ? null : 1 - minY;
+  let recoverMs = null;
+  if (post.length) {
+    const worstIdx = post.findIndex((s) => s.y === minY);
+    for (let i = worstIdx; i < post.length; i++) {
+      if (post[i].y >= 0.99) { recoverMs = post[i].t - post[worstIdx].t; break; }
+    }
+  }
+
+  console.log('SAMPLE_COUNT', trace.length);
+  console.log('MARKS', JSON.stringify(marks));
+  console.log('IDLE_TRACE', JSON.stringify(idle.map((s) => ({ t: Math.round(s.t), y: Number(s.y.toFixed(5)) }))));
+  console.log('IDLE_AMP_FRAC', idleAmp);
+  console.log('POST_LANDING_TRACE', JSON.stringify(post.slice(0, 60).map((s) => ({ t: Math.round(s.t - marks.landed), y: Number(s.y.toFixed(5)) }))));
+  console.log('PEAK_SQUASH_FRAC', peakSquashFrac);
+  console.log('RECOVER_MS', recoverMs);
+
+  expect(errors, `page errors: ${errors.join('; ')}`).toEqual([]);
+});

@@ -14,6 +14,7 @@ import { getEvolutionStage, getEvolvedName, getEvolvedTitle, getEvolutionStatBoo
 import { getHeroBondSummary, getBondStatBonuses, getBondDialogues } from '../systems/bonds.js';
 import { getSkillMastery } from '../systems/mastery.js';
 import { getEquipmentById } from '../systems/equipment.js';
+import { goHub, hubSceneKey } from '../ui/hubRouter.js';
 
 /**
  * PartySelectScene — pick 3 heroes from 15.
@@ -183,11 +184,11 @@ export class PartySelectScene extends Phaser.Scene {
       transitionTo(this, SCENES.CUTSCENE, {
         lines: DIALOGUE.game_intro,
         floorId: 1,
-        nextScene: SCENES.WORLD_MAP,
+        nextScene: hubSceneKey(save),
         nextData: undefined,
       }, 300, 'wipe');
     } else {
-      transitionTo(this, SCENES.WORLD_MAP, undefined, 300, 'wipe');
+      goHub(this, undefined, 300, 'wipe');
     }
   }
 
@@ -610,11 +611,11 @@ export class PartySelectScene extends Phaser.Scene {
       transitionTo(this, SCENES.CUTSCENE, {
         lines: DIALOGUE.game_intro,
         floorId: 1,
-        nextScene: SCENES.WORLD_MAP,
+        nextScene: hubSceneKey(save),
         nextData: undefined,
       }, 300, 'wipe');
     } else {
-      transitionTo(this, SCENES.WORLD_MAP, undefined, 300, 'wipe');
+      goHub(this, undefined, 300, 'wipe');
     }
   }
 

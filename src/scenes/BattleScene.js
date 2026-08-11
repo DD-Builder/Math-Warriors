@@ -5,6 +5,7 @@ import { nextReview, buildReviewQuestion, scheduleReview, tickReview } from '../
 import { confettiBurst, screenEdgeGlow, streakBanner, heroVictoryBounce, goldCoinScatter, starRating } from '../ui/celebrations.js';
 import { updateQuestProgress } from '../systems/dailyQuests.js';
 import { recordSkillAnswer, getAdaptiveGrade, updateAdaptiveLevel, biasedMixedOperator, recordHintUsed } from '../systems/mastery.js';
+import { goHub, hubSceneKey, isHubScene } from '../ui/hubRouter.js';
 import {
   getZone,
   advanceMomentum,
@@ -19,12 +20,16 @@ import {
   pickEnemyTarget,
 } from '../systems/combat.js';
 import { COMMANDS, getAvailableCommands, getClassCommands, getCommandConfig } from '../systems/commandMenu.js';
+import {
+  classAttackProfile, recordAnswerStats,
+  applyBattleVictory, applyBattleDefeat, composeEncounter,
+} from '../systems/battleRules.js';
 import { rateQuestion, getDifficultyMultiplier } from '../systems/difficultyRating.js';
 import { speakQuestion } from '../systems/a11y.js';
 import { spawnHero, KNIGHTS, WIZARDS, BUNNIES, getAvailableSupers } from '../data/heroes.js';
-import { spawnEnemy, FLOOR_OPERATORS, getEnemiesForFloor, getEnemyById } from '../data/enemies.js';
+import { FLOOR_OPERATORS } from '../data/enemies.js';
 import { audio } from '../systems/audio.js';
-import { loadSave, writeSave, markFloorComplete, unlockHeroesForFloor, consumePendingRescues, getActiveSlot } from '../systems/save.js';
+import { loadSave, writeSave, consumePendingRescues, getActiveSlot } from '../systems/save.js';
 import { getRescueDialogue } from '../data/dialogue.js';
 import { markDailyChallengeComplete, getDailyChallenge } from '../systems/dailyChallenge.js';
 import { invokeAbility } from '../systems/abilities.js';
@@ -43,16 +48,20 @@ import { getQuestionTimer, SOFT_TIMER_BONUS } from '../systems/battleTimer.js';
 import { canTriggerSpecial, specialOperator, resolveSpecial, specialTimerMs } from '../systems/specialRules.js';
 import { playBossEntrance, showIntentBadge, playBossTelegraph, getBossMove, isSpecialTurn, isTelegraphTurn, specialDamagePerHero } from '../systems/bossPresentation.js';
 import { getBossRig } from '../systems/bossRigs.js';
+import {
+  phaseForHp, phaseDueByQuestions, phaseCadence, phaseScale,
+  counterMitigation, getPhaseBeat, MAX_PHASE,
+} from '../systems/bossPhases.js';
 import { advanceSpireRun } from '../systems/spire.js';
 import { createNumpad } from '../ui/numpad.js';
-import { drawMonsterSprite } from '../ui/monsterSprites.js';
+import { drawMonsterSprite, applyBossPhaseArt } from '../ui/monsterSprites.js';
 import { applyFloorOverlay } from '../systems/renderingFilters.js';
 import { createFractionDisplay } from '../ui/fractionDisplay.js';
 import { createGeometryDiagram } from '../ui/geometryDiagram.js';
 import { playMonsterAttack } from '../systems/monsterAttackAnimations.js';
 import { heroFormation, monsterFormation, drawGroundPlane, drawGroundShadow, BATTLE_PERSPECTIVE } from '../systems/perspective.js';
 import { makeRng } from '../systems/rng.js';
-import { computeLevel, levelBonuses, getPersonality } from '../data/heroes.js';
+import { getPersonality } from '../data/heroes.js';
 import { shouldShowTutorial, markTutorialShown, getTutorialText } from '../systems/tutorial.js';
 import { checkAchievements } from '../systems/achievements.js';
 import { DIALOGUE } from '../data/dialogue.js';
@@ -131,39 +140,20 @@ export class BattleScene extends Phaser.Scene {
     this.isBoss = !!data?.isBoss;
 
     // --- Multi-monster encounter setup ---
-    const FLOOR_BOSS = {
-      1: 'briarking', 2: 'pressure', 3: 'skywhale', 4: 'pyroclast',
-      5: 'absolutezero', 6: 'theprism', 7: 'counterfeiter',
-      8: 'theparadox', 9: 'theorem',
-    };
-    const bossIds = Object.values(FLOOR_BOSS);
-    const floorPool = getEnemiesForFloor(this.floor).filter(e => !bossIds.includes(e.id));
-    const safePick = () => floorPool.length > 0 ? floorPool[Math.floor(Math.random() * floorPool.length)] : getEnemiesForFloor(1)[0];
-
+    // battleRules.composeEncounter is the shared seam: the 3D battle stages
+    // exactly the same pack, with the same split HP and the same boss bonus.
     if (data?.enemy) {
       this.enemies = [{ ...data.enemy }];
-    } else if (this.isBoss) {
-      const bossId = data?.enemyId || FLOOR_BOSS[this.floor] || 'briarking';
-      const bossDef = getEnemyById(bossId) || safePick();
-      const boss = spawnEnemy(bossDef.id, { grade: this.grade, isBoss: true });
-      // Bosses carry 10% more HP — a longer, more climactic final stand.
-      boss.maxHp = Math.max(1, Math.round(boss.maxHp * 1.10));
-      boss.hp = boss.maxHp;
-      this.enemies = [boss];
+    } else if (Array.isArray(data?.enemies) && data.enemies.length) {
+      this.enemies = data.enemies.map((e) => ({ ...e }));
     } else {
-      const roll = Math.random();
-      const count = data?.devCount || (roll < 0.4 ? 1 : roll < 0.8 ? 2 : 3);
-      const hpScale = count === 1 ? 1.0 : count === 2 ? 0.75 : 0.5;
-      this.enemies = [];
-      for (let i = 0; i < count; i++) {
-        const def = safePick();
-        const e = spawnEnemy(def.id, { grade: this.grade, isBoss: false });
-        if (count > 1) {
-          e.maxHp = Math.max(1, Math.round(e.maxHp * hpScale));
-          e.hp = e.maxHp;
-        }
-        this.enemies.push(e);
-      }
+      this.enemies = composeEncounter({
+        floor: this.floor,
+        grade: this.grade,
+        isBoss: this.isBoss,
+        enemyId: this.isBoss ? data?.enemyId : null,
+        count: data?.devCount || 0,
+      });
     }
 
     // Backward compatibility: this.enemy always points to first enemy
@@ -176,8 +166,13 @@ export class BattleScene extends Phaser.Scene {
     // Undefined means "came from somewhere that isn't the maze"
     // (direct from World Map or from scene test harness), in which case
     // victory goes back to World Map.
-    this.returnScene = this.registry.get('battleReturnScene') || SCENES.WORLD_MAP;
+    this.returnScene = this.registry.get('battleReturnScene') || hubSceneKey(this.save);
     this.returnData = this.registry.get('battleReturnData') || null;
+    // A fight launched from INSIDE a 3D floor returns to the Overworld scene —
+    // which is a hub key — but it is not the "straight off the map, no maze
+    // wrapper" fast path, so it must not let a random encounter win complete
+    // the floor. `resumeFloor` is the marker OverworldScene sets.
+    this.fromFloor3d = !!this.returnData?.resumeFloor;
 
     this.momentum = 0.5;
     this.streak = 0;
@@ -260,7 +255,18 @@ export class BattleScene extends Phaser.Scene {
     this.battleCorrect = 0;
     this.battleWrong = 0;
 
-    // Track whether boss story dialogue has been shown
+    // Boss phase state. `bossPhase` drives the special cadence, the
+    // damage multiplier, the arena state and the boss's artwork; it only
+    // ever moves forward (a heal must never un-transform a boss).
+    this.bossPhase = 1;
+    this._bossQuestionCount = 0;
+    // Counter window: correct answers landed while the boss is winding
+    // up charge a guard that blunts the incoming special.
+    this._counterWindowOpen = false;
+    this._counterSparks = 0;
+    this._finalePlayed = false;
+    // Legacy flags — kept so the half/quarter achievement paths and any
+    // save-scummed state read the same as before the phase rewrite.
     this.bossHalfHpShown = false;
     this.bossQuarterHpShown = false;
     // Track whether any hero took damage this battle (for perfectBattle achievement)
@@ -340,6 +346,10 @@ export class BattleScene extends Phaser.Scene {
     // Bosses get their own score (music/boss-N); the director falls back
     // to the generic battle theme until a floor's boss piece exists.
     audio.playMusic(this.isBoss ? `music/boss-${this.floor}` : 'music/battle');
+    // A fight always opens at rest; _enterBossPhase drives it up from
+    // here. Explicit so a battle re-entered after a phase-3 fight (Boss
+    // Rush, Spire) never inherits the previous score's intensity.
+    audio.setMusicIntensity(1);
 
     // Fire each enemy's onBattleStart hook so any ability state can
     // initialize
@@ -373,7 +383,10 @@ export class BattleScene extends Phaser.Scene {
         this.time.delayedCall(200, () => this.showBattleCry(this.party[0], 'bossEncounter'));
       }
       const rig = getBossRig(this.enemies[0].id);
-      const entranceDone = this._onceWithWatchdog(() => this.nextTurn(), 4000);
+      // The staged entrance (dim → reveal → push-in → banner) runs ~3s,
+      // so the safety net sits at 5s: it must catch a genuinely stuck
+      // curtain without ever cutting a healthy one short.
+      const entranceDone = this._onceWithWatchdog(() => this.nextTurn(), 5000);
       (rig.entrance || playBossEntrance)(this, this.enemySprites[0], this.enemies[0], entranceDone);
     } else {
       this.time.delayedCall(400, () => this.nextTurn());
@@ -815,7 +828,16 @@ export class BattleScene extends Phaser.Scene {
         resolution: 2,
       }).setOrigin(0.5).setDepth(14);
 
-      const spriteData = { body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y };
+      // Resting transform, kept so a boss phase change can rebuild the
+      // idle tween at a bigger size instead of fighting the running one
+      // (a paused tween resumes toward its ORIGINAL targets and would
+      // silently shrink a transformed boss back down).
+      const spriteData = {
+        body, name, hpBarBg, hpBarFill, hpText, hpStroke, x, y,
+        baseScale: { x: body.scaleX || monsterScale, y: body.scaleY || monsterScale },
+        restY: y,
+        phaseMult: 1,
+      };
       this.enemySprites.push(spriteData);
 
       // Monster idle animation — form-specific movement, not generic
@@ -1854,10 +1876,19 @@ export class BattleScene extends Phaser.Scene {
     // pulsing intent badge over the boss + a named callout, so kids
     // can guard or heal on purpose instead of being ambushed.
     if (this._intentBadge) { this._intentBadge.destroy(); this._intentBadge = null; }
-    if (this.isBoss && isTelegraphTurn(this.bossTurnCount || 0) && this.enemies[0]?.hp > 0) {
+    if (this.isBoss && isTelegraphTurn(this.bossTurnCount || 0, this.bossPhase) && this.enemies[0]?.hp > 0) {
       this._intentBadge = showIntentBadge(this, this.enemySprites[0], this.enemies[0]);
       const move = getBossMove(this.enemies[0].id);
-      this.showToast(`${this.enemies[0].name} is preparing ${move.name}!`, '#e8a030');
+      // Open the COUNTER WINDOW: from here until the special lands,
+      // every correct answer lights a pip and shrinks the incoming hit,
+      // so a right answer reads as a parry rather than as bookkeeping.
+      if (!this._counterWindowOpen) {
+        this._counterWindowOpen = true;
+        this._counterSparks = 0;
+        this.showToast(`${this.enemies[0].name} is charging ${move.name} — answer to COUNTER!`, '#e8a030');
+      }
+    } else {
+      this._counterWindowOpen = false;
     }
 
     if (shouldShowTutorial('FIRST_BATTLE')) {
@@ -2263,18 +2294,23 @@ export class BattleScene extends Phaser.Scene {
     const livingHeroes = this.party.filter(h => h && h.hp > 0);
     if (livingHeroes.length === 0) return this.showDefeat();
 
-    // The warning served its purpose — clear it as the blow lands.
-    if (this._intentBadge) { this._intentBadge.destroy(); this._intentBadge = null; }
-
-    // Boss special cadence: every 3rd boss turn is the telegraphed
-    // signature move, hitting the whole party at reduced power —
-    // spectacle over punishment.
+    // Boss special cadence: the signature move fires every 3rd boss
+    // turn, or every 2nd once the boss has transformed. It hits the
+    // whole party at reduced power — spectacle over punishment.
+    //
+    // The intent badge is deliberately NOT cleared before this: it
+    // carries the counter pips, and the child needs to see the guard
+    // they charged still lit while the wind-up plays. _doBossSpecial
+    // retires it the moment the blow is committed.
     if (this.isBoss && aliveEnemies[0]) {
       this.bossTurnCount = (this.bossTurnCount || 0) + 1;
-      if (isSpecialTurn(this.bossTurnCount)) {
+      if (isSpecialTurn(this.bossTurnCount, this.bossPhase)) {
         return this._doBossSpecial(aliveEnemies[0]);
       }
     }
+
+    // Ordinary enemy turn — the warning served its purpose.
+    if (this._intentBadge) { this._intentBadge.destroy(); this._intentBadge = null; }
 
     const doEnemyAttack = (enemyIdx) => {
       if (enemyIdx >= aliveEnemies.length) {
@@ -2428,32 +2464,62 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * Wrap an animation-completion callback so it (a) can only fire once
-   * and (b) is force-fired after `timeoutMs` if the animation never
-   * calls it. The single defense against turn-loop freezes.
-   */
-  /**
-   * The boss's telegraphed signature move: wind-up, then the whole
-   * party takes a reduced hit at once. Guard still halves it; the
-   * defeat check runs after.
+   * The boss's telegraphed signature move: a 2-3 second wind-up with a
+   * bespoke visual tell, then the whole party takes one reduced hit.
+   *
+   * Three things scale with the boss's phase: how hard it lands
+   * (phaseCadence.damageMul), how many waves the rig performs, and how
+   * short the wind-up is. Against that, the COUNTER WINDOW pays the
+   * child back for reading the tell — each correct answer landed while
+   * the badge was up shrinks the hit (down to half at three). Guard
+   * still halves on top; the defeat check runs after.
    */
   _doBossSpecial(boss) {
     const bossIdx = this.enemies.indexOf(boss);
     const bossSprite = this.enemySprites[bossIdx];
     const move = getBossMove(boss.id);
+    const phase = this.bossPhase;
+    const rig = getBossRig(boss.id);
+    const sparks = this._counterSparks || 0;
+    const mitigation = counterMitigation(sparks);
+
     this.showToast(`${boss.name} unleashes ${move.name}!`, '#e86040');
-    playBossTelegraph(this, bossSprite, boss, () => {
+
+    const windCtx = {
+      party: this.party,
+      heroSprites: this.heroSprites,
+      phase,
+      move,
+      reducedMotion: this.reducedMotion,
+    };
+
+    // The wind-up owns the readable window; the watchdog is generous
+    // enough to cover the longest (phase 1, 2.2s) tell plus slack.
+    const afterWindup = this._onceWithWatchdog(() => {
+      if (this._counterWindowOpen) {
+        this._counterWindowOpen = false;
+        if (this._intentBadge) { this._intentBadge.destroy(); this._intentBadge = null; }
+      }
+      if (sparks > 0) {
+        this.showToast(
+          sparks >= 3 ? 'PERFECT COUNTER! Half power!' : `COUNTERED! ${sparks} guard${sparks > 1 ? 's' : ''}!`,
+          '#2bb3a3',
+        );
+      }
+
       // Precompute per-hero damage WITHOUT mutating hp — the rig only
       // performs; done() applies exactly this. Damage math is untouched.
       const living = this.party.filter(h => h && h.hp > 0);
       const plan = living.map(hero => {
         const heroIdx = this.party.indexOf(hero);
         const result = computeEnemyDamage(boss, hero, { momentum: this.momentum });
-        let dmg = specialDamagePerHero(result.modifiedDamage);
+        let dmg = specialDamagePerHero(result.modifiedDamage, phase);
+        if (mitigation < 1) dmg = Math.max(1, Math.round(dmg * mitigation));
         if (heroIdx >= 0 && this.guardActive[heroIdx]) dmg = Math.max(1, Math.ceil(dmg / 2));
         return { hero, dmg };
       });
       const perHeroDamage = plan.map(p => p.dmg);
+      this._counterSparks = 0;
 
       // Apply-and-advance, fired once when the rig finishes (watchdog at 5s).
       const done = this._onceWithWatchdog(() => {
@@ -2463,21 +2529,214 @@ export class BattleScene extends Phaser.Scene {
           this.updateHeroHp(hero);
         }
         audio.play('battle/hit-hero');
-        this.cameras.main.shake(260, 0.012);
+        this.cameras.main.shake(260, 0.012 * phaseCadence(phase).shakeMul);
         this.battleDamageTaken = true;
         if (this.party.every(h => !h || h.hp <= 0)) return this.showDefeat();
         this.time.delayedCall(600, () => this.nextTurn());
       }, 5000);
 
-      getBossRig(boss.id).special(this, bossSprite, {
+      rig.special(this, bossSprite, {
         party: this.party,
         heroSprites: this.heroSprites,
         perHeroDamage,
+        phase,
+        move,
         reducedMotion: this.reducedMotion,
       }, done);
+    }, 4000);
+
+    if (rig.windup) rig.windup(this, bossSprite, windCtx, afterWindup);
+    else playBossTelegraph(this, bossSprite, boss, afterWindup, { durationMs: phaseCadence(phase).windupMs });
+  }
+
+  /**
+   * Boss phase gate. Called after every hit that lands on a boss.
+   *
+   * HP thresholds (60% / 30%) drive it, with a correct-answer fallback
+   * so a crit streak that skips a band still gets the transformation —
+   * a child must never beat a boss having seen none of its escalation.
+   * Phases only ever move FORWARD.
+   */
+  _checkBossPhase(boss) {
+    if (!this.isBoss || !boss || boss.hp <= 0) return;
+    let want = phaseForHp(boss.hp, boss.maxHp);
+    // Fallback: due by answers even if HP never sat in the band.
+    for (let p = this.bossPhase + 1; p <= MAX_PHASE; p++) {
+      if (phaseDueByQuestions(this._bossQuestionCount || 0, p)) want = Math.max(want, p);
+    }
+    if (want <= this.bossPhase) return;
+    // Step one phase at a time so a huge crit still plays both beats.
+    this._enterBossPhase(this.bossPhase + 1, boss);
+  }
+
+  /**
+   * THE TRANSFORMATION BEAT — "he's getting serious", said five ways at
+   * once so a five-year-old cannot miss it:
+   *   1. the boss's ARTWORK changes (phase re-render + a size step)
+   *   2. the ARENA shifts state (the basin floods, the caldera cracks)
+   *   3. the MUSIC escalates (layer tracks arrive in the boss theme)
+   *   4. the ATTACK PATTERN changes (faster specials, heavier waves)
+   *   5. a DRAMATIC BEAT lands (flash in PAPER tones, shake, a title
+   *      card, and a line from the boss)
+   */
+  _enterBossPhase(phase, boss) {
+    this.bossPhase = Math.min(MAX_PHASE, phase);
+    const beat = getPhaseBeat(boss.id, this.bossPhase);
+    const sprite = this.enemySprites[this.enemies.indexOf(boss)];
+
+    // Keep the legacy story flags in sync — achievements and any saved
+    // progress still read them.
+    if (this.bossPhase >= 2) this.bossHalfHpShown = true;
+    if (this.bossPhase >= 3) this.bossQuarterHpShown = true;
+
+    // 1 — ART. Re-render the boss at this phase (art that ignores the
+    // phase simply re-uses its texture) and step its size up.
+    if (sprite?.body) {
+      try { applyBossPhaseArt(this, sprite.body, boss, this.bossPhase, this.floor); } catch { /* art optional */ }
+      this._setBossPhaseScale(sprite, phaseScale(this.bossPhase));
+    }
+
+    // 2 — ARENA.
+    try { this._arenaHandle?.setPhase?.(this.bossPhase); } catch { /* garnish only */ }
+
+    // 3 — THE SCORE. Push the boss theme up an intensity step so the
+    // transformation is AUDIBLE, not just visible: every boss piece
+    // carries layer-2 and layer-3 tracks that exist only for this
+    // moment (a second heartbeat, a counterproof, the eclipse drone).
+    // A child who is looking at their own hands still hears the fight
+    // change. Ramped, not cut — see director.setSongIntensity.
+    audio.setMusicIntensity(this.bossPhase);
+
+    // 4/5 — DRAMATIC BEAT. Warm PAPER wash, never a red alarm.
+    if (!this.reducedMotion) {
+      this.cameras.main.shake(420, 0.016);
+      this.cameras.main.flash?.(360, ...this._rgb(beat.flash));
+    }
+    audio.play('battle/hit-enemy');
+    this._showPhaseCard(beat, this.bossPhase);
+
+    // 5 — THE BOSS SPEAKS. Prefer the authored per-floor line so each
+    // boss keeps its own voice; fall back to the phase table.
+    const key = `floor${this.floor}_boss_${this.bossPhase === 2 ? 'half' : 'quarter'}`;
+    const authored = DIALOGUE[key]?.[0]?.text;
+    this.time.delayedCall(900, () => {
+      if (this.phase === 'end' || this._shuttingDown) return;
+      this.showToast(authored || beat.line, COLORS_CSS.goldL);
+    });
+
+    // A single huge crit can cross BOTH thresholds at once. Re-check
+    // after this beat finishes so phase 3 still plays instead of being
+    // skipped — a child must never miss a transformation.
+    if (this.bossPhase < MAX_PHASE) {
+      this.time.delayedCall(1700, () => {
+        if (this.phase === 'end' || this._shuttingDown) return;
+        this._checkBossPhase(boss);
+      });
+    }
+  }
+
+  /**
+   * Undo the death fade for a boss whose rig owns its ending.
+   *
+   * The shared kill path shrinks and fades every defeated enemy — right
+   * for eight bosses, wrong for the Theorem, which is MENDED rather
+   * than destroyed. Swapping to the art file's completed variant
+   * (artPhase 1: the halo closes, the snapped crown prong regrows, the
+   * empty box in its equation fills in) and bringing the body back to
+   * full makes the last image of the game a finished proof.
+   */
+  _restoreBossForFinale() {
+    const sd = this.enemySprites?.[0];
+    const boss = this.enemies?.[0];
+    if (!sd?.body || !boss) return;
+    try {
+      applyBossPhaseArt(this, sd.body, boss, this.bossPhase, this.floor, { artPhase: 1 });
+    } catch { /* art variant optional — the flourish still plays */ }
+    try { sd.idleTween?.stop?.(); } catch { /* already gone */ }
+    sd.idleTween = null;
+    const sx = (sd.baseScale?.x ?? sd.body.scaleX) * (sd.phaseMult || 1);
+    const sy = (sd.baseScale?.y ?? sd.body.scaleY) * (sd.phaseMult || 1);
+    this.tweens.add({
+      targets: sd.body,
+      alpha: 1, scaleX: sx, scaleY: sy, y: sd.restY ?? sd.body.y,
+      duration: 700, ease: 'Sine.out',
     });
   }
 
+  /**
+   * Grow a boss to its phase size and rebuild its idle tween around the
+   * new resting scale, so the swell is permanent and the breathing
+   * still works. `mult` is absolute against the sprite's build-time
+   * base scale, not relative to whatever the idle tween is mid-way to.
+   */
+  _setBossPhaseScale(sprite, mult) {
+    const body = sprite?.body;
+    const base = sprite?.baseScale;
+    if (!body || !base) return;
+    sprite.phaseMult = mult;
+    const sx = base.x * mult, sy = base.y * mult;
+    try { sprite.idleTween?.stop?.(); } catch { /* already gone */ }
+    sprite.idleTween = null;
+    this.tweens.add({
+      targets: body,
+      scaleX: sx, scaleY: sy,
+      y: sprite.restY ?? body.y,
+      duration: 420, ease: 'Back.out',
+      onComplete: () => {
+        if (this._shuttingDown || !body.scene) return;
+        sprite.idleTween = this.tweens.add({
+          targets: body,
+          scaleX: sx * 1.06, scaleY: sy * 1.07,
+          y: (sprite.restY ?? body.y) - 6,
+          duration: 1500,
+          yoyo: true, repeat: -1, ease: 'Sine.inOut',
+        });
+      },
+    });
+  }
+
+  /** Split a 0xRRGGBB int for cameras.flash(duration, r, g, b). */
+  _rgb(color) {
+    return [(color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff];
+  }
+
+  /**
+   * The phase title card: the boss's new name plus one plain sentence
+   * telling the child what changed ("Two waves, back to back!"). Stating
+   * the escalation is the difference between a kid noticing and a kid
+   * just losing more HP.
+   */
+  _showPhaseCard(beat, phase) {
+    const cx = GAME_WIDTH / 2;
+    const title = this.add.text(cx, 330, beat.title, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '58px',
+      color: COLORS_CSS.goldL,
+      stroke: PAPER_CSS.shadow,
+      strokeThickness: 10,
+    }).setOrigin(0.5).setDepth(BATTLE_DEPTH.END).setScrollFactor(0).setAlpha(0);
+    const sub = this.add.text(cx, 392, `PHASE ${phase} — ${beat.tell}`, {
+      fontFamily: '"Fredoka One", "Baloo 2", sans-serif',
+      fontSize: '26px',
+      color: PAPER_CSS.cream,
+      stroke: PAPER_CSS.shadow,
+      strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(BATTLE_DEPTH.END).setScrollFactor(0).setAlpha(0);
+    this.tweens.add({
+      targets: [title, sub],
+      alpha: 1,
+      duration: 240,
+      yoyo: true,
+      hold: 900,
+      onComplete: () => { title.destroy(); sub.destroy(); },
+    });
+  }
+
+  /**
+   * Wrap an animation-completion callback so it (a) can only fire once
+   * and (b) is force-fired after `timeoutMs` if the animation never
+   * calls it. The single defense against turn-loop freezes.
+   */
   _onceWithWatchdog(fn, timeoutMs = 2500) {
     let fired = false;
     const fire = () => {
@@ -2518,14 +2777,12 @@ export class BattleScene extends Phaser.Scene {
     // A scaffolded retry records nothing new — mastery/SM-2/adaptive keep
     // the FIRST attempt; the retry only restores lost attack power.
     if (!this._retryPending) {
-      recordAnswer(correct);
-      recordSkillAnswer(this.save, this.currentQuestion?.op, correct);
-      // Upgrade 1: adjust the child's per-skill adaptive level; stash an
-      // up-promotion so it can be celebrated (wired to visuals in U9).
-      const levelChange = updateAdaptiveLevel(this.save, this.currentQuestion?.op);
+      // Rolling accuracy, per-skill mastery, the adaptive level and the
+      // spaced-repetition schedule, in one shared call — battleRules owns
+      // this block so the 3D battle books an answer identically.
+      const levelChange = recordAnswerStats(this.save, this.currentQuestion, correct);
+      // Upgrade 1: stash an up-promotion so it can be celebrated (U9 visuals).
       if (levelChange.changed && levelChange.direction === 'up') this._pendingLevelUp = levelChange;
-      // Upgrade 2: update the persistent spaced-repetition schedule.
-      scheduleReview(this.save, this.currentQuestion, correct);
     }
 
     if (correct) {
@@ -2535,6 +2792,11 @@ export class BattleScene extends Phaser.Scene {
 
       this.streak++;
       this.battleCorrect++;
+      // Counter window: light a guard pip. Three correct answers halve
+      // the boss's signature move — the reward for reading the tell.
+      if (this._counterWindowOpen && this._intentBadge?.addSpark) {
+        this._counterSparks = this._intentBadge.addSpark();
+      }
       const _preHintM = this.momentum;
       this.momentum = advanceMomentum(this.momentum, true, this.streak);
       // Hints dampen the momentum gain (full → 60% → 30% by hint tier).
@@ -2668,24 +2930,18 @@ export class BattleScene extends Phaser.Scene {
       const sigAtk = getEffectiveAtk(hero, this.party);
       const effectiveHero = { ...hero, atk: sigAtk + atkBonus };
 
-      // Class-specific modifiers
-      let classMult = 1;
-      let hitCount = 1;
-      if (cls === 'knight') {
-        classMult = 1.3;
-      } else if (cls === 'wizard') {
-        if (this.streak >= 5) {
-          const weakest = this.party.filter(h => h.hp > 0).sort((a, b) => a.hp - b.hp)[0];
-          if (weakest) {
-            weakest.hp = Math.min(weakest.maxHp, weakest.hp + 10);
-            this.showToast(`${weakest.name} healed 10 HP!`, '#60ff60');
-            this.updateAllHeroHp();
-          }
+      // Class-specific modifiers — the numbers live in battleRules so the
+      // 3D battle swings for exactly the same damage.
+      const classProfile = classAttackProfile(cls, this.streak);
+      const classMult = classProfile.classMult;
+      const hitCount = classProfile.hitCount;
+      if (classProfile.allyHeal > 0) {
+        const weakest = this.party.filter(h => h.hp > 0).sort((a, b) => a.hp - b.hp)[0];
+        if (weakest) {
+          weakest.hp = Math.min(weakest.maxHp, weakest.hp + classProfile.allyHeal);
+          this.showToast(`${weakest.name} healed ${classProfile.allyHeal} HP!`, '#60ff60');
+          this.updateAllHeroHp();
         }
-        classMult = this.streak >= 3 ? 1.5 : 1.0;
-      } else if (cls === 'bunny') {
-        hitCount = 2 + (this.streak >= 4 ? 1 : 0);
-        classMult = 1.0 / hitCount * 1.2;
       }
 
       if (this.streak === 8) {
@@ -2784,30 +3040,13 @@ export class BattleScene extends Phaser.Scene {
       this.showBattleCry(hero, 'correctAnswer');
 
 
-      // Boss story beats: HP thresholds, with a question-count fallback so
-      // fast battles (supers/crits skipping past thresholds) still get them.
+      // Boss PHASE gate. This replaced the old half/quarter toast pair:
+      // the story beat is now one channel of a full transformation
+      // (art + arena + attack pattern + dialogue), fired at 60%/30% HP
+      // with the same correct-answer fallback so a crit streak that
+      // skips a band still plays the beat.
       this._bossQuestionCount = (this._bossQuestionCount || 0) + 1;
-      const halfDue = targetEnemy.hp <= targetEnemy.maxHp / 2 || this._bossQuestionCount >= 8;
-      const quarterDue = targetEnemy.hp <= targetEnemy.maxHp / 4 || this._bossQuestionCount >= 14;
-
-      if (this.isBoss && !this.bossHalfHpShown && targetEnemy.hp > 0 && halfDue) {
-        this.bossHalfHpShown = true;
-        const halfKey = `floor${this.floor}_boss_half`;
-        const halfDialogue = DIALOGUE[halfKey];
-        if (halfDialogue && halfDialogue.length > 0) {
-          this.showToast(halfDialogue[0].text, COLORS_CSS.goldL);
-        }
-      }
-
-      // Boss quarter-HP story beat (or question-count fallback)
-      if (this.isBoss && this.bossHalfHpShown && !this.bossQuarterHpShown && targetEnemy.hp > 0 && quarterDue) {
-        this.bossQuarterHpShown = true;
-        const qKey = `floor${this.floor}_boss_quarter`;
-        const qDialogue = DIALOGUE[qKey];
-        if (qDialogue && qDialogue.length > 0) {
-          this.showToast(qDialogue[0].text, COLORS_CSS.goldL);
-        }
-      }
+      if (this.isBoss && targetEnemy.isBoss) this._checkBossPhase(targetEnemy);
 
       // Check for kill IMMEDIATELY — don't wait for animations
       if (targetEnemy.hp <= 0) {
@@ -3740,10 +3979,10 @@ export class BattleScene extends Phaser.Scene {
       transitionTo(this, SCENES.CUTSCENE, {
         lines,
         floorId: this.floor,
-        nextScene: SCENES.WORLD_MAP,
+        nextScene: hubSceneKey(this.save),
       });
     } else {
-      transitionTo(this, SCENES.WORLD_MAP);
+      goHub(this);
     }
   }
 
@@ -3752,7 +3991,43 @@ export class BattleScene extends Phaser.Scene {
   // ================================================================
 
   showVictory() {
-    if (this.phase === 'end') return;
+    if (this.phase === 'end' || this.phase === 'finale') return;
+
+    // THE VICTORY BEAT. Every boss now owns its own ending, in one of
+    // two shapes:
+    //   `finale` — the rig owns the whole ending (Theorem only): the
+    //              boss is COMPLETED rather than destroyed, so its body
+    //              is restored out of the shared death fade first.
+    //   `defeat` — a ~1.5s signature cue over the death fade (the other
+    //              eight): the garden lets go, the forge cools, the ink
+    //              lifts. Eight bosses used to share the generic
+    //              shrink-and-fade, which made a whole floor's payoff
+    //              look identical to squashing a slime.
+    // Both are guarded by a watchdog: a stuck flourish must never eat
+    // a win, and both resume through this same method.
+    if (this.isBoss && !this._finalePlayed) {
+      const rig = getBossRig(this.enemies?.[0]?.id ?? this.enemyId);
+      const beat = rig?.finale || rig?.defeat;
+      if (beat) {
+        this._finalePlayed = true;
+        this.phase = 'finale';
+        this.locked = true;
+        if (rig.finale) this._restoreBossForFinale();
+        const resume = this._onceWithWatchdog(() => {
+          this.phase = 'battle';
+          this.showVictory();
+        }, 6000);
+        try {
+          beat.call(rig, this, this.enemySprites?.[0], {
+            party: this.party,
+            heroSprites: this.heroSprites,
+            reducedMotion: this.reducedMotion,
+          }, resume);
+        } catch { resume(); }
+        return;
+      }
+    }
+
     this.phase = 'end';
     this.locked = true;
 
@@ -3797,66 +4072,36 @@ export class BattleScene extends Phaser.Scene {
     audio.stopMusic();
     audio.playStinger('victory');
 
-    // Compute rewards
-    const goldEarned = 10 + this.floor * 5;
-    const save = this.save;
-    save.gold += goldEarned;
-    save.stats.totalBattles++;
-    save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
-    save.stats.totalWrong = (save.stats.totalWrong ?? 0) + this.battleWrong;
-
-    // Award XP and check for level ups
-    const xpEarned = 10 + this.floor * 5 + this.battleCorrect * 2;
-    let leveledUp = [];
-    for (let i = 0; i < this.party.length && i < 3; i++) {
-      if (!save.party[i]) save.party[i] = {};
-      save.party[i].id = this.party[i].id;
-      save.party[i].name = this.party[i].name;
-      save.party[i].hp = this.party[i].hp;
-      save.party[i].maxHp = this.party[i].maxHp;
-      // XP + level
-      const oldLevel = save.party[i].level || 1;
-      save.party[i].xp = (save.party[i].xp || 0) + xpEarned;
-      const newLevel = computeLevel(save.party[i].xp);
-      if (newLevel > oldLevel) {
-        save.party[i].level = newLevel;
-        const bonus = levelBonuses(newLevel);
-        const oldBonus = levelBonuses(oldLevel);
-        const hpGain = bonus.maxHp - oldBonus.maxHp;
-        save.party[i].maxHp += hpGain;
-        save.party[i].hp = Math.min(save.party[i].hp + hpGain, save.party[i].maxHp);
-        leveledUp.push(save.party[i].name);
-        const oldSupers = getAvailableSupers(save.party[i].id, oldLevel);
-        const newSupers = getAvailableSupers(save.party[i].id, newLevel);
-        if (newSupers.length > oldSupers.length) {
-          const learned = newSupers[newSupers.length - 1];
-          leveledUp.push(`${save.party[i].name} learned ${learned.name}!`);
-        }
-      } else {
-        save.party[i].level = newLevel;
-      }
-    }
-
-    // Update achievement-relevant stats
-    save.stats.totalGold = (save.stats.totalGold || 0) + goldEarned;
-    if (this.streak > (save.stats.bestStreak || 0)) {
-      save.stats.bestStreak = this.streak;
-    }
-    if (!this.battleDamageTaken) {
-      save.stats.perfectBattle = true;
-    }
-
+    // Gold, lifetime stats, XP, level-ups, floor completion and the daily
+    // quest ticks are all one shared function now (battleRules.applyBattleVictory)
+    // — the 3D battle in overworld/battle3d.js wins through the same call, so
+    // the two fights cannot pay out differently.
+    //
     // Mark floor complete on boss defeat. If we came directly from the
     // world map (no maze wrapper), any win counts so the progression
     // still advances on the fast path. But Boss Rush and Spire fights must
     // NEVER flip real floor progression — a Spire boss (unlocked at Floor 3)
     // would otherwise complete unbeaten floors and unlock heroes early.
-    if ((this.isBoss && !this.bossRush && !this.spire) || this.returnScene === SCENES.WORLD_MAP) {
-      markFloorComplete(save, this.floor);
-      const newHeroes = unlockHeroesForFloor(save, this.floor);
-      if (newHeroes.length > 0) {
-        this.registry.set('newlyUnlockedHeroes', newHeroes);
-      }
+    const save = this.save;
+    const markFloor = (this.isBoss && !this.bossRush && !this.spire)
+      || (isHubScene(this.returnScene) && !this.fromFloor3d);
+    const won = applyBattleVictory(save, {
+      floor: this.floor,
+      correct: this.battleCorrect,
+      wrong: this.battleWrong,
+      streak: this.streak,
+      party: this.party,
+      damageTaken: this.battleDamageTaken,
+      potionUsed: this.potionUsedThisBattle,
+      markFloor,
+    });
+    const goldEarned = won.gold;
+    const xpEarned = won.xp;
+    const leveledUp = won.leveledUp;
+    if (won.newHeroes.length > 0) {
+      this.registry.set('newlyUnlockedHeroes', won.newHeroes);
+    }
+    if (won.floorMarked) {
       const mazeKey = mazeStateKey(this.floor);
       const mazeState = this.registry.get(mazeKey);
       if (mazeState) {
@@ -3865,12 +4110,6 @@ export class BattleScene extends Phaser.Scene {
         try { localStorage.setItem(`mw_maze_${this.floor}`, JSON.stringify(mazeState)); } catch (e) { /* ignore */ }
       }
     }
-
-    updateQuestProgress(save, 'wins');
-    updateQuestProgress(save, 'streak', this.streak);
-    updateQuestProgress(save, 'gold', goldEarned);
-    if (!this.battleDamageTaken) updateQuestProgress(save, 'perfect');
-    if (!this.potionUsedThisBattle) updateQuestProgress(save, 'nopotion');
 
     // Daily challenge rewards
     let dailyGold = 0;
@@ -4131,16 +4370,11 @@ export class BattleScene extends Phaser.Scene {
     // real job: topping the party back up. Failure stays gentle per
     // DESIGN-PRINCIPLES.md principle 8 without making items pointless.
     const save = this.save;
-    save.stats.totalBattles++;
-    save.stats.totalCorrect = (save.stats.totalCorrect ?? 0) + this.battleCorrect;
-    save.stats.totalWrong = (save.stats.totalWrong ?? 0) + this.battleWrong;
-    for (let i = 0; i < this.party.length && i < 3; i++) {
-      if (!save.party[i]) save.party[i] = {};
-      save.party[i].id = this.party[i].id;
-      save.party[i].name = this.party[i].name;
-      save.party[i].hp = Math.max(1, Math.round(this.party[i].maxHp * 0.5));
-      save.party[i].maxHp = this.party[i].maxHp;
-    }
+    applyBattleDefeat(save, {
+      correct: this.battleCorrect,
+      wrong: this.battleWrong,
+      party: this.party,
+    });
     writeSave(save, this.slot);
 
     // Boss Rush: mark defeated

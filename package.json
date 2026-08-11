@@ -13,13 +13,16 @@
     "preview": "vite preview",
     "test": "find src -name '*.test.js' | xargs node --test",
     "test:e2e": "playwright test",
+    "beauty": "playwright test e2e/overworld-beauty.spec.js --project=3d",
     "test:all": "npm test && npm run build && npm run test:e2e",
     "ios:init": "npm install @capacitor/core @capacitor/cli @capacitor/ios && npx cap add ios",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios"
   },
   "dependencies": {
-    "phaser": "^3.80.1"
+    "@dimforge/rapier3d-compat": "^0.19.3",
+    "phaser": "^3.80.1",
+    "three": "0.170.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

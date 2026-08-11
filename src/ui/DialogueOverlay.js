@@ -86,6 +86,10 @@ export class DialogueOverlay {
 
   hide() {
     if (this.tapZone) this.tapZone.disableInteractive();
+    // The TAP chip's hit zone too — leaving it armed parks an invisible
+    // 130x46 interactive rectangle at (0,0) that eats top-left-corner taps
+    // for the rest of the session (topOnly input).
+    if (this.continueBtn?.zone) this.continueBtn.zone.disableInteractive();
     this.allObjects.forEach(o => { if (o) o.setVisible(false); });
     this._destroyPortrait();
     if (this.autoTimer) { this.autoTimer.remove(); this.autoTimer = null; }

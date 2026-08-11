@@ -11,6 +11,7 @@ import { getEnemyById } from '../data/enemies.js';
 import { loadSave, getActiveSlot } from '../systems/save.js';
 import { HERO_REACTIONS } from '../data/dialogue.js';
 import { drawGuidePortrait, hasGuidePortrait } from '../ui/guideArt.js';
+import { hubSceneKey } from '../ui/hubRouter.js';
 
 export class CutsceneScene extends Phaser.Scene {
   constructor() {
@@ -20,7 +21,7 @@ export class CutsceneScene extends Phaser.Scene {
   init(data) {
     this.mainLines = data.lines || [];
     this.floorId = data.floorId || 1;
-    this.nextScene = data.nextScene || SCENES.WORLD_MAP;
+    this.nextScene = data.nextScene || hubSceneKey();
     this.nextData = data.nextData || undefined;
     this.cutsceneTrigger = data.trigger || 'intro';
 

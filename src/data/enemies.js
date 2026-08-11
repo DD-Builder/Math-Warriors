@@ -10,6 +10,18 @@
  *
  * Enemy abilities are declared here by name only. Implementations live
  * in systems/abilities.js; scenes trigger them via invokeAbility().
+ *
+ * THE ESCALATION CONTRACT (enforced by combatSim.test.js — read this
+ * before touching a stat line):
+ *   · every boss's atk, def and hp weight is STRICTLY greater than the
+ *     boss on the floor below it;
+ *   · each floor's mob roster beats the floor below it on average atk,
+ *     def and hp weight;
+ *   · the Theorem is the hardest fight in the game at every grade.
+ * These held nowhere before v0.9.6: floor 9's mobs hit softer than
+ * floor 8's (avg atk 19.8 vs 21.8) and the final boss was weaker than
+ * the Paradox on every axis. That is the "bosses go downhill fast"
+ * regression. Do not let the curve invert again.
  */
 
 
@@ -59,10 +71,10 @@ export const FLOOR_2 = [
 // ------------------------------------------------------------------
 
 export const FLOOR_3 = [
-  mk('stormwing',   'Stormwing',     3, 22, 13, 5, 'thunder_mul',  0x284068),
-  mk('hailshot',    'Hailshot',      3, 20, 12, 6, 'volley',       0x304858),
-  mk('cycloneimp',  'Cyclone Imp',   3, 18, 14, 4, 'spin_up',      0x5060a0),
-  mk('thunderclap', 'Thunderclap',   3, 28, 15, 7, 'clap_charge',  0x202840),
+  mk('stormwing',   'Stormwing',     3, 24, 13, 5, 'thunder_mul',  0x284068),
+  mk('hailshot',    'Hailshot',      3, 22, 12, 6, 'volley',       0x304858),
+  mk('cycloneimp',  'Cyclone Imp',   3, 20, 14, 4, 'spin_up',      0x5060a0),
+  mk('thunderclap', 'Thunderclap',   3, 30, 15, 7, 'clap_charge',  0x202840),
   mk('skywhale',    'Skywhale',      3, 48, 18, 10, 'mass_matters',0x384860),
 ];
 
@@ -75,7 +87,7 @@ export const FLOOR_4 = [
   mk('ashwalker',   'Ashwalker',     4, 28, 16, 6, 'ash_divide',   0x503020),
   mk('magmatoad',   'Magma Toad',    4, 30, 17, 7, 'split_tongue', 0xa03010),
   mk('spineshard',  'Spineshard',    4, 22, 18, 4, 'shard_volley', 0x601808),
-  mk('pyroclast',   'Pyroclast',     4, 38, 20, 9, 'core_divide',  0x901808),
+  mk('pyroclast',   'Pyroclast',     4, 54, 20, 11, 'core_divide', 0x901808),
 ];
 
 // ------------------------------------------------------------------
@@ -83,11 +95,11 @@ export const FLOOR_4 = [
 // ------------------------------------------------------------------
 
 export const FLOOR_5 = [
-  mk('frostbite',    'Frostbite',      5, 28, 16, 8,  'chill_snap',   0x60a8d8),
+  mk('frostbite',    'Frostbite',      5, 28, 17, 8,  'chill_snap',   0x60a8d8),
   mk('icicle',       'Icicle Imp',     5, 22, 18, 6,  'freeze_ray',   0x80c8e8),
-  mk('snowdrift',    'Snowdrift',      5, 30, 15, 10, 'blizzard',     0xa0d0f0),
-  mk('glacial',      'Glacial Golem',  5, 34, 17, 12, 'ice_armor',    0x4890b8),
-  mk('absolutezero', 'Absolute Zero',  5, 48, 22, 14, 'deep_freeze',  0x2868a0),
+  mk('snowdrift',    'Snowdrift',      5, 30, 16, 10, 'blizzard',     0xa0d0f0),
+  mk('glacial',      'Glacial Golem',  5, 34, 18, 12, 'ice_armor',    0x4890b8),
+  mk('absolutezero', 'Absolute Zero',  5, 60, 22, 13, 'deep_freeze',  0x2868a0),
 ];
 
 // ------------------------------------------------------------------
@@ -95,11 +107,11 @@ export const FLOOR_5 = [
 // ------------------------------------------------------------------
 
 export const FLOOR_6 = [
-  mk('shard',      'Crystal Shard',   6, 30, 18, 8,  'refract',       0xc080f0),
-  mk('geode',      'Geode',           6, 26, 20, 6,  'crystal_burst', 0xa060d0),
-  mk('prismling',  'Prismling',       6, 24, 22, 5,  'light_split',   0xd0a0ff),
-  mk('facet',      'Facet Guardian',   6, 36, 19, 14, 'mirror_shield', 0x8040c0),
-  mk('theprism',   'The Prism',       6, 52, 24, 16, 'shape_shift',   0x6020a0),
+  mk('shard',      'Crystal Shard',   6, 30, 18, 9,  'refract',       0xc080f0),
+  mk('geode',      'Geode',           6, 26, 20, 7,  'crystal_burst', 0xa060d0),
+  mk('prismling',  'Prismling',       6, 24, 22, 6,  'light_split',   0xd0a0ff),
+  mk('facet',      'Facet Guardian',  6, 36, 19, 15, 'mirror_shield', 0x8040c0),
+  mk('theprism',   'The Prism',       6, 66, 24, 15, 'shape_shift',   0x6020a0),
 ];
 
 // ------------------------------------------------------------------
@@ -107,11 +119,11 @@ export const FLOOR_6 = [
 // ------------------------------------------------------------------
 
 export const FLOOR_7 = [
-  mk('pickpocket',    'Pickpocket',        7, 28, 19, 7,  'steal_gold',  0xc0a060),
-  mk('taxcollector',  'Tax Collector',     7, 32, 17, 10, 'levy',        0xa08040),
-  mk('merchant',      'Rogue Merchant',    7, 26, 21, 6,  'price_hike',  0xd0b070),
-  mk('banker',        'Corrupt Banker',    7, 34, 18, 12, 'interest',    0x806020),
-  mk('counterfeiter', 'The Counterfeiter', 7, 56, 25, 16, 'fake_coins',  0x604010),
+  mk('pickpocket',    'Pickpocket',        7, 30, 21, 8,  'steal_gold',  0xc0a060),
+  mk('taxcollector',  'Tax Collector',     7, 34, 20, 11, 'levy',        0xa08040),
+  mk('merchant',      'Rogue Merchant',    7, 28, 23, 7,  'price_hike',  0xd0b070),
+  mk('banker',        'Corrupt Banker',    7, 36, 20, 15, 'interest',    0x806020),
+  mk('counterfeiter', 'The Counterfeiter', 7, 72, 26, 17, 'fake_coins',  0x604010),
 ];
 
 // ------------------------------------------------------------------
@@ -119,11 +131,11 @@ export const FLOOR_7 = [
 // ------------------------------------------------------------------
 
 export const FLOOR_8 = [
-  mk('bookworm_e', 'Bookworm',       8, 30, 20, 8,  'page_turn',  0x604830),
-  mk('inkblot',    'Inkblot',        8, 26, 22, 6,  'smudge',     0x1a1018),
-  mk('riddler',    'The Riddler',    8, 28, 24, 7,  'riddle_me',  0x483828),
-  mk('archivist',  'Dark Archivist', 8, 36, 21, 14, 'silence',    0x302018),
-  mk('theparadox', 'The Paradox',    8, 60, 26, 18, 'reversal',   0x201010),
+  mk('bookworm_e', 'Bookworm',       8, 34, 23, 10, 'page_turn',  0x604830),
+  mk('inkblot',    'Inkblot',        8, 30, 24, 8,  'smudge',     0x1a1018),
+  mk('riddler',    'The Riddler',    8, 32, 26, 9,  'riddle_me',  0x483828),
+  mk('archivist',  'Dark Archivist', 8, 40, 23, 16, 'silence',    0x302018),
+  mk('theparadox', 'The Paradox',    8, 78, 27, 19, 'reversal',   0x201010),
 ];
 
 // ------------------------------------------------------------------
@@ -131,11 +143,11 @@ export const FLOOR_8 = [
 // ------------------------------------------------------------------
 
 export const FLOOR_9 = [
-  mk('runebound',   'Runebound',     9, 32, 18, 10, 'op_shift',    0x281848),
-  mk('hexweave',    'Hexweave',      9, 28, 20, 7,  'geo_lock',    0x381060),
-  mk('grimoire',    'Grimoire',      9, 30, 19, 8,  'flip_page',   0x201040),
-  mk('familiar',    'Familiar',      9, 24, 22, 6,  'phase_lock',  0x501878),
-  mk('theorem',     'The Theorem',   9, 54, 24, 12, 'the_unknown', 0x100828),
+  mk('runebound',   'Runebound',     9, 40, 26, 13, 'op_shift',    0x281848),
+  mk('hexweave',    'Hexweave',      9, 34, 27, 10, 'geo_lock',    0x381060),
+  mk('grimoire',    'Grimoire',      9, 36, 25, 12, 'flip_page',   0x201040),
+  mk('familiar',    'Familiar',      9, 30, 29, 9,  'phase_lock',  0x501878),
+  mk('theorem',     'The Theorem',   9, 92, 33, 23, 'the_unknown', 0x100828),
 ];
 
 // ------------------------------------------------------------------
@@ -226,16 +238,35 @@ export function computeEnemyHp(def, grade, isBoss) {
   // weight against the floor's median original maxHp. Gives variety
   // (tanks vs glass cannons) without letting absolute values drift.
   // Bosses escalate by floor instead — the Theorem must feel bigger
-  // than the Briar King, not identical (floor 1 ×1.0 → floor 9 ×1.4).
+  // than the Briar King, not identical.
   const floorPool = ALL_ENEMIES.filter((e) => e.floor === def.floor && !isLegacyBoss(e));
   const medianOriginalHp = median(floorPool.map((e) => e.maxHp)) || def.maxHp;
   const weight = isBoss
-    ? 1 + ((def.floor || 1) - 1) * 0.05
+    ? bossFloorWeight(def.floor || 1)
     : clamp(def.maxHp / medianOriginalHp, 0.75, 1.4);
 
   const hp = Math.round(avgHit * problemsTarget * weight);
   const minMob = isBoss ? Math.max(80, 40 + grade * 15) : 12;
   return Math.max(minMob, hp);
+}
+
+/** The last floor. Its boss is the game's climax and is weighted as such. */
+export const FINAL_FLOOR = 9;
+
+/**
+ * Boss HP multiplier by floor.
+ *
+ * Bosses ignore the within-floor median weighting that mobs use and
+ * scale purely on depth, so a boss fight always runs long enough to
+ * show all three of its phases. The linear ramp (×1.00 at floor 1 →
+ * ×1.44 at floor 9) is topped with a deliberate CROWN BONUS on the
+ * final floor: without it the Theorem simulated as an easier fight
+ * than the Paradox at several grades, which is exactly the "bosses go
+ * downhill" regression this pass exists to kill.
+ */
+export function bossFloorWeight(floor) {
+  const base = 1 + (Math.max(1, floor) - 1) * 0.055;
+  return floor === FINAL_FLOOR ? base + 0.12 : base;
 }
 
 function median(arr) {
